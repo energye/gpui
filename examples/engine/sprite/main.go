@@ -118,18 +118,42 @@ func depthSprite(name string, sx, sy, sw, sh, dx, dy, dw, dh, depth float64) ren
 	return sp
 }
 
-func depthTrueSprites(ox, oy float64) []render.DepthSprite {
+// depthNearFirstSprites 故意「近先远后」提交：错的顺序就该画出错的盖序（对比臂）。
+func depthNearFirstSprites(ox, oy float64) []render.DepthSprite {
 	return []render.DepthSprite{
-		depthSprite("far-green", 8, 0, 8, 8, ox+6, oy+6, 40, 40, 10),
 		depthSprite("near-red", 0, 0, 8, 8, ox+20, oy+20, 40, 40, 1),
+		depthSprite("far-green", 8, 0, 8, 8, ox+6, oy+6, 40, 40, 10),
 	}
 }
 
-func depthFalseSprites(ox, oy float64) []render.DepthSprite {
-	return []render.DepthSprite{
-		depthSprite("near-red", 0, 0, 8, 8, ox+20, oy+20, 40, 40, 1),
-		depthSprite("far-green", 8, 0, 8, 8, ox+6, oy+6, 40, 40, 10),
+// sortDepthByEngine 把一批 render 深度精灵交给 engine 侧真源排序
+// （sprite.DepthSort → camera 的两级键）：render 层不再自己排（P3.7 批 2 步 2c）。
+func sortDepthByEngine(in []render.DepthSprite) []render.DepthSprite {
+	byName := make(map[string]int, len(in))
+	items := make([]sprite.DeepItem, len(in))
+	for i, d := range in {
+		byName[d.Name] = i
+		items[i] = sprite.DeepItem{Name: d.Name, Depth: d.Depth}
 	}
+	ordered, err := sprite.DepthSort(items)
+	if err != nil || len(ordered) != len(in) {
+		return in
+	}
+	out := make([]render.DepthSprite, 0, len(in))
+	for _, it := range ordered {
+		if idx, ok := byName[it.Name]; ok {
+			out = append(out, in[idx])
+		}
+	}
+	if len(out) != len(in) {
+		return in
+	}
+	return out
+}
+
+// depthFarFirstSprites 与对比臂同一批精灵，只是先交给 engine 排成「远先近后」。
+func depthFarFirstSprites(ox, oy float64) []render.DepthSprite {
+	return sortDepthByEngine(depthNearFirstSprites(ox, oy))
 }
 
 func depthSameSprites(ox, oy float64) []render.DepthSprite {
@@ -190,13 +214,13 @@ func paintParityCanvas() (parityCanvas, error) {
 	if _, err := dc.DrawAtlasEx(atlas, rs, render.AtlasDrawOptions{}); err != nil {
 		return pc, err
 	}
-	if _, err := dc.DrawDepthSprites(atlas, depthTrueSprites(8, 8), render.DepthDrawOptions{DepthTest: true}); err != nil {
+	if _, err := dc.DrawDepthSprites(atlas, depthFarFirstSprites(8, 8)); err != nil {
 		return pc, err
 	}
-	if _, err := dc.DrawDepthSprites(atlas, depthFalseSprites(100, 8), render.DepthDrawOptions{DepthTest: false}); err != nil {
+	if _, err := dc.DrawDepthSprites(atlas, depthNearFirstSprites(100, 8)); err != nil {
 		return pc, err
 	}
-	if _, err := dc.DrawDepthSprites(atlas, depthSameSprites(192, 8), render.DepthDrawOptions{DepthTest: true}); err != nil {
+	if _, err := dc.DrawDepthSprites(atlas, depthSameSprites(192, 8)); err != nil {
 		return pc, err
 	}
 	b := sprite.NewBatch()
@@ -309,9 +333,14 @@ func selftest() (map[string]any, image.Image, bool) {
 	extra["parity_mean_abs"] = mean
 	extra["parity_gpu_ops"] = gpu.stats.GPUOps
 	extra["batch_calls"] = cpu.batchCalls
-	sorted, err := render.SortDepthSprites(depthTrueSprites(8, 8))
+	// 深度排序归 engine：把「近先远后」的输入交给 sprite.DepthSort（内部走 camera
+	// 两级键），排成远先近后才提交；render 侧不再有排序口（P3.7 批 2 步 2c）。
+	ordered := sortDepthByEngine(depthNearFirstSprites(8, 8))
 	depthSorted := 0
-	if err == nil && render.IsDepthSorted(sorted) {
+	if len(ordered) == 2 && sprite.IsDepthSorted([]sprite.DeepItem{
+		{Name: ordered[0].Name, Depth: ordered[0].Depth},
+		{Name: ordered[1].Name, Depth: ordered[1].Depth},
+	}) && ordered[0].Depth > ordered[1].Depth {
 		depthSorted = 1
 	}
 	extra["depth_sorted"] = depthSorted
@@ -408,9 +437,9 @@ func paintDepthCard(pc *rendering.PaintContext, w, h float64) {
 	pc.DC.SetRGB(1, 1, 1)
 	pc.DC.DrawRectangle(ax, ay, w, h)
 	_ = pc.DC.Fill()
-	_, _ = pc.DC.DrawDepthSprites(atlasBuf, depthTrueSprites(ax+8, ay+8), render.DepthDrawOptions{DepthTest: true})
-	_, _ = pc.DC.DrawDepthSprites(atlasBuf, depthFalseSprites(ax+8, ay+110), render.DepthDrawOptions{DepthTest: false})
-	_, _ = pc.DC.DrawDepthSprites(atlasBuf, depthSameSprites(ax+8, ay+212), render.DepthDrawOptions{DepthTest: true})
+	_, _ = pc.DC.DrawDepthSprites(atlasBuf, depthFarFirstSprites(ax+8, ay+8))
+	_, _ = pc.DC.DrawDepthSprites(atlasBuf, depthNearFirstSprites(ax+8, ay+110))
+	_, _ = pc.DC.DrawDepthSprites(atlasBuf, depthSameSprites(ax+8, ay+212))
 	if face := wrkit.FaceAt(12); face != nil {
 		pc.DC.SetFont(face)
 	}
@@ -480,8 +509,8 @@ func paintSpriteFullWindow(pc *rendering.PaintContext, w, h float64, caseName st
 		if caseName != "all" {
 			ox = ax + w/2 - 60
 		}
-		_, _ = dc.DrawDepthSprites(atlasBuf, depthTrueSprites(ox, ay+metricStripH+24), render.DepthDrawOptions{DepthTest: true})
-		_, _ = dc.DrawDepthSprites(atlasBuf, depthFalseSprites(ox, ay+metricStripH+150), render.DepthDrawOptions{DepthTest: false})
+		_, _ = dc.DrawDepthSprites(atlasBuf, depthFarFirstSprites(ox, ay+metricStripH+24))
+		_, _ = dc.DrawDepthSprites(atlasBuf, depthNearFirstSprites(ox, ay+metricStripH+150))
 	}
 	if show("batch") {
 		var flat []render.AtlasSprite

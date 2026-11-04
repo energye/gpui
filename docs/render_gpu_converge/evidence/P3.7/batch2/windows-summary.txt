@@ -1,0 +1,48 @@
+# 批 2 真窗复验汇总（2026-11-04T18:18:53+08:00）
+# 头：HEAD=10e1471f dirty=50 paths（批 2 工作树未提交）
+# 跑法：一轮一窗、-auto-only、串行；每轮前后 pgrep -c Xwayland；无 SIGTERM 兜底、无 kill -9。
+窗 engine/25d_basis / native: rc=0 xwayland_before=1 after=1
+    probes ok=true golden=true(wrote=false changed=0) 
+窗 engine/25d_basis / go: rc=0 xwayland_before=1 after=1
+    probes ok=true golden=true(wrote=false changed=0) 
+窗 engine/stage_chase / native: rc=0（见日志）
+窗 engine/stage_chase / native: rc=0 xwayland_before=1 after=1
+    probes ok=true golden=true(wrote=false changed=0) 
+窗 engine/stage_chase / go: rc=0（见日志）
+窗 engine/stage_chase / go: rc=0 xwayland_before=1 after=1
+    probes ok=true golden=true(wrote=false changed=0) 
+窗 engine/sprite / native: rc=0 xwayland_before=1 after=1
+    "golden_changed_pct":0 "parity_changed_pct":0 
+窗 engine/sprite / go: rc=0 xwayland_before=1 after=1
+    "golden_changed_pct":0 "parity_changed_pct":0 
+窗 engine/world / native: rc=0 xwayland_before=1 after=1
+    probes ok=true golden=true(wrote=false changed=0) 
+窗 engine/world / go: rc=0 xwayland_before=1 after=1
+    probes ok=true golden=true(wrote=false changed=0) 
+窗 engine/camera / native: rc=0 xwayland_before=1 after=1
+    probes ok=true golden=true(wrote=false changed=0) 
+窗 engine/camera / go: rc=0 xwayland_before=1 after=1
+    probes ok=true golden=true(wrote=false changed=0) 
+----
+全部窗口跑完：fail=1（0=全 rc 0）
+显示会话健康：1 Xwayland 进程
+
+=== 补跑：stage_chase auto 段本身 120s（main.go:1034），前两轮 120s 护栏切断了窗口段 ⇒ 加大护栏重跑 ===
+窗 engine/stage_chase / native: rc=1 guard=300 xwayland 1->1
+    probes ok=true logic=true(cam=true chunk=true sort=true trail=true dirty=true pool=true detail=cam=(60,48) chunks=8x5 needed=2 sorted=far,near,fx,ui trail=12->2 dirty=1/full pool alive) pix=true parity=0.0000% golden=true(wrote=false changed=0)
+    收尾："fps_wall":59.75694170607424 FAIL: p95=17.51 want <=16 (§5) 
+窗 engine/stage_chase / go: rc=1 guard=300 xwayland 1->1
+    probes ok=true logic=true(cam=true chunk=true sort=true trail=true dirty=true pool=true detail=cam=(60,48) chunks=8x5 needed=2 sorted=far,near,fx,ui trail=12->2 dirty=1/full pool alive) pix=true parity=0.0000% golden=true(wrote=false changed=0)
+    收尾："fps_wall":59.787467166650714 FAIL: p95=23.11 want <=16 (§5) 
+
+=== 排序提速后终跑（委托去键表＋slices.SortFunc，1000 项 191us vs 基线 804us）===
+窗 engine/stage_chase / native: rc=1 guard=300 xwayland 1->1
+    probes ok=true logic=true(cam=true chunk=true sort=true trail=true dirty=true pool=true detail=cam=(60,48) chunks=8x5 needed=2 sorted=far,near,fx,ui trail=12->2 dirty=1/full pool alive) pix=true parity=0.0000% golden=true(wrote=false changed=0)
+    "fps_wall":59.765803582110756
+    "interval_p95_ms":22.948272
+    FAIL: p95=22.95 want <=16
+窗 engine/stage_chase / go: rc=1 guard=300 xwayland 1->1
+    probes ok=true logic=true(cam=true chunk=true sort=true trail=true dirty=true pool=true detail=cam=(60,48) chunks=8x5 needed=2 sorted=far,near,fx,ui trail=12->2 dirty=1/full pool alive) pix=true parity=0.0000% golden=true(wrote=false changed=0)
+    "fps_wall":59.786770801962525
+    "interval_p95_ms":23.067968
+    FAIL: p95=23.07 want <=16

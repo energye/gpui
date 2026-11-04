@@ -1,0 +1,9 @@
+# 批 2 conformance 双后端（2026-11-04T18:11:39+08:00）
+-- GPUI_BACKEND=native --
+--- PASS: TestConformanceDualBackend (0.78s)
+--- SKIP: TestConformanceInner (0.00s)
+ok  	github.com/energye/gpui/render	0.787s
+-- GPUI_BACKEND=go --
+--- PASS: TestConformanceDualBackend (0.86s)
+--- SKIP: TestConformanceInner (0.00s)
+ok  	github.com/energye/gpui/render	0.870s

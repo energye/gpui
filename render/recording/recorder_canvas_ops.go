@@ -245,15 +245,14 @@ func (r *Recorder) DrawAtlasEx(img *render.ImageBuf, sprites []render.AtlasSprit
 	return render.AtlasDrawResult{}, nil
 }
 
-// DrawDepthSprites draws a depth-tagged sprite batch.
-func (r *Recorder) DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite, opts render.DepthDrawOptions) (render.DepthDrawResult, error) {
+// DrawDepthSprites draws a depth-tagged sprite batch in the submitted order.
+func (r *Recorder) DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite) (render.DepthDrawResult, error) {
 	if img == nil || img.Disposed() {
 		return render.DepthDrawResult{Skipped: true}, nil
 	}
 	r.commands = append(r.commands, DrawDepthSpritesCommand{
 		Image:   r.resources.AddImageBuf(img),
 		Sprites: cloneDepthSprites(sprites),
-		Opts:    opts,
 	})
 	return render.DepthDrawResult{}, nil
 }

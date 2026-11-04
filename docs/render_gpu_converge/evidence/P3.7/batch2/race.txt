@@ -1,0 +1,44 @@
+# 批 2 -race（2026-11-04，HEAD=10e1471f，工作树=批 2 未提交）
+
+## 一、本批改动面的 race 结果（全绿）
+
+    ok  github.com/energye/gpui/engine/camera              1.085s   （TestP37YSort* + TestYSort* + 全包）
+    ok  github.com/energye/gpui/engine/sprite              1.844s   （TestP37Sprite* 对拍 + TestDepth/TestYSort 全集）
+    ok  github.com/energye/gpui/render                     2.881s   （TestP37DrawOrder* + TestDepthR5* + TestP37DepthSpritesCarryPersp）
+    ok  github.com/energye/gpui/render/recording           1.610s   （全包，含签名全量切换后的回放/边界/spy 测试）
+    ok  github.com/energye/gpui/render/recording/backends/raster 1.559s
+    ok  github.com/energye/gpui/engine/world               （除下节第二条在册门禁外，其余全绿）
+
+## 二、跑全包时撞出两条**非本批**红（同机交替 A/B 定性）
+
+### 1) `go test -race ./render`（整包）native 层 abort
+    thread '<unnamed>' panicked at src/conv.rs:519:22:
+    thread caused non-unwinding panic. aborting.  ⇒ signal arrived during cgo execution
+    FAIL github.com/energye/gpui/render 10.158s
+定位过程：
+- 本树整包 race：abort 点显示在 `TestP37ProjectionCounters`（批 1d 的钉，本批未碰）；
+- 该测试**单跑**：无 race `ok 0.365s`、带 race `ok 1.384s` ⇒ 不是它自己有问题；
+- **纯净 HEAD 工作树整包 race**：同一处 `conv.rs:519` abort、`FAIL render 10.158s`
+  ⇒ 本批不比基线差，属整包并发跑时 wgpu-native 队列/资源状态的既有缺陷
+  （批 1d 当天 race 只跑 `./render` + `./render/internal/gpu` 且绿，说明是状态相关而非当天代码不同）。
+登记：非批 2 引入，作为**在册 native FFI 整包 race abort** 记入账待后续专项定位
+（判据：整包 race 必红、单测绿、HEAD 同红）。批 2 的门禁用「按触及文件跑 race」口径（见 §一）。
+
+### 2) `engine/world` 的墙钟预算门禁 `TestCullBudgetLarge`
+    cull_test.go:423: update over 1655 actives: 10.50ms mean (gate 3.0)   本树 -race ⇒ FAIL
+    cull_test.go:423: update over 1655 actives:  8.63ms mean (gate 3.0)   纯净 HEAD -race ⇒ FAIL
+    cull_test.go:423: update over 1655 actives: 15.96ms mean (gate 3.0)   本树 -race 单跑该门禁复测 ⇒ FAIL
+同一门禁在**无 race** 下本树全包绿（`go test ./engine/world` ok 5.95~6.08s，sweep 里 engine/world 各文件全绿）；
+`-race` 下除这条门禁外 world 其余全绿（`-run 'TestP37Height|TestTransform|TestWorld|TestScene|TestPrefab|TestEntity'` ok 2.930s）。
+补测**并行合跑**（不插桩）：四包合跑时基线 HEAD 3/3 红（4.80/4.54/3.80ms）、本树 1/3 红（5.86ms），
+两树单跑 world 各 3/3 绿 ⇒ 该门禁对执行环境（插桩、抢核）敏感，见 `gates/world-cull-budget-ab.txt`。
+⇒ 定性：`-race` 插桩把 1655 实体的 cull 更新放大 3 倍以上，这条墙钟门禁在 race 下对任何代码都红；
+   `engine/world` 历史上不在批门禁的 race 名单里（批 1d 只 race 了 render 两包），本批第一次带上它才暴露。
+   属工具口径问题（预算门禁 × race 插桩），不是本批性能回归——批 2 在 world 只加了一个 `Height` 字段与折叠加法。
+登记：留档在册，后续要么给这条门禁加 `-race` 豁免档（写清判据），要么单列性能门禁专项；本批不改判据不掩盖。
+
+## 三、conformance 双后端（绿）
+
+    -- GPUI_BACKEND=native --  --- PASS: TestConformanceDualBackend (0.78s)  ok render 0.787s
+                                （TestConformanceInner SKIP：需双设备同开，本机不适用）
+    -- GPUI_BACKEND=go     --  --- PASS: TestConformanceDualBackend (0.86s)  ok render 0.870s

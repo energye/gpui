@@ -368,12 +368,12 @@ func (b *CanvasBackend) DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSp
 	_, _ = b.dc.DrawAtlasEx(img, sprites, opts)
 }
 
-// DrawDepthSprites replays a depth-tagged sprite batch.
-func (b *CanvasBackend) DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite, opts render.DepthDrawOptions) {
+// DrawDepthSprites replays a depth-tagged sprite batch in the submitted order.
+func (b *CanvasBackend) DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite) {
 	if img == nil || img.Disposed() || len(sprites) == 0 {
 		return
 	}
-	_, _ = b.dc.DrawDepthSprites(img, sprites, opts)
+	_, _ = b.dc.DrawDepthSprites(img, sprites)
 }
 
 // DrawVertices replays an immediate-mode mesh under the paint it was recorded

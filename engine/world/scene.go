@@ -229,7 +229,9 @@ func (s *Scene) World() *World {
 
 // SceneFileVersion is the scene file version every Encode writes.
 // Bump Minor for additive fields, Major for a breaking shape.
-var SceneFileVersion = core.Version{Major: 1, Minor: 0}
+// 1.1 (P3.7 batch 2 step 2d) carries the optional entity "height" through the
+// shared jsonTransform; 1.0 files still load and read as height 0.
+var SceneFileVersion = core.Version{Major: 1, Minor: 1}
 
 // Frozen budgets. A well-formed file beyond budget is OutOfMemory,
 // never a guessed load. A bad value is InvalidArg via constructors

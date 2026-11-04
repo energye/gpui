@@ -1,0 +1,23 @@
+# world/TestCullBudgetLarge 合跑内容敏感：同机 A/B（2026-11-04T18:57:46+08:00）
+  合跑轮1 基线: TestCullBudgetLarge large update 4.80ms exceeds engine/world	6.135s 
+  合跑轮1 本批: TestCullBudgetLarge large update 5.86ms exceeds engine/world	6.344s 
+  合跑轮2 基线: TestCullBudgetLarge large update 4.54ms exceeds engine/world	6.297s 
+  合跑轮2 本批: engine/world	7.694s 
+  合跑轮3 基线: TestCullBudgetLarge large update 3.80ms exceeds engine/world	6.444s 
+  合跑轮3 本批: engine/world	6.317s 
+  单跑轮1 基线: ok  	github.com/energye/gpui/engine/world	5.852s | 本批: ok  	github.com/energye/gpui/engine/world	6.020s
+  单跑轮2 基线: ok  	github.com/energye/gpui/engine/world	5.768s | 本批: ok  	github.com/energye/gpui/engine/world	6.079s
+  单跑轮3 基线: ok  	github.com/energye/gpui/engine/world	5.930s | 本批: ok  	github.com/energye/gpui/engine/world	5.948s
+
+## 定性（同机交替，读数即证据）
+
+合跑四包（camera+sprite+world+recording 并行）：
+  基线 HEAD  轮1 4.80ms 红 / 轮2 4.54ms 红 / 轮3 3.80ms 红      ⇒ 3/3 红
+  本批工作树  轮1 5.86ms 红 / 轮2 绿      / 轮3 绿             ⇒ 1/3 红
+单跑 world 一包：基线 3/3 绿（5.77~5.93s）、本批 3/3 绿（5.95~6.08s）
+门限 = 1655 实体平均 3.0ms；并行时四包抢核，基线比本批更常红。
+
+⇒ 定性：`world/TestCullBudgetLarge` 是**并行负载敏感**的墙钟预算门禁，不是批 2 引入
+（批 2 在 world 只加了 `Height` 字段与折叠的一次浮点加法，Transform 由 40B 涨到 48B）。
+处理：不改判据、不放松门限；按 AGENTS「回归按测试文件逐个跑」的正式口径（逐文件 sweep 单跑）
+这条在册 sweep 里 engine/world 各文件全绿，合跑只作为附加观察。登记入 batch2.md §四第 3 条。

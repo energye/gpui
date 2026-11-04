@@ -3,6 +3,7 @@ package render_test
 import (
 	"encoding/json"
 	"errors"
+	"image"
 	"math"
 	"os"
 	"path/filepath"
@@ -16,6 +17,10 @@ import (
 )
 
 // 本文件只读 render/testdata/depth_r5_cases.json，不硬编码标准色。
+//
+// P3.7 批 2 步 2c：render 层不再排序（SortDepthSprites/IsDepthSorted/SetDepth/
+// DepthTest 全删，排序判据只在 engine/camera 一份）。这里剩下的职责是「按提交序画」
+// 这条渲染契约：提交序 = 盖序，坏值 fail-closed，降级标记照旧。
 
 type depthSpriteDef struct {
 	Name    string     `json:"name"`
@@ -34,10 +39,9 @@ type depthProbeDef struct {
 }
 
 type depthCaseDef struct {
-	Note      string           `json:"note"`
-	DepthTest bool             `json:"depth_test"`
-	Sprites   []depthSpriteDef `json:"sprites"`
-	Probes    []depthProbeDef  `json:"probes"`
+	Note    string           `json:"note"`
+	Sprites []depthSpriteDef `json:"sprites"`
+	Probes  []depthProbeDef  `json:"probes"`
 }
 
 type depthR5Cases struct {
@@ -185,20 +189,30 @@ func newDepthWhite(w, h int) *render.Context {
 
 func drawDepthCPU(t *testing.T, dc *render.Context, img *render.ImageBuf, def depthCaseDef) render.DepthDrawResult {
 	t.Helper()
-	res, err := dc.DrawDepthSprites(img, toDepthSprites(def.Sprites), render.DepthDrawOptions{DepthTest: def.DepthTest})
+	res, err := dc.DrawDepthSprites(img, toDepthSprites(def.Sprites))
 	if err != nil {
 		t.Fatalf("DrawDepthSprites %q: %v", def.Note, err)
 	}
 	return res
 }
 
-// A: 远先近后盖对，输入倒序仍盖对，开关关则按输入序盖。
+func paintDepthCase(c depthR5Cases, img *render.ImageBuf, name string) image.Image {
+	def := c.Cases[name]
+	dc := newDepthWhite(c.Canvas[0], c.Canvas[1])
+	defer dc.Close()
+	if _, err := dc.DrawDepthSprites(img, toDepthSprites(def.Sprites)); err != nil {
+		panic(name + ": " + err.Error())
+	}
+	return dc.Image()
+}
+
+// A: 提交序 = 盖序。调用方排好远先近后 ⇒ 近盖远；反过来提交 ⇒ 远盖近。
 func TestDepthR5FarFirstFromCases(t *testing.T) {
 	withDepthCPU(t)
 	c := loadDepthR5Cases(t)
 	img := buildDepthR5Image(t, c)
 	w, h := c.Canvas[0], c.Canvas[1]
-	for _, name := range []string{"far_first", "far_last_input", "depth_off", "three_layers"} {
+	for _, name := range []string{"far_first", "submission_order", "same_depth_stable", "three_layers"} {
 		def, ok := c.Cases[name]
 		if !ok {
 			t.Fatalf("cases has no %q", name)
@@ -208,106 +222,37 @@ func TestDepthR5FarFirstFromCases(t *testing.T) {
 		if res.Skipped || res.Drawn != len(def.Sprites) {
 			t.Errorf("%s result = %+v, want Drawn=%d", name, res, len(def.Sprites))
 		}
-		if res.Sorted != def.DepthTest {
-			t.Errorf("%s Sorted = %v, want DepthTest %v", name, res.Sorted, def.DepthTest)
-		}
 		depthCheckProbes(t, dc, def.Probes)
 		dc.Close()
 	}
-	// 倒序输入与正序输出逐位一致（排序只换顺序不换色）。
-	withDepthCPU(t)
-	farFirst := c.Cases["far_first"]
-	farLast := c.Cases["far_last_input"]
-	dcA := newDepthWhite(w, h)
-	drawDepthCPU(t, dcA, img, farFirst)
-	imgA := dcA.Image()
-	dcA.Close()
-	dcB := newDepthWhite(w, h)
-	drawDepthCPU(t, dcB, img, farLast)
-	imgB := dcB.Image()
-	dcB.Close()
-	st, err := imagediff.Images(imgA, imgB)
+	// 同一批精灵只换提交序，画面必须不同（render 若还偷偷自己排序，这两张会逐位相同）。
+	st, err := imagediff.Images(paintDepthCase(c, img, "far_first"), paintDepthCase(c, img, "submission_order"))
 	if err != nil {
-		t.Fatalf("far_first vs far_last_input diff: %v", err)
+		t.Fatalf("far_first vs submission_order diff: %v", err)
 	}
-	if st.ChangedPixels != 0 || st.MaxDelta != 0 {
-		t.Fatalf("reversed input with DepthTest must be bitwise identical, changed=%d max=%d", st.ChangedPixels, st.MaxDelta)
+	if st.ChangedPixels == 0 {
+		t.Fatal("换了提交序画面却一模一样：render 还在自己排序？")
 	}
 }
 
-// A: 排序语义远先近后 + 同深稳定 + 输入不动。
-func TestDepthR5SortSemantics(t *testing.T) {
-	c := loadDepthR5Cases(t)
-	def := c.Cases["three_layers"]
-	in := toDepthSprites(def.Sprites)
-	keep := make([]render.DepthSprite, len(in))
-	copy(keep, in)
-	sorted, err := render.SortDepthSprites(in)
-	if err != nil {
-		t.Fatalf("SortDepthSprites: %v", err)
-	}
-	for i := 1; i < len(sorted); i++ {
-		if sorted[i].Depth > sorted[i-1].Depth {
-			t.Fatalf("sorted not far-first at %d: %v then %v", i, sorted[i-1].Depth, sorted[i].Depth)
-		}
-	}
-	if !render.IsDepthSorted(sorted) {
-		t.Errorf("IsDepthSorted(sorted) = false, want true")
-	}
-	if render.IsDepthSorted(in) && len(in) > 1 {
-		// three_layers 输入是打乱的，不该报有序（防假绿）。
-		t.Errorf("IsDepthSorted(scrambled three_layers) = true, want false")
-	}
-	for i := range in {
-		if in[i] != keep[i] {
-			t.Fatalf("Sort mutated input at %d", i)
-		}
-	}
-	// 同深稳定：输入序即输出序。
-	same := toDepthSprites(c.Cases["same_depth_stable"].Sprites)
-	sortedSame, err := render.SortDepthSprites(same)
-	if err != nil {
-		t.Fatalf("Sort same_depth: %v", err)
-	}
-	for i := range same {
-		if sortedSame[i].Name != same[i].Name {
-			t.Fatalf("same depth not stable at %d: got %q want %q", i, sortedSame[i].Name, same[i].Name)
-		}
-	}
-	// SetDepth 改值后重排：把近的改成最远应排到首位。
-	mut := make([]render.DepthSprite, len(sorted))
-	copy(mut, sorted)
-	nearest := len(mut) - 1
-	if err := render.SetDepth(&mut[nearest], 20); err != nil {
-		t.Fatalf("SetDepth: %v", err)
-	}
-	resorted, err := render.SortDepthSprites(mut)
-	if err != nil {
-		t.Fatalf("resort: %v", err)
-	}
-	if resorted[0].Name != mut[nearest].Name {
-		t.Errorf("SetDepth farthest should sort first, got %q", resorted[0].Name)
-	}
-}
-
-// B: 同深不闪 + 坏值不崩，哨兵错分得清。
+// B: 坏值不崩，哨兵错分得清（排序哨兵随能力一起迁回 engine）。
 func TestDepthR5EdgesNoCrash(t *testing.T) {
 	withDepthCPU(t)
 	c := loadDepthR5Cases(t)
 	img := buildDepthR5Image(t, c)
 	dc := newDepthWhite(32, 32)
 	defer dc.Close()
-	if res, err := dc.DrawDepthSprites(nil, toDepthSprites(c.Cases["far_first"].Sprites), render.DepthDrawOptions{DepthTest: true}); err != nil || !res.Skipped {
+	if res, err := dc.DrawDepthSprites(nil, toDepthSprites(c.Cases["far_first"].Sprites)); err != nil || !res.Skipped {
 		t.Errorf("nil img = %+v err=%v, want Skipped nil err", res, err)
 	}
-	if res, err := dc.DrawDepthSprites(img, nil, render.DepthDrawOptions{DepthTest: true}); err != nil || !res.Skipped {
+	if res, err := dc.DrawDepthSprites(img, nil); err != nil || !res.Skipped {
 		t.Errorf("nil sprites = %+v err=%v, want Skipped nil err", res, err)
 	}
 	bad := []render.DepthSprite{
 		{Sprite: render.AtlasSprite{SrcX: 0, SrcY: 0, SrcW: 0, SrcH: 8, DstX: 4, DstY: 4, DstW: 8, DstH: 8, Opacity: 1}, Depth: 1, Name: "zero-src"},
 		{Sprite: render.AtlasSprite{SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8, DstX: 4, DstY: 4, DstW: 0, DstH: 8, Opacity: 1}, Depth: 0, Name: "zero-dst"},
 	}
-	if res, err := dc.DrawDepthSprites(img, bad, render.DepthDrawOptions{DepthTest: true}); err != nil || !res.Skipped {
+	if res, err := dc.DrawDepthSprites(img, bad); err != nil || !res.Skipped {
 		t.Errorf("zero rects = %+v err=%v, want Skipped nil err", res, err)
 	}
 	if got := depthSample(t, dc, 16, 16); got != [4]uint8{255, 255, 255, 255} {
@@ -316,55 +261,36 @@ func TestDepthR5EdgesNoCrash(t *testing.T) {
 	nanSp := []render.DepthSprite{
 		{Sprite: render.AtlasSprite{SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8, DstX: 4, DstY: 4, DstW: 8, DstH: 8, Opacity: 1}, Depth: math.NaN()},
 	}
-	if _, err := dc.DrawDepthSprites(img, nanSp, render.DepthDrawOptions{DepthTest: true}); !errors.Is(err, render.ErrDepthNonFinite) {
+	if _, err := dc.DrawDepthSprites(img, nanSp); !errors.Is(err, render.ErrDepthNonFinite) {
 		t.Errorf("nan depth err = %v, want ErrDepthNonFinite", err)
 	}
 	infSp := []render.DepthSprite{
 		{Sprite: render.AtlasSprite{SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8, DstX: 4, DstY: 4, DstW: 8, DstH: 8, Opacity: 1}, Depth: math.Inf(1)},
 	}
-	if _, err := dc.DrawDepthSprites(img, infSp, render.DepthDrawOptions{DepthTest: true}); !errors.Is(err, render.ErrDepthNonFinite) {
+	if _, err := dc.DrawDepthSprites(img, infSp); !errors.Is(err, render.ErrDepthNonFinite) {
 		t.Errorf("inf depth err = %v, want ErrDepthNonFinite", err)
 	}
 	nanPx := []render.DepthSprite{
 		{Sprite: render.AtlasSprite{SrcX: math.NaN(), SrcY: 0, SrcW: 8, SrcH: 8, DstX: 4, DstY: 4, DstW: 8, DstH: 8, Opacity: 1}, Depth: 1},
 	}
-	if _, err := dc.DrawDepthSprites(img, nanPx, render.DepthDrawOptions{DepthTest: true}); !errors.Is(err, render.ErrDepthNonFinite) {
+	if _, err := dc.DrawDepthSprites(img, nanPx); !errors.Is(err, render.ErrDepthNonFinite) {
 		t.Errorf("nan sprite err = %v, want ErrDepthNonFinite", err)
-	}
-	if _, err := render.SortDepthSprites(nanSp); !errors.Is(err, render.ErrDepthNonFinite) {
-		t.Errorf("Sort nan err = %v, want ErrDepthNonFinite", err)
-	}
-	if render.IsDepthSorted(nanSp) {
-		t.Errorf("IsDepthSorted(nan) = true, want false")
-	}
-	if err := render.SetDepth(nil, 1); !errors.Is(err, render.ErrDepthNonFinite) {
-		t.Errorf("SetDepth nil err = %v, want ErrDepthNonFinite", err)
-	}
-	keep, _ := render.NewDepthSprite("k", render.AtlasSprite{SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8, DstX: 4, DstY: 4, DstW: 8, DstH: 8, Opacity: 1}, 3)
-	if err := render.SetDepth(&keep, math.NaN()); !errors.Is(err, render.ErrDepthNonFinite) {
-		t.Errorf("SetDepth nan err = %v, want ErrDepthNonFinite", err)
-	}
-	if keep.Depth != 3 {
-		t.Errorf("SetDepth nan mutated depth to %v", keep.Depth)
 	}
 	badFilt := []render.DepthSprite{
 		{Sprite: render.AtlasSprite{SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8, DstX: 4, DstY: 4, DstW: 8, DstH: 8, Opacity: 1, Filter: render.InterpolationMode(99)}, Depth: 1},
 	}
-	if _, err := dc.DrawDepthSprites(img, badFilt, render.DepthDrawOptions{DepthTest: true}); !errors.Is(err, render.ErrAtlasUnsupportedFilter) {
+	if _, err := dc.DrawDepthSprites(img, badFilt); !errors.Is(err, render.ErrAtlasUnsupportedFilter) {
 		t.Errorf("bad filter err = %v, want ErrAtlasUnsupportedFilter", err)
 	}
-	// 同深反复排序逐位一致（不闪）。
-	same := toDepthSprites(c.Cases["same_depth_stable"].Sprites)
-	a, _ := render.SortDepthSprites(same)
-	b, _ := render.SortDepthSprites(same)
-	for i := range a {
-		if a[i] != b[i] {
-			t.Fatalf("same-depth resort flickered at %d", i)
-		}
+	// 构造哨兵仍在（DepthSprite 数据格式随迁保留）。
+	if _, err := render.NewDepthSprite("nan", render.AtlasSprite{
+		SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8, DstX: 4, DstY: 4, DstW: 8, DstH: 8, Opacity: 1,
+	}, math.NaN()); !errors.Is(err, render.ErrDepthNonFinite) {
+		t.Errorf("NewDepthSprite nan err = %v, want ErrDepthNonFinite", err)
 	}
 }
 
-// D: 百个遮挡帧率有数。
+// D: 百个遮挡帧率有数（这里模拟已排好序的调用方）。
 func TestDepthR5PerfOcclusion(t *testing.T) {
 	withDepthCPU(t)
 	c := loadDepthR5Cases(t)
@@ -379,6 +305,9 @@ func TestDepthR5PerfOcclusion(t *testing.T) {
 		cp.DstW, cp.DstH = 4, 4
 		batch = append(batch, render.DepthSprite{Sprite: cp, Depth: float64(100 - i), Name: sp.Name})
 	}
+	if !sort.SliceIsSorted(batch, func(i, j int) bool { return batch[i].Depth > batch[j].Depth }) {
+		t.Fatal("压测批必须先排成远先近后")
+	}
 	dc := newDepthWhite(64, 64)
 	defer dc.Close()
 	const n = 50
@@ -386,14 +315,11 @@ func TestDepthR5PerfOcclusion(t *testing.T) {
 	drawn := 0
 	for i := 0; i < n; i++ {
 		dc.ClearWithColor(render.White)
-		res, err := dc.DrawDepthSprites(img, batch, render.DepthDrawOptions{DepthTest: true})
+		res, err := dc.DrawDepthSprites(img, batch)
 		if err != nil {
 			t.Fatalf("batch: %v", err)
 		}
 		drawn = res.Drawn
-		if !res.Sorted {
-			t.Fatalf("batch Sorted = false, want true")
-		}
 	}
 	el := time.Since(start)
 	t.Logf("depth-r5-perf: %d batches x100 sprites in %v (%.2f ms/batch drawn=%d)", n, el, float64(el.Milliseconds())/float64(n), drawn)
@@ -402,49 +328,30 @@ func TestDepthR5PerfOcclusion(t *testing.T) {
 	}
 }
 
-// E: 长跑顺序不乱。
+// E: 长跑交替提交，最终盖序跟着最后一次提交序。
 func TestDepthR5LongRunStable(t *testing.T) {
 	withDepthCPU(t)
 	c := loadDepthR5Cases(t)
 	img := buildDepthR5Image(t, c)
 	w, h := c.Canvas[0], c.Canvas[1]
 	a := c.Cases["far_first"]
-	b := c.Cases["far_last_input"]
+	b := c.Cases["submission_order"]
 	dc := newDepthWhite(w, h)
 	defer dc.Close()
 	const n = 500
+	last := a
 	for i := 0; i < n; i++ {
 		dc.ClearWithColor(render.White)
-		def := a
+		last = a
 		if i%2 == 1 {
-			def = b
+			last = b
 		}
-		if _, err := dc.DrawDepthSprites(img, toDepthSprites(def.Sprites), render.DepthDrawOptions{DepthTest: def.DepthTest}); err != nil {
+		if _, err := dc.DrawDepthSprites(img, toDepthSprites(last.Sprites)); err != nil {
 			t.Fatalf("rep %d: %v", i, err)
 		}
 	}
-	got := depthSample(t, dc, 14, 14)
-	if !depthClose(got, [4]uint8{0, 255, 0, 255}, 0) {
-		t.Fatalf("longrun final center = %v, want green", got)
-	}
-	// 排序长跑：同输入千次重排逐位一致。
-	in := toDepthSprites(c.Cases["three_layers"].Sprites)
-	first, err := render.SortDepthSprites(in)
-	if err != nil {
-		t.Fatalf("first sort: %v", err)
-	}
-	for i := 0; i < 1000; i++ {
-		again, err := render.SortDepthSprites(in)
-		if err != nil {
-			t.Fatalf("rep %d sort: %v", i, err)
-		}
-		for j := range first {
-			if first[j] != again[j] {
-				t.Fatalf("sort rep %d flickered at %d", i, j)
-			}
-		}
-	}
-	t.Logf("depth-r5-longrun: %d alternating draws ok, final center %v", n, got)
+	depthCheckProbes(t, dc, last.Probes)
+	t.Logf("depth-r5-longrun: %d alternating draws ok, last case probes hold", n)
 }
 
 // C: 显卡与 CPU 只差采样舍入（需真卡，无卡跳过不假绿）。
@@ -473,7 +380,7 @@ func TestDepthR5CPUGPUParity(t *testing.T) {
 		def := c.Cases[name]
 		withDepthCPU(t)
 		dcCPU := newDepthWhite(w, h)
-		if _, err := dcCPU.DrawDepthSprites(img, toDepthSprites(def.Sprites), render.DepthDrawOptions{DepthTest: def.DepthTest}); err != nil {
+		if _, err := dcCPU.DrawDepthSprites(img, toDepthSprites(def.Sprites)); err != nil {
 			dcCPU.Close()
 			t.Fatalf("%s CPU: %v", name, err)
 		}
@@ -481,7 +388,7 @@ func TestDepthR5CPUGPUParity(t *testing.T) {
 		dcCPU.Close()
 		withDepthGPU(t)
 		dcGPU := newDepthWhite(w, h)
-		if _, err := dcGPU.DrawDepthSprites(img, toDepthSprites(def.Sprites), render.DepthDrawOptions{DepthTest: def.DepthTest}); err != nil {
+		if _, err := dcGPU.DrawDepthSprites(img, toDepthSprites(def.Sprites)); err != nil {
 			dcGPU.Close()
 			t.Fatalf("%s GPU: %v", name, err)
 		}
@@ -527,7 +434,7 @@ func TestDepthR5OffscreenGolden(t *testing.T) {
 	for _, name := range names {
 		def := c.Cases[name]
 		dc := newDepthWhite(w, h)
-		res, err := dc.DrawDepthSprites(img, toDepthSprites(def.Sprites), render.DepthDrawOptions{DepthTest: def.DepthTest})
+		res, err := dc.DrawDepthSprites(img, toDepthSprites(def.Sprites))
 		if err != nil {
 			dc.Close()
 			t.Fatalf("%s: %v", name, err)

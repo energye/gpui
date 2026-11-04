@@ -308,7 +308,7 @@ func (r *Recording) Playback(backend Backend) error {
 		case DrawAtlasCommand:
 			backend.DrawAtlas(r.resources.GetImage(c.Image), c.Sprites, c.Opts)
 		case DrawDepthSpritesCommand:
-			backend.DrawDepthSprites(r.resources.GetImage(c.Image), c.Sprites, c.Opts)
+			backend.DrawDepthSprites(r.resources.GetImage(c.Image), c.Sprites)
 		case DrawVerticesCommand:
 			backend.DrawVertices(c.Positions, c.Colors, c.Mode, r.resources.GetBrush(c.Brush))
 		case DrawMeshCommand:

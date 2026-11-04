@@ -45,7 +45,7 @@ func (stubBackend) DrawImageRounded(_ *render.ImageBuf, _, _, _ float64)  {}
 func (stubBackend) DrawImageCircular(_ *render.ImageBuf, _, _, _ float64) {}
 func (stubBackend) DrawAtlas(_ *render.ImageBuf, _ []render.AtlasSprite, _ render.AtlasDrawOptions) {
 }
-func (stubBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.DepthSprite, _ render.DepthDrawOptions) {
+func (stubBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.DepthSprite) {
 }
 func (stubBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ Brush) {
 }

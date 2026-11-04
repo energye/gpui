@@ -26,10 +26,20 @@ const NoEntity ID = 0
 // Transform is a local placement: position plus rotation (radians,
 // counter-clockwise) plus scale. Scale may be zero (collapsed) or
 // negative (mirrored); only non-finite numbers are rejected.
+//
+// Height (P3.7 batch 2 step 2d) is the entity's lift off the ground in world
+// units. It feeds the projection stage only — the pinhole depth a sprite is
+// drawn at — and it deliberately enters neither the 2×3 affine chain
+// (LocalMatrix/WorldMatrix) nor the occlusion sort key, which keeps reading the
+// feet position (camera.YSortKeyY). Godot has no such field: its 2D height-less
+// canvas keeps Sprite2D.offset out of the y-sort key too. A parent chain folds
+// heights as a plain sum (WorldOf: parent + local), so a lifted child rides its
+// parent instead of snapping to the ground.
 type Transform struct {
-	Pos   core.Vec2
-	Rot   float64
-	Scale core.Vec2
+	Pos    core.Vec2
+	Rot    float64
+	Scale  core.Vec2
+	Height float64
 }
 
 // IdentityTransform returns the neutral placement: origin, no rotation,
@@ -77,7 +87,7 @@ func finite(x float64) bool { return !math.IsNaN(x) && !math.IsInf(x, 0) }
 
 func checkTransform(op string, t Transform) error {
 	if !finite(t.Pos.X) || !finite(t.Pos.Y) || !finite(t.Rot) ||
-		!finite(t.Scale.X) || !finite(t.Scale.Y) {
+		!finite(t.Scale.X) || !finite(t.Scale.Y) || !finite(t.Height) {
 		return core.InvalidArg(op, "transform")
 	}
 	return nil
@@ -280,9 +290,14 @@ func composeTransform(p, l Transform) Transform {
 	sx, sy := l.Pos.X*p.Scale.X, l.Pos.Y*p.Scale.Y
 	c, s := math.Cos(p.Rot), math.Sin(p.Rot)
 	return Transform{
-		Pos:   core.V2(p.Pos.X+sx*c-sy*s, p.Pos.Y+sx*s+sy*c),
-		Rot:   p.Rot + l.Rot,
-		Scale: core.V2(p.Scale.X*l.Scale.X, p.Scale.Y*l.Scale.Y),
+		Pos: core.V2(p.Pos.X+sx*c-sy*s, p.Pos.Y+sx*s+sy*c),
+		Rot: p.Rot + l.Rot,
+		// Height folds as a plain sum: the lift is its own axis, so the parent's
+		// 2D scale/rotation never touches it (an entity riding a lifted platform
+		// sits platform-height above the ground, no matter how the platform is
+		// scaled). Zero stays zero, so pre-Height chains fold bit-identically.
+		Height: p.Height + l.Height,
+		Scale:  core.V2(p.Scale.X*l.Scale.X, p.Scale.Y*l.Scale.Y),
 	}
 }
 

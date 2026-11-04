@@ -12,6 +12,16 @@
 //
 // Frozen 2026-09-15: LayerWorld, LayerFX,
 // LayerUI, Item, NewItem, Sort, IsSorted. Additive changes only.
+// P3.7 batch 2 step 2b (2026-11-04) kept every signature and moved the
+// judgement: Sort/IsSorted and DepthSort/IsDepthSorted no longer compare by a
+// local copy of the rule — the band maps onto camera's z buckets
+// (ZIndexForLayer) and camera.YSortLess decides (band bucket, foot Y with
+// camera's tolerance-based equality, input position as the tie breaker).
+// Measured bitwise-identical to the pre-delegation order on
+// testdata/p37_zsort_parity.json (two 1000-item stage_chase-shaped sets
+// included); the only intended delta is foot-Y differences inside camera's
+// equality tolerance, which now resolve by input position instead of by the
+// last float bits.
 //
 // Frozen 2026-09-15: LoopOnce, LoopLoop,
 // LoopPingPong, Clip, EventKind (EventNone/EventFrame/EventLoop/

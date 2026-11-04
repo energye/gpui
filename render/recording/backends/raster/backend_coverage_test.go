@@ -142,7 +142,7 @@ func TestBackendDrawImageNil(t *testing.T) {
 	backend.DrawImageRounded(nil, 0, 0, 4)
 	backend.DrawImageCircular(nil, 10, 10, 8)
 	backend.DrawAtlas(nil, []render.AtlasSprite{{DstX: 0, DstY: 0, DstW: 4, DstH: 4}}, render.AtlasDrawOptions{})
-	backend.DrawDepthSprites(nil, []render.DepthSprite{}, render.DepthDrawOptions{})
+	backend.DrawDepthSprites(nil, []render.DepthSprite{})
 
 	_ = backend.End()
 }

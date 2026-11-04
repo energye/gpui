@@ -32,7 +32,10 @@ import (
 
 // PrefabVersion is the prefab file version every Encode writes.
 // Bump Minor for additive fields, Major for a breaking shape.
-var PrefabVersion = core.Version{Major: 1, Minor: 0}
+// 1.1 (P3.7 batch 2 step 2d) added the optional local "height" key; 1.0 files
+// still load (the core CompatibleWith rule takes Minor <= current) and read as
+// height 0.
+var PrefabVersion = core.Version{Major: 1, Minor: 1}
 
 // Frozen budgets. A well-formed file beyond budget is OutOfMemory,
 // never a guessed load. A bad value is InvalidArg via constructors
@@ -208,11 +211,14 @@ func (p *Prefab) checkShape(op string) error {
 	return nil
 }
 
-// jsonTransform is the frozen local placement on disk.
+// jsonTransform is the frozen local placement on disk. Height is the P3.7
+// batch 2 lift (optional, omitted at zero so filed 1.0 bytes keep round-tripping
+// byte-identical); a missing key loads as height 0.
 type jsonTransform struct {
-	Pos   [2]float64 `json:"pos"`
-	Rot   float64    `json:"rot"`
-	Scale [2]float64 `json:"scale"`
+	Pos    [2]float64 `json:"pos"`
+	Rot    float64    `json:"rot"`
+	Scale  [2]float64 `json:"scale"`
+	Height float64    `json:"height,omitempty"`
 }
 
 // jsonComp is the frozen comp on disk: Kind names it, Ref carries the
@@ -232,9 +238,10 @@ type jsonPrefab struct {
 
 func transformToJSON(t Transform) jsonTransform {
 	return jsonTransform{
-		Pos:   [2]float64{t.Pos.X, t.Pos.Y},
-		Rot:   t.Rot,
-		Scale: [2]float64{t.Scale.X, t.Scale.Y},
+		Pos:    [2]float64{t.Pos.X, t.Pos.Y},
+		Rot:    t.Rot,
+		Scale:  [2]float64{t.Scale.X, t.Scale.Y},
+		Height: t.Height,
 	}
 }
 
@@ -243,12 +250,13 @@ func transformFromJSON(op string, j *jsonTransform) (Transform, error) {
 		return Transform{}, core.BadData(op, "local")
 	}
 	t := Transform{
-		Pos:   core.V2(j.Pos[0], j.Pos[1]),
-		Rot:   j.Rot,
-		Scale: core.V2(j.Scale[0], j.Scale[1]),
+		Pos:    core.V2(j.Pos[0], j.Pos[1]),
+		Rot:    j.Rot,
+		Scale:  core.V2(j.Scale[0], j.Scale[1]),
+		Height: j.Height,
 	}
 	if !finite(t.Pos.X) || !finite(t.Pos.Y) || !finite(t.Rot) ||
-		!finite(t.Scale.X) || !finite(t.Scale.Y) {
+		!finite(t.Scale.X) || !finite(t.Scale.Y) || !finite(t.Height) {
 		return Transform{}, core.BadData(op, "transform")
 	}
 	return t, nil

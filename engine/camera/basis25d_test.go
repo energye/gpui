@@ -119,9 +119,12 @@ func TestBasis25DEdgesNoCrash(t *testing.T) {
 func TestYSortFromCases(t *testing.T) {
 	f := loadBasis25DCases(t)
 	for _, k := range f.YSort.Keys {
-		got := YSortKey(core.V3(k[0], k[1], k[2]))
+		got := YSortKeySlightXZ(core.V3(k[0], k[1], k[2]))
 		if math.Abs(got-k[3]) > epsBasis25D {
 			t.Fatalf("key(%v) = %.12f, want %.12f", k[:3], got, k[3])
+		}
+		if pure := YSortKeyY(core.V3(k[0], k[1], k[2])); pure != k[1] {
+			t.Fatalf("standard key(%v) = %v, want origin y %v", k[:3], pure, k[1])
 		}
 	}
 	items := make([]YSortItem, len(f.YSort.Order))
@@ -135,6 +138,23 @@ func TestYSortFromCases(t *testing.T) {
 	for i := 1; i < len(sorted); i++ {
 		if YSortLess(sorted[i], sorted[i-1]) {
 			t.Fatalf("not sorted at %d", i)
+		}
+	}
+	// The recorded demo order must be reproduced element by element under the new
+	// standard key, and the demo's x+z variant key must land on the same sequence:
+	// the key switch moves the implementation, not the 25d_basis draw order.
+	for i := range items {
+		if sorted[i].Order != i || sorted[i].Pos != items[i].Pos {
+			t.Fatalf("frozen demo order not reproduced at %d: %+v", i, sorted)
+		}
+	}
+	variant, err := YSortWithKey(items, YSortKeySlightXZ)
+	if err != nil {
+		t.Fatalf("variant sort: %v", err)
+	}
+	for i := range variant {
+		if variant[i].Order != sorted[i].Order {
+			t.Fatalf("key switch changed the draw order at %d: %d vs %d", i, variant[i].Order, sorted[i].Order)
 		}
 	}
 	if YSortZ(0) != -4000 || YSortZ(1) != -3998 {

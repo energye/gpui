@@ -62,111 +62,8 @@
   32
  ],
  "cases": {
-  "depth_off": {
-   "depth_test": false,
-   "note": "R5 switch off keeps input order: far last covers near, center stays far color.",
-   "probes": [
-    {
-     "desc": "outside stays far red",
-     "tol": 0,
-     "want": [
-      255,
-      0,
-      0,
-      255
-     ],
-     "x": 10,
-     "y": 10
-    },
-    {
-     "desc": "input order wins: far covers near, center stays red",
-     "tol": 0,
-     "want": [
-      255,
-      0,
-      0,
-      255
-     ],
-     "x": 14,
-     "y": 14
-    },
-    {
-     "desc": "input order wins: far covers near, seam center stays yellow",
-     "tol": 0,
-     "want": [
-      255,
-      255,
-      0,
-      255
-     ],
-     "x": 18,
-     "y": 18
-    },
-    {
-     "desc": "outside stays far yellow",
-     "tol": 0,
-     "want": [
-      255,
-      255,
-      0,
-      255
-     ],
-     "x": 22,
-     "y": 22
-    },
-    {
-     "desc": "outside stays white",
-     "tol": 0,
-     "want": [
-      255,
-      255,
-      255,
-      255
-     ],
-     "x": 4,
-     "y": 4
-    }
-   ],
-   "sprites": [
-    {
-     "depth": 0,
-     "dst": [
-      12,
-      12,
-      8,
-      8
-     ],
-     "name": "near-green",
-     "opacity": 1,
-     "src": [
-      8,
-      0,
-      8,
-      8
-     ]
-    },
-    {
-     "depth": 10,
-     "dst": [
-      8,
-      8,
-      16,
-      16
-     ],
-     "name": "far-full",
-     "opacity": 1,
-     "src": [
-      0,
-      0,
-      16,
-      16
-     ]
-    }
-   ]
-  },
   "far_first": {
-   "depth_test": true,
-   "note": "R5 far first input already sorted: near green covers far center.",
+   "note": "R5 调用方排好远先近后提交：近绿盖住远中心",
    "probes": [
     {
      "desc": "far corner stays red",
@@ -266,111 +163,8 @@
     }
    ]
   },
-  "far_last_input": {
-   "depth_test": true,
-   "note": "R5 reversed input still sorts far first: same pixels as far_first.",
-   "probes": [
-    {
-     "desc": "far corner stays red",
-     "tol": 0,
-     "want": [
-      255,
-      0,
-      0,
-      255
-     ],
-     "x": 10,
-     "y": 10
-    },
-    {
-     "desc": "sorted: near still covers far red",
-     "tol": 0,
-     "want": [
-      0,
-      255,
-      0,
-      255
-     ],
-     "x": 14,
-     "y": 14
-    },
-    {
-     "desc": "sorted: near still covers far yellow",
-     "tol": 0,
-     "want": [
-      0,
-      255,
-      0,
-      255
-     ],
-     "x": 18,
-     "y": 18
-    },
-    {
-     "desc": "far corner stays yellow",
-     "tol": 0,
-     "want": [
-      255,
-      255,
-      0,
-      255
-     ],
-     "x": 22,
-     "y": 22
-    },
-    {
-     "desc": "outside stays white",
-     "tol": 0,
-     "want": [
-      255,
-      255,
-      255,
-      255
-     ],
-     "x": 4,
-     "y": 4
-    }
-   ],
-   "sprites": [
-    {
-     "depth": 0,
-     "dst": [
-      12,
-      12,
-      8,
-      8
-     ],
-     "name": "near-green",
-     "opacity": 1,
-     "src": [
-      8,
-      0,
-      8,
-      8
-     ]
-    },
-    {
-     "depth": 10,
-     "dst": [
-      8,
-      8,
-      16,
-      16
-     ],
-     "name": "far-full",
-     "opacity": 1,
-     "src": [
-      0,
-      0,
-      16,
-      16
-     ]
-    }
-   ]
-  },
   "same_depth_stable": {
-   "depth_test": true,
-   "note": "R5 same depth keeps input order (stable, no flicker): second blue covers first red.",
+   "note": "同深不闪：同深度按提交序，后提交的盖前面（render 不动顺序）",
    "probes": [
     {
      "desc": "first only stays red",
@@ -458,9 +252,109 @@
     }
    ]
   },
+  "submission_order": {
+   "note": "提交序就是盖序：先画的 near-green 被后画的 far-full 盖住，中心留远色（render 不排序，远先近后要调用方排好——P3.7 批 2 步 2c）",
+   "probes": [
+    {
+     "desc": "outside stays far red",
+     "tol": 0,
+     "want": [
+      255,
+      0,
+      0,
+      255
+     ],
+     "x": 10,
+     "y": 10
+    },
+    {
+     "desc": "submission order is draw order: far covers near, center stays red",
+     "tol": 0,
+     "want": [
+      255,
+      0,
+      0,
+      255
+     ],
+     "x": 14,
+     "y": 14
+    },
+    {
+     "desc": "submission order is draw order: far covers near, seam center stays yellow",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      0,
+      255
+     ],
+     "x": 18,
+     "y": 18
+    },
+    {
+     "desc": "outside stays far yellow",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      0,
+      255
+     ],
+     "x": 22,
+     "y": 22
+    },
+    {
+     "desc": "outside stays white",
+     "tol": 0,
+     "want": [
+      255,
+      255,
+      255,
+      255
+     ],
+     "x": 4,
+     "y": 4
+    }
+   ],
+   "sprites": [
+    {
+     "depth": 0,
+     "dst": [
+      12,
+      12,
+      8,
+      8
+     ],
+     "name": "near-green",
+     "opacity": 1,
+     "src": [
+      8,
+      0,
+      8,
+      8
+     ]
+    },
+    {
+     "depth": 10,
+     "dst": [
+      8,
+      8,
+      16,
+      16
+     ],
+     "name": "far-full",
+     "opacity": 1,
+     "src": [
+      0,
+      0,
+      16,
+      16
+     ]
+    }
+   ]
+  },
   "three_layers": {
-   "depth_test": true,
-   "note": "R5 scrambled far/mid/near sorts to far-mid-near: blue over red, yellow on top.",
+   "note": "R5 提交序远→中→近：蓝盖红、黄在最上（排序由调用方负责）",
    "probes": [
     {
      "desc": "far only stays red",
@@ -525,23 +419,6 @@
    ],
    "sprites": [
     {
-     "depth": 0,
-     "dst": [
-      14,
-      14,
-      4,
-      4
-     ],
-     "name": "near-yellow",
-     "opacity": 1,
-     "src": [
-      8,
-      8,
-      8,
-      8
-     ]
-    },
-    {
      "depth": 10,
      "dst": [
       6,
@@ -574,11 +451,28 @@
       8,
       8
      ]
+    },
+    {
+     "depth": 0,
+     "dst": [
+      14,
+      14,
+      4,
+      4
+     ],
+     "name": "near-yellow",
+     "opacity": 1,
+     "src": [
+      8,
+      8,
+      8,
+      8
+     ]
     }
    ]
   }
  },
- "depth_note": "Depth larger=farther (same as camera.Projector.DepthToScale); Sort descending far-first-near-last, stable for ties.",
+ "depth_note": "Depth larger=farther (same as camera.Projector.DepthToScale). DrawDepthSprites submits in list order; far-first-near-last is the caller's job (engine truth: sprite.DepthSort -> camera.YSortLess). P3.7 batch 2 step 2c.",
  "parity": {
   "max_changed_pct": 1.0,
   "max_mean_abs": 1.0,

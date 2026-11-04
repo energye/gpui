@@ -552,7 +552,7 @@ func (s *recordingSpyBackend) DrawImageCircular(_ *render.ImageBuf, _, _, _ floa
 func (s *recordingSpyBackend) DrawAtlas(_ *render.ImageBuf, _ []render.AtlasSprite, _ render.AtlasDrawOptions) {
 	s.hit("DrawAtlas")
 }
-func (s *recordingSpyBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.DepthSprite, _ render.DepthDrawOptions) {
+func (s *recordingSpyBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.DepthSprite) {
 	s.hit("DrawDepthSprites")
 }
 func (s *recordingSpyBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ recording.Brush) {

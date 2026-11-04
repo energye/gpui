@@ -279,7 +279,7 @@ func TestRecordingBounds_ImageDestinations(t *testing.T) {
 			record: func(r *Recorder) {
 				r.DrawDepthSprites(img, []render.DepthSprite{
 					{Sprite: render.AtlasSprite{SrcX: 0, SrcY: 0, SrcW: 6, SrcH: 4, DstX: 2, DstY: 3, DstW: 6, DstH: 4}},
-				}, render.DepthDrawOptions{})
+				})
 			},
 			want: image.Rect(2, 3, 8, 7),
 		},
@@ -418,7 +418,7 @@ func TestRecordingCPUScratchFollowsImageCommands(t *testing.T) {
 		{"depth sprites", func(r *Recorder) {
 			r.DrawDepthSprites(img, []render.DepthSprite{
 				{Sprite: render.AtlasSprite{SrcX: 0, SrcY: 0, SrcW: 4, SrcH: 4, DstX: 0, DstY: 0, DstW: 4, DstH: 4}},
-			}, render.DepthDrawOptions{})
+			})
 		}},
 		{"pattern brush fill", func(r *Recorder) {
 			r.SetFillStyle(NewPatternBrush(img))

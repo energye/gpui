@@ -370,7 +370,7 @@ func mustExport(t *testing.T, dc *render.Context) *render.ImageBuf {
 	return out
 }
 
-// TestP37DepthSpritesCarryPersp：深度精灵的透视承载——DrawDepthSprites 排序序
+// TestP37DepthSpritesCarryPersp：深度精灵的透视承载——DrawDepthSprites 按提交序画
 // 不变 + 透视校正画面与直接 DrawAtlasEx 一致（像素钉）。
 func TestP37DepthSpritesCarryPersp(t *testing.T) {
 	requireNativeGPU(t)
@@ -392,12 +392,12 @@ func TestP37DepthSpritesCarryPersp(t *testing.T) {
 		SrcX: 0, SrcY: 16, SrcW: 16, SrcH: 16,
 		DstX: 238, DstY: 52, DstW: 60, DstH: 50, Opacity: 1, // 摆在梯形 AABB 之外（x>220, y<82 区），采样区不重叠
 	}, Depth: 2, Name: "near-rect"}
-	res, err := dc.DrawDepthSprites(img, []render.DepthSprite{near, far}, render.DepthDrawOptions{DepthTest: true})
+	res, err := dc.DrawDepthSprites(img, []render.DepthSprite{far, near})
 	if err != nil {
 		t.Fatalf("DrawDepthSprites: %v", err)
 	}
-	if res.Sorted != true || res.Drawn != 2 {
-		t.Fatalf("深度批形态 %+v，want Sorted=true Drawn=2", res)
+	if res.Drawn != 2 {
+		t.Fatalf("深度批形态 %+v，want Drawn=2", res)
 	}
 	if err := dc.FlushGPU(); err != nil {
 		t.Fatalf("FlushGPU: %v", err)

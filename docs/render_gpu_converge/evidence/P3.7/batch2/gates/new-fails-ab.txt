@@ -1,0 +1,52 @@
+# 批 2 sweep 新增 FAIL 的定性（2026-11-04）
+# 基线：批 1d 终态 sweep 759 = 728 PASS / 21 SKIP_TAGGED / 9 FAIL / 1 NO_TESTS
+# 本批：760 = 729 PASS / 21 SKIP_TAGGED / 9 FAIL / 1 NO_TESTS
+#   ＋4 全为本批新增测试文件且全 PASS：
+#     engine/camera/p37_ysort25d_test · engine/sprite/p37_depth_parity_test ·
+#     engine/world/p37_height_test · render/p37_draw_order_test
+#   FAIL 名单差：−render/mem_window_x11_linux（本批转绿）＋ui/rendering/m5_keystroke_g1
+
+## ui/rendering/m5_keystroke_g1_test.go（TestKeystrokeRatio_M5，门禁=击键文本×1000 耗时比值 ≤1.5）
+
+sweep 原文：
+    G1击键NoWrap: base=626ns 1e6=1.103µs 比值1e6/base=1.76 ⇒ 门禁≤1.5 FAIL
+
+本树单跑 3 轮（空闲 load 0.79~1.13）：
+    轮1 base=752ns 1e6=1.513µs 比值 2.01 FAIL
+    轮2 base=1µs   1e6=1.354µs 比值 1.35；WrapLong base=25.846µs 1e6=76.817µs 比值 2.97 FAIL
+    轮3 base=578ns 1e6=1.214µs 比值 2.10 FAIL
+⇒ 同一个 base 在 578ns~1µs 之间摆 1.7 倍，比值随机器状态摆 1.35~2.97。
+
+纯净 HEAD（`git worktree add …/gpui-ab-baseline HEAD`，GOWORK=off）与本树**交替**跑：
+    负载期（load 2.55~2.67，交叉编译刚跑完）
+      轮1 基线 ok / 本批 比值 1.73 FAIL
+      轮2 基线 比值 0.91 + 1.60 FAIL / 本批 比值 2.27 FAIL
+      轮3 基线 比值 1.93 FAIL / 本批 比值 0.81 + 2.08 FAIL
+    落静后（load 0.90）
+      轮1 基线 比值 0.97 + 1.51 FAIL / 本批 比值 0.73 + 2.39 FAIL
+      轮2 基线 比值 1.54 FAIL / 本批 比值 1.34 + 1.98 FAIL
+      轮3 基线 比值 0.89 + 1.58 FAIL / 本批 比值 1.53 FAIL
+⇒ **同一时刻两棵树一起红、幅度同族**（基线 0.89~1.93，本树 0.73~2.39），本批不比基线差。
+
+定性：墙钟贴线漂移族，非批 2 引入。批 2 的改动面是 engine/camera、engine/sprite、engine/world、
+render/depth_r5.go 与 render/recording 的签名，`ui/rendering` 一行未碰（`git status` 可查：ui/ 下只改了
+examples 侧的录制 spy，包体未变）；该门禁量的击键文本布局比值对 CPU 频率/热态敏感，
+与台账在册先例同族（批 1b 记 `s6_9_heavy_budget`、批 1d 记 `mem_window_x11_linux` 同族互换，
+本批 `mem_window_x11_linux` 反而回绿）。不修不掩盖，留档在册漂移族。
+
+## 本批 FAIL 全名单（9 枚，逐条对基线）
+
+| 文件 | 基线（批 1d） | 本批 | 归属 |
+|---|---|---|---|
+| render/context_misc_draw_gpu_test.go | FAIL | FAIL | 在册 |
+| render/filter_present_coherence_test.go | FAIL | FAIL | 在册 |
+| render/rasterizer_tile_value_test.go | FAIL | FAIL | 在册 |
+| render/s6_9_heavy_budget_test.go | FAIL | FAIL | 在册墙钟族 |
+| render/text_transform_gpu_test.go | FAIL | FAIL | 在册 |
+| render/video_direct_upload_test.go | FAIL | FAIL | 在册 |
+| ui/application/app_test.go | FAIL | FAIL | 在册 |
+| ui/scene/internal/gpupixel/blit_rrect_corner_test.go | FAIL | FAIL | 在册 |
+| ui/rendering/m5_keystroke_g1_test.go | PASS | **FAIL** | 本批新入册，A/B 定性=墙钟漂移族（上） |
+| render/mem_window_x11_linux_test.go | FAIL | PASS | 回绿 |
+
+净结果：名单 9→9（同数），成员 −1 ＋1，新入册那枚已用同机交替 A/B 证明基线同样红。

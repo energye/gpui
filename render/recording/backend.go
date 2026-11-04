@@ -158,8 +158,9 @@ type Backend interface {
 	// DrawAtlas draws a batch of sprites sampled from one image.
 	DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSprite, opts render.AtlasDrawOptions)
 
-	// DrawDepthSprites draws a sprite batch carrying per-sprite depth.
-	DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite, opts render.DepthDrawOptions)
+	// DrawDepthSprites draws a sprite batch carrying per-sprite depth, in the
+	// submitted order (render never re-sorts; see render/depth_r5.go).
+	DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite)
 
 	// DrawVertices draws an immediate-mode vertex mesh. brush is the fill paint
 	// recorded with the mesh — the fallback colour when a mesh carries fewer

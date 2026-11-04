@@ -600,7 +600,7 @@ func TestRecorderDrawImageIgnoresMissingBuffer(t *testing.T) {
 	if _, err := rec.DrawAtlasEx(nil, []render.AtlasSprite{{DstW: 4, DstH: 4}}, render.AtlasDrawOptions{}); err != nil {
 		t.Fatalf("DrawAtlasEx(nil): %v", err)
 	}
-	if _, err := rec.DrawDepthSprites(nil, []render.DepthSprite{}, render.DepthDrawOptions{}); err != nil {
+	if _, err := rec.DrawDepthSprites(nil, []render.DepthSprite{}); err != nil {
 		t.Fatalf("DrawDepthSprites(nil): %v", err)
 	}
 

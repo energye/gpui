@@ -1,0 +1,15 @@
+# stage_chase §5 帧门 p95 红：同机交替 A/B（2026-11-04）
+## 1) sprite 排序单口耗时（go test -v 的 t.Logf 读数，各 3 轮交替）
+  轮1 本批: x2000 in 17.108758ms (8.6us/sort) 
+  轮1 基线: x2000 in 7.569526ms (3.8us/sort) 
+  轮2 本批: x2000 in 15.467815ms (7.7us/sort) 
+  轮2 基线: x2000 in 6.509875ms (3.3us/sort) 
+  轮3 本批: x2000 in 14.06067ms (7.0us/sort) 
+  轮3 基线: x2000 in 7.875572ms (3.9us/sort) 
+## 2) stage_chase 窗口段 §5 帧门（基线 HEAD，native，护栏 300s）
+  基线 rc=1（rc=1=§5 帧门红，rc=124=护栏切断）
+  基线收尾：
+    "fps_wall":59.74749260904827
+    "interval_p95_ms":23.127914999999998
+    "interval_p99_ms":24.366025999999998
+    FAIL: p95=23.13 want <=16

@@ -1,6 +1,6 @@
 {
-  "version": "1.0",
-  "prefab_version": "1.0",
+  "version": "1.1",
+  "prefab_version": "1.1",
   "max_prefab_name_len": 64,
   "max_prefab_comps": 16,
   "max_prefab_bytes": 65536,

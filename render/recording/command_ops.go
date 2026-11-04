@@ -98,11 +98,11 @@ type DrawAtlasCommand struct {
 // Type implements Command.
 func (DrawAtlasCommand) Type() CommandType { return CmdDrawAtlas }
 
-// DrawDepthSpritesCommand is a sprite batch carrying per-sprite depth.
+// DrawDepthSpritesCommand is a sprite batch carrying per-sprite depth. The
+// batch keeps the submitted order: render does not sort.
 type DrawDepthSpritesCommand struct {
 	Image   ImageRef
 	Sprites []render.DepthSprite
-	Opts    render.DepthDrawOptions
 }
 
 // Type implements Command.

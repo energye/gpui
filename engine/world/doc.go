@@ -15,6 +15,13 @@
 // Spawn, Despawn, Alive, Count, Spawned, SetParent, Parent, Children,
 // SetTransform, Local, WorldOf, WorldMatrix, AddComp, RemoveComp,
 // HasComp, Comps, Clear. Additive changes only.
+// P3.7 batch 2 step 2d (2026-11-04) stayed inside that rule: Transform gained
+// Height (lift off the ground, world units) — it feeds the projection stage
+// only, never LocalMatrix/WorldMatrix, and never the occlusion sort key, which
+// keeps reading the feet position. A parent chain folds heights as a plain sum.
+// The prefab and scene files carry it as an optional key, so both versions moved
+// 1.0 → 1.1 (their own rule: minor for additive fields) and 1.0 files still load
+// reading height 0.
 //
 // This package only computes numbers; it draws nothing and steps nothing.
 // The caller spawns entities, hangs capabilities (sprite, collider,

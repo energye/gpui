@@ -1,0 +1,17 @@
+# P3.7 batch 2 build gate: linux/amd64
+# env: CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+# date: 2026-11-04T17:40:26+08:00
+# note: 标签由批 1d 脚本复制而来，已就地改正为批 2（数字未动）
+# head: 10e1471f
+# dirty: 50 paths (P3.7 批 2 working tree, uncommitted)
+
+## 1. go build ./... (raw)
+# exit: 0 (expected 1: known-broken pkgs excluded below, pre-existing)
+
+## 2. go build <all buildable except known-broken>
+# pkgs: 335
+# exit: 0
+
+## 3. go build -tags nogpu <all buildable except known-broken>
+# pkgs: 331
+# exit: 0

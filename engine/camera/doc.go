@@ -89,10 +89,19 @@ package camera
 // set_view_mode times BasisScale; matrix asserts stay at 1e-9 (float
 // paths to the same point), golden mask asserts stay bitwise zero.
 
-// YSort25D orders true-2.5D objects back to front (S79).
+// YSort25D orders true-2.5D objects inside one container (S79).
 //
 // Frozen 2026-10-04: MaxYSort25D, YSortZBase, YSortZStep, YSortKey,
 // YSortLess, YSort, YSortZ. Additive changes only.
+// Unfrozen 2026-11-04 (P3.7 batch 2, user-approved: go straight to ZIndex and
+// change it all the way, no transition shim). The frozen key/comparator could
+// not carry z priority and compared with exact !=, so YSortKey split into
+// YSortKeyY (the standard key, Godot's ItemYSort) and YSortKeySlightXZ (the
+// demo's variant, now opt-in), YSortLess became two-level (z bucket → key with
+// tolerance-based equality → container order), and YSortItem gained
+// ZIndex/ZAsRelative next to the new YSortNode/YSortTree/YSortEffectiveZ, which
+// resolve the parent chain. Callers switched in the same commit: the camera case
+// table and examples/engine/25d_basis.
 
 // ShadowMath25D lands a true-2.5D shadow on the ground, S79 scope.
 //

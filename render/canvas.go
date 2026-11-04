@@ -154,7 +154,7 @@ type Canvas interface {
 	DrawImageCircular(img *ImageBuf, cx, cy, radius float64)
 	DrawAtlas(img *ImageBuf, sprites []AtlasSprite)
 	DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, opts AtlasDrawOptions) (AtlasDrawResult, error)
-	DrawDepthSprites(img *ImageBuf, sprites []DepthSprite, opts DepthDrawOptions) (DepthDrawResult, error)
+	DrawDepthSprites(img *ImageBuf, sprites []DepthSprite) (DepthDrawResult, error)
 	DrawVertices(positions []Point, colors []RGBA, mode VertexMode)
 	DrawVerticesEx(positions []Point, colors []RGBA, mode VertexMode, opts VertDrawOptions) (VertDrawResult, error)
 	DrawMesh(mesh Mesh)
