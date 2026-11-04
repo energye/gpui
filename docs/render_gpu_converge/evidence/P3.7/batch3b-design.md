@@ -54,7 +54,7 @@ N4 摘拒绝面 ⇒ 钉 4 红。全部「仍在编译」的打断。
 - Material+Perspective / +bicubic / +画布投影层的**开启**归批 6 按需（组合顶点机已就绪，
   只差权重透传与钉）；3c = binding 3+ 多纹理 + SetImage 在材质路的槽位。
 
-## 6 交付记录（2026-11-05，未提交）
+## 6 交付记录（2026-11-05，已提交 `3af42eea`、未推送）
 
 **落地清单**：
 - 公开面：三入口 `Material *ShaderEffect` 字段（`context_image.go` / `m4_quadclass.go` / `vertices.go`，
