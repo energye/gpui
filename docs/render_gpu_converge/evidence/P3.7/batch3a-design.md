@@ -163,7 +163,7 @@ fn user_fs_main(uv: vec2<f32> [, tint: vec4<f32> [, hom_w: f32]]) -> vec4<f32> {
 - gles 上 binding 4+ 的 naga 翻译实测归 3c（design §4.3 前置）；3a 的组合模块只需 group(0)/group(1) 两级，与既有管线同深。
 - Metal 本机不可验，按标记写明。
 
-## 8 批 3a 交付记录（2026-11-05，未提交）
+## 8 批 3a 交付记录（2026-11-05，已提交 `0fac5835`、未推送）
 
 **前置：填充腿 premul 校准修正（探针 verdict 落地，用户拍板「可以，开3a」= 按推荐档执行）**：
 `fillShaderAsImage` 摘 `premulToStraightRGBA`（premul 字节直交图像链，与兄弟函数
