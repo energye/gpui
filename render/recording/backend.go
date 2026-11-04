@@ -85,7 +85,7 @@ type Backend interface {
 	Concat(m Matrix)
 	// Projection applies a projection-layer op (P3.7 batch 1d): set/push/pop
 	// the 4×4 map the target canvas applies before its CTM on image/quad chains.
-	Projection(mode ProjectionMode, m render.Matrix4)
+	Projection(mode render.ProjectionMode, m render.Matrix4)
 
 	// Clipping methods
 

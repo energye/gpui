@@ -23,7 +23,7 @@ func (r *Recorder) SetProjection(m render.Matrix4) {
 	}
 	r.projection = m
 	r.projectionPush = !m.IsIdentity()
-	r.commands = append(r.commands, ProjectionCommand{Mode: ProjectionSet, Proj: m})
+	r.commands = append(r.commands, ProjectionCommand{Mode: render.ProjectionSet, Proj: m})
 }
 
 // PushProjection records a projection-layer save+replace.
@@ -32,7 +32,7 @@ func (r *Recorder) PushProjection(m render.Matrix4) {
 	// 直接存会把「全零投影」当成激活态恢复回来。
 	r.projectionStack = append(r.projectionStack, r.Projection())
 	r.SetProjection(m)
-	r.commands = append(r.commands, ProjectionCommand{Mode: ProjectionPush, Proj: m})
+	r.commands = append(r.commands, ProjectionCommand{Mode: render.ProjectionPush, Proj: m})
 }
 
 // PopProjection records a projection-layer restore (empty stack = no-op,
@@ -47,7 +47,7 @@ func (r *Recorder) PopProjection() {
 		r.projection = render.Matrix4Identity()
 		r.projectionPush = false
 	}
-	r.commands = append(r.commands, ProjectionCommand{Mode: ProjectionPop})
+	r.commands = append(r.commands, ProjectionCommand{Mode: render.ProjectionPop})
 }
 
 // Projection returns the recorder's current projection layer (恒等时返回

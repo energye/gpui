@@ -10,7 +10,12 @@
 
 package scene
 
-import "github.com/energye/gpui/render/text"
+import (
+	"math"
+
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+)
 
 // Scene is the main retained mode container for accumulating drawing operations.
 // It builds an Encoding that can be efficiently rendered or cached.
@@ -60,6 +65,18 @@ type Scene struct {
 	// only when the value differs from lastEncodedAA).
 	antiAlias bool
 
+	// projection is the scene-level 4×4 projection layer (P3.7 batch 3e),
+	// identity when none is installed; projectionStack carries Push/Pop nesting.
+	// Like render.Context and render/recording, the scene layer never folds into
+	// the affine stream: replay hands it to render.Context.SetProjection, so the
+	// chain order (device ∘ projection ∘ matrix ∘ user) lives in exactly one
+	// place. 2.5D gameplay must not use it — Godot's 2D commands carry no
+	// projection parameter at all (core/math/transform_2d.h:58,
+	// rendering_server.h:836-855); the 2.5D road is "compute then submit"
+	// (batch3e-assessment.md §2).
+	projection      render.Matrix4
+	projectionStack []render.Matrix4
+
 	// lastEncodedAA tracks the last AA state emitted into the encoding.
 	// Used for dirty tracking to avoid redundant TagSetAntiAlias tags.
 	lastEncodedAA bool
@@ -87,6 +104,8 @@ func NewScene() *Scene {
 		currentTransform: IdentityAffine(),
 		antiAlias:        true,
 		lastEncodedAA:    true,
+		projection:       render.Matrix4Identity(),
+		projectionStack:  make([]render.Matrix4, 0, 4),
 		imageRegistry:    make([]*Image, 0, 8),
 		fontRegistry:     make(map[uint64]*text.FontSource, 4),
 	}
@@ -104,6 +123,8 @@ func (s *Scene) Reset() {
 	s.currentTransform = IdentityAffine()
 	s.antiAlias = true
 	s.lastEncodedAA = true
+	s.projection = render.Matrix4Identity()
+	s.projectionStack = s.projectionStack[:0]
 	s.imageRegistry = s.imageRegistry[:0]
 	clear(s.fontRegistry)
 }
@@ -132,6 +153,83 @@ func (s *Scene) emitAntiAliasIfNeeded(enc *Encoding) {
 		enc.EncodeAntiAlias(s.antiAlias)
 		s.lastEncodedAA = s.antiAlias
 	}
+}
+
+// normalizeProjection applies the two rules render.Context.SetProjection uses:
+// the zero Matrix4 (unusable by contract) means identity = layer off, and a
+// non-finite non-identity matrix is rejected instead of installed.
+func normalizeProjection(m render.Matrix4) (render.Matrix4, bool) {
+	if m == (render.Matrix4{}) {
+		return render.Matrix4Identity(), true
+	}
+	if !m.IsIdentity() {
+		for _, v := range m.Elements() {
+			if math.IsNaN(v) || math.IsInf(v, 0) {
+				return m, false
+			}
+		}
+	}
+	return m, true
+}
+
+// emitProjection writes into the same encoding the following draws write into
+// (the top layer's, per currentEncoding) — a projection tag placed on the root
+// stream would be flattened *before* every layer's content and silently govern
+// draws recorded before the call. A repeated Set is dropped inside EncodeProjection.
+
+// SetProjection replaces the scene's projection layer (identity, or the zero
+// matrix, turns it off; a non-finite matrix is ignored fail-closed). Replay
+// routes it to render.Context.SetProjection, so the chain order stays
+// single-sourced in render.
+func (s *Scene) SetProjection(m render.Matrix4) {
+	if s == nil {
+		return
+	}
+	norm, ok := normalizeProjection(m)
+	if !ok {
+		return
+	}
+	s.projection = norm
+	s.currentEncoding().EncodeProjection(render.ProjectionSet, norm)
+	s.version++
+}
+
+// PushProjection saves the current layer and replaces it; PopProjection
+// restores. Push/Pop always emit — they are stack operations, and the pairing is
+// what replay feeds to render.Context's own projection stack.
+func (s *Scene) PushProjection(m render.Matrix4) {
+	if s == nil {
+		return
+	}
+	norm, ok := normalizeProjection(m)
+	if !ok {
+		norm = render.Matrix4Identity()
+	}
+	s.projectionStack = append(s.projectionStack, s.projection)
+	s.projection = norm
+	s.currentEncoding().EncodeProjection(render.ProjectionPush, norm)
+	s.version++
+}
+
+// PopProjection restores the layer saved by the last PushProjection; an empty
+// stack is a no-op (same contract as render.Context.PopProjection).
+func (s *Scene) PopProjection() {
+	if s == nil || len(s.projectionStack) == 0 {
+		return
+	}
+	s.projection = s.projectionStack[len(s.projectionStack)-1]
+	s.projectionStack = s.projectionStack[:len(s.projectionStack)-1]
+	s.currentEncoding().EncodeProjection(render.ProjectionPop, render.Matrix4Identity())
+	s.version++
+}
+
+// Projection returns the scene's current projection layer (identity when none is
+// installed).
+func (s *Scene) Projection() render.Matrix4 {
+	if s == nil || s.projection == (render.Matrix4{}) {
+		return render.Matrix4Identity()
+	}
+	return s.projection
 }
 
 // Fill fills a shape with the given style, transform, and brush.

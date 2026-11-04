@@ -21,7 +21,7 @@ func (stubBackend) Save()                {}
 func (stubBackend) Restore()             {}
 func (stubBackend) Concat(_ Matrix)      {}
 
-func (stubBackend) Projection(_ ProjectionMode, _ render.Matrix4) {}
+func (stubBackend) Projection(_ render.ProjectionMode, _ render.Matrix4) {}
 func (stubBackend) SetClip(_ *render.Path, _ FillRule) {
 }
 func (stubBackend) ClearClip()                          {}

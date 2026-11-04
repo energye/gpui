@@ -79,6 +79,10 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 	// Scene transforms use dc.SetTransform() (direct replacement) instead of
 	// dc.Push()/Pop() to avoid interfering with clip Push/Pop nesting.
 	baseMatrix := dc.GetTransform()
+	// Same explicit save/restore discipline as the matrix above: the projection
+	// layer is a context-level state, and TagProjection uses Set/Push/Pop on
+	// render.Context directly (chain order lives in render, not here).
+	baseProjection := dc.Projection()
 
 	for dec.Next() {
 		switch dec.Tag() {
@@ -209,6 +213,17 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 			aa := dec.AntiAlias()
 			dc.SetAntiAlias(aa)
 
+		case TagProjection:
+			mode, m := dec.Projection()
+			switch mode {
+			case render.ProjectionPush:
+				dc.PushProjection(m)
+			case render.ProjectionPop:
+				dc.PopProjection()
+			default: // render.ProjectionSet
+				dc.SetProjection(m)
+			}
+
 		case TagText:
 			run, glyphs, str, brush := dec.Text()
 			r.resolveText(scene, run, glyphs, str, brush)
@@ -225,6 +240,9 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 	// Restore the original matrix. Unlike the previous Push/Pop approach,
 	// SetTransform is a direct replacement so we restore explicitly.
 	dc.SetTransform(baseMatrix)
+	// The projection layer is restored the same way: an unbalanced Push inside
+	// the scene must not leak a projection into whatever draws next.
+	dc.SetProjection(baseProjection)
 
 	return nil
 }

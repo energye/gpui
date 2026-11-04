@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"math"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 )
 
@@ -48,6 +49,7 @@ type Decoder struct {
 	pathIdx  int
 	drawIdx  int
 	transIdx int
+	projIdx  int
 	textIdx  int
 
 	// Current tag being processed
@@ -73,6 +75,7 @@ func (d *Decoder) Reset(enc *Encoding) {
 	d.pathIdx = 0
 	d.drawIdx = 0
 	d.transIdx = 0
+	d.projIdx = 0
 	d.textIdx = 0
 	d.currentTag = 0
 }
@@ -199,6 +202,26 @@ func (d *Decoder) Transform() Affine {
 // ---------------------------------------------------------------------------
 // State Command Decoders
 // ---------------------------------------------------------------------------
+
+// Projection reads the current TagProjection command data: which
+// projection-layer verb it is and, for Set/Push, the 4×4 layer. Pop returns the
+// identity matrix because the replay side restores what its own stack saved.
+// Only valid when Tag() == TagProjection.
+func (d *Decoder) Projection() (render.ProjectionMode, render.Matrix4) {
+	if d.projIdx >= len(d.enc.projections) {
+		return render.ProjectionSet, render.Matrix4Identity()
+	}
+	entry := d.enc.projections[d.projIdx]
+	d.projIdx++
+	if entry.mode == render.ProjectionPop {
+		return entry.mode, render.Matrix4Identity()
+	}
+	var e [16]float64
+	for i, v := range entry.matrix {
+		e[i] = float64(v)
+	}
+	return entry.mode, render.Matrix4FromElements(e)
+}
 
 // AntiAlias reads the current SetAntiAlias command data.
 // Returns true if anti-aliasing is enabled, false if disabled.

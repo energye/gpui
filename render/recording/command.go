@@ -262,24 +262,11 @@ type ConcatCommand struct {
 // Type implements Command.
 func (ConcatCommand) Type() CommandType { return CmdConcat }
 
-// ProjectionMode selects the projection-layer operation of ProjectionCommand.
-type ProjectionMode uint8
-
-const (
-	// ProjectionSet replaces the target's projection layer (SetProjection).
-	ProjectionSet ProjectionMode = iota
-	// ProjectionPush saves the target's projection layer and replaces it
-	// (PushProjection).
-	ProjectionPush
-	// ProjectionPop restores the saved projection layer (PopProjection).
-	ProjectionPop
-)
-
 // ProjectionCommand applies a projection-layer op at playback (P3.7 batch 1d).
 // Proj carries the recorded absolute projection — recorded value, read-only at
 // replay (PathEffect 先例)；pop 模式不读 Proj。
 type ProjectionCommand struct {
-	Mode ProjectionMode
+	Mode render.ProjectionMode
 	Proj render.Matrix4
 }
 

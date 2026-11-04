@@ -430,6 +430,17 @@ type Encoding struct {
 	// transforms holds affine transformation matrices
 	transforms []Affine
 
+	// projections holds the TagProjection ops (P3.7 batch 3e). float32 elements,
+	// matching this encoding's coordinate precision.
+	projections []projectionEntry
+
+	// lastEncodedProjection is the projection layer this stream is currently
+	// under (a fresh stream starts identity). Set is delta-encoded against it
+	// the way lastEncodedTransform does for TagTransform: a scene that never
+	// touches the projection layer emits no TagProjection at all, so its
+	// streams and Hash() stay byte-for-byte what they were before this feature.
+	lastEncodedProjection render.Matrix4
+
 	// textData holds serialized GlyphRunData + GlyphEntry arrays for TagText commands.
 	// Separate stream from pathData — text data has different layout and lifetime.
 	textData []byte
@@ -472,6 +483,9 @@ func NewEncoding() *Encoding {
 		commandBounds: make([]Rect, 0, 32),
 		bounds:        EmptyRect(),
 		pathBounds:    EmptyRect(),
+		// 新流的状态就是"没装投影"。不初始化成恒等的话，零值 Matrix4 会被当成
+		// 一个真的投影值，第一次 Set(恒等) 就会白发一枚 tag（Hash 漂、存量缓存键变）。
+		lastEncodedProjection: render.Matrix4Identity(),
 	}
 }
 
@@ -482,6 +496,8 @@ func (e *Encoding) Reset() {
 	e.pathData = e.pathData[:0]
 	e.drawData = e.drawData[:0]
 	e.transforms = e.transforms[:0]
+	e.projections = e.projections[:0]
+	e.lastEncodedProjection = render.Matrix4Identity()
 	e.textData = e.textData[:0]
 	e.brushes = e.brushes[:0]
 	e.commandBounds = e.commandBounds[:0]
@@ -511,6 +527,37 @@ func (e *Encoding) EncodeTransform(t Affine) {
 	e.transforms = append(e.transforms, t)
 	e.lastEncodedTransform = t
 	e.hasEncodedTransform = true
+}
+
+// projectionEntry is one TagProjection record: which projection-layer verb and,
+// for Set/Push, the 4×4 elements in row-major order. Pop carries no matrix — the
+// replay side restores what its own stack saved, exactly like
+// render.Context.PopProjection.
+type projectionEntry struct {
+	mode   render.ProjectionMode
+	matrix [16]float32
+}
+
+// EncodeProjection appends one projection-layer op to the stream. A Set that
+// repeats the stream's current layer is dropped (delta encoding); Push/Pop always
+// emit because they are stack operations whose pairing the replay side mirrors
+// onto render.Context's own projection stack. Pop carries no matrix.
+func (e *Encoding) EncodeProjection(mode render.ProjectionMode, m render.Matrix4) {
+	if m == (render.Matrix4{}) {
+		m = render.Matrix4Identity() // 零值 Matrix4 不可用（契约同 Context）
+	}
+	if mode == render.ProjectionSet && m == e.lastEncodedProjection {
+		return
+	}
+	e.tags = append(e.tags, TagProjection)
+	entry := projectionEntry{mode: mode}
+	if mode != render.ProjectionPop {
+		for i, v := range m.Elements() {
+			entry.matrix[i] = float32(v)
+		}
+		e.lastEncodedProjection = m
+	}
+	e.projections = append(e.projections, entry)
 }
 
 // EncodeDrawTransform emits the transform a draw command depends on, skipping
@@ -844,6 +891,21 @@ func (e *Encoding) Hash() uint64 {
 		hash *= fnvPrime
 	}
 
+	// Hash projections. A scene that never uses the layer leaves this stream
+	// empty, so every pre-existing hash is untouched; one that does must not
+	// collide in LayerCache with the same geometry drawn flat.
+	for _, pe := range e.projections {
+		hash ^= uint64(pe.mode)
+		hash *= fnvPrime
+		if pe.mode == render.ProjectionPop {
+			continue
+		}
+		for _, v := range pe.matrix {
+			hash ^= uint64(math.Float32bits(v))
+			hash *= fnvPrime
+		}
+	}
+
 	// Hash brushes. Draw commands reference brushes by index, so identical
 	// geometry with a different colour must not collide: LayerCache keys on
 	// this hash and would otherwise return stale pixels after a recolour.
@@ -892,7 +954,6 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 		other.tags[0] != TagTransform {
 		e.EncodeTransform(IdentityAffine())
 	}
-
 	// Append tags directly
 	e.tags = append(e.tags, other.tags...)
 
@@ -936,6 +997,9 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 				e.drawData[drawDataStart+drawIdx] += imageOffset
 			}
 			drawIdx++
+		case TagProjection:
+			// Projection data lives in its own stream; no brush/image index here.
+
 		case TagText:
 			if textOff+glyphRunDataSize <= len(other.textData) {
 				glyphCount := int(binary.LittleEndian.Uint16(other.textData[textOff+12:]))
@@ -952,6 +1016,14 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 	// Append transforms
 	e.transforms = append(e.transforms, other.transforms...)
 
+	// Projections are copied verbatim. Unlike the transform stream — which is
+	// absolute because geometry is pre-baked, so a merge must reset a stale
+	// transform — the projection layer is *sticky state* that child content
+	// (layer encodings, merged scenes) is meant to draw under. Injecting an
+	// identity reset silently un-projected every appended draw (measured: layer
+	// composition emitted a second TagProjection that cancelled the parent's).
+	e.projections = append(e.projections, other.projections...)
+
 	// Append brushes
 	e.brushes = append(e.brushes, other.brushes...)
 
@@ -964,6 +1036,8 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 		e.lastEncodedTransform = other.lastEncodedTransform
 		e.hasEncodedTransform = true
 	}
+	// Carry the projection the merged tail ended under (sticky state).
+	e.lastEncodedProjection = other.lastEncodedProjection
 
 	// Union bounds
 	e.bounds = e.bounds.Union(other.bounds)
@@ -1027,7 +1101,6 @@ func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageO
 		other.tags[0] != TagTransform {
 		e.EncodeTransform(IdentityAffine())
 	}
-
 	e.tags = append(e.tags, other.tags...)
 
 	pathStart := len(e.pathData)
@@ -1104,6 +1177,10 @@ func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageO
 			}
 			drawIdx++ // image index only; transform is in transforms stream
 
+		case TagProjection:
+			// Projection data is in the projections stream (appended below);
+			// nothing here consumes pathData or drawData.
+
 		case TagText:
 			// Text data is in the textData stream. Handled in a second pass below.
 
@@ -1127,12 +1204,16 @@ func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageO
 	// Transforms copied verbatim — see architecture note above.
 	e.transforms = append(e.transforms, other.transforms...)
 
+	e.projections = append(e.projections, other.projections...)
+
 	e.brushes = append(e.brushes, other.brushes...)
 
 	if other.hasEncodedTransform {
 		e.lastEncodedTransform = other.lastEncodedTransform
 		e.hasEncodedTransform = true
 	}
+	// Carry the projection the merged tail ended under (sticky state).
+	e.lastEncodedProjection = other.lastEncodedProjection
 
 	ob := other.bounds
 	ob.MinX += dx
@@ -1209,8 +1290,12 @@ func (e *Encoding) Clone() *Encoding {
 	clone.commandBounds = make([]Rect, len(e.commandBounds))
 	copy(clone.commandBounds, e.commandBounds)
 
+	clone.projections = make([]projectionEntry, len(e.projections))
+	copy(clone.projections, e.projections)
+
 	clone.lastEncodedTransform = e.lastEncodedTransform
 	clone.hasEncodedTransform = e.hasEncodedTransform
+	clone.lastEncodedProjection = e.lastEncodedProjection
 
 	clone.bounds = e.bounds
 	clone.pathBounds = e.pathBounds
@@ -1267,6 +1352,7 @@ func (e *Encoding) Size() int {
 		len(e.drawData)*4 +
 		len(e.textData) +
 		len(e.transforms)*24 + // 6 float32 per Affine
+		len(e.projections)*68 + // mode byte + 16 float32
 		len(e.brushes)*20 // approximate brush size
 }
 
@@ -1277,6 +1363,7 @@ func (e *Encoding) Capacity() int {
 		cap(e.drawData)*4 +
 		cap(e.textData) +
 		cap(e.transforms)*24 +
+		cap(e.projections)*68 +
 		cap(e.brushes)*20
 }
 

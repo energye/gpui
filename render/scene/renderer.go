@@ -16,6 +16,7 @@ import (
 	"math"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/energye/gpui/render"
@@ -183,6 +184,45 @@ type Renderer struct {
 	stats     RenderStats
 	statsMu   sync.RWMutex
 	lastFrame time.Time
+
+	// projDegrades counts draw commands the CPU tile path refused because the
+	// scene carried a genuinely projective 4×4 layer (there is no CPU
+	// perspective sampler; affine-representable layers fold in exactly). Tiles
+	// rasterize in parallel, so this counts through an atomic rather than
+	// statsMu, which the raster phase itself holds.
+	projDegrades atomic.Uint64
+}
+
+// ProjectionDegrades reports how many CPU-leg draws were refused under a
+// projective scene projection since the last reset (P3.7 batch 3e: a refusal is
+// always counted, never silently flattened).
+func (r *Renderer) ProjectionDegrades() uint64 {
+	if r == nil {
+		return 0
+	}
+	return r.projDegrades.Load()
+}
+
+// ResetProjectionDegrades zeroes the counter.
+func (r *Renderer) ResetProjectionDegrades() {
+	if r == nil {
+		return
+	}
+	r.projDegrades.Store(0)
+}
+
+// cpuProjectionState folds a scene projection into the CPU tile path's baked
+// transform. Affine-representable layers are exact; a genuinely projective one
+// has no CPU sampler at all, so projective=true means "refuse the draw and
+// count it" — render.Context's explicit-stance discipline, not a guess.
+func cpuProjectionState(m render.Matrix4) (Affine, bool) {
+	if m == (render.Matrix4{}) || m.IsIdentity() {
+		return IdentityAffine(), false
+	}
+	if lm, ok := m.Affine(); ok {
+		return AffineFromMatrix(lm), false
+	}
+	return IdentityAffine(), true
 }
 
 // RenderStats contains performance statistics for a render operation.
@@ -645,7 +685,19 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 	defer r.pool.putScenePath(currentPath)
 	pathActive := false // true between TagBeginPath and fill/stroke/clip consume
 
+	// rawTransform is what the stream says; currentTransform is what geometry is
+	// baked with — the scene matrix first, then any affine-representable
+	// projection, matching the chain order render.Context owns
+	// (device ∘ projection ∘ matrix ∘ user).
+	rawTransform := IdentityAffine()
 	currentTransform := IdentityAffine()
+	var projStack []render.Matrix4
+	projAffine, projective := IdentityAffine(), false
+
+	applyProjection := func(m render.Matrix4) {
+		projAffine, projective = cpuProjectionState(m)
+		currentTransform = rawTransform.Multiply(projAffine)
+	}
 
 	tileX, tileY, _, _ := tile.Bounds()
 
@@ -672,7 +724,31 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 	for dec.Next() {
 		switch dec.Tag() {
 		case TagTransform:
-			currentTransform = dec.Transform()
+			rawTransform = dec.Transform()
+			currentTransform = rawTransform.Multiply(projAffine)
+
+		case TagProjection:
+			mode, m := dec.Projection()
+			switch mode {
+			case render.ProjectionPush:
+				var cur render.Matrix4
+				if len(projStack) == 0 {
+					cur = render.Matrix4Identity()
+				}
+				projStack = append(projStack, cur)
+				applyProjection(m)
+			case render.ProjectionPop:
+				if len(projStack) == 0 {
+					applyProjection(render.Matrix4Identity())
+					break
+				}
+				restored := projStack[len(projStack)-1]
+				projStack = projStack[:len(projStack)-1]
+				applyProjection(restored)
+			default: // render.ProjectionSet
+				projStack = projStack[:0]
+				applyProjection(m)
+			}
 
 		case TagBeginPath:
 			currentPath.Reset()
@@ -719,6 +795,11 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 		case TagFill:
 			brush, style := dec.Fill()
+			if projective {
+				r.projDegrades.Add(1)
+				pathActive = false
+				break
+			}
 			if pathActive && !currentPath.IsEmpty() {
 				convertPathInto(currentPath, tileX, tileY, ggPath)
 				resetFillPaint(fillPaint, brush, style)
@@ -728,6 +809,11 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 		case TagFillRoundRect:
 			brush, style, rect, rx, ry := dec.FillRoundRect()
+			if projective {
+				r.projDegrades.Add(1)
+				pathActive = false
+				break
+			}
 			ggPath.Reset()
 			ggPath.RoundedRectangle(
 				float64(rect.MinX), float64(rect.MinY),
@@ -751,6 +837,11 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 		case TagStroke:
 			brush, style := dec.Stroke()
+			if projective {
+				r.projDegrades.Add(1)
+				pathActive = false
+				break
+			}
 			if pathActive && !currentPath.IsEmpty() {
 				convertPathInto(currentPath, tileX, tileY, ggPath)
 				paint := convertStrokePaint(brush, style)
@@ -842,6 +933,12 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 		case TagImage:
 			imageIndex, imgTransform := dec.Image()
+			if projective {
+				// The CPU image blit is affine-only; drawing anyway would paint
+				// the image at the un-warped place. Refuse and count instead.
+				r.projDegrades.Add(1)
+				break
+			}
 			if int(imageIndex) < len(images) {
 				img := images[imageIndex]
 				if img != nil && len(img.Data) >= img.Width*img.Height*4 {
@@ -851,6 +948,12 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 		case TagText:
 			run, glyphs, _, brush := dec.Text()
+			if projective {
+				// Same stance render.Context takes for its text family: under a
+				// projective layer, refuse and count rather than paint un-warped.
+				r.projDegrades.Add(1)
+				break
+			}
 			r.renderTextOnTile(run, glyphs, brush, currentTransform, tileX, tileY, activePM, sr, fillPaint)
 
 		case TagSetAntiAlias:

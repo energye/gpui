@@ -1,0 +1,10 @@
+窗 ui_render_base_scene / native: rc=0 xwayland 1->1
+    golden_diff_pct
+    golden_first_run
+    golden_total_px
+    parity=1.4376% golde
+窗 ui_render_base_scene / go: rc=0 xwayland 1->1
+    golden_diff_pct
+    golden_first_run
+    golden_total_px
+    parity=1.4376% golde

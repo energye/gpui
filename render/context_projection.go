@@ -19,6 +19,23 @@ package render
 //   - 零值 = 恒等 ⇒ 全部消费点走历史路径逐位不变（`projectionActive` 快速位护栏）；
 //   - Push/Pop 与 2×3 矩阵同拍保存/恢复（Skia SkM44 风格，拍板 D-1）。
 
+// ProjectionMode names which projection-layer verb a state carrier means. It
+// lives in render (not in a consumer package) because both the recording layer
+// and the retained scene encoding carry the same three operations — one enum,
+// no per-package copies (P3.7 batch 3e).
+type ProjectionMode uint8
+
+const (
+	// ProjectionSet replaces the projection layer (Context.SetProjection).
+	ProjectionSet ProjectionMode = iota
+	// ProjectionPush saves the current layer and replaces it
+	// (Context.PushProjection).
+	ProjectionPush
+	// ProjectionPop restores the saved layer (Context.PopProjection); the
+	// carried matrix is not read in this mode.
+	ProjectionPop
+)
+
 // SetProjection replaces the projection layer with m (does not compose with the
 // previous projection; compose with Matrix4.Mul yourself). m 非有限时按恒等处理
 // 并忽略（fail-closed：不装坏矩阵）。零值/恒等矩阵 = 关闭投影层。

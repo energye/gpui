@@ -78,6 +78,18 @@ func (m Matrix4) At(row, col int) float64 {
 	return m.m[row*4+col]
 }
 
+// Elements returns the 16 raw elements in row-major order. Pairs with
+// Matrix4FromElements for anything that has to carry a Matrix4 through a
+// byte/float32 representation (scene encoding, P3.7 batch 3e).
+func (m Matrix4) Elements() [16]float64 {
+	return m.m
+}
+
+// Matrix4FromElements builds a Matrix4 from 16 row-major elements.
+func Matrix4FromElements(e [16]float64) Matrix4 {
+	return Matrix4{m: e}
+}
+
 // Mul multiplies two matrices (m * other).
 func (m Matrix4) Mul(other Matrix4) Matrix4 {
 	var r Matrix4

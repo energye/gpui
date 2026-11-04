@@ -44,6 +44,15 @@ const (
 	// Emitted only when the AA state changes (delta encoding, like TagTransform).
 	TagSetAntiAlias Tag = 0x02
 
+	// TagProjection applies a projection-layer op at replay (P3.7 batch 3e).
+	// Data: one entry in the projections stream — the mode plus, for Set/Push,
+	// the 16 float32 elements of the 4×4 layer; Pop carries no matrix and the
+	// replay side reads nothing from it (mirrors render.Context.PopProjection).
+	// The projection never folds into the affine stream: replay hands it to
+	// render.Context's own projection layer, keeping the batch 1d chain order
+	// (device ∘ projection ∘ matrix ∘ user) in exactly one place.
+	TagProjection Tag = 0x03
+
 	// TagBeginPath marks the start of a new path.
 	// Data: none (marker only)
 	TagBeginPath Tag = 0x10
@@ -127,6 +136,8 @@ func (t Tag) String() string {
 		return "Transform"
 	case TagSetAntiAlias:
 		return "SetAntiAlias"
+	case TagProjection:
+		return "Projection"
 	case TagBeginPath:
 		return "BeginPath"
 	case TagMoveTo:

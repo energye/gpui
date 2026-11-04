@@ -1,0 +1,38 @@
+# 批 3e-1（scene 投影口）负向对照（2026-11-04，最终代码上重跑）
+
+跑法：逐条把真源判据摘掉/反向 → 跑 `go test ./render/scene -run 'TestP373E|TestCPUTile'`，
+每轮 `cp` 还原 + 全包复跑核验；无效变异（编译不过/恒等式）如实标注，不冒充红。
+
+| # | 变异 | 结果 |
+|---|---|---|
+| E1 | `Scene.SetProjection` 不发射（口成空壳） | **红**：`TestP373ESceneProjectionEncoding` + `...ReplayMatchesContext` + 包内测 `TestCPUTileProjectiveProjectionRefusesAndCounts` |
+| E2 | 流侧 delta 去重摘掉（恒等也发 tag） | **红**：`TestP373ESceneProjectionEncoding`（"恒等投影改变了 Hash" 那条先叫） |
+| E3b | `AppendWithTranslation` 漏登记 `TagProjection` | **红**：合并钉 + 现有钉叫，且撞到既有穷举绊线 `panic: scene.AppendWithTranslation: unhandled tag 0x03 (Projection)`（default panic 按设计生效） |
+| E4 | `AppendWithImages` 不拼 `projections` 流 | **红**：编码/回放/包内测三处 |
+| E5b | `Hash()` 不吞投影（LayerCache 会串键） | **红**：`TestP373ESceneProjectionEncoding` 的 Hash 鉴别臂 |
+| E6 | CPU 腿把真投影当可仿射表达（静默压扁） | **红**：`TestCPUTileProjectiveProjectionRefusesAndCounts` + `TestCPUTileProjectionStateThreeCases` |
+| E7 | 边界钉鉴别力：临时在 `engine/camera/` 放一个 `import ".../render/scene"` 的探针文件 | **红**：`TestP373ESceneProjectionStaysOutOfEngine` 指名 `engine/camera/zz_boundary_probe.go`（探针跑完即删，工作树无痕） |
+
+首轮无效变异两条，如实记：E3 首版写成 `case TagBeginPath, TagProjection:`（与前一个 case 重复 → 编译失败）；
+E5 首版写成 `range []projectionEntry(nil) && e.projections[:0]`（非法表达式）。两轮都改成"整块删除"才有效。
+
+## 钉在实现过程中抓出的两处自身缺陷（不是负向，是钉直接把实现打回）
+
+1. **投影 tag 写错了流**：初版写进根 `s.encoding`，而绘制写进 `currentEncoding()`（基层编码），
+   `Scene.Encoding()` 拉平时根 tag 排到全部内容之前 ⇒ "画完再设投影"被重排成"先设后画"，
+   且父投影被子内容继承关系打断。改为与绘制同一个流后，GPU 回放与 `Context` 直接画逐像素相等。
+2. **去重写了两层、新流没初始化**：Scene 侧短路 + 流侧 delta 各一份 ⇒ 流侧那份实际走不到（E2 首轮"仍绿"暴露）；
+   且 `NewEncoding` 没把 `lastEncodedProjection` 初始化成恒等，零值 Matrix4 被当成一个真投影值，
+   第一次 `SetProjection(恒等)` 白发一枚 tag（Hash 漂）。处理：删 Scene 侧短路，只留流上一处判定 +
+   新流初始化为恒等 + 零值入参归一；E2b 随即转红，Hash 不漂钉复跑绿。
+
+## 门禁读数（同日）
+
+- `go build ./...` rc=0；`go vet ./render/scene ./render/recording ./render` rc=0；本批所触文件 `gofmt` 净。
+- `go test ./render/scene -count=1` ok 0.14s（含新钉 7 枚：外部 4 + 包内 3）；
+  `./render/recording/...` ok（枚举上移后的同批切换）；`./render -run 'TestP37Projection|TestP37DrawOrder|TestDepthR5|TestP37Depth'` ok；
+  `./engine/camera`、`./engine/sprite` ok；`go run ./scripts/apidoc` rc=0（补齐 `Matrix4FromElements`/`Elements`/`TagProjection` 三处登记）。
+- 真窗 `examples/ui_render_base_scene`（scene 的唯一带自检真窗）双后端：rc=0、Xwayland 每轮前后 1，
+  `parity=1.4376%`（窗内判据 `parity_ok=true`，A/B 两臂同值）、`golden=0.`（存量金图零变化）。
+  另四扇 `render_scene`/`render_scene_gpu`/`render_visual_scene`/`render_visual_scene_gpu` 无 `-auto-only`
+  （不具备标准关闭自检，按 GPU 安全条不能强杀）⇒ 本批以编译 + 包内/场景测覆盖，给它们补自检登记为示例层工程债。

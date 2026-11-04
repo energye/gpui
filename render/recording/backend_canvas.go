@@ -211,13 +211,13 @@ func (b *CanvasBackend) Concat(m Matrix) { b.dc.Transform(m) }
 
 // Projection forwards the projection-layer op to the target canvas (P3.7
 // batch 1d): recorded absolute value, replayed read-only.
-func (b *CanvasBackend) Projection(mode ProjectionMode, m render.Matrix4) {
+func (b *CanvasBackend) Projection(mode render.ProjectionMode, m render.Matrix4) {
 	switch mode {
-	case ProjectionSet:
+	case render.ProjectionSet:
 		b.dc.SetProjection(m)
-	case ProjectionPush:
+	case render.ProjectionPush:
 		b.dc.PushProjection(m)
-	case ProjectionPop:
+	case render.ProjectionPop:
 		b.dc.PopProjection()
 	}
 }
