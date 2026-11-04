@@ -102,6 +102,13 @@ type AtlasSprite struct {
 	Perspective bool
 	Corners     [4]Point
 	Weights     [4]float64
+	// Material 挂 quad 片元材质（P3.7 批 3b；Godot item 级
+	// canvas_item_set_material 形态，与 Tint 同位）。nil = 无材质 = 存量逐位
+	// 不变。图集子矩形 UV 即材质的 TEXTURE/UV（采样图集区域）；tint 经 36B
+	// 顶点通道下发。无 CPU 求值器（P3.2 契约）：CPU 路跳过并计入
+	// RenderPathStats.MaterialSkips。材质 + Perspective/画布投影层 = 该精灵
+	// 跳过并计数（画家序 behind-eye 同款，不炸整批；开启归批 6）。
+	Material *ShaderEffect
 }
 
 // R4 哨兵错与降级标记：调用方用 errors.Is 判定，不许静默画错。

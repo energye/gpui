@@ -1,0 +1,22 @@
+P3.7 批 3b 负向对照（2026-11-05，变异→红→还原→绿，逐条可复跑）
+判据源：batch3b-design.md §4；变异全部「仍在编译」的打断。
+
+N1 摘入口映射（context_image_gpu.go 材质分支的 `opts.Material` 实参 → `nil`）
+   → TestP37BMaterialLegEngages 红（材质腿没接上，画面=标准图，区分钉阈值 <100）
+   → 还原绿。
+N2 摘 CPU skip（context_image_draw.go DrawImageEx 的 skip 块 `if false && ...`）
+   → TestP37BCpuModeSkipsMaterial 红（材质绘制落到 CPU 图像腿裸画无材质画面，
+   像素断言红 + MaterialSkips 计数短少）
+   → 还原绿。
+N3 摘计数（同处 `c.pathStats.MaterialSkips++` 删除，保留 return）
+   → TestP37BCpuModeSkipsMaterial 红（MaterialSkips 短少）
+   → 还原绿。
+N4 摘拒绝面（m4_quadimage.go 校验期 return + GPU 臂守卫**双层同摘**，`if false && ...`）
+   → TestP37BMaterialRejections 红（材质+Perspective 不再拒绝）
+   → 还原绿。
+   如实登记：首轮只摘校验层一层 → 钉仍绿——GPU 臂的 `if perspLeg` 守卫兜底给出
+   同名错误，单层变异不可观测（3a N6/N12b「不断言的防护」同族先例）；改双层同摘
+   才落到行为红。
+
+无效果变异登记：无（本批四条一次有效；两枚测试自身结构错——CPU 钉快照位置、
+切片洞修复——属钉被自己的判据打回，改实现/钉结构不改判据，见 design §7 交付记录）。

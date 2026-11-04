@@ -1390,12 +1390,25 @@ func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, p
 	nearest bool,
 	bicubic ...bool,
 ) {
+	cmd := rc.newImageDrawCmd(target, pixelData, genID, src, mip, imgWidth, imgHeight, imgStride,
+		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity, viewportW, viewportH,
+		u0, v0, u1, v1, tintR, tintG, tintB, tintA, blendMode, nearest,
+		len(bicubic) > 0 && bicubic[0])
+	rc.queueImageCmd(target, cmd)
+}
+
+// newImageDrawCmd is the shared ImageDrawCommand constructor behind the
+// QueueImageDraw* family (bounds, corner/uv/tint/viewport packing). Queue
+// variants mutate the returned command (material leg) before queueImageCmd.
+func (rc *GPURenderContext) newImageDrawCmd(target render.GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip render.MipmapMode, imgWidth, imgHeight, imgStride int,
+	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
+	u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, blendMode render.BlendMode, nearest, bicubic bool) ImageDrawCommand {
 	rc.ensureDrawOrder(drawTierImage)
 	minX := min4f(tlX, trX, brX, blX)
 	minY := min4f(tlY, trY, brY, blY)
 	maxX := max4f(tlX, trX, brX, blX)
 	maxY := max4f(tlY, trY, brY, blY)
-	cmd := ImageDrawCommand{
+	return ImageDrawCommand{
 		PixelData:      pixelData,
 		GenerationID:   genID,
 		Src:            src,
@@ -1428,9 +1441,24 @@ func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, p
 		U1:             u1,
 		V1:             v1,
 		Nearest:        nearest,
-		Bicubic:        len(bicubic) > 0 && bicubic[0],
+		Bicubic:        bicubic,
 		BlendMode:      blendMode,
 	}
+}
+
+// QueueImageDrawMaterial is QueueImageDrawTint plus the quad-material leg
+// (P3.7 batch 3b): the command rides the composed-module pipeline (per effect
+// × leg) with the sprite texture in the user's declared binding slots and the
+// engine transform/opacity block per draw. Tint always rides the 36-byte
+// vertex channel (zero struct = white); material must be non-nil and
+// Normal-blended (the queue guards reject other combinations by name).
+func (rc *GPURenderContext) QueueImageDrawMaterial(target render.GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip render.MipmapMode, imgWidth, imgHeight, imgStride int,
+	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
+	u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, material *render.ShaderEffect, nearest bool) {
+	cmd := rc.newImageDrawCmd(target, pixelData, genID, src, mip, imgWidth, imgHeight, imgStride,
+		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity, viewportW, viewportH,
+		u0, v0, u1, v1, tintR, tintG, tintB, tintA, render.BlendNormal, nearest, false)
+	cmd.Material = material
 	rc.queueImageCmd(target, cmd)
 }
 

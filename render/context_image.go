@@ -186,4 +186,12 @@ type DrawImageOptions struct {
 	// BlendSpaceSRGB keeps the historical output. See Paint.BlendSpace for
 	// per-path coverage.
 	BlendSpace BlendSpace
+
+	// Material 挂 quad 片元材质（P3.7 批 3b；Godot item 级
+	// canvas_item_set_material 形态：材质是 per-draw 选项）。nil = 无材质 =
+	// 存量逐位不变。图像自身纹理走材质的声明纹理槽（Godot TEXTURE/UV 语义）；
+	// 无 CPU 求值器（P3.2 契约）：CPU 路跳过并计入 RenderPathStats.MaterialSkips，
+	// 绝不当 fallback 裸画。材质 + 画布投影层 / blend≠Normal / bicubic 组合
+	// 本批按 CPU skip 表态（具名拒绝归 quad 口；扩展登记归批 6）。
+	Material *ShaderEffect
 }

@@ -45,6 +45,13 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 			return ErrQuadPerspectiveBicubic
 		}
 	}
+	// P3.7 批 3b：材质腿本批只接仿射 + Normal + 非 bicubic（组合顶点机已就绪，
+	// 权重透传与钉归批 6）。组合无变体即具名拒绝（ErrQuadPerspectiveBicubic 同风格）。
+	if opts.Material != nil {
+		if opts.Perspective || interp == InterpBicubic {
+			return ErrQuadMaterialUnsupported
+		}
+	}
 	opacity := normalizeQuadOpacity(opts.Opacity)
 	if !quadTintFinite(opts.Tint) {
 		return ErrQuadBadTint
@@ -112,6 +119,24 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 			tr, tg, tb, ta := atlasTintFactors(opts.Tint)
 			// 与图集腿同一式：顶点染色按 premul（tr*ta）下发，合成链才与 CPU 一致。
 			ptR, ptG, ptB := tr*ta, tg*ta, tb*ta
+			// P3.7 批 3b：材质腿（组合模块管线；tint 走 36B 顶点通道）。画布投影层
+			// 把 perspLeg 置真 ⇒ 材质+投影组合在此具名拒绝（校验期拦不住投影层状态）。
+			if opts.Material != nil {
+				if perspLeg {
+					return ErrQuadMaterialUnsupported
+				}
+				rc.QueueImageDrawMaterial(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
+					float32(dev[0].X), float32(dev[0].Y),
+					float32(dev[1].X), float32(dev[1].Y),
+					float32(dev[2].X), float32(dev[2].Y),
+					float32(dev[3].X), float32(dev[3].Y),
+					float32(opacity), vpW, vpH,
+					0, 0, 1, 1,
+					float32(ptR), float32(ptG), float32(ptB), float32(ta),
+					opts.Material, nearest)
+				c.recordGPUOp()
+				return nil
+			}
 			if perspLeg {
 				rc.QueueImageDrawQuadW(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 					float32(dev[0].X), float32(dev[0].Y),
@@ -151,6 +176,12 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 			c.recordGPUOp()
 			return nil
 		}
+	}
+	if opts.Material != nil {
+		// P3.7 批 3b：材质无 CPU 求值器——跳过 + 计数，绝不裸画无材质画面
+		// （skip ≠ fallback，不记 CPUFallbackOps）。
+		c.pathStats.MaterialSkips++
+		return nil
 	}
 	if c.gpuPathAvailable() {
 		c.recordCPUFallbackReason("image:DrawImageQuad")

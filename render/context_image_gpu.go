@@ -152,6 +152,24 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 		c.recordGPUOp()
 		return true
 	}
+	// P3.7 批 3b：材质腿路由。材质 + 画布投影层 / blend≠Normal / bicubic 三种
+	// 组合本批无变体 ⇒ 返 false 交调用方 CPU skip（绝不裸画）；material +
+	// Normal 仿射走 QueueImageDrawMaterial（组合模块管线，图像自身纹理 rides
+	// 声明纹理槽）。DrawImageOptions 无 tint ⇒ 零结构体（顶点通道白）。
+	if opts.Material != nil {
+		if projActive || opts.BlendMode != BlendNormal || bicubic {
+			return false
+		}
+		rc.QueueImageDrawMaterial(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
+			float32(tl.X), float32(tl.Y),
+			float32(tr.X), float32(tr.Y),
+			float32(br.X), float32(br.Y),
+			float32(bl.X), float32(bl.Y),
+			float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1,
+			0, 0, 0, 0, opts.Material, nearest)
+		c.recordGPUOp()
+		return true
+	}
 	rc.QueueImageDraw(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 		float32(tl.X), float32(tl.Y),
 		float32(tr.X), float32(tr.Y),

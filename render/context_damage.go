@@ -248,6 +248,17 @@ type gpuContextOps interface {
 	QueueImageDrawTint(target GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip intImage.MipmapMode, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, nearest bool, bicubic ...bool)
+	// QueueImageDrawMaterial is QueueImageDrawTint plus the quad-material leg
+	// (P3.7 batch 3b): the command rides the composed-module pipeline (per
+	// effect × leg) with the sprite texture in the user's declared binding
+	// slots and the engine transform/opacity block per draw. Required method
+	// (Tint/Blend/QuadW 同族：所有后端必须实现，旧桩随接口一起补). material
+	// must be non-nil and Normal-blended here; unsupported combinations are
+	// refused at the public entries (skip + MaterialSkips), never repainted
+	// unmaterial'd.
+	QueueImageDrawMaterial(target GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip intImage.MipmapMode, imgWidth, imgHeight, imgStride int,
+		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
+		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, material *ShaderEffect, nearest bool)
 	// QueueImageDrawBlend is QueueImageDrawTint plus a fixed-function Porter-Duff
 	// blend mode (B.02): the quad composites with the mode's blend factors
 	// instead of premultiplied SourceOver (DestinationIn mask draws and other

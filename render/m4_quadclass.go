@@ -54,6 +54,14 @@ type QuadDrawOptions struct {
 	// （存量逐位不变），分量乘源纹理素（straight 语义，CPU 与 GPU 同一式）。
 	// P3.7 批 1b：透视腿此前写死白，2.5D「按深度投影 + 被灯光染色」两件事互斥。
 	Tint RGBA
+	// Material 挂 quad 片元材质（P3.7 批 3b；Godot item 级 canvas_item_set_material
+	// 形态：材质是 per-draw 选项，与 Tint 同位）。nil = 无材质 = 存量逐位不变。
+	// 精灵自己的纹理走材质的声明纹理槽（Godot TEXTURE/UV 语义）；tint 经 36B
+	// 顶点通道下发（声明了 tint 输入的片元由用户接管，未声明的引擎后乘）。
+	// 无 CPU 求值器（P3.2 契约）：CPU 路跳过并计入 RenderPathStats.MaterialSkips，
+	// 绝不当 fallback 裸画。材质 + Perspective/bicubic/画布投影层 = 具名拒绝
+	// ErrQuadMaterialUnsupported（扩展归批 6）。
+	Material *ShaderEffect
 }
 
 // R1 哨兵错：调用方用 errors.Is 判定，不许静默画错。
@@ -77,6 +85,10 @@ var (
 	// ErrQuadBehindEye 投影层下任一角落在眼后（w ≤ 0），整 quad 拒绝
 	//（P3.7 批 1d；与 Matrix4.ProjectQuad/p35「眼后整块拒绝」同语义）。
 	ErrQuadBehindEye = errors.New("render: quad corner behind the eye under projection")
+	// ErrQuadMaterialUnsupported 材质腿暂不支持的组合（P3.7 批 3b：材质 +
+	// Perspective / bicubic / 画布投影层——组合顶点机已就绪，权重透传与钉随
+	// 批 6 按需开）。材质 + 非 Normal 混合在 blend 校验处先行拒绝。
+	ErrQuadMaterialUnsupported = errors.New("render: material leg does not support this combination yet (perspective/bicubic/projection)")
 )
 
 // quadTintFinite 报告染色四分量全有限。零结构体（白不透明）合法。

@@ -5680,8 +5680,12 @@ func (s *GPURenderSession) sliceImageResources(
 		return nil
 	}
 	return &imageFrameResources{
-		vertBuf:   combined.vertBuf,
-		drawCalls: dcs,
+		vertBuf: combined.vertBuf,
+		// P3.7 批 3a/3b：材质命令的 36B 顶点缓冲随切片携带——丢它会让我们在
+		// RecordDraws 退回 32B 仿射缓冲，firstVertex（材质索引）读错区间，
+		// 整格消失（本批 Identity 像素钉首跑抓到）。
+		materialVertBuf: combined.materialVertBuf,
+		drawCalls:       dcs,
 	}
 }
 

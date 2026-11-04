@@ -132,6 +132,13 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	if c.tryGPUDrawImage(img, opts, srcX, srcY, srcW, srcH, dstWidth, dstHeight) {
 		return
 	}
+	// P3.7 批 3b：材质无 CPU 求值器（P3.2 契约）——GPU 路没接走的材质绘制在此
+	// 统一拒绝（覆盖投影层/blend/bicubic/CPU 模式全部分支）：跳过 + MaterialSkips
+	// 计数，绝不落到任何 CPU 腿裸画无材质画面（skip ≠ fallback，不记 CPUFallbackOps）。
+	if opts.Material != nil {
+		c.pathStats.MaterialSkips++
+		return
+	}
 	// P3.7 批 1d：投影层生效 ⇒ CPU 兜底也走透视 CPU 腿（drawImageQuadCPUSplit
 	// 已有任意四角+权重的 1/w 有理插值），模式=ImagePattern 路在投影下无法表达
 	//（pattern 逆变换是 2×3）。blend 非 Normal 走老 pattern 路 + 计数（投影下

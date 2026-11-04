@@ -235,4 +235,10 @@ type RenderPathStats struct {
 	// region, so earlier command buffers read later bytes (merged-present
 	// regression shape; see docs/RENDER_CPU_1PCT_REPLAY_PLAN.md §4).
 	StagedWriteOverlaps int64
+	// MaterialSkips counts draws refused by the quad-material leg (P3.7
+	// batch 3b): CPU mode (no WGSL evaluator exists), sprite-level
+	// perspective/projection combinations, behind-eye refusals routed here.
+	// Deliberately NOT CPUFallbackOps — a refused material draw must never
+	// repaint unmaterial'd pixels as a "fallback" (P3.2 GPU-only contract).
+	MaterialSkips int
 }
