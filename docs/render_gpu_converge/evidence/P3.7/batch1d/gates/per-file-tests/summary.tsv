@@ -85,7 +85,7 @@ PASS	render/matrix_test.go
 PASS	render/mem_complex_offscreen_test.go
 PASS	render/mem_gpu_lifecycle_test.go
 SKIP_TAGGED	render/mem_harness_test.go
-PASS	render/mem_window_x11_linux_test.go
+FAIL	render/mem_window_x11_linux_test.go
 PASS	render/misc_extended_test.go
 PASS	render/nan_safety_test.go
 PASS	render/offscreen_record_mask_test.go
@@ -174,7 +174,7 @@ PASS	render/s6_5_text_atlas_test.go
 PASS	render/s6_6_path_geometry_test.go
 PASS	render/s6_7_resources_test.go
 PASS	render/s6_8_window_present_x11_linux_test.go
-PASS	render/s6_9_heavy_budget_test.go
+FAIL	render/s6_9_heavy_budget_test.go
 PASS	render/s6_perf_baseline_test.go
 PASS	render/sample_count_test.go
 PASS	render/scene_gpu_visual_test.go

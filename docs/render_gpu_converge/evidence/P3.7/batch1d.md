@@ -13,7 +13,7 @@
 | # | 位置 | 内容 |
 |---|---|---|
 | 1 | `render/context_projection.go`（新文件） | 四动词 + 两个映射器（`projDeviceFromUser`/`projDeviceFromBaked`）+ `projMapQuad`/`projTransformPath`（先展平再逐点映射）+ `projTotalAffine`（唯一「2×3 能否表达」判定源）+ `projTotalMatrix4`（4×4 精确逆，ClipBounds 用）+ `withProjectedPathScope` + `projTextBlocked` + `projRestore`/`ProjectionStats`/`ResetProjectionStats` |
-| 2 | `render/context.go:63-70` | 投影层状态（`projection`/`projectionActive`/`projectionStack`）+ **七枚具名计数**（`projClipDegrades`/`projPathExpands`/`projTextSkips`/`projGPUTexDegrades`/`projBrushDegrades`/`projMiscDegrades`/`projInterpDegrades`） |
+| 2 | `render/context.go:63-70` | 投影层状态（`projection`/`projectionActive`/`projectionStack`）+ **七枚具名计数**（`projClipDegrades`/`projPathExpands`/`projTextSkips`/`projGPUTexDegrades`/`projBrushDegrades`/`projShadowDegrades`/`projPatternDegrades`/`projInterpDegrades`） |
 | 3 | `render/context_layer_pass.go` | `Push/Pop` 与投影层同拍保存/恢复（拍板 D-1，Skia SkM44 风格）——**存归一化快照**（见 §三之 2） |
 | 4 | `render/m4_quadimage.go` | `DrawImageQuad` 吃画布投影：用户四角经全链映射、权重齐次合成 `w = w_proj × w_own`、任一角眼后整 quad 拒绝（新哨兵 `ErrQuadBehindEye`）、bicubic 降 bilinear + 计数 |
 | 5 | `render/context_image_gpu.go` | `tryGPUDrawImage` 非恒等投影 ⇒ 走 `QueueImageDrawQuadW` 透视槽；GPU 纹理/视频三口按 D-3 投影四角 AABB 降级 + 计数；眼后 ⇒ 不画且**返回 true**（返回 false 会让 video bridge 兜底再画一遍未投影画面） |
@@ -49,7 +49,7 @@
 | `DrawVideoFrame` | 视频帧口 | **实测它转调 `DrawImageEx` ⇒ 吃透视 quad 腿（比 D-3 的 AABB 更好）**，判据按投影四角落点 + 未投影位置无墨 |
 | 文字 9 入口逐个 | E 组 | 每入口：投影下 0 像素 + `TextSkips` +1 + 恒等对照必须画得出（`DrawShapedColorGlyphs` 在该字体无彩色字形 ⇒ 如实记「鉴别力不足」，不算证据也不算假绿） |
 | 描字两枚 fail-closed | **新发现** | 见下 |
-| `DrawShadow` | F 组杂项 | `Misc` 计数（此前从未被读）+ 剪影仍绘制 |
+| `DrawShadow` | F 组·阴影 | `ShadowApprox` 计数（此前与图样混在 `Misc` 一名、从未被读）+ 剪影仍绘制；同钉另判非 Normal 混合图样路的 `PatternApprox` |
 
 **这组钉又抓出一个真问题**：`StrokeString` 在投影下**画空却不记账**——同一字形轮廓 `Fill` 正常（2052 像素），`StrokeString` 却 0 像素、只留下一次 `PathExpansions` 计数（展平后的绕行方向与「闭环空腔靠反向绕行留空腔」相互抵消）。内容静默消失正是本批最不该留的形态 ⇒ 已把两枚描字入口并入 E 组同族 fail-closed（不画 + 记 `TextSkips`，守卫排在路径映射之前，钉里断言「被跳过就不该记路径映射」），并把「描字接投影映射（保序展平）」登记为后续专项。
 
@@ -60,6 +60,26 @@
 外部 `render/p37_projection_chain_test.go`（五枚，链序与观测面）：网腿只许映射一次（双投影指纹 1072 vs 一次映射 9920）/ 眼后 CPU 不画（0 vs 控制路 1024）/ 仿射提升 ≡ 乘进 CTM（路径 1240=1240、图像 2400=2400，逐位）/ 图像·路径·图集三链落点同序（非恒等 CTM 下 20 格点按链序 B 手算，三臂 0 错）/ 对外计数读口（恒等全零、四处 bicubic 逐一计数、复位交回旧值）。
 
 内部 `render/p37_projection_internal_test.go`（三枚）：`projTotalAffine` 语义（恒等逐位 / 提升合成 / 真透视必须拒）/ 七具名计数逐项咬合 / **零值投影永不激活守卫**（Push-Pop 后照旧画得出蓝、`SetProjection(零值)` 当关闭、Pop 原样恢复、空栈 no-op）。
+
+## 二·补二 统一修复轮（用户要求先查不规范、再一次修完）
+
+审计发现十条与主需求/仓库硬纪律不符或欠缺之处，处置如下（七条当场修，两条经拍板，一条如实保留）：
+
+| # | 问题 | 处置 |
+|---|---|---|
+| 1 | **图集三口重复实现**：`vertices_atlas.go` 三处各内联一遍「用户角→投影映射→权重齐次合成→透视槽/采样核分流」（同一能力三份副本，违 AGENTS 去冗余） | 抽 `atlasSpriteUserCorners` + `(*Context).atlasProjectSpriteCorners` 一份实现，三口共用 ⇒ 反证 N1 的红钉从 8 涨到 17、N9 注入点从三处收敛到一处 |
+| 2 | **裁剪两处重式**：`ClipRoundRect` 与 `ClipRRect` 各写「用户 RRect→过用户矩阵→展平投影映射→计数」 | 抽 `clipProjectedUserPath` 共用 |
+| 3 | **展平容差散落字面量**：`0.25` 在 4 个消费点各写一遍，与 `path_metrics.go` 的默认容差同源却无关联 | 提 `projFlattenTolerance` 常量并注明同根 |
+| 4 | **真源不合一**：评估正本 §3 还写着「D-1 推荐独立栈」，实际拍板并实现的是并入 `Push/Pop` ⇒ 下一批读它会读错 | 评估文档补「拍板结果」标注（保留推荐原文当历史） |
+| 5 | **跨平台空格**：本批交付文档没写 gwgpu/metal（darwin）本机不可验这一格（AGENTS 跨平台纪律要求写明原因、不许留空） | §五 补一行：五目标含 darwin 两目标编译过，真窗/像素需 macOS，按先例标「不可本机验」 |
+| 6 | **证据基线混用**：`negative.txt` 头写「最终代码实测」，但 N1–N10 是在描字守卫落地前复跑的 | 终态整批重跑（见 negative.txt 终态表），中间基线段落标注取代关系 |
+| 7 | **一处近似没登记**：投影 scope 内设备空间刷烘焙取 `projTotalAffine()`（scope 内矩阵恒等 ⇒ 只含提升仿射、不含完整链） | 补进「登记不做/近似」清单 |
+| 8 | **一名混两事**：`ProjectionStats.Misc` 同时装「阴影抬升比例按 2×3」与「非 Normal 混合走图样路」⇒ 读数答不出是哪种近似 | **用户拍板=拆**：`ShadowApprox` + `PatternApprox` 两个字段、两个 Context 计数；图样那半补了判据（非 Normal 混合的投影下图像必须记 `PatternApprox`+1） |
+| 9 | **测试数据纪律口径**：AGENTS 条文「测试一律读数据文件」与像素钉里代码构造图块/探针矩形是否冲突 | **用户拍板=fixture 可由代码生成**（输入图元不是标准答案数据；判据必须来自公式推导或落档文件），既有 1a–1d 钉不变 |
+| 10 | **一枚钉无鉴别力**：`DrawShapedColorGlyphs` 在无彩色字形的字体上恒等对照也是 0 像素 | 改为 `GPUI_TEST_COLOR_FONT` 可指定、未设退系统 NotoColorEmoji、都没有就 `t.Skipf` 说明原因（不拿 0 像素冒充通过）；本机有彩色字体 ⇒ 该入口现已真判 |
+
+八枚计数的断言分布：`ClipDegrades`/`PathExpansions`/`TextSkips`/`GPUTextureAABBs`/`ShadowApprox`/`PatternApprox`/`InterpDowngrades` 七项由**对外读口**断言（`TestP37ProjectionStatsCensus` + 旁路钉），`BrushBakes` 由内部钉直读字段断言（getter 是纯镜像，无独立逻辑）——审计前那种「字段从没被任何断言读过」的情况已清零。
+十枚文字入口钉同时改为**子测试**（`t.Run`），一条跳过不再连坐其余八条。合并与拆名后：三十枚钉全绿、定向回归（图集/裁剪/文字/描边/D6/M1/P37）仅 `text_transform_gpu_test.go` 一枚红且在 7 枚在册名单内 ⇒ **零新增红**；反证 14 条在同终态整批重跑（结果见 `negative.txt` 终态表）。
 
 ## 三、本轮抓到并修掉的三个洞（都带反证）
 
@@ -79,13 +99,14 @@
 |---|---|---|
 | apidoc 覆盖校验 | 首轮 **rc=1** 抓到 12 个符号缺登记（`Matrix4Homography`/`ErrQuadBehindEye`/四动词 + `recording` 五符号）→ 补 §3.15/§0/§1/§6.3/§8/§9/§11/§13 → **rc=0** | `go run ./scripts/apidoc` |
 | build + vet | `go build ./...` rc=0；`go vet ./render ./render/recording ./engine/camera ./engine/sprite` rc=0；gofmt 触及文件零脏（`context_layer.go`/`internal/clip/stack.go` 是 HEAD 既有脏，未碰） | 本会话实测 |
-| 五目标交叉编译 | **10/10 绿**：linux/amd64、linux/arm64、windows/amd64、darwin/amd64、darwin/arm64 × {默认, `-tags nogpu`} 全 exit 0；包数 linux 335/331、windows 341/337、darwin 333/329（比 1c 各 +1 = `examples/ui_render_base_recording` 从「已知坏」收回纳入正检，它在批 1d 补齐 `Backend.Projection` spy） | `gates/build/*.txt` + `gates/build-gate.sh` |
+| gwgpu/metal（darwin）格 | 五目标交叉编译含 darwin-amd64/arm64 的默认与 `-tags nogpu` 全过；**真窗与像素判据本机不可验**（无 macOS），照批 1a–1c 先例标记，等有 macOS 机器补验 |
+| 五目标交叉编译（终态复跑） | **10/10 绿**：linux/amd64、linux/arm64、windows/amd64、darwin/amd64、darwin/arm64 × {默认, `-tags nogpu`} 全 exit 0；包数 linux 335/331、windows 341/337、darwin 333/329（比 1c 各 +1 = `examples/ui_render_base_recording` 从「已知坏」收回纳入正检，它在批 1d 补齐 `Backend.Projection` spy） | `gates/build/*.txt` + `gates/build-gate.sh` |
 | `-race`（终态复跑） | `./render/internal/gpu` 整包 ok 30.0s；`./render -run 'TestP37\|TestQuad\|TestM1\|TestD[0-9]\|TestR1\|TestAtlas'` ok 11.7s。附注：把过滤器放宽到含 `TestText\|TestStroke` 会命中在册基线红 `text_transform_gpu_test.go`（`TestTextTransformAutoRoutesOutlines`），该文件本在 7 枚 FAIL 名单内，非本批引入，门禁按 1c 口径记 | `race.txt` |
-| conformance 双后端 | 终态复跑：`GPUI_BACKEND=native` PASS 0.85s；`GPUI_BACKEND=go` PASS 0.77s（`TestConformanceDualBackend`） | `conformance.txt` |
-| 逐文件 sweep（34 包） | **759 = 730 PASS / 21 SKIP_TAGGED / 7 FAIL / 1 NO_TESTS**（基线 755=724/21/9/1；+4 全为本批新测试文件且四枚 PASS；FAIL 名单是基线九枚的**子集** ⇒ 零新增红，`m1_paint`/`m5_keystroke_g1` 本轮也回绿） | `gates/per-file-tests/` + `per-file-tests-run.log` |
+| conformance 双后端 | 统一修复轮终态：`GPUI_BACKEND=native` PASS 0.94s；`GPUI_BACKEND=go` PASS 0.85s（`TestConformanceDualBackend`） | `conformance.txt` |
+| 逐文件 sweep（34 包） | 统一修复轮终态 **759 = 728 PASS / 21 SKIP_TAGGED / 9 FAIL / 1 NO_TESTS**（基线 755=724/21/9/1；+4 全为本批新测试文件且四枚 PASS；FAIL 与基线**同数、两枚同族互换**：进 `mem_window_x11`（单跑 3/3 绿）与 `s6_9`（终态 A/B：**基线 `b28ff695` 同机 3/3 全红**，本树不劣于基线）⇒ 零新增红） | `gates/per-file-tests/` + `gates/new-fails-ab.txt` |
 | 新增 FAIL 定性 | 两枚，均**非本批引入**：①`mem_window_x11_linux`（`BeginFrame: hal: surface outdated`，sweep 串行长跑 load 6.6~9.8 时出现；本树单跑 3/3 绿 + 纯净 HEAD 3/3 绿）②`s6_9_heavy_budget`（H02/U05 p50 贴线 ~3%；空闲机整档复跑本树仍红，**纯净 HEAD 同族同样红**：HEAD run1 H02=7.75/门限 7.71、H06=0.40/0.31，run3 H06=0.34 ⇒ 台账在案的墙钟漂移族，批 1b 已记同名先例） | `gates/new-fails-ab.txt` |
 | FAIL 名单换血 | −`ui/rendering/m1_paint`（回绿）＋上两枚 ⇒ 净 +1；与基线同族的互换照批 1b/1c 先例处理 | `gates/per-file-tests/summary.tsv` |
-| 三窗双后端 | 跑两轮（首跑 + 旁路钉与描字守卫后复跑）：六轮 rc 全 0、Xwayland 每轮前后存活=1；**p35_persp golden 0.0000%（logic 9/9、pixel 17/17、cpu_fallback_ops=0）**、**sprite parity 0.0000% + golden 0.0000%**、**camera golden changed=0（probes 全 true）**——恒等护栏的像素实证。投影能力自身的真窗验证按计划落批 6（这两轮证的是「没装投影 ⇒ 存量逐位不变」），缺口在 §二·补 明写，不冒充已验 | `windows-summary.txt` |
+| 三窗双后端 | 跑三轮（首跑、旁路钉后、统一修复轮后各一次）：六轮 rc 全 0、Xwayland 每轮前后存活=1；**p35_persp golden 0.0000%（logic 9/9、pixel 17/17、cpu_fallback_ops=0）**、**sprite parity 0.0000% + golden 0.0000%**、**camera golden changed=0（probes 全 true）**——恒等护栏的像素实证。投影能力自身的真窗验证按计划落批 6（这两轮证的是「没装投影 ⇒ 存量逐位不变」），缺口在 §二·补 明写，不冒充已验 | `windows-summary.txt` |
 | 负向对照 | **十四枚**在最终代码上逐条红再还原（N1 摘投影映射 8 钉红…N10 零值污染、N11 摘文字族守卫 5 钉红、N12 摘定向 RRect 门、N13 摘 ClipBounds 4×4 逆、N14 摘 GPU 纹理表态各 1 钉红）；两枚如实记为「不断言的防护」：**N6（眼后显式拒绝）与 N12b（均匀缩放 RRect 快路门）**——摘掉无红，不拿「加了守卫」冒充「修了洞」；十一文件 `md5sum` 逐字节核验 + `grep "// NEG"|false && c.proj` 零残留；还原后三十枚钉复跑 ok | `negative.txt` |
 
 ## 六、口径与登记

@@ -243,7 +243,7 @@ func (c *Context) DrawShadow(path *Path, col RGBA, elevation float64, transparen
 	tm := c.totalMatrix()
 	if c.projActive() {
 		if _, aff := c.projTotalAffine(); !aff {
-			c.projMiscDegrades++
+			c.projShadowDegrades++
 		}
 	}
 	scaleY := math.Hypot(tm.B, tm.E)

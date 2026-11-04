@@ -4,6 +4,7 @@ package render_test
 
 import (
 	"image"
+	"os"
 	"testing"
 
 	"github.com/energye/gpui/render"
@@ -53,6 +54,23 @@ func stanceInkNear(img image.Image, x, y, r int) bool {
 		}
 	}
 	return false
+}
+
+// stanceColorFace 找一份彩色字体（GPUI_TEST_COLOR_FONT 优先，其次系统 NotoColorEmoji）。
+func stanceColorFace(t *testing.T) (text.Face, bool) {
+	t.Helper()
+	path := os.Getenv("GPUI_TEST_COLOR_FONT")
+	if path == "" {
+		path = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+	}
+	if _, err := os.Stat(path); err != nil {
+		return nil, false
+	}
+	src, err := text.NewFontSourceFromFile(path)
+	if err != nil {
+		return nil, false
+	}
+	return src.Face(48), true
 }
 
 func stanceNewCtx(w, h int) *render.Context {
@@ -478,7 +496,10 @@ func TestP37ProjectionVideoFrameFollowsPerspQuad(t *testing.T) {
 		tl.X, tl.Y, br.X, br.Y)
 }
 
-// 10) 文字七个入口逐个 fail-closed：每个都必须 ① 不画 ② TextSkips 递增 ③ 恒等投影对照能画出（鉴别力）。
+// 文字族九个公开入口逐个 fail-closed：每入口都要满足「投影下 0 像素 + TextSkips +1」
+// 且「恒等对照画得出东西」（否则该入口的『不画』没有鉴别力，只能跳过说明原因）。
+// 彩色字形入口需要真彩色字体：GPUI_TEST_COLOR_FONT 指定，未设则退系统 NotoColorEmoji，
+// 两者都没有就 Skipf（不拿 0 像素冒充通过）。
 func TestP37ProjectionAllTextEntriesFailClosed(t *testing.T) {
 	src, err := text.NewFontSourceFromFile("text/testdata/source-sans/OTF/SourceSans3-Regular.otf")
 	if err != nil {
@@ -486,51 +507,61 @@ func TestP37ProjectionAllTextEntriesFailClosed(t *testing.T) {
 	}
 	face := src.Face(28)
 
-	entries := map[string]func(*render.Context){
-		"DrawString":            func(dc *render.Context) { dc.DrawString("Affine", 30, 60) },
-		"DrawStringAnchored":    func(dc *render.Context) { dc.DrawStringAnchored("Affine", 60, 60, 0.5, 0.5) },
-		"DrawStringWrapped":     func(dc *render.Context) { dc.DrawStringWrapped("Affine grid", 30, 60, 0, 0, 120, 30, render.AlignLeft) },
-		"StrokeString":          func(dc *render.Context) { dc.StrokeString("Affine", 30, 60) },
-		"StrokeStringAnchored":  func(dc *render.Context) { dc.StrokeStringAnchored("Affine", 60, 60, 0.5, 0.5) },
-		"DrawParagraph":         func(dc *render.Context) { dc.DrawParagraph(text.LayoutTextSimple("Affine", face), 30, 60) },
-		"DrawParagraphStyled":   func(dc *render.Context) { dc.DrawParagraphStyled(stanceParagraph(t, face), 30, 60) },
-		"DrawShapedGlyphs":      func(dc *render.Context) { dc.DrawShapedGlyphs(text.Shape("Affine", face), face, 30, 60) },
-		"DrawShapedColorGlyphs": func(dc *render.Context) { dc.DrawShapedColorGlyphs(text.Shape("Affine", face), face, 30, 60) },
+	entries := []struct {
+		name string
+		draw func(*render.Context, text.Face)
+	}{
+		{"DrawString", func(dc *render.Context, f text.Face) { dc.DrawString("Affine", 30, 60) }},
+		{"DrawStringAnchored", func(dc *render.Context, f text.Face) { dc.DrawStringAnchored("Affine", 60, 60, 0.5, 0.5) }},
+		{"DrawStringWrapped", func(dc *render.Context, f text.Face) {
+			dc.DrawStringWrapped("Affine grid", 30, 60, 0, 0, 120, 30, render.AlignLeft)
+		}},
+		{"StrokeString", func(dc *render.Context, f text.Face) { dc.StrokeString("Affine", 30, 60) }},
+		{"StrokeStringAnchored", func(dc *render.Context, f text.Face) { dc.StrokeStringAnchored("Affine", 60, 60, 0.5, 0.5) }},
+		{"DrawParagraph", func(dc *render.Context, f text.Face) { dc.DrawParagraph(text.LayoutTextSimple("Affine", f), 30, 60) }},
+		{"DrawParagraphStyled", func(dc *render.Context, f text.Face) { dc.DrawParagraphStyled(stanceParagraph(t, f), 30, 60) }},
+		{"DrawShapedGlyphs", func(dc *render.Context, f text.Face) { dc.DrawShapedGlyphs(text.Shape("Affine", f), f, 30, 60) }},
+		{"DrawShapedColorGlyphs", func(dc *render.Context, f text.Face) {
+			cf, ok := stanceColorFace(t)
+			if !ok {
+				t.Skipf("无彩色字体（设 GPUI_TEST_COLOR_FONT 指向 COLR/CBDT 字体后此入口才有鉴别力）")
+			}
+			dc.DrawShapedColorGlyphs(text.Shape("\U0001F600", cf), cf, 30, 60)
+		}},
 	}
 
-	for name, draw := range entries {
-		if draw == nil {
-			continue
-		}
-		// 投影下：必须不画 + 计数 +1
-		dc := stanceNewCtx(320, 220)
-		dc.SetFont(face)
-		dc.SetProjection(projHomography())
-		before := dc.ProjectionStats().TextSkips
-		draw(dc)
-		st := dc.ProjectionStats()
-		n := probeNonWhite(dc.Image())
-		_ = dc.Close()
-		if n != 0 {
-			t.Errorf("%s 在投影层下画出了东西（%d 像素）：fail-closed 破了", name, n)
-		}
-		if st.TextSkips != before+1 {
-			t.Errorf("%s 跳过却没计数：TextSkips %d→%d", name, before, st.TextSkips)
-		}
+	for _, e := range entries {
+		e := e
+		t.Run(e.name, func(t *testing.T) {
+			dc := stanceNewCtx(320, 220)
+			dc.SetFont(face)
+			dc.SetRGBA(0, 0, 0, 1)
+			dc.SetLineWidth(2)
+			dc.SetProjection(projHomography())
+			before := dc.ProjectionStats().TextSkips
+			e.draw(dc, face)
+			st := dc.ProjectionStats()
+			n := probeNonWhite(dc.Image())
+			_ = dc.Close()
+			if n != 0 {
+				t.Errorf("投影层下画出 %d 像素：fail-closed 破了", n)
+			}
+			if st.TextSkips != before+1 {
+				t.Errorf("跳过却没计数：TextSkips %d→%d", before, st.TextSkips)
+			}
 
-		// 恒等对照：同一入口必须画得出东西（否则上面的「不画」没有鉴别力）
-		ref := stanceNewCtx(320, 220)
-		ref.SetFont(face)
-		draw(ref)
-		m := probeNonWhite(ref.Image())
-		_ = ref.Close()
-		if m == 0 {
-			// 该入口在测试字体上本就画不出（如无彩色字形时 DrawShapedColorGlyphs）——
-			// 如实记录，不把它算成 fail-closed 的证据，也不算假绿。
-			t.Logf("%s：投影下不画且计数 +1；恒等对照也是 0 像素（该字体无彩色字形，鉴别力不足，登记）", name)
-			continue
-		}
-		t.Logf("%s：投影下 0 像素 + 计数 +1；恒等对照 %d 像素", name, m)
+			ref := stanceNewCtx(320, 220)
+			ref.SetFont(face)
+			ref.SetRGBA(0, 0, 0, 1)
+			ref.SetLineWidth(2)
+			e.draw(ref, face)
+			m := probeNonWhite(ref.Image())
+			_ = ref.Close()
+			if m == 0 {
+				t.Skipf("恒等对照也是 0 像素：该入口在此字体/参数下本就画不出，判据无鉴别力（不拿 0 当通过）")
+			}
+			t.Logf("投影下 0 像素 + TextSkips +1；恒等对照 %d 像素", m)
+		})
 	}
 }
 
@@ -610,11 +641,26 @@ func TestP37ProjectionShadowCountsMiscAndStillDraws(t *testing.T) {
 	dc.DrawShadow(sil, render.RGBA{R: 0, G: 0, B: 0, A: 0.5}, 12, false)
 
 	st := dc.ProjectionStats()
-	if st.Misc == 0 {
-		t.Fatal("DrawShadow 的 2×3 近似表态没被计数（Misc 此前从未被任何断言读过）")
+	if st.ShadowApprox == 0 {
+		t.Fatal("DrawShadow 的 2×3 近似表态没被计数（ShadowApprox 此前从未被任何断言读过）")
 	}
 	if probeNonWhite(dc.Image()) == 0 {
 		t.Fatal("投影下阴影整笔丢失（剪影应仍经路径映射绘制，只是抬升比例近似）")
 	}
-	t.Logf("DrawShadow：Misc 计数=%d，画面仍画（近似已登记）", st.Misc)
+
+	// 同族第二枚计数：非 Normal 混合的图像在投影下走图样路（几何仍按投影映射、采样核
+	// 是 2×3）⇒ PatternApprox 必须单独可数（此前与阴影混在 Misc 一名，读数答不出哪种近似）。
+	img := atlasPerspPlate(t)
+	defer img.Dispose()
+	dx := stanceNewCtx(320, 220)
+	defer func() { _ = dx.Close() }()
+	dx.SetProjection(projHomography())
+	before := dx.ProjectionStats().PatternApprox
+	dx.DrawImageEx(img, render.DrawImageOptions{X: 20, Y: 20, DstWidth: 80, DstHeight: 60,
+		BlendMode: render.BlendMultiply})
+	after := dx.ProjectionStats().PatternApprox
+	if after != before+1 {
+		t.Fatalf("非 Normal 混合的投影下图样路没记 PatternApprox：%d→%d", before, after)
+	}
+	t.Logf("DrawShadow ShadowApprox=%d；图样路 PatternApprox=%d（两名各自单一语义）", st.ShadowApprox, after)
 }

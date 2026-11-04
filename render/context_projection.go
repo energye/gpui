@@ -79,6 +79,11 @@ func (c *Context) Projection() Matrix4 {
 }
 
 // projActive 报告投影层是否非恒等（全部消费点的快速护栏位）。
+// projFlattenTolerance 是投影链展平曲线用的容差（用户单位）。此前 5 个消费点各写
+// 一遍 0.25 字面量（批 1d 去重），与 path_metrics.go「tolerance ≤0 → 0.25」的默认
+// 展平容差同源。
+const projFlattenTolerance = 0.25
+
 func (c *Context) projActive() bool {
 	return c != nil && c.projectionActive
 }
@@ -326,10 +331,11 @@ func (c *Context) projTotalMatrix4() (Matrix4, bool) {
 type ProjectionStats struct {
 	ClipDegrades     int // C 组：矩形/RRect 裁剪改走投影 quad/展平路径裁剪
 	PathExpansions   int // D 组：路径展平+逐点投影映射后走设备空间管线
-	TextSkips        int // E 组：非仿射下文字整笔不画（fail-closed）
+	TextSkips        int // E 组：投影层非恒等下文字整笔不画（fail-closed，含描字）
 	GPUTextureAABBs  int // GPU 纹理/视频三口：队列口无 quad 形参 ⇒ 投影四角 AABB
 	BrushBakes       int // F 组：设备空间刷烘焙无法表达 ⇒ 跳过烘焙（相位近似）
-	Misc             int // F 组杂项：阴影抬升比例按 2×3、CPU 图样路 blend 非 Normal
+	ShadowApprox     int // F 组：阴影抬升/模糊比例按 2×3 层算（剪影本身仍走投影映射）
+	PatternApprox    int // F 组：非 Normal 混合的图像走图样路（几何按投影、采样核按 2×3）
 	InterpDowngrades int // 采样核：透视槽无 bicubic 变体 ⇒ 降 bilinear（quad/图集 GPU/图集 CPU 三口）
 }
 
@@ -345,7 +351,8 @@ func (c *Context) ProjectionStats() ProjectionStats {
 		TextSkips:        c.projTextSkips,
 		GPUTextureAABBs:  c.projGPUTexDegrades,
 		BrushBakes:       c.projBrushDegrades,
-		Misc:             c.projMiscDegrades,
+		ShadowApprox:     c.projShadowDegrades,
+		PatternApprox:    c.projPatternDegrades,
 		InterpDowngrades: c.projInterpDegrades,
 	}
 }
@@ -358,7 +365,7 @@ func (c *Context) ResetProjectionStats() ProjectionStats {
 	}
 	prev := c.ProjectionStats()
 	c.projClipDegrades, c.projPathExpands, c.projTextSkips = 0, 0, 0
-	c.projGPUTexDegrades, c.projBrushDegrades, c.projMiscDegrades = 0, 0, 0
-	c.projInterpDegrades = 0
+	c.projGPUTexDegrades, c.projBrushDegrades, c.projInterpDegrades = 0, 0, 0
+	c.projShadowDegrades, c.projPatternDegrades = 0, 0
 	return prev
 }

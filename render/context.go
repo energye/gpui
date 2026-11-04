@@ -59,16 +59,17 @@ type Context struct {
 	// Zero value = identity ⇒ every consumer runs its historic path
 	// bit-identically. Push/Pop snapshot it together with the matrix
 	// (Skia SkM44-style save/restore participation, user拍板 D-1).
-	projection         Matrix4
-	projectionActive   bool // true = projection differs from identity (zero value = inactive = identity)
-	projectionStack    []Matrix4
-	projClipDegrades   int // named census: clip degraded to path clip under projective projection
-	projPathExpands    int // named census: path flattened+projected to device space
-	projTextSkips      int // named census: text draws skipped under projective projection
-	projGPUTexDegrades int // named census: GPU-texture/video rect degraded to AABB under projective projection
-	projBrushDegrades  int // named census: device-space brush bake skipped under projective projection
-	projMiscDegrades   int // named census: misc shadow/gradient helpers computed without projection
-	projInterpDegrades int // named census: bicubic downgraded to bilinear (no perspective variant)
+	projection          Matrix4
+	projectionActive    bool // true = projection differs from identity (zero value = inactive = identity)
+	projectionStack     []Matrix4
+	projClipDegrades    int // named census: clip degraded to path clip under projective projection
+	projPathExpands     int // named census: path flattened+projected to device space
+	projTextSkips       int // named census: text draws skipped under projective projection
+	projGPUTexDegrades  int // named census: GPU-texture/video rect degraded to AABB under projective projection
+	projBrushDegrades   int // named census: device-space brush bake skipped under projective projection
+	projShadowDegrades  int // named census: shadow lift/blur scale computed on the 2×3 layer only
+	projPatternDegrades int // named census: image pattern route used because the projection can't express the blend
+	projInterpDegrades  int // named census: bicubic downgraded to bilinear (no perspective variant)
 
 	// Layer support
 	layerStack *layerStack // Layer stack for compositing

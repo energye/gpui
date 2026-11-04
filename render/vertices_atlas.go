@@ -77,7 +77,9 @@ func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
 			// 喂 projMapQuad 的必须是**用户空间**角点：它内部走 raw∘投影，
 			// 传已经过 CTM 的设备角会把 CTM 再乘一遍。
 			if c.projActive() {
-				pdev, pw, ok := c.projMapQuad(usr)
+				// 老口不读精灵自带透视字段（批 1c D-4），但吃画布投影层——投影层是
+				// 画布状态，三口共用这一条投影腿（批 1d 去重，此前各写一遍）。
+				pdev, pw, ok := c.atlasProjectSpriteCorners(sp, [4]float64{1, 1, 1, 1})
 				if !ok {
 					continue // behind-eye sprite: refused whole
 				}
@@ -232,6 +234,37 @@ func atlasPerspValidate(sp AtlasSprite, filt InterpolationMode) error {
 	return nil
 }
 
+// atlasSpriteUserCorners returns the sprite's four corners in **user space**
+// (perspective sprites carry them directly; affine ones are decomposed with an
+// identity matrix). The projection chain applies the user matrix itself, so
+// feeding device corners in would multiply the CTM twice.
+// atlasSpriteUserCorners returns the sprite's four user-space corners.
+func atlasSpriteUserCorners(sp AtlasSprite) [4]Point {
+	if sp.Perspective {
+		return sp.Corners
+	}
+	tl, tr, br, bl := atlasSpriteCorners(sp, Identity())
+	return [4]Point{tl, tr, br, bl}
+}
+
+// atlasProjectSpriteCorners is the shared batch-1d projection leg for all three
+// atlas entries (each used to inline the same mapping): user corners -> the
+// canvas projection chain -> device corners plus homogeneous weights
+// (w = w_proj x w_own). ok=false means a corner is behind the eye and the
+// caller skips that whole sprite (painter's order; same rule as the quad
+// entry's ErrQuadBehindEye).
+func (c *Context) atlasProjectSpriteCorners(sp AtlasSprite, own [4]float64) (dev [4]Point, w [4]float64, ok bool) {
+	pdev, pw, okP := c.projMapQuad(atlasSpriteUserCorners(sp))
+	if !okP {
+		return [4]Point{}, [4]float64{}, false
+	}
+	w = own
+	for k := 0; k < 4; k++ {
+		w[k] *= pw[k]
+	}
+	return pdev, w, true
+}
+
 // atlasSpriteCorners 算出设备四角（TL/TR/BR/BL），先绕轴心翻转再旋转。
 // 老路（Rot==0 且无翻转）走原直接式，保证与老 DrawAtlas 逐位一致。
 // atlasSpriteCorners 算出设备四角（TL/TR/BR/BL），先绕轴心翻转再旋转。
@@ -344,22 +377,14 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 			// 拒绝同源）。喂 projMapQuad 的必须是**用户空间**角点：它内部一趟
 			// 应用 raw CTM，传设备角会把 CTM 乘两遍。
 			if c.projActive() {
-				var usr [4]Point
 				if sp.Perspective {
 					copy(wFinal[:], sp.Weights[:])
-					usr = sp.Corners
-				} else {
-					tl, trPt, br, bl := atlasSpriteCorners(sp, Identity())
-					usr = [4]Point{tl, trPt, br, bl}
 				}
-				pdev, pw, ok := c.projMapQuad(usr)
+				pdev, wProj, ok := c.atlasProjectSpriteCorners(sp, wFinal)
 				if !ok {
 					continue // behind-eye sprite: refused whole
 				}
-				dev = pdev
-				for k := 0; k < 4; k++ {
-					wFinal[k] *= pw[k]
-				}
+				dev, wFinal = pdev, wProj
 				if quadHasNonFinite(dev) || quadAreaSum(dev) < 1e-9 {
 					return AtlasDrawResult{}, ErrAtlasQuadDegenerate
 				}
@@ -487,22 +512,14 @@ func (c *Context) drawAtlasExCPU(img *ImageBuf, sprites []AtlasSprite, drawIdx [
 		// 同式；喂**用户空间**角点，设备角会被 raw CTM 乘两遍；behind-eye 精灵
 		// 跳过），权重齐次合成；透视采样核无 bicubic 变体 ⇒ 降 bilinear 并计数。
 		if c.projActive() {
-			var usr [4]Point
 			if sp.Perspective {
 				copy(wFinal[:], sp.Weights[:])
-				usr = sp.Corners
-			} else {
-				tl, trPt, br, bl := atlasSpriteCorners(sp, Identity())
-				usr = [4]Point{tl, trPt, br, bl}
 			}
-			pdev, pw, ok := c.projMapQuad(usr)
+			pdev, wProj, ok := c.atlasProjectSpriteCorners(sp, wFinal)
 			if !ok {
 				continue // behind-eye sprite: refused whole
 			}
-			dev = pdev
-			for k := 0; k < 4; k++ {
-				wFinal[k] *= pw[k]
-			}
+			dev, wFinal = pdev, wProj
 			perspSampler = true
 			if filt == InterpBicubic {
 				filt = InterpBilinear

@@ -1,9 +1,9 @@
-# 批 1d 终态复跑：conformance 双后端
+# 批 1d 统一修复轮终态：conformance 双后端
 -- GPUI_BACKEND=native --
+--- PASS: TestConformanceDualBackend (0.94s)
+--- SKIP: TestConformanceInner (0.00s)
+ok  	github.com/energye/gpui/render	0.952s
+-- GPUI_BACKEND=go --
 --- PASS: TestConformanceDualBackend (0.85s)
 --- SKIP: TestConformanceInner (0.00s)
-ok  	github.com/energye/gpui/render	0.866s
--- GPUI_BACKEND=go --
---- PASS: TestConformanceDualBackend (0.78s)
---- SKIP: TestConformanceInner (0.00s)
-ok  	github.com/energye/gpui/render	0.792s
+ok  	github.com/energye/gpui/render	0.860s

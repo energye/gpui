@@ -68,6 +68,21 @@ func (c *Context) ClipPreserve() {
 // ClipRect sets a rectangular clipping region.
 // This is a faster alternative to creating a rectangular path and calling Clip().
 // The clip region is intersected with any existing clip regions.
+// clipProjectedUserPath is the shared batch-1d clip leg (ClipRoundRect and
+// ClipRRect used to duplicate it): bake the user-space clip path with the user
+// matrix, map it through the canvas projection chain (curves flattened at
+// projFlattenTolerance — projections do not preserve conics, the mapped polyline
+// is the exact projected shape) and take the named census. ok=false means a
+// sample fell behind the eye, so the caller refuses the clip push.
+func (c *Context) clipProjectedUserPath(userPath *Path) (*Path, bool) {
+	dp, ok := c.projTransformPath(userPath.Transform(c.matrix), projFlattenTolerance)
+	if !ok {
+		return nil, false
+	}
+	c.projClipDegrades++
+	return dp, true
+}
+
 func (c *Context) ClipRect(x, y, w, h float64) {
 	// Single shared implementation.
 	c.ClipRectOp(x, y, w, h, ClipOpIntersect)
@@ -102,9 +117,7 @@ func (c *Context) ClipRoundRect(x, y, w, h, radius float64) {
 		up.RRect(NewRRectXY(Rect{Min: Pt(x, y), Max: Pt(x+w, y+h)}, radius, radius))
 		// 投影映射器吃的是 verb 期烘焙后的坐标（拍板 B），这里先把用户空间
 		// RRect 过一遍用户矩阵，与路径族同序。
-		dp, ok := c.projTransformPath(up.Transform(c.matrix), 0.25)
-		if ok {
-			c.projClipDegrades++
+		if dp, ok := c.clipProjectedUserPath(up); ok {
 			c.pushDevicePathClip(dp, c.paint.FillRule)
 		}
 		return
@@ -196,12 +209,11 @@ func (c *Context) ClipRRect(rr RRect) {
 		// P3.7 批 1d：投影层非恒等 ⇒ 展平+逐点投影映射（曲线先展平：投影不保
 		// 圆锥截线，映射采样折线是精确投影像）+ 具名计数。链序按拍板 B：用户
 		// RRect 先过用户矩阵，再过投影，最后叠设备缩放。
-		dp, ok := c.projTransformPath(userPath.Transform(c.matrix), 0.25)
+		dp, ok := c.clipProjectedUserPath(userPath)
 		if !ok {
 			return // behind-eye: refuse the clip push
 		}
 		devicePath = dp
-		c.projClipDegrades++
 	} else {
 		devicePath = userPath.Transform(c.totalMatrix())
 	}

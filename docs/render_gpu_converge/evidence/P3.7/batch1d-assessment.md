@@ -80,6 +80,16 @@
 
 ## 3 待拍板项
 
+> **拍板结果（2026-11-04 实施时定，本段为准；下面的「推荐」保留当时的建议原文作历史）**
+> - **D-1 = 并入 `Push()/Pop()`（非推荐的独立栈）**：投影层与 2×3 矩阵同拍保存/恢复（Skia `SkM44` 风格），实现见 `context_layer_pass.go` 的 Push/Pop + `context_projection.go` 的 `projRestore`。**实施补两条**：① 快照必须存**归一化值**（恒等态存 `Matrix4Identity()`），存 `c.projection` 原值会因零值 `Matrix4.IsIdentity()==false` 把画布污染成「投影已装 + 全零矩阵」，之后绘制全被映射到空（存量级回归，由 `TestD6` 抓到、新钉 `TestP37ProjectionZeroValueNeverActive` 咬住，反证 N10）；② `SetProjection(零值)` 按本文档口径归一为恒等=关闭。
+> - **D-2 = 跳过 + 计数，且范围扩到「投影层非恒等即跳」**：链序定稿为 B 后文字族仍未接投影映射器，故不只挡非仿射——宁可不画也不画「半条链吃投影」的错位；描字两枚（`StrokeString`/`StrokeStringAnchored`）经实测（Fill 正常 2052px、描边画空）同族并入 fail-closed，共**九入口**。
+> - **D-3 = AABB 降级 + 计数，实施中扩两处**：`DrawVideoSlot`/`DrawVideoPlanes` 眼后改为**不画且返回 true**（返回 false 会让上层 video bridge 兜底再画一遍未投影画面）；另 `DrawVideoFrame` 实测转调 `DrawImageEx` 吃**透视 quad 腿**（优于 AABB），钉按事实写。
+> - **D-4 = 随接口合规自然入批**（未推迟）：`ProjectionCommand{Mode,Proj}` 录绝对值、回放只读，`Backend` 契约 38→39。
+> - **追加两项实施期拍板**：① **链序 = B**（设备 = `deviceMatrix ∘ 投影 ∘ 用户矩阵`；定稿前两链同一矩形落点差 3371 像素）；② **对外观测口** `ProjectionStats()/ResetProjectionStats()` 且计数按单一语义拆名（`Misc` 拆成 `ShadowApprox`/`PatternApprox`，共八枚）；③ 测试 fixture 可由代码生成（输入图元非标准答案数据），既有像素钉不变。
+> - **仍属本文档之外的遗留**：老 `DrawAtlas` 与 `DrawAtlasEx` 双入口的收敛（批 2「副本改委托」同类项），三口投影腿已于本批合并为一份共用实现，入口本身不删（有生产接线）。
+
+### 3.1 当时的问题清单（历史，推荐结论已被上面取代）
+
 - **D-1 栈与 Push/Pop 关系（推荐独立栈）**：`projStack` 与 `Push()/Pop()` 的 2×3 栈**互相独立**（Push/Pop 不动投影层）——并存式自洽、无交互 bug 面；Skia 的 SkM44 并入 save/restore 栈，但那是以「CTM 整体升级 4×4」为前提，本批是并存式，独立栈与并存式同构。备选=并入 Push/Pop。
 - **D-2 E 文字非仿射表态（推荐跳过+计数）**：fail-closed 不画错画面；备选=逐字投影差分定位（近似、复杂度高、v1 不值）。
 - **D-3 GPU 纹理/视频三口非仿射表态（推荐 AABB 降级+计数）**：画面仍在（近似）；备选=跳过+计数（内容缺失）。

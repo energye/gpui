@@ -25,3 +25,11 @@ go    ：probes 全 true（converge=29 err=0.743 travel=555 moves=30 holds=436�
   ui_wr_p35_persp native/go：logic=9/9 pixel=17/17 golden=0.0000% cpu_fallback_ops=0
   engine/sprite   native/go：parity_changed_pct=0 golden=0.0000% cpu_fallback_ops=0
   engine/camera   native/go：golden changed=0 probes 全 true cpu_fallback_ops=0
+
+
+=== 统一修复轮终态第三跑（三口去重 + 计数拆名 + 文字子测试之后）===
+六轮 rc 全 0，每轮前后 `pgrep -c Xwayland` = 1（Wayland + XWayland :0，无 Xorg），无 SIGTERM 兜底、无 kill -9：
+  ui_wr_p35_persp native/go：logic=9/9 pixel=17/17 golden=0.0000% cpu_fallback_ops=0
+  engine/sprite   native/go：parity_changed_pct=0 golden=0.0000% cpu_fallback_ops=0
+  engine/camera   native/go：golden changed=0 cpu_fallback_ops=0
+⇒ 去重与拆名未触碰任何存量画面（恒等护栏第三度实证）。

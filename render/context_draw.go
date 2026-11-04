@@ -215,7 +215,7 @@ func (c *Context) doFill() error {
 		// 投影层非恒等 ⇒ 路径（verb 期已烘焙用户矩阵）展平后逐点过投影、再叠设备
 		// 缩放，落设备空间以 identity 矩阵走既有管线（拍板 B 的链序；提升态与真
 		// 透视同一套路，不再有「图像吃投影、路径不吃」的分叉）。
-		dev, ok := c.projTransformPath(c.path, 0.25)
+		dev, ok := c.projTransformPath(c.path, projFlattenTolerance)
 		if !ok {
 			return nil // behind-eye: refuse the whole fill
 		}
@@ -384,7 +384,7 @@ func (c *Context) doStroke() error {
 		// 投影层非恒等 ⇒ 路径（verb 期已烘焙用户矩阵）展平后逐点过投影、再叠设备
 		// 缩放，落设备空间以 identity 矩阵走既有管线（拍板 B 的链序；提升态与真
 		// 透视同一套路，不再有「图像吃投影、路径不吃」的分叉）。
-		dev, ok := c.projTransformPath(c.path, 0.25)
+		dev, ok := c.projTransformPath(c.path, projFlattenTolerance)
 		if !ok {
 			return nil // behind-eye: refuse the whole stroke
 		}

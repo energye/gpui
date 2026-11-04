@@ -157,7 +157,7 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 				c.drawImageQuadCPUSplit(img, dev, interp, opts.Opacity, true, w, RGBA{})
 				return
 			}
-			c.projMiscDegrades++
+			c.projPatternDegrades++
 		}
 		// blend 非 Normal 的近似：继续走既有 pattern 路（几何仍按投影映射，
 		// 只有图样采样是 2×3）+ 具名计数。

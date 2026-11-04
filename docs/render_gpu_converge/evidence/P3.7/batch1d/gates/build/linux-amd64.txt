@@ -1,8 +1,8 @@
 # P3.7 batch 1d build gate: linux/amd64
 # env: CGO_ENABLED=0 GOOS=linux GOARCH=amd64
-# date: 2026-11-04T11:06:12+08:00
-# head: b28ff695
-# dirty: 42 paths (P3.7 批 1d working tree, uncommitted)
+# date: 2026-11-04T13:47:15+08:00
+# head: 7c5ffd85
+# dirty: 18 paths (P3.7 批 1d working tree, uncommitted)
 
 ## 1. go build ./... (raw)
 # exit: 0 (expected 1: known-broken pkgs excluded below, pre-existing)

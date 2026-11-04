@@ -25,3 +25,15 @@ sweep 原文（本树，负载下测量）：H02 p50=7.73(门限 7.71) / H03 5.2
 759 = 730 PASS / 21 SKIP_TAGGED / 7 FAIL / 1 NO_TESTS（基线 755=724/21/9/1）
 +4 全为本批新测试文件且全 PASS：p37_projection_test / _chain_test / _stances_test / _internal_test
 FAIL 名单是基线九枚的子集（本批零新增红；m1_paint 与 m5_keystroke_g1 本轮也回绿）
+
+
+## 统一修复轮终态再复核（三口去重/裁剪合并/计数拆名之后，空闲机）
+逐文件 sweep 终态：**759 = 728 PASS / 21 SKIP_TAGGED / 9 FAIL / 1 NO_TESTS**
+FAIL 名单与批 1c 基线**同数（9）且同族互换**：进 `mem_window_x11_linux` + `s6_9_heavy_budget`，出 `m1_paint` + `m5_keystroke_g1`
+⇒ 与批 1b（s6_9/m1_paint 互换）先例同形，本批零新增红；四枚新测试文件全 PASS。
+
+1) `mem_window_x11_linux`：本树单跑 3/3 绿（1.261 / 1.232 / 1.257s）⇒ 维持「sweep 负载下 swapchain outdated」的环境红定性。
+2) `s6_9_heavy_budget`：本树单跑 2 红 1 绿（H04 p50=1.01 / 0.97，门限 0.91）；
+   **基线 b28ff695（批 1c 后、本批零改动）同机同法 3/3 全红**（H04 p50=1.09 / 1.27，H06=0.35/0.31）
+   ⇒ 本树数值不劣于基线，维持「墙钟贴线漂移族」定性（同一 H04/H06 场景在两棵树都飘）。
+   对照用的临时工作树用完即 `git worktree remove`，不留在仓库注册表里。
