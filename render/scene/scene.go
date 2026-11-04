@@ -155,6 +155,63 @@ func (s *Scene) emitAntiAliasIfNeeded(enc *Encoding) {
 	}
 }
 
+// DrawImageQuad records one image as a four-corner quad, optionally
+// perspective-corrected (P3.7 batch 3e-2). This is the 2.5D road in Godot's
+// shape — "compute, then submit": the caller has already projected the sprite
+// and passes output geometry plus per-corner homogeneous weights, exactly like
+// Godot's canvas_item_add_polygon/add_triangle_array take per-vertex arrays
+// (rendering_server.h:847-849). The scene's own 4×4 projection layer
+// (SetProjection, 3e-1) is the *general canvas* road and must not be combined
+// with pre-projected quads — Godot's 2D scene has no canvas projection at all
+// (transform_2d.h:58, rendering_server.h:836-855), and the boundary pin keeps
+// engine/ and ui/ away from this package entirely.
+//
+// Corners are baked with the scene transform at record time and the replay CTM
+// is reset to identity for this command (same convention as DrawImage).
+// Weights are only read when opts.Perspective is set; their validity is judged
+// by render at replay (ErrQuadBadWeights/ErrQuadBehindEye), never re-checked
+// here. Blend mode, mipmap and tint are not encoded: render supports only
+// Normal quads today and the scene image path has no tint concept (登记在
+// batch3e-design.md §8).
+func (s *Scene) DrawImageQuad(img *Image, corners [4]render.Point, opts render.QuadDrawOptions) {
+	if img == nil {
+		return
+	}
+	imageIdx := s.registerImage(img)
+	enc := s.currentEncoding()
+
+	baked := corners
+	minX, minY := baked[0].X, baked[0].Y
+	maxX, maxY := baked[0].X, baked[0].Y
+	for i := range baked {
+		if !s.currentTransform.IsIdentity() {
+			x, y := s.currentTransform.TransformPoint(float32(baked[i].X), float32(baked[i].Y))
+			baked[i] = render.Point{X: float64(x), Y: float64(y)}
+		}
+		minX = math.Min(minX, baked[i].X)
+		minY = math.Min(minY, baked[i].Y)
+		maxX = math.Max(maxX, baked[i].X)
+		maxY = math.Max(maxY, baked[i].Y)
+	}
+
+	// The quad carries its geometry inline, so reset a stale stream transform.
+	enc.EncodeDrawTransform(IdentityAffine())
+
+	weights := opts.Weights
+	if !opts.Perspective {
+		weights = [4]float64{1, 1, 1, 1}
+	}
+	//nolint:gosec // image index is bounded by the registry length
+	enc.EncodeImageQuad(uint32(imageIdx), baked, weights, opts.Perspective, opts.Interpolation, opts.Opacity)
+
+	bounds := Rect{MinX: float32(minX), MinY: float32(minY), MaxX: float32(maxX), MaxY: float32(maxY)}
+	s.bounds = s.bounds.Union(bounds)
+	enc.UpdateBounds(bounds)
+	enc.RecordCommandBounds(bounds)
+	s.layerStack.Top().UpdateBounds(bounds)
+	s.version++
+}
+
 // normalizeProjection applies the two rules render.Context.SetProjection uses:
 // the zero Matrix4 (unusable by contract) means identity = layer off, and a
 // non-finite non-identity matrix is rejected instead of installed.

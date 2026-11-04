@@ -211,6 +211,29 @@ func (r *Renderer) ResetProjectionDegrades() {
 	r.projDegrades.Store(0)
 }
 
+// quadAffine turns four corners (TL,TR,BR,BL) into the image-space → canvas-space
+// affine blitImageToTile expects (image pixel (0,0) lands on TL, (imgW,0) on TR,
+// (0,imgH) on BL). Only a parallelogram has such an affine: TR+BL-TL must land
+// on BR, so a trapezoid or any general quad reports false instead of being
+// squashed into a shape nobody asked for.
+func quadAffine(corners [4]render.Point, imgW, imgH float64) (Affine, bool) {
+	tl, tr, br, bl := corners[0], corners[1], corners[2], corners[3]
+	if imgW <= 0 || imgH <= 0 {
+		return Affine{}, false
+	}
+	const eps = 1e-3
+	if math.Abs(tr.X+bl.X-tl.X-br.X) > eps || math.Abs(tr.Y+bl.Y-tl.Y-br.Y) > eps {
+		return Affine{}, false // 梯形/一般四边形：没有仿射描述
+	}
+	ux, uy := (tr.X-tl.X)/imgW, (tr.Y-tl.Y)/imgW
+	vx, vy := (bl.X-tl.X)/imgH, (bl.Y-tl.Y)/imgH
+	if ux == 0 && uy == 0 || vx == 0 && vy == 0 {
+		return Affine{}, false // 退化：零面积
+	}
+	return NewAffine(float32(ux), float32(vx), float32(tl.X),
+		float32(uy), float32(vy), float32(tl.Y)), true
+}
+
 // cpuProjectionState folds a scene projection into the CPU tile path's baked
 // transform. Affine-representable layers are exact; a genuinely projective one
 // has no CPU sampler at all, so projective=true means "refuse the draw and
@@ -696,7 +719,7 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 	applyProjection := func(m render.Matrix4) {
 		projAffine, projective = cpuProjectionState(m)
-		currentTransform = rawTransform.Multiply(projAffine)
+		currentTransform = projAffine.Multiply(rawTransform)
 	}
 
 	tileX, tileY, _, _ := tile.Bounds()
@@ -725,7 +748,33 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 		switch dec.Tag() {
 		case TagTransform:
 			rawTransform = dec.Transform()
-			currentTransform = rawTransform.Multiply(projAffine)
+			currentTransform = projAffine.Multiply(rawTransform)
+
+		case TagImageQuad:
+			// CPU 腿能吃下的只有「平行四边形 = 一个仿射」的那一类：四角满足
+			// TR-TL == BR-BL 且 TL..BL 与 TL..TR 张成同一基时，等价仿射直接走既有 blit。
+			// 真透视（或一般四边形）没有 CPU 透视采样 ⇒ 整笔拒画并计数，
+			// 与投影那条同一纪律（batch3e-design.md §2/§4）。
+			imageIndex, corners, _, perspective, _, _ := dec.ImageQuad()
+			if imageIndex >= uint32(len(images)) || images[imageIndex] == nil {
+				break
+			}
+			img := images[imageIndex]
+			// 角点录制期已把场景矩阵烘进去，仿射可表达的投影层按链序叠在其外
+			// （device = projection ∘ matrix ∘ user），与图像那条同一口径。
+			if !projective && projAffine != IdentityAffine() {
+				for i := range corners {
+					x, y := projAffine.TransformPoint(float32(corners[i].X), float32(corners[i].Y))
+					corners[i] = render.Point{X: float64(x), Y: float64(y)}
+				}
+			}
+			// 平行四边形且非透视 ⇒ 等价仿射可精确表达；其余一律拒画并计数。
+			aff, ok := quadAffine(corners, float64(img.Width), float64(img.Height))
+			if !ok || perspective || projective {
+				r.projDegrades.Add(1)
+				break
+			}
+			blitImageToTile(img, aff, tileX, tileY, activePM)
 
 		case TagProjection:
 			mode, m := dec.Projection()
@@ -942,7 +991,8 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 			if int(imageIndex) < len(images) {
 				img := images[imageIndex]
 				if img != nil && len(img.Data) >= img.Width*img.Height*4 {
-					blitImageToTile(img, imgTransform, tileX, tileY, activePM)
+					// imgTransform 已含场景矩阵；仿射可表达的投影层按链序叠在其外。
+					blitImageToTile(img, projAffine.Multiply(imgTransform), tileX, tileY, activePM)
 				}
 			}
 

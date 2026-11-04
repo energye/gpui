@@ -36,12 +36,14 @@ scene 里没有第二套链序可写错。
 | CPU 回放 | tag case 维护本地投影态；`Matrix4.Affine()` 可表达 ⇒ 乘进逐命令烘焙链；真投影 ⇒ **具名计数 + 跳过该命令**（照批 1d 文字族 fail-closed，禁止静默压扁）；新增 `Renderer.Stats()/ResetStats()` 暴露计数 | `renderer.go:673` switch、`renderer.go:684-709` |
 | 边界 | 结构钉：`engine/` 与 `ui/` 对 `render/scene` **零 import**（现状实测 0 命中）⇒「2.5D 不调 scene 的 4×4 口」不再是话术 | 新钉 |
 
-## 3 3e-2 scene 透视 quad 通道（下一枚，同批内）
+## 3 3e-2 scene 透视 quad 通道（✅ 2026-11-04 已交付，交付记录见 §8）
 
 - `Scene.DrawImageQuad(img *Image, corners [4]render.Point, opts render.QuadDrawOptions)`：**复用 render 的
   `QuadDrawOptions`**（含 `Perspective`/`Weights`），不新造第二套选项类型；`ui_render_base_scene` 的图像入口形态照搬。
-- 新 `TagImageQuad = 0x52`：`pathData` 8×float32 四角（场景用户系，交给回放端当前 2×3 变换作用，与 `TagImage` 同处理），
-  `drawData` = 图像索引 + 透视标志，权重 4×float32 进 `pathData`（scene 全流 float32 精度口径，注释写清）。
+- 新 `TagImageQuad = 0x52`：`pathData` 8×float32 四角 + 权重 4×float32 + 不透明度 1×float32（共 13 个），
+  `drawData` = 图像索引 + 位标志（bit0=透视）+ 采样档（共 3 个 uint32）。**交付时按 `TagImage` 的真实约定改定**：
+  四角在录制期就用 `currentTransform` 烘焙好（`TagImage` 是把 `currentTransform.Multiply(transform)` 烘进编码流，
+  不是留给回放端再乘），回放臂把 CTM 复位到 base；本条原写法「交给回放端当前 2×3 变换作用」会让人二次施加。
 - 四角凸包进 `RecordCommandBounds`（damage 追踪，`encoding.go:778`）。
 - GPU 回放 → `dc.DrawImageQuad(buf, corners, opts)`（`render/m4_quadimage.go`），**权重/眼后哨兵由 render 判**
   （`ErrQuadBehindEye` 等），scene 不重复校验 ⇒ 不出现第二套判据。
@@ -77,6 +79,7 @@ scene/recording 两包全测试单跑、`render` 投影族定向（`TestP37Proje
 - scene 至今零生产消费者 ⇒ 交付后仍是「已验证待接线」，台账不得标生产。
 - 材质编码（含 item 级 `scene.Node` 材质挂载）后移，随 3a–3d；`design.md` §4.5 的「材质随保留命令编码」一句
   按 Godot 改判为 item 级为主（本批落文档）。
+- **GPU 腿的 quad 拒画没有具名计数**（3e-2 发现）：`render.Context.DrawImageQuad` 对自交/退化/眼后/坏权重返回哨兵错，scene 回放臂按本文件既有风格（图索引越界、字体缺失都是静默跳过）把错吞掉 ⇒ 画面是「一格不画」（`p37_3e_quad_test.go` 的蝴蝶形钉实测），但 CPU 腿那一侧的同类拒画有 `Renderer.ProjectionDegrades` 计数，两侧观测面不对称。接线（批 6）前补一个与 CPU 腿同名的 GPU 侧具名计数，或把两腿的表态统一到同一个读口。
 - scene 编码无版本号/魔数、纯内存双流 ⇒ 「编码流演进」的兼容靠 tag 穷举绊线（`AppendWithTranslation` default panic）
   与 delta 零发射保证；若将来要落盘，需要另立版本化设计（不在本批）。
 
@@ -116,3 +119,55 @@ recording `go/ast` 186→**183**（类型 84、常量 64）；scene 顶层 143�
 
 **口径**：scene 仍零生产消费者（边界钉保证 `engine/`、`ui/` 不接），本步是"标准能力到位"，不得标生产；
 3e-2（quad+权重通道，2.5D 正路）与 3e-3（材质编码，依赖 3a–3d，粒度按 item 级）在后面。
+
+## 8 步 3e-2 交付记录（2026-11-04，未提交）
+
+**做了什么**：给 `render/scene` 补上 2.5D 的正路——四角 + 齐次权重的「算好再喂」quad 通道，形态照 Godot 2D：
+命令面不带任何投影参数，透视由调用方把四角与 1/w 算好再提交（对标 `canvas_item_add_polygon` /
+`add_triangle_array`；`transform_2d.h:58` 的 2D 变换只有 `Vector2 columns[3]`）。落地五处：
+`TagImageQuad`=0x52（pathData 13 个 float32：四角 8 + 权重 4 + 不透明度 1；drawData 3 个 uint32：图像索引 +
+位标志 bit0=透视 + 采样档）、`Encoding.EncodeImageQuad`、`Decoder.ImageQuad`（越界按剩余量推进、绝不 panic）、
+`Scene.DrawImageQuad`（角点在录制期用 `currentTransform` 烘焙，与 `TagImage` 同约定；blend/mipmap/tint 明确不编码，
+登记在注释里）、GPU 回放直接转交 `Context.DrawImageQuad`（scene 侧不再算第二套透视，抽出共用的
+`sceneImageBuf`）、CPU 瓦片腿只吃「平行四边形 = 一个仿射」那一类（`quadAffine` 按图像像素空间→画布的约定折仿射，
+先除宽高），梯形与带权 quad 一律整笔拒画并复用 `Renderer.ProjectionDegrades` 计数；
+两条合并路径（`Append` / `AppendWithTranslation`）只挪 8 个角点 float，权重与不透明度一格不动，图像索引两路都抬。
+
+**钉 11 枚（另含 2 条子钉）= 外部 5 + 包内 6**：
+外部 `p37_3e_quad_test.go`：①逐值回环 + 位移合并只挪角点 + 跨注册表抬索引（含 host 自己那格不许被抬）；
+②回放 ≡ 手写 `Context.DrawImageQuad`（逐像素相同，direct/replay 各 968 像素）+ 反向鉴别「透视开/关必须成片不同」
+（实测差 784 像素，阈值定 ≥100，防止纯色图假绿）；③场景变换烘焙 ≡ 等价手写角点；④不调 quad 的存量场景零发射；⑤自交（蝴蝶形）quad 被 `Context` 哨兵错拒掉后必须一格不画（错数据可以吞，错画面不行）。
+包内 `p37_3e_cpu_test.go`：⑤平行四边形 quad ≡ 等价仿射 `DrawImage`（逐字节相同）；⑥梯形拒画 + 计数；
+⑦平行四边形但带权重 ⇒ 同样拒画计数（对照组不透视必须画得出）；⑧真投影下 quad 拒画计数；
+⑨图像与 quad 在仿射提升投影下的落点 ≡ 等价手写仿射/手写角点；⑩链序两条子钉
+（`tag_transform_site` / `tag_projection_site`，各自只被自己那处反向打断打红）。
+
+**3e-2 把 3e-1 的 CPU 腿两条真漏打了出来**（判据先红后绿，原始红记在 `batch3e/negative-3e2.txt` 附段）：
+①`TagImage` 那条完全没吃仿射可表达的投影层 ⇒ 与 GPU 腿分叉，实测与等价手写仿射差 900 字节；
+②`TagTransform`/`TagProjection` 两处复合写成 `raw.Multiply(proj)`，把投影放到了场景矩阵**内侧**，
+违反拍板 B 的 `device = deviceMatrix ∘ projection ∘ matrix ∘ user`（`context_projection.go:342` 的
+`D.Mul(P).Mul(M)` 才是真源）——3e-1 的包内钉用恒等场景矩阵测，恒等与任何序都可交换，所以当时照不出。
+现四处（722/751/765/995）统一到「投影在矩阵之外」，恒等投影时 `Multiply` 逐位退化回旧值，存量画面零变化。
+
+**负向 15 条全红**（N1–N14 由 `batch3e/negative-3e2.py` 可直接复跑；N15 是跨层打断，见下方单记）：编码丢权重、位移挪权重、位移/非位移两条不抬索引、
+回放丢透视位、回放取不到图、录制不烘焙、平行四边形判据放松、拒画不计数、透视位被忽略、图像不折投影、
+quad 角点不叠投影、两处链序各打一处（并验另一条子钉仍绿，证明两条子钉真的分得开）。
+首轮有四条变异（N1/N5/N6/N10）是因为把变量整个删掉导致 `declared and not used` 编译断裂——编译断裂不算鉴别，
+已改成仍编译的等价打断（`float32(1+w*0)`、`perspective && false`、`imageIndex+999`）复跑，条条落在行为红上；
+另有 N3/N12 首轮打到同名重复锚点（`+= imageOffset` 的 `TagImage` 分支、两处复合点里不被流覆盖的那一处），
+如实记为无效变异后按窗口限定 + `nth` 重做。
+
+**门禁**：`go build ./...` rc=0；`go vet ./render/scene ./render ./render/recording` rc=0；所触文件 `gofmt` 净
+（`render/context_layer.go`、`render/internal/clip/stack.go` 的 HEAD 外在脏按约定未碰）；`render/scene` 全包 ok 0.31s、
+`-race`（CGO_ENABLED=1）ok 2.29s、`render/recording` + `backends/raster` ok、`./render -run "Projection|P37|Quad|Depth"` ok；
+`go run ./scripts/apidoc` rc=0。`./render` 整包在本机 **对称红**：`src/conv.rs:519` 的 wgpu-native 非展开 panic
+→ SIGABRT，今日在干净 HEAD 工作树用同一 `LD_LIBRARY_PATH`/`WGPU_NATIVE_PATH` A/B 过，两边同点崩、同样无 `--- FAIL` 名单，
+与批 2 登记的存量环境红同一条，不是本步引入。真窗 `examples/ui_render_base_scene` 双后端 rc=0：
+`golden 0.0000%`（627200 px，`pixel_golden_first_run=false` ⇒ 与存量金图逐位比过）、A/B parity 1.4376% 与 3e-1 同值、
+logic 21/21、point 17/17、ink 1/1、Xwayland 每轮前后各 1（`batch3e/windows-3e2.txt`）。
+目录实测同步：scene 顶层 143→**145**（+`TagProjection`/`TagImageQuad`）、`Scene` 方法 34→**39**、
+`Encoding` +2、`Decoder` +2、`Renderer` +2；枚举速查行补进两枚新 tag。
+
+**口径与留账**：scene 仍零生产消费者（边界钉保证 `engine/`、`ui/` 不接），quad 通道同属"标准能力到位"，不得标生产。
+材质（Godot 的 item 级 `canvas_item_set_material`）留 3e-3，2.5D 场景级接线仍随批 6；
+逐文件全量 sweep 与五目标交叉构建按批口径留到批 3 收尾一次性跑。

@@ -232,6 +232,19 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 			imageIndex, imgTransform := dec.Image()
 			r.resolveImage(scene, imageIndex, imgTransform)
 
+		case TagImageQuad:
+			imageIndex, corners, weights, perspective, interp, opacity := dec.ImageQuad()
+			buf := sceneImageBuf(scene, imageIndex)
+			if buf == nil {
+				continue
+			}
+			_ = r.dc.DrawImageQuad(buf, corners, render.QuadDrawOptions{
+				Interpolation: interp,
+				Opacity:       opacity,
+				Perspective:   perspective,
+				Weights:       weights,
+			})
+
 		default:
 			// Unknown tags are skipped by the decoder advancing tagIdx.
 		}
@@ -280,6 +293,24 @@ func (r *GPUSceneRenderer) resolveText(scene *Scene, run GlyphRunData, glyphs []
 	dc.SetFont(prevFace)
 }
 
+// sceneImageBuf wraps a registry entry into a render.ImageBuf (shared by the
+// affine image arm and the four-corner quad arm). nil when the entry is missing.
+func sceneImageBuf(scene *Scene, imageIndex uint32) *render.ImageBuf {
+	images := scene.Images()
+	if int(imageIndex) >= len(images) {
+		return nil
+	}
+	img := images[imageIndex]
+	if img == nil || img.Width <= 0 || img.Height <= 0 || len(img.Data) < img.Width*img.Height*4 {
+		return nil
+	}
+	return render.ImageBufFromImage(&image.RGBA{
+		Pix:    img.Data,
+		Stride: img.Width * 4,
+		Rect:   image.Rect(0, 0, img.Width, img.Height),
+	})
+}
+
 // resolveImage renders a scene image through dc.DrawImageEx, honoring
 // the full affine transform (scale + translation). The transform encodes
 // scaleX in A, scaleY in E, translateX in C, translateY in F.
@@ -289,21 +320,11 @@ func (r *GPUSceneRenderer) resolveText(scene *Scene, run GlyphRunData, glyphs []
 // encodes an inverse-DPI affine (e.g. scale=0.5 for 2x Retina), this
 // caused SVG icons to appear 2x too large.
 func (r *GPUSceneRenderer) resolveImage(scene *Scene, imageIndex uint32, transform Affine) {
-	images := scene.Images()
-	if int(imageIndex) >= len(images) {
+	buf := sceneImageBuf(scene, imageIndex)
+	if buf == nil {
 		return
 	}
-	img := images[imageIndex]
-	if img == nil || img.Width <= 0 || img.Height <= 0 || len(img.Data) < img.Width*img.Height*4 {
-		return
-	}
-
-	rgba := &image.RGBA{
-		Pix:    img.Data,
-		Stride: img.Width * 4,
-		Rect:   image.Rect(0, 0, img.Width, img.Height),
-	}
-	buf := render.ImageBufFromImage(rgba)
+	img := scene.Images()[imageIndex]
 
 	dstW := float64(transform.A) * float64(img.Width)
 	dstH := float64(transform.E) * float64(img.Height)

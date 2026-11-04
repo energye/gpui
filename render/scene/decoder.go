@@ -239,6 +239,41 @@ func (d *Decoder) AntiAlias() bool {
 // Draw Command Decoders
 // ---------------------------------------------------------------------------
 
+// ImageQuad reads the current TagImageQuad command data: the image index, the
+// four corners (TL,TR,BR,BL), the corner weights, whether the draw is
+// perspective-corrected, the sampling mode and the opacity.
+// Only valid when Tag() == TagImageQuad.
+//
+//nolint:gocritic // the quad's full parameter set is what replay needs at once
+func (d *Decoder) ImageQuad() (imageIndex uint32, corners [4]render.Point, weights [4]float64, perspective bool, interp render.InterpolationMode, opacity float64) {
+	if d.pathIdx+13 > len(d.enc.pathData) || d.drawIdx+3 > len(d.enc.drawData) {
+		// 越界不吞游标：按剩余量推进，绝不 panic（fail closed，回放跳过该命令）。
+		if rest := len(d.enc.pathData) - d.pathIdx; rest > 0 {
+			d.pathIdx += min(rest, 13)
+		}
+		if rest := len(d.enc.drawData) - d.drawIdx; rest > 0 {
+			d.drawIdx += min(rest, 3)
+		}
+		return 0, corners, [4]float64{1, 1, 1, 1}, false, 0, 0
+	}
+	for i := 0; i < 4; i++ {
+		corners[i] = render.Point{
+			X: float64(d.enc.pathData[d.pathIdx+i*2]),
+			Y: float64(d.enc.pathData[d.pathIdx+i*2+1]),
+		}
+	}
+	for i := 0; i < 4; i++ {
+		weights[i] = float64(d.enc.pathData[d.pathIdx+8+i])
+	}
+	opacity = float64(d.enc.pathData[d.pathIdx+12])
+	d.pathIdx += 13
+	imageIndex = d.enc.drawData[d.drawIdx]
+	flags := d.enc.drawData[d.drawIdx+1]
+	interp = render.InterpolationMode(d.enc.drawData[d.drawIdx+2])
+	d.drawIdx += 3
+	return imageIndex, corners, weights, flags&1 != 0, interp, opacity
+}
+
 // Fill reads the current Fill command data.
 // Returns the brush and fill style.
 // Only valid when Tag() == TagFill.

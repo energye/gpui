@@ -1,0 +1,88 @@
+# P3.7 批 3e-2 反向鉴别（HEAD=6c9e008f，工作树未提交）
+# 复现：python3 docs/render_gpu_converge/evidence/P3.7/batch3e/negatives-3e2.py
+
+# 跑法：python3 /tmp/p37_3e2_negatives.py
+
+## 基线（未打断）
+      go test -run '<上列 10 条钉>' => GREEN
+
+## 打断
+[N1] 编码不写权重（恒写 1，仍编译）
+      打断：encoding.go:768: float32(w) -> float32(1+w*0)
+      跑：TestP373ESceneQuadEncodingAndMerge => RED
+      现象：--- FAIL: TestP373ESceneQuadEncodingAndMerge (0.00s)
+[N2] 位移合并把权重也当坐标平移
+      打断：encoding.go:1211: i < 8 -> i < 12
+      跑：TestP373ESceneQuadEncodingAndMerge => RED
+      现象：--- FAIL: TestP373ESceneQuadEncodingAndMerge (0.00s)
+[N3] 位移合并不抬图像索引
+      打断：encoding.go:1217: += imageOffset -> += 0
+      跑：TestP373ESceneQuadEncodingAndMerge => RED
+      现象：--- FAIL: TestP373ESceneQuadEncodingAndMerge (0.00s)
+[N4] 无位移合并不抬图像索引
+      打断：encoding.go:1025: += imageOffset -> += 0
+      跑：TestP373ESceneQuadEncodingAndMerge => RED
+      现象：--- FAIL: TestP373ESceneQuadEncodingAndMerge (0.00s)
+[N5] GPU 回放丢掉透视位
+      打断：gpu_renderer.go:244: perspective, -> perspective && false,
+      跑：TestP373ESceneQuadReplayMatchesContext => RED
+      现象：--- FAIL: TestP373ESceneQuadReplayMatchesContext (0.00s)
+[N6] GPU 回放取不到图（arm 空壳）
+      打断：gpu_renderer.go:237: sceneImageBuf(scene, imageIndex) -> sceneImageBuf(scene, imageIndex+999)
+      跑：TestP373ESceneQuadReplayMatchesContext => RED
+      现象：--- FAIL: TestP373ESceneQuadReplayMatchesContext (0.00s)
+[N7] 录制期不烘焙场景变换
+      打断：scene.go:187: if !s.currentTransform.IsIdentity() { -> if false {
+      跑：TestP373ESceneQuadBakesSceneTransform => RED
+      现象：--- FAIL: TestP373ESceneQuadBakesSceneTransform (0.00s)
+[N8] 平行四边形判据放松（梯形也放行）
+      打断：renderer.go:225: > eps -> > 1e9
+      跑：TestCPUTileQuadTrapezoidRefusesAndCounts => RED
+      现象：--- FAIL: TestCPUTileQuadTrapezoidRefusesAndCounts (0.00s)
+[N9] quad 拒画不计数
+      打断：renderer.go:774: Add(1) -> Add(0)
+      跑：TestCPUTileQuadTrapezoidRefusesAndCounts => RED
+      现象：--- FAIL: TestCPUTileQuadTrapezoidRefusesAndCounts (0.00s)
+[N10] 透视位被忽略（只判 projective）
+      打断：renderer.go:773: !ok || perspective || projective -> !ok || (perspective && false) || projective
+      跑：TestCPUTileQuadPerspectiveFlagRefusesAndCounts => RED
+      现象：--- FAIL: TestCPUTileQuadPerspectiveFlagRefusesAndCounts (0.00s)
+[N11] 图像那条不折投影（退回 3e-1 的漏）
+      打断：renderer.go:995: projAffine.Multiply(imgTransform) -> imgTransform
+      跑：TestCPUTileAffineLiftProjectionAppliesToImagesAndQuads => RED
+      现象：--- FAIL: TestCPUTileAffineLiftProjectionAppliesToImagesAndQuads (0.00s)
+[N12] quad 角点不叠投影层
+      打断：renderer.go:765: !projective && projAffine != IdentityAffine() -> false
+      跑：TestCPUTileAffineLiftProjectionAppliesToImagesAndQuads => RED
+      现象：--- FAIL: TestCPUTileAffineLiftProjectionAppliesToImagesAndQuads (0.00s)
+[N13] TagTransform 处把投影折回矩阵内侧
+      打断：renderer.go:751: projAffine.Multiply(rawTransform) -> rawTransform.Multiply(projAffine)
+      跑：TestCPUTileProjectionAppliesOutsideSceneMatrix/tag_transform_site => RED
+      对照：TestCPUTileProjectionAppliesOutsideSceneMatrix/tag_projection_site => GREEN
+      现象：--- FAIL: TestCPUTileProjectionAppliesOutsideSceneMatrix (0.00s)
+[N14] TagProjection 处把投影折回矩阵内侧
+      打断：renderer.go:722: projAffine.Multiply(rawTransform) -> rawTransform.Multiply(projAffine)
+      跑：TestCPUTileProjectionAppliesOutsideSceneMatrix/tag_projection_site => RED
+      对照：TestCPUTileProjectionAppliesOutsideSceneMatrix/tag_transform_site => GREEN
+      现象：--- FAIL: TestCPUTileProjectionAppliesOutsideSceneMatrix (0.00s)
+
+## 还原后复跑
+      => GREEN
+
+结论：全部反例都打红、对照子钉各自独立
+
+## 附：判据先红后绿的原始记录（3e-1 的 CPU 腿漏口在本次开工时才暴露）
+  1) TestCPUTileAffineLiftProjectionAppliesToImagesAndQuads
+     修复前红：「投影层没折进图像烘焙链：与等价手写仿射差 900 字节」
+     （内容矩阵换成带缩放后量到 900；纯平移那版当时是 312）
+  2) TestCPUTileProjectionAppliesOutsideSceneMatrix/tag_transform_site
+     修复前红：「正确序应覆盖 (10,8)，实为空：投影被折进了矩阵内侧」
+  两条都是 3e-1 交付里 CPU 瓦片腿的真漏：图像那条完全没吃投影层；路径那条把投影
+  复合到了场景矩阵内侧，与拍板 B（device = deviceMatrix ∘ projection ∘ matrix ∘ user）和 GPU 腿分叉。
+  修复见 renderer.go 的 722/751/765/995 四处，修复后上列 10 条钉全绿、真窗 golden 0.0000%。
+
+## N15（跨层打断，脚本外单跑）：摘掉 `render.Context.DrawImageQuad` 的 `ClassifyQuad` 放行门
+      打断：render/m4_quadimage.go:52 `kind != QuadOK` → `kind != QuadOK && false`
+      跑：TestP373ESceneQuadSelfIntersectingDrawsNothing => RED
+      现象：「自交 quad 画出 2730 像素：哨兵错被吞掉后还画了别的东西」
+      还原：cp 备份回写，`TestP373ESceneQuad*` 复跑 ok ⇒ 该钉真有鉴别力（不是靠哨兵错「一定被拒」的循环断言）

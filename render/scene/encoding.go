@@ -754,6 +754,27 @@ func (e *Encoding) EncodeImage(imageIndex uint32, transform Affine) {
 	e.transforms = append(e.transforms, transform)
 }
 
+// EncodeImageQuad appends a four-corner image draw. Corners and weights arrive
+// in the encoding's float32 precision (same convention as the Affine stream);
+// weights are only consulted when perspective is set, and the render layer owns
+// their validation (ErrQuadBadWeights/ErrQuadBehindEye) — this package does not
+// re-check them and thereby create a second rule.
+func (e *Encoding) EncodeImageQuad(imageIndex uint32, corners [4]render.Point, weights [4]float64, perspective bool, interp render.InterpolationMode, opacity float64) {
+	e.tags = append(e.tags, TagImageQuad)
+	for _, c := range corners {
+		e.pathData = append(e.pathData, float32(c.X), float32(c.Y))
+	}
+	for _, w := range weights {
+		e.pathData = append(e.pathData, float32(w))
+	}
+	e.pathData = append(e.pathData, float32(opacity))
+	var flags uint32
+	if perspective {
+		flags |= 1
+	}
+	e.drawData = append(e.drawData, imageIndex, flags, uint32(interp))
+}
+
 // EncodeText encodes a pre-shaped text run as a TagText command.
 // The glyph run header, glyph entries, and original text are serialized into the textData stream.
 func (e *Encoding) EncodeText(run GlyphRunData, glyphs []GlyphEntry, str string) {
@@ -997,6 +1018,13 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 				e.drawData[drawDataStart+drawIdx] += imageOffset
 			}
 			drawIdx++
+		case TagImageQuad:
+			// drawData: image index + flags + interpolation; pathData holds the
+			// corners but this pass does not move coordinates.
+			if imageOffset > 0 && drawIdx < len(other.drawData) {
+				e.drawData[drawDataStart+drawIdx] += imageOffset
+			}
+			drawIdx += 3
 		case TagProjection:
 			// Projection data lives in its own stream; no brush/image index here.
 
@@ -1176,6 +1204,19 @@ func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageO
 				e.drawData[drawDataStart+drawIdx] += imageOffset
 			}
 			drawIdx++ // image index only; transform is in transforms stream
+
+		case TagImageQuad:
+			// 13 floats: 4 corners (offset in pairs), 4 weights + 1 opacity
+			// (not coordinates — shifting them would corrupt the sampling).
+			for i := 0; i < 8; i += 2 {
+				e.pathData[pathStart+pathIdx+i] += dx
+				e.pathData[pathStart+pathIdx+i+1] += dy
+			}
+			pathIdx += 13
+			if imageOffset > 0 && drawIdx < len(other.drawData) {
+				e.drawData[drawDataStart+drawIdx] += imageOffset
+			}
+			drawIdx += 3
 
 		case TagProjection:
 			// Projection data is in the projections stream (appended below);

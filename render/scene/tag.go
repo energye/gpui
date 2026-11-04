@@ -120,6 +120,18 @@ const (
 	// Data: 1 uint32 for image index, 6 float32 for transform
 	TagImage Tag = 0x51
 
+	// TagImageQuad draws one image as a four-corner quad, optionally
+	// perspective-corrected (P3.7 batch 3e-2). This is the Godot-shaped
+	// "compute then submit" road for 2.5D: the caller projects the sprite
+	// itself and hands over output geometry plus per-corner homogeneous weights
+	// (Godot's canvas_item_add_polygon/add_triangle_array take the same
+	// per-vertex arrays; rendering_server.h:847-849).
+	// Data: 13 float32 in pathData — corners TL,TR,BR,BL (8), the four corner
+	// weights (4), opacity (1). Weights and opacity are not coordinates, so a
+	// merge translation offsets only the first 8. drawData carries
+	// [imageIndex, flags, interpolation] with flags bit0 = perspective.
+	TagImageQuad Tag = 0x52
+
 	// TagText encodes a pre-shaped text run as a late-bound glyph reference.
 	// Data: textData stream containing GlyphRunData header + GlyphEntry array.
 	// Resolution to pixels (atlas, outline, text op) is deferred to render time.
@@ -170,6 +182,8 @@ func (t Tag) String() string {
 		return "Brush"
 	case TagImage:
 		return "Image"
+	case TagImageQuad:
+		return "ImageQuad"
 	case TagText:
 		return "Text"
 	default:
@@ -213,6 +227,8 @@ func (t Tag) DataSize() int {
 		return 6 // minX, minY, maxX, maxY, radiusX, radiusY
 	case TagBrush:
 		return 4 // RGBA
+	case TagImageQuad:
+		return 13 // 4 corners + 4 weights + opacity
 	default:
 		return 0
 	}

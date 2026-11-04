@@ -1,0 +1,11 @@
+# 批 3e-2 真窗复验汇总（2026-11-04T22:32:24+08:00）
+# 头：HEAD=6c9e008f dirty=19 paths（3e-2 工作树未提交）
+# 跑法：一轮一窗、-auto-only、串行；每轮前后 pgrep -c Xwayland；无 kill -9、无 pkill。
+# 对照正本：batch3e/windows-summary.txt（3e-1 同一窗同一 golden）
+窗 ui_render_base_scene / native: rc=0 xwayland_before=1 after=1
+    golden showcase_scene.png: diff=0.0000% over 627200 px "pixel_golden_first_run":false logic=21/21 point=17/17 ink=1/1 parity=1.4376% golden=0.0000% 
+窗 ui_render_base_scene / go: rc=0 xwayland_before=1 after=1
+    golden showcase_scene.png: diff=0.0000% over 627200 px "pixel_golden_first_run":false logic=21/21 point=17/17 ink=1/1 parity=1.4376% golden=0.0000% 
+----
+全部窗口跑完：fail=0（0=全 rc 0）
+显示会话健康：1 Xwayland 进程
