@@ -36,8 +36,21 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 		c.vertDevScratch = c.vertDevScratch[:n]
 	}
 	dev := c.vertDevScratch
-	for i, p := range positions {
-		dev[i] = ctm.TransformPoint(p)
+	if c.projActive() {
+		// P3.7 批 1d：投影层非恒等 ⇒ 顶点逐点投影映射（直线仍直，几何精确）；
+		// 逐顶点色插值保持仿射（GPU mesh 管线无 w 通道，登记近似）。
+		// behind-eye 顶点 ⇒ 整批拒绝（半顶点投影画不出合法三角形）。
+		for i, p := range positions {
+			d, _, okP := c.projTransformPoint(p)
+			if !okP {
+				return
+			}
+			dev[i] = d
+		}
+	} else {
+		for i, p := range positions {
+			dev[i] = ctm.TransformPoint(p)
+		}
 	}
 
 	solid, _ := solidColorFromPaint(c.paint)
@@ -436,6 +449,31 @@ func countVertTris(n int, mode VertexMode) int {
 // drawDeviceTriangle fills a triangle specified in device pixels by mapping
 // back through the inverse CTM into user space for the existing path fill path.
 func (c *Context) drawDeviceTriangle(p0, p1, p2 Point) {
+	// P3.7 批 1d：投影层非恒等时设备三角形来自投影映射后的顶点 —— 先进里把
+	// 三角形映回用户空间会逆错；直接按设备空间三角形填充（路径已设备化，
+	// identity 矩阵走既有管线）。
+	if c.projActive() {
+		// 提升态与真透视同理：dev 已经是设备坐标，走老路会把它逆回错误的空间。
+		// 三层一起中性化——CTM、设备矩阵、投影层 ⇒ 坐标一次都不再映射，
+		// 走既有路径填充管线（damage/光栅器选择与历史路同式；真透视下若让
+		// doFill 再沿投影映一遍=双投影，实测与一次映射差 10992 像素）。
+		c.Push()
+		savedProj, savedActive := c.projection, c.projectionActive
+		savedDev := c.deviceMatrix
+		c.SetTransform(Identity())
+		c.deviceMatrix = Identity()
+		c.projection, c.projectionActive = Matrix4Identity(), false
+		c.NewSubPath()
+		c.MoveTo(p0.X, p0.Y)
+		c.LineTo(p1.X, p1.Y)
+		c.LineTo(p2.X, p2.Y)
+		c.ClosePath()
+		_ = c.Fill()
+		c.deviceMatrix = savedDev
+		c.projection, c.projectionActive = savedProj, savedActive
+		c.Pop()
+		return
+	}
 	inv := c.totalMatrix().Invert()
 	u0 := inv.TransformPoint(p0)
 	u1 := inv.TransformPoint(p1)
@@ -475,7 +513,23 @@ func (c *Context) DrawMesh(mesh Mesh) {
 			ctm := c.totalMatrix()
 			var dev []Point
 			// identity CTM — queue user-space points without a full copy/transform.
-			if ctm.IsIdentity() {
+			if c.projActive() {
+				// P3.7 批 1d：投影层非恒等 ⇒ 顶点逐点投影映射（同 DrawVertices，
+				// behind-eye 整批拒绝）；逐顶点色仿射插值近似登记。
+				if cap(c.vertDevScratch) < n {
+					c.vertDevScratch = make([]Point, n)
+				} else {
+					c.vertDevScratch = c.vertDevScratch[:n]
+				}
+				dev = c.vertDevScratch
+				for i, p := range positions {
+					d, _, okP := c.projTransformPoint(p)
+					if !okP {
+						return
+					}
+					dev[i] = d
+				}
+			} else if ctm.IsIdentity() {
 				dev = positions
 			} else {
 				if cap(c.vertDevScratch) < n {

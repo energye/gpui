@@ -209,6 +209,19 @@ func (b *CanvasBackend) Restore() { b.dc.Pop() }
 // context already had rather than replacing it.
 func (b *CanvasBackend) Concat(m Matrix) { b.dc.Transform(m) }
 
+// Projection forwards the projection-layer op to the target canvas (P3.7
+// batch 1d): recorded absolute value, replayed read-only.
+func (b *CanvasBackend) Projection(mode ProjectionMode, m render.Matrix4) {
+	switch mode {
+	case ProjectionSet:
+		b.dc.SetProjection(m)
+	case ProjectionPush:
+		b.dc.PushProjection(m)
+	case ProjectionPop:
+		b.dc.PopProjection()
+	}
+}
+
 // SetClip intersects the clip region with the path, in user space under the
 // current CTM.
 func (b *CanvasBackend) SetClip(path *render.Path, rule FillRule) {

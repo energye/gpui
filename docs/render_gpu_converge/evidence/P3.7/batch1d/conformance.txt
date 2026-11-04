@@ -1,0 +1,8 @@
+--- PASS: TestConformanceDualBackend (0.85s)
+    conformance_test.go:126: inner harness; driven by TestConformanceDualBackend
+--- SKIP: TestConformanceInner (0.00s)
+ok  	github.com/energye/gpui/render	0.863s
+--- PASS: TestConformanceDualBackend (0.77s)
+    conformance_test.go:126: inner harness; driven by TestConformanceDualBackend
+--- SKIP: TestConformanceInner (0.00s)
+ok  	github.com/energye/gpui/render	0.780s

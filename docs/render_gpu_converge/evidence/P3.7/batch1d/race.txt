@@ -1,0 +1,3 @@
+ok  	github.com/energye/gpui/render/internal/gpu	30.385s
+ok  	github.com/energye/gpui/render	10.171s
+race-filtered rc=0

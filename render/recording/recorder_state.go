@@ -37,6 +37,7 @@ func (r *Recorder) Save() {
 		fillRule:    r.fillRule,
 		antiAlias:   r.antiAlias,
 		transform:   r.transform,
+		projection:  r.projection,
 		fontFace:    r.fontFace,
 		fontFamily:  r.fontFamily,
 		fontSize:    r.fontSize,
@@ -67,6 +68,8 @@ func (r *Recorder) Restore() {
 	r.fillRule = state.fillRule
 	r.antiAlias = state.antiAlias
 	r.transform = state.transform
+	r.projection = state.projection
+	r.projectionPush = !r.projection.IsIdentity()
 	r.fontFace = state.fontFace
 	r.fontFamily = state.fontFamily
 	r.fontSize = state.fontSize

@@ -1,0 +1,90 @@
+# P3.7 批 1d 负向对照（2026-11-04，最终代码上逐条实测：红了再还原，还原后复跑全绿）
+
+- 载体钉：**十八枚**——`render/p37_projection_test.go` 十枚（画面/对拍）+ `render/p37_projection_chain_test.go` 五枚（链序与映射次数 + 对外计数读口）+ `render/p37_projection_internal_test.go` 三枚（语义 + 具名计数 + 零值守卫）。
+- 方法：每条只改一处注入点 → `go test -run TestP37Projection` 全钉跑一遍 → 记红钉与判据行 → `cp` 还原 → 与备份 `md5sum` 逐字节核验（六文件全 OK，全仓 `grep -rn "// NEG" render/*.go` 零残留）。
+- 环境：`CGO_ENABLED=1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so`。
+- 链序口径 = **拍板 B**：设备 = `deviceMatrix ∘ 投影 ∘ 用户矩阵 ∘ 用户点`（投影作用在用户矩阵之外）。本轮链序定稿前跑过的五条旧对照（N1–N5 同名版）已被本文件取代——代码基线变了，旧证据不充数。
+
+=== N1 摘投影映射（`projDeviceFromBaked` 恒等冒充：`return p, 1, true`）===
+  --- FAIL: TestP37ProjectionMeshCPUMapsOnce（A vs B 差 15410 像素）
+  --- FAIL: TestP37ProjectionAffineLiftEqualsCTM（路径 A vs B 差 1410）
+  --- FAIL: TestP37ProjectionChainOrderUniform（图像 20 / 路径 20 / 图集 20 全落点错）
+  --- FAIL: TestP37ProjectionQuadMatchesQuadLeg（changed=31277 max=235）
+  --- FAIL: TestP37ProjectionQuadBehindEyeRefused（behind-eye quad got <nil> want ErrQuadBehindEye）
+  --- FAIL: TestP37ProjectionAtlasAffineUpgrade（changed=31277 max=235）
+  --- FAIL: TestP37ProjectionClipDegrade（changed=13560 max=235）
+  --- FAIL: TestP37ProjectionPathFillMatchesQuad（内部采样格 (138,90) 缺失）
+  红钉 8 / 绿钉 9（恒等逐位钉仍绿=该钉只验护栏，符合预期）
+
+=== N2 摘升格（`DrawAtlasEx` GPU 腿 `perspSlot := sp.Perspective`，去掉 `|| c.projActive()`）===
+  --- FAIL: TestP37ProjectionAtlasAffineUpgrade（changed=13587 max=180）
+  --- FAIL: TestP37ProjectionStatsCensus（图集 GPU 腿采样核降级未计数：1 want 2）
+  红钉 2 / 绿钉 15
+
+=== N3 摘文字跳过（`projTextBlocked` 恒返回 false）===
+  --- FAIL: TestP37ProjectionCounters（文字跳过未被计数）
+  --- FAIL: TestP37ProjectionTextSkipped（投影下文字被绘制，fail-closed 失效 @(42,44)）
+  --- FAIL: TestP37ProjectionStatsCensus（文字跳过不可见=对外读口缺观测面）
+  红钉 3 / 绿钉 14（包内计数钉与对外计数钉与画面钉三面各咬一次）
+
+=== N4 摘路径映射（`doFill` 喂未投影的 CTM 变换路径）===
+  --- FAIL: TestP37ProjectionAffineLiftEqualsCTM（路径族不跟提升态）
+  --- FAIL: TestP37ProjectionChainOrderUniform（图像 0 / 路径 20 / 图集 0）
+  --- FAIL: TestP37ProjectionPathFillMatchesQuad
+  红钉 3 / 绿钉 14
+
+=== N5 摘裁剪降级（`ClipRectOp` 去掉投影 quad 路径裁剪块）===
+  --- FAIL: TestP37ProjectionClipDegrade（changed=8160 max=235）
+  --- FAIL: TestP37ProjectionCounters（裁剪降级未被计数）
+  --- FAIL: TestP37ProjectionStatsCensus（裁剪降级对外不可见）
+  红钉 3 / 绿钉 14
+
+=== N6 摘眼后拒绝（`DrawImageEx` CPU 兜底的 `!ok return` 改成 `_ = dev`）===
+  红钉 0 / 绿钉 17 —— **如实记录：该分支是「不断言的防护」，不是行为承载点。**
+  摘掉后仍全绿，原因是眼后几何落到下面的 pattern 路后，`doFill` 的投影 stance 已经整笔拒绝。
+  按 AGENTS「核实后发现没问题的，如实收回判断，只加不断言的防护」保留该显式拒绝（语义自明、不依赖下游巧合），
+  但不拿它当「修好的洞」记账：本轮曾报「眼后画出 1762 像素」，实测那是**我自己一处映射器笔误**（N7 同类）造成的
+  画面位移，不是眼后拒绝缺失。已在最终代码上复测：A(投影+眼后)=0、控制路 B=1024（画得出来）⇒ 不变量成立。
+
+=== N7 摘链序（`projDeviceFromUser` 不先过用户矩阵，直接吃 baked 映射器）===
+  --- FAIL: TestP37ProjectionChainOrderUniform（图像 20 / 路径 0 / 图集 20）
+  红钉 1 / 绿钉 16（钉 4 正是为这条链序立的：恒等 CTM 下三链同点，只有非恒等 CTM 才有鉴别力）
+
+=== N8 摘网腿设备三角中性化（`drawDeviceTriangle` 的 `c.projActive()` 门改成恒假）===
+  --- FAIL: TestP37ProjectionMeshCPUMapsOnce（A vs B 差 10992 像素 = 回到双投影形态）
+  红钉 1 / 绿钉 16
+
+=== N9 摘图集用户角（GPU+CPU 两腿都把用户角改回「先过 CTM 再喂投影口」）===
+  --- FAIL: TestP37ProjectionChainOrderUniform（图像 0 / 路径 0 / 图集 20）
+  红钉 1 / 绿钉 16（钉 4 的图集臂是唯一咬点：既有十枚外部钉全在恒等 CTM 下跑，看不见这个洞）
+
+=== N10 摘投影快照归一化（`Push()` 改回存 `c.projection` 原值）===
+  --- FAIL: TestP37ProjectionZeroValueNeverActive（p37_projection_internal_test.go:117「Push/Pop 之后投影位被零值矩阵点亮」）
+  --- FAIL: TestD6DrawImageExNoAmbientLeak（d6_state_leak_test.go:53 post-call fill color drifted: (255,255,255)）
+  —— 这枚是**存量级回归**的反证：批 1d 给 Push/Pop 同拍加投影栈时存的是 `c.projection` 原值，
+  而零值 Matrix4 的 `IsIdentity()` 为 false ⇒ 任何一次 Push/Pop 都把上下文标成「投影已激活 + 装着全零矩阵」，
+  之后每次绘制被全零矩阵映射到空，画面直接画白。D6 状态钉（非本批新钉）先抓到它，
+  二分（HEAD 干净副本逐组回灌）定位到 `context_layer_pass.go` 的 Push hunk 与 `context_draw.go` 的 doFill 门交互；
+  修复 = 快照归一化（`Projection()` 恒等态返回 `Matrix4Identity()`）+ `projRestore` 统一维护激活位 +
+  `SetProjection(零值)` 按文档口径当恒等=关闭（Context 与 Recorder 两侧同改）+ 新钉直咬机制。
+
+=== 全部还原后复跑 ===
+六文件 md5 与备份逐字节一致（N10 的 `context_layer_pass.go` 单独核验：还原后仅含本批两处 hunk）、`grep -rn "// NEG" render/*.go` 零残留；
+`go test ./render -run TestP37Projection` 十八枚全绿 + `TestD6|TestClip|TestQuad|TestAtlas` 定向回归同批复跑 ok（ok github.com/energye/gpui/render）。
+
+=== 覆盖缺口（如实登记，不藏）===
+- GPU 纹理/视频两口的「眼后 `return true`」没有单测覆盖（本批无视频眼后钉；视频窗在批 6 载体下才可能有）。
+- 提升态下的文字族仍未接投影映射器（拍板 B 之后文字族被 `projTextBlocked` 整体 fail-closed 挡住 + 计数，
+  等价性靠「宁可不画也不画半条链」保证；文字接 baked 映射器登记为后续专项）。
+
+=== 附：最终代码（含零值守卫，十八枚基线）逐条复跑原文 2026-11-04 ===
+=== N9 摘图集用户角 [vertices_atlas.go] ===
+      p37_projection_chain_test.go:338: 三条链在同一链序下落点不一致（图像 0 / 路径 0 / 图集 20）
+  --- FAIL: TestP37ProjectionChainOrderUniform (0.02s)
+  红钉 1 / 绿钉 17
+  还原 OK
+=== N10 摘投影快照归一化 [context_layer_pass.go] ===
+      p37_projection_internal_test.go:117: Push/Pop 之后投影位被零值矩阵点亮
+  --- FAIL: TestP37ProjectionZeroValueNeverActive (0.00s)
+  红钉 1 / 绿钉 17
+  还原 OK

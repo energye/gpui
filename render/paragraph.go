@@ -260,6 +260,9 @@ func (f *styledFace) RunsAt(para string, runeBase int) []text.FaceRun {
 // Blend space and blend mode still come from the ambient paint at call time
 // (per-run blending follows the P3.1 semantics of the ambient paint).
 func (c *Context) DrawParagraphStyled(p *Paragraph, x, y float64) {
+	if c.projTextBlocked() {
+		return
+	}
 	if c == nil || p == nil || p.Layout == nil {
 		return
 	}

@@ -1,0 +1,4 @@
+ok  	github.com/energye/gpui/render/internal/gpu	21.314s
+# 批 1d 复跑注记：本档为 `go test ./render/internal/gpu` 不加过滤整包，rc=0 ok 21.3s；
+# 批 1c 同跑法曾在册 M4 洞炸 conv.rs:519（invalid bind group layout），本轮未复现——
+# 该洞的归属与状态以 GPU 域真源为准，本批不据一次绿就改标号，只留差异事实。

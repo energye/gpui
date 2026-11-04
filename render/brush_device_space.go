@@ -225,7 +225,15 @@ func (c *Context) applyDeviceSpaceBrush() func() {
 	if c == nil || c.paint == nil || c.paint.isSolid {
 		return func() {}
 	}
-	m := c.totalMatrix()
+	// 设备矩阵=「2×3 CTM ∘ 4×4 投影层」的组合仿射：恒等投影时 projTotalAffine
+	// 原样返回 totalMatrix（逐位同旧），纯提升仿射投影一并跟得上；真透视无法用
+	// 2×3 表达 ⇒ 先表态跳过烘焙（刷走普通路，相位近似）+ 具名计数（评估 F 组口径），
+	// 表态必须排在恒等早退之前，否则恒等 CTM 下降级无人知晓。
+	m, affine := c.projTotalAffine()
+	if !affine {
+		c.projBrushDegrades++
+		return func() {}
+	}
 	if m.IsIdentity() {
 		return func() {}
 	}

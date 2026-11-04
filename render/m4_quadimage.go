@@ -54,8 +54,36 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 	}
 	ctm := c.totalMatrix()
 	dev := [4]Point{}
-	for i := 0; i < 4; i++ {
-		dev[i] = ctm.TransformPoint(corners[i])
+	wFinal := [4]float64{1, 1, 1, 1}
+	perspLeg := opts.Perspective
+	if opts.Perspective {
+		copy(wFinal[:], opts.Weights[:])
+	}
+	if c.projActive() {
+		// P3.7 批 1d：投影层把用户四角映射进设备空间并产出齐次权重
+		//（设备 = raw(2×3) ∘ projection ∘ user，仿射段不改 w；提升态的仿射
+		// 已由 projMapQuad 内部一次应用，不在这里重复）。
+		// 与 quad 自带权重齐次合成（w = w_proj × w_own）；任一角 behind-eye
+		// ⇒ 整 quad 拒绝（同 Matrix4.ProjectQuad / p35「眼后整块拒绝」）。
+		if interp == InterpBicubic {
+			// 透视槽无 bicubic 变体 ⇒ 降级 bilinear（与 ErrQuadPerspectiveBicubic
+			// 同理由：4×4 核基于仿射 UV 步距），具名计数不静默换核。
+			interp = InterpBilinear
+			c.projInterpDegrades++
+		}
+		pdev, pw, ok := c.projMapQuad(corners)
+		if !ok {
+			return ErrQuadBehindEye
+		}
+		copy(dev[:], pdev[:])
+		for i := 0; i < 4; i++ {
+			wFinal[i] *= pw[i]
+		}
+		perspLeg = true
+	} else {
+		for i := 0; i < 4; i++ {
+			dev[i] = ctm.TransformPoint(corners[i])
+		}
 	}
 	if quadHasNonFinite(dev) || quadAreaSum(dev) < 1e-9 {
 		return ErrQuadDegenerate
@@ -72,7 +100,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 				if c.gpuPathAvailable() {
 					c.recordCPUFallbackReason("image:DrawImageQuad")
 				}
-				c.drawImageQuadCPUSplit(img, dev, interp, opacity, opts.Perspective, opts.Weights, opts.Tint)
+				c.drawImageQuadCPUSplit(img, dev, interp, opacity, perspLeg, wFinal, opts.Tint)
 				return nil
 			}
 			defer c.setGPUClipRect()()
@@ -84,14 +112,14 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 			tr, tg, tb, ta := atlasTintFactors(opts.Tint)
 			// 与图集腿同一式：顶点染色按 premul（tr*ta）下发，合成链才与 CPU 一致。
 			ptR, ptG, ptB := tr*ta, tg*ta, tb*ta
-			if opts.Perspective {
+			if perspLeg {
 				rc.QueueImageDrawQuadW(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 					float32(dev[0].X), float32(dev[0].Y),
 					float32(dev[1].X), float32(dev[1].Y),
 					float32(dev[2].X), float32(dev[2].Y),
 					float32(dev[3].X), float32(dev[3].Y),
-					float32(opts.Weights[0]), float32(opts.Weights[1]),
-					float32(opts.Weights[2]), float32(opts.Weights[3]),
+					float32(wFinal[0]), float32(wFinal[1]),
+					float32(wFinal[2]), float32(wFinal[3]),
 					float32(opacity), vpW, vpH,
 					0, 0, 1, 1,
 					float32(ptR), float32(ptG), float32(ptB), float32(ta),
@@ -127,7 +155,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 	if c.gpuPathAvailable() {
 		c.recordCPUFallbackReason("image:DrawImageQuad")
 	}
-	c.drawImageQuadCPUSplit(img, dev, interp, opacity, opts.Perspective, opts.Weights, opts.Tint)
+	c.drawImageQuadCPUSplit(img, dev, interp, opacity, perspLeg, wFinal, opts.Tint)
 	return nil
 }
 

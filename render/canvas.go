@@ -59,6 +59,14 @@ type Canvas interface {
 	SetTransform(m Matrix)
 	GetTransform() Matrix
 
+	// Projection layer (P3.7 batch 1d, coexistence form): a 4×4 map applied to
+	// user coordinates before the 2×3 CTM, effective on the image/quad and
+	// atlas-batch chains. Identity default keeps every consumer bit-identical.
+	SetProjection(m Matrix4)
+	PushProjection(m Matrix4)
+	PopProjection()
+	Projection() Matrix4
+
 	// Path building
 	MoveTo(x, y float64)
 	LineTo(x, y float64)

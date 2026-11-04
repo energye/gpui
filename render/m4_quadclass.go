@@ -74,6 +74,9 @@ var (
 	ErrQuadPerspectiveBicubic = errors.New("render: perspective quad does not support bicubic interpolation")
 	// ErrQuadBadTint 染色分量非有限（NaN/Inf）。零结构体是合法的「不染色」。
 	ErrQuadBadTint = errors.New("render: quad tint components must be finite")
+	// ErrQuadBehindEye 投影层下任一角落在眼后（w ≤ 0），整 quad 拒绝
+	//（P3.7 批 1d；与 Matrix4.ProjectQuad/p35「眼后整块拒绝」同语义）。
+	ErrQuadBehindEye = errors.New("render: quad corner behind the eye under projection")
 )
 
 // quadTintFinite 报告染色四分量全有限。零结构体（白不透明）合法。

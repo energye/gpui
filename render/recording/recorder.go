@@ -67,6 +67,12 @@ type Recorder struct {
 	blendMode  render.BlendMode
 	blendSpace render.BlendSpace
 	transform  Matrix
+	// Projection layer tracking (P3.7 batch 1d): mirrors the target's layer so
+	// Projection() answers the current value; PushProjection/PopProjection keep
+	// their own stack. Save/Restore snapshot it (D-1 并入 Push/Pop).
+	projection      render.Matrix4
+	projectionPush  bool
+	projectionStack []render.Matrix4
 
 	// Current font
 	fontFace   text.Face
@@ -91,6 +97,7 @@ type recorderState struct {
 	fillRule    FillRule
 	antiAlias   bool
 	transform   Matrix
+	projection  render.Matrix4
 	fontFace    text.Face
 	fontFamily  string
 	fontSize    float64
@@ -259,6 +266,8 @@ func (r *Recording) Playback(backend Backend) error {
 			backend.Restore()
 		case ConcatCommand:
 			backend.Concat(c.Matrix)
+		case ProjectionCommand:
+			backend.Projection(c.Mode, c.Proj)
 		case SetClipCommand:
 			path := r.resources.GetPath(c.Path)
 			backend.SetClip(path, c.Rule)

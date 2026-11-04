@@ -168,9 +168,9 @@ func (c *Context) InvertY() {
 // totalMatrix returns the combined device + user transform matrix.
 // Used at rendering boundaries where device-space coordinates are needed.
 // At scale=1.0, this is identical to c.matrix (zero overhead).
-// totalMatrix returns the combined device + user transform matrix.
-// Used at rendering boundaries where device-space coordinates are needed.
-// At scale=1.0, this is identical to c.matrix (zero overhead).
+// 投影层不折在这里（P3.7 批 1d 拍板 B）：链是 设备 = deviceMatrix ∘ 投影 ∘ 用户矩阵，
+// 投影作用在用户矩阵**之外**，由 context_projection.go 的两个映射器负责
+// （projDeviceFromUser 吃用户点、projDeviceFromBaked 吃 verb 期已烘焙的点）。
 func (c *Context) totalMatrix() Matrix {
 	if c.deviceMatrix.IsIdentity() {
 		return c.matrix

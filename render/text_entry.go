@@ -65,6 +65,9 @@ func (c *Context) Font() text.Face {
 // The baseline is the line on which most letters sit. Characters with
 // descenders (like 'g', 'j', 'p', 'q', 'y') extend below the baseline.
 func (c *Context) DrawString(s string, x, y float64) {
+	if c.projTextBlocked() {
+		return
+	}
 
 	if c.face == nil {
 		return
@@ -97,6 +100,9 @@ func (c *Context) DrawString(s string, x, y float64) {
 //
 // The text is positioned so that the anchor point is at (x, y).
 func (c *Context) DrawStringAnchored(s string, x, y, ax, ay float64) {
+	if c.projTextBlocked() {
+		return
+	}
 	if c.face == nil {
 		return
 	}
@@ -234,6 +240,9 @@ func (c *Context) MeasureMultilineString(s string, lineSpacing float64) (width, 
 //
 // This method is compatible with fogleman/gg's DrawStringWrapped.
 func (c *Context) DrawStringWrapped(s string, x, y, ax, ay, width, lineSpacing float64, align Align) {
+	if c.projTextBlocked() {
+		return
+	}
 	if c.face == nil {
 		return
 	}

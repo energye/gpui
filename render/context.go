@@ -51,6 +51,24 @@ type Context struct {
 	deviceMatrix   Matrix // device scale transform (Identity when scale=1.0, NEVER modified by user)
 	stack          []Matrix
 	clipStackDepth []int // Tracks clip stack depth for each Push/Pop
+	// Projection layer (P3.7 batch 1d, coexistence form): a 4×4 map applied to
+	// user coordinates BEFORE the 2×3 CTM. A pure affine lift folds into
+	// totalMatrix() (拍板：提升=与 CTM 合一 ⇒ 全链同语义); a projective matrix
+	// can't be expressed as 2×3, so the image/quad/atlas chains map it per point
+	// while paths/text/clip/misc take explicit stances with named counters.
+	// Zero value = identity ⇒ every consumer runs its historic path
+	// bit-identically. Push/Pop snapshot it together with the matrix
+	// (Skia SkM44-style save/restore participation, user拍板 D-1).
+	projection         Matrix4
+	projectionActive   bool // true = projection differs from identity (zero value = inactive = identity)
+	projectionStack    []Matrix4
+	projClipDegrades   int // named census: clip degraded to path clip under projective projection
+	projPathExpands    int // named census: path flattened+projected to device space
+	projTextSkips      int // named census: text draws skipped under projective projection
+	projGPUTexDegrades int // named census: GPU-texture/video rect degraded to AABB under projective projection
+	projBrushDegrades  int // named census: device-space brush bake skipped under projective projection
+	projMiscDegrades   int // named census: misc shadow/gradient helpers computed without projection
+	projInterpDegrades int // named census: bicubic downgraded to bilinear (no perspective variant)
 
 	// Layer support
 	layerStack *layerStack // Layer stack for compositing

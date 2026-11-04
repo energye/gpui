@@ -207,6 +207,25 @@ func (c *Context) tryGPUWritePixels(dstX, dstY, width, height int, pixels []byte
 // DrawPoint draws a single point at the given coordinates.
 // doFill performs the fill operation respecting the current RasterizerMode.
 func (c *Context) doFill() error {
+	// P3.7 批 1d：投影层非仿射 ⇒ 路径展平后逐点投影映射成设备空间路径，
+	// 以 identity 矩阵走既有管线（Skia 同款先变换后造型；投影保直线，
+	// 展平采样折线=精确投影像）+ 具名计数；SDF/convex 快路随 identity 自然
+	// 判定。behind-eye ⇒ 拒绝整笔（与 quad 口同源）。
+	if c.projActive() {
+		// 投影层非恒等 ⇒ 路径（verb 期已烘焙用户矩阵）展平后逐点过投影、再叠设备
+		// 缩放，落设备空间以 identity 矩阵走既有管线（拍板 B 的链序；提升态与真
+		// 透视同一套路，不再有「图像吃投影、路径不吃」的分叉）。
+		dev, ok := c.projTransformPath(c.path, 0.25)
+		if !ok {
+			return nil // behind-eye: refuse the whole fill
+		}
+		c.projPathExpands++
+		return c.withProjectedPathScope(dev, func() error { return c.doFillUnprojected() })
+	}
+	return c.doFillUnprojected()
+}
+
+func (c *Context) doFillUnprojected() error {
 	c.syncPublishedFilterBeforeDraw()
 	mode := c.rasterizerMode
 
@@ -359,6 +378,23 @@ func (c *Context) doFill() error {
 // Closed stroke rings stay hollow via reverse inner contour winding.
 // HiDPI via deviceSpacePath in doFill; Image()/SavePNG() FlushGPU.
 func (c *Context) doStroke() error {
+	// P3.7 批 1d：同 doFill——非仿射投影下路径映射进设备空间再造型
+	//（Skia 先变换后造型的口径：描边几何在设备空间计算，宽高随投影）。
+	if c.projActive() {
+		// 投影层非恒等 ⇒ 路径（verb 期已烘焙用户矩阵）展平后逐点过投影、再叠设备
+		// 缩放，落设备空间以 identity 矩阵走既有管线（拍板 B 的链序；提升态与真
+		// 透视同一套路，不再有「图像吃投影、路径不吃」的分叉）。
+		dev, ok := c.projTransformPath(c.path, 0.25)
+		if !ok {
+			return nil // behind-eye: refuse the whole stroke
+		}
+		c.projPathExpands++
+		return c.withProjectedPathScope(dev, func() error { return c.doStrokeUnprojected() })
+	}
+	return c.doStrokeUnprojected()
+}
+
+func (c *Context) doStrokeUnprojected() error {
 	c.syncPublishedFilterBeforeDraw()
 	mode := c.rasterizerMode
 

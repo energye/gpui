@@ -53,6 +53,7 @@ const (
 	CmdSave          CommandType = iota // Save current state
 	CmdRestore                          // Restore previous state
 	CmdConcat                           // Concatenate a matrix onto the CTM
+	CmdProjection                       // Projection-layer op: set/push/pop the 4×4 map (P3.7 batch 1d)
 	CmdSetClip                          // Set clipping region
 	CmdClearClip                        // Clear clipping region
 	CmdClipRoundRect                    // Set rounded rectangle clipping region
@@ -122,6 +123,7 @@ var commandTypeNames = [...]string{
 	CmdSave:           "Save",
 	CmdRestore:        "Restore",
 	CmdConcat:         "Concat",
+	CmdProjection:     "Projection",
 	CmdSetClip:        "SetClip",
 	CmdClearClip:      "ClearClip",
 	CmdClipRoundRect:  "ClipRoundRect",
@@ -259,6 +261,30 @@ type ConcatCommand struct {
 
 // Type implements Command.
 func (ConcatCommand) Type() CommandType { return CmdConcat }
+
+// ProjectionMode selects the projection-layer operation of ProjectionCommand.
+type ProjectionMode uint8
+
+const (
+	// ProjectionSet replaces the target's projection layer (SetProjection).
+	ProjectionSet ProjectionMode = iota
+	// ProjectionPush saves the target's projection layer and replaces it
+	// (PushProjection).
+	ProjectionPush
+	// ProjectionPop restores the saved projection layer (PopProjection).
+	ProjectionPop
+)
+
+// ProjectionCommand applies a projection-layer op at playback (P3.7 batch 1d).
+// Proj carries the recorded absolute projection — recorded value, read-only at
+// replay (PathEffect 先例)；pop 模式不读 Proj。
+type ProjectionCommand struct {
+	Mode ProjectionMode
+	Proj render.Matrix4
+}
+
+// Type implements Command.
+func (ProjectionCommand) Type() CommandType { return CmdProjection }
 
 // SetClipCommand sets the clipping region.
 type SetClipCommand struct {

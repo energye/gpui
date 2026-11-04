@@ -62,20 +62,49 @@ func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
 			if op > 1 {
 				op = 1
 			}
-			tl := ctm.TransformPoint(Pt(sp.DstX, sp.DstY))
-			tr := ctm.TransformPoint(Pt(sp.DstX+sp.DstW, sp.DstY))
-			br := ctm.TransformPoint(Pt(sp.DstX+sp.DstW, sp.DstY+sp.DstH))
-			bl := ctm.TransformPoint(Pt(sp.DstX, sp.DstY+sp.DstH))
+			usr := [4]Point{
+				Pt(sp.DstX, sp.DstY),
+				Pt(sp.DstX+sp.DstW, sp.DstY),
+				Pt(sp.DstX+sp.DstW, sp.DstY+sp.DstH),
+				Pt(sp.DstX, sp.DstY+sp.DstH),
+			}
 			u0 := float32(sp.SrcX) / float32(imgW)
 			v0 := float32(sp.SrcY) / float32(imgH)
 			u1 := float32(sp.SrcX+sp.SrcW) / float32(imgW)
 			v1 := float32(sp.SrcY+sp.SrcH) / float32(imgH)
-			rc.QueueImageDraw(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
-				float32(tl.X), float32(tl.Y),
-				float32(tr.X), float32(tr.Y),
-				float32(br.X), float32(br.Y),
-				float32(bl.X), float32(bl.Y),
-				float32(op), vpW, vpH, u0, v0, u1, v1, false, false)
+			// P3.7 批 1d：投影层非恒等时仿射精灵升格为透视 quad（老口只读
+			// 老字段的约定不涉及上下文投影层——投影层是画布状态，随链生效）。
+			// 喂 projMapQuad 的必须是**用户空间**角点：它内部走 raw∘投影，
+			// 传已经过 CTM 的设备角会把 CTM 再乘一遍。
+			if c.projActive() {
+				pdev, pw, ok := c.projMapQuad(usr)
+				if !ok {
+					continue // behind-eye sprite: refused whole
+				}
+				rc.QueueImageDrawQuadW(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
+					float32(pdev[0].X), float32(pdev[0].Y),
+					float32(pdev[1].X), float32(pdev[1].Y),
+					float32(pdev[2].X), float32(pdev[2].Y),
+					float32(pdev[3].X), float32(pdev[3].Y),
+					float32(pw[0]), float32(pw[1]),
+					float32(pw[2]), float32(pw[3]),
+					float32(op), vpW, vpH, u0, v0, u1, v1,
+					1, 1, 1, 1,
+					false)
+			} else {
+				dev := [4]Point{
+					ctm.TransformPoint(usr[0]),
+					ctm.TransformPoint(usr[1]),
+					ctm.TransformPoint(usr[2]),
+					ctm.TransformPoint(usr[3]),
+				}
+				rc.QueueImageDraw(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
+					float32(dev[0].X), float32(dev[0].Y),
+					float32(dev[1].X), float32(dev[1].Y),
+					float32(dev[2].X), float32(dev[2].Y),
+					float32(dev[3].X), float32(dev[3].Y),
+					float32(op), vpW, vpH, u0, v0, u1, v1, false, false)
+			}
 			queued++
 		}
 		if queued > 0 {
@@ -308,7 +337,34 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 			// 透视精灵四角用户空间经 CTM 进设备空间（与 DrawImageQuad 同语义）；
 			// 仿射精灵沿用 atlasSpriteCorners 拆法逐位不变。
 			var dev [4]Point
-			if sp.Perspective {
+			wFinal := [4]float64{1, 1, 1, 1}
+			// P3.7 批 1d：投影层非恒等 ⇒ 四角走 `raw ∘ projection` 全链映射——
+			// 仿射精灵升格为透视 quad，透视精灵权重齐次合成（w = w_proj × w_own）；
+			// 任一角 behind-eye ⇒ 该精灵跳过（画家序：眼后不可画，与 quad 口整块
+			// 拒绝同源）。喂 projMapQuad 的必须是**用户空间**角点：它内部一趟
+			// 应用 raw CTM，传设备角会把 CTM 乘两遍。
+			if c.projActive() {
+				var usr [4]Point
+				if sp.Perspective {
+					copy(wFinal[:], sp.Weights[:])
+					usr = sp.Corners
+				} else {
+					tl, trPt, br, bl := atlasSpriteCorners(sp, Identity())
+					usr = [4]Point{tl, trPt, br, bl}
+				}
+				pdev, pw, ok := c.projMapQuad(usr)
+				if !ok {
+					continue // behind-eye sprite: refused whole
+				}
+				dev = pdev
+				for k := 0; k < 4; k++ {
+					wFinal[k] *= pw[k]
+				}
+				if quadHasNonFinite(dev) || quadAreaSum(dev) < 1e-9 {
+					return AtlasDrawResult{}, ErrAtlasQuadDegenerate
+				}
+			} else if sp.Perspective {
+				copy(wFinal[:], sp.Weights[:])
 				for k := 0; k < 4; k++ {
 					dev[k] = ctm.TransformPoint(sp.Corners[k])
 				}
@@ -325,12 +381,23 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 			v1 := float32(sp.SrcY+sp.SrcH) / float32(imgH)
 			nearest := filt == InterpNearest
 			bicubic := filt == InterpBicubic
+			// 投影层生效 ⇒ 恒走透视槽（bicubic 在透视槽无变体 ⇒ 降 bilinear，
+			// 与 quad 口同理由）；恒等时保持原分流逐字节不变。
+			perspSlot := sp.Perspective || c.projActive()
+			if perspSlot && bicubic {
+				bicubic = false
+				nearest = false
+				if c.projActive() {
+					// 透视槽无 bicubic 变体 ⇒ 采样核降级，具名计数（不静默换核）。
+					c.projInterpDegrades++
+				}
+			}
 			tintR, tintG, tintB, tintA := atlasTintFactors(sp.Tint)
 			// Premultiply on the CPU side (texel premul * tint premul):
 			// CPU does srcRGB = tex*tr*srcA with srcA = baseA*ta*op,
 			// so the vertex tint must carry tr*ta (not straight tr).
 			tintR, tintG, tintB = tintR*tintA, tintG*tintA, tintB*tintA
-			if sp.Perspective {
+			if perspSlot {
 				// 透视腿走 36B 透视槽（批 1a 合批谓词自动覆盖图集透视精灵；
 				// 批 1b 扩的 tint 形参在这里同式下发）。bicubic 已在校验拒绝。
 				c.gpuCtxOps().QueueImageDrawQuadW(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
@@ -338,8 +405,8 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 					float32(dev[1].X), float32(dev[1].Y),
 					float32(dev[2].X), float32(dev[2].Y),
 					float32(dev[3].X), float32(dev[3].Y),
-					float32(sp.Weights[0]), float32(sp.Weights[1]),
-					float32(sp.Weights[2]), float32(sp.Weights[3]),
+					float32(wFinal[0]), float32(wFinal[1]),
+					float32(wFinal[2]), float32(wFinal[3]),
 					float32(op), vpW, vpH, u0, v0, u1, v1,
 					float32(tintR), float32(tintG), float32(tintB), float32(tintA),
 					nearest)
@@ -414,7 +481,35 @@ func (c *Context) drawAtlasExCPU(img *ImageBuf, sprites []AtlasSprite, drawIdx [
 		// 透视精灵四角用户空间经 CTM 进设备空间（与 GPU 腿同拆法）；
 		// 仿射精灵沿用 atlasSpriteCorners 拆法逐位不变。
 		var dev [4]Point
-		if sp.Perspective {
+		wFinal := [4]float64{1, 1, 1, 1}
+		perspSampler := sp.Perspective
+		// P3.7 批 1d：投影层非恒等 ⇒ 四角走 `raw ∘ projection` 全链（与 GPU 腿
+		// 同式；喂**用户空间**角点，设备角会被 raw CTM 乘两遍；behind-eye 精灵
+		// 跳过），权重齐次合成；透视采样核无 bicubic 变体 ⇒ 降 bilinear 并计数。
+		if c.projActive() {
+			var usr [4]Point
+			if sp.Perspective {
+				copy(wFinal[:], sp.Weights[:])
+				usr = sp.Corners
+			} else {
+				tl, trPt, br, bl := atlasSpriteCorners(sp, Identity())
+				usr = [4]Point{tl, trPt, br, bl}
+			}
+			pdev, pw, ok := c.projMapQuad(usr)
+			if !ok {
+				continue // behind-eye sprite: refused whole
+			}
+			dev = pdev
+			for k := 0; k < 4; k++ {
+				wFinal[k] *= pw[k]
+			}
+			perspSampler = true
+			if filt == InterpBicubic {
+				filt = InterpBilinear
+				c.projInterpDegrades++
+			}
+		} else if sp.Perspective {
+			copy(wFinal[:], sp.Weights[:])
 			for k := 0; k < 4; k++ {
 				dev[k] = ctm.TransformPoint(sp.Corners[k])
 			}
@@ -431,11 +526,11 @@ func (c *Context) drawAtlasExCPU(img *ImageBuf, sprites []AtlasSprite, drawIdx [
 		// GPU twin UVs: TL(u0,v0) TR(u1,v0) BR(u1,v1) BL(u0,v1)；透视腿 1/w
 		// 有理插值（与 DrawImageQuad CPU 腿同款 newTriSamplerPerspective）。
 		var t1, t2 triSampler
-		if sp.Perspective {
+		if perspSampler {
 			t1 = newTriSamplerPerspective(dev[0], dev[1], dev[3], [3][2]float64{{u0, v0}, {u1, v0}, {u0, v1}},
-				sp.Weights[0], sp.Weights[1], sp.Weights[3])
+				wFinal[0], wFinal[1], wFinal[3])
 			t2 = newTriSamplerPerspective(dev[1], dev[2], dev[3], [3][2]float64{{u1, v0}, {u1, v1}, {u0, v1}},
-				sp.Weights[1], sp.Weights[2], sp.Weights[3])
+				wFinal[1], wFinal[2], wFinal[3])
 		} else {
 			t1 = newTriSampler(dev[0], dev[1], dev[3], [3][2]float64{{u0, v0}, {u1, v0}, {u0, v1}})
 			t2 = newTriSampler(dev[1], dev[2], dev[3], [3][2]float64{{u1, v0}, {u1, v1}, {u0, v1}})

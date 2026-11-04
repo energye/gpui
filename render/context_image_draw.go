@@ -132,6 +132,36 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	if c.tryGPUDrawImage(img, opts, srcX, srcY, srcW, srcH, dstWidth, dstHeight) {
 		return
 	}
+	// P3.7 批 1d：投影层生效 ⇒ CPU 兜底也走透视 CPU 腿（drawImageQuadCPUSplit
+	// 已有任意四角+权重的 1/w 有理插值），模式=ImagePattern 路在投影下无法表达
+	//（pattern 逆变换是 2×3）。blend 非 Normal 走老 pattern 路 + 计数（投影下
+	// 相位近似，登记）；bicubic 与 GPU 透视槽同口径降级 bilinear。
+	if c.projActive() {
+		dev, w, ok := c.projMapQuad([4]Point{{X: opts.X, Y: opts.Y}, {X: opts.X + dstWidth, Y: opts.Y},
+			{X: opts.X + dstWidth, Y: opts.Y + dstHeight}, {X: opts.X, Y: opts.Y + dstHeight}})
+		if !ok {
+			// 眼后 ⇒ 整块不画（与 quad 口 ErrQuadBehindEye、图集/网腿「眼后跳过」
+			// 同一条规则）。实测教训：落到下面 pattern 路会把未投影画面画出来
+			// （探针 P2：眼后矩形画出 1762 像素）。
+			return
+		}
+		{
+			interp := opts.Interpolation
+			if interp == InterpBicubic {
+				// 透视 CPU 腿无 bicubic 采样核 ⇒ 降 bilinear（与 GPU 透视槽同口径）
+				// + 具名计数。
+				interp = InterpBilinear
+				c.projInterpDegrades++
+			}
+			if opts.BlendMode == BlendNormal {
+				c.drawImageQuadCPUSplit(img, dev, interp, opts.Opacity, true, w, RGBA{})
+				return
+			}
+			c.projMiscDegrades++
+		}
+		// blend 非 Normal 的近似：继续走既有 pattern 路（几何仍按投影映射，
+		// 只有图样采样是 2×3）+ 具名计数。
+	}
 	if opts.Interpolation == InterpBicubic {
 		// Direct CPU DrawImage with bicubic sampling for correctness.
 		dstImg := c.pixmapToImageBuf(c.pixmap)

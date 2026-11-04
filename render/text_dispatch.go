@@ -145,6 +145,9 @@ func (c *Context) drawStringResolved(s string, x, y float64) {
 //
 // Enterprise pattern: matches Skia drawTextBlob, Vello draw_glyphs.
 func (c *Context) DrawShapedGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64) {
+	if c.projTextBlocked() {
+		return
+	}
 	if face == nil || len(glyphs) == 0 {
 		return
 	}
@@ -204,6 +207,9 @@ func (c *Context) DrawShapedGlyphs(glyphs []text.ShapedGlyph, face text.Face, x,
 // CTM) or fall back to outlines. Glyphs the font renders as plain outlines
 // are skipped — they belong to the mask pipeline, not this call.
 func (c *Context) DrawShapedColorGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64) {
+	if c.projTextBlocked() {
+		return
+	}
 	if face == nil || len(glyphs) == 0 {
 		return
 	}

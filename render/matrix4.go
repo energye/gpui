@@ -49,6 +49,25 @@ func Matrix4FromMatrix(m Matrix) Matrix4 {
 	return r
 }
 
+// Matrix4Homography builds the 2D ground-plane homography: the affine part m
+// maps (x,y) positionally while the homogeneous row (wx, wy, w1) makes the
+// perspective divisor vary linearly across the plane —
+// screen = m·(x,y) / (wx·x + wy·y + w1)（W 行在行主序布局里是 m[12..15]，见
+// ProjectorMatrix4 的 W ← d + focal 同位）。This is the projection-layer form of
+// 「按深度缩放」 for flat-world 2.5D content (P3.7 batch 1d): a ground plane
+// seen from above is exactly this map, and w > 0 everywhere on the drawable
+// half-plane. 非有限分量不装坏矩阵（fail-closed 同 ProjectorMatrix4）。
+func Matrix4Homography(m Matrix, wx, wy, w1 float64) Matrix4 {
+	r := Matrix4FromMatrix(m)
+	if wx != wx || wy != wy || w1 != w1 { // NaN guard
+		return r
+	}
+	r.m[12] = wx
+	r.m[13] = wy
+	r.m[15] = w1
+	return r
+}
+
 // At returns the raw element at row, col (0-based). Exposed so the GPU vertex
 // path can read the same numbers the CPU uses; prefer the typed methods for
 // ordinary work.

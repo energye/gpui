@@ -83,6 +83,9 @@ type Backend interface {
 	// onto the CTM it already has, so a playback context pre-set with a layer
 	// offset and device scale renders the recording in the right place.
 	Concat(m Matrix)
+	// Projection applies a projection-layer op (P3.7 batch 1d): set/push/pop
+	// the 4×4 map the target canvas applies before its CTM on image/quad chains.
+	Projection(mode ProjectionMode, m render.Matrix4)
 
 	// Clipping methods
 

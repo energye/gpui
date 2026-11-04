@@ -95,6 +95,20 @@ func (c *Context) ClipRoundRect(x, y, w, h, radius float64) {
 	}
 
 	// Transform the rectangle corners to device coordinates.
+	// P3.7 批 1d：投影层非恒等 ⇒ 走投影路径裁剪（拍板 C 组表态：矩形/RRect 的
+	// 投影映像是直边 quad/展平路径——按精确路径化降级 + 具名计数）。
+	if c.projActive() {
+		up := NewPath()
+		up.RRect(NewRRectXY(Rect{Min: Pt(x, y), Max: Pt(x+w, y+h)}, radius, radius))
+		// 投影映射器吃的是 verb 期烘焙后的坐标（拍板 B），这里先把用户空间
+		// RRect 过一遍用户矩阵，与路径族同序。
+		dp, ok := c.projTransformPath(up.Transform(c.matrix), 0.25)
+		if ok {
+			c.projClipDegrades++
+			c.pushDevicePathClip(dp, c.paint.FillRule)
+		}
+		return
+	}
 	tm := c.totalMatrix()
 	if tm.B != 0 || tm.C != 0 {
 		// B1: rotated/sheared CTM — clip to the transformed rounded rect as
@@ -177,7 +191,20 @@ func (c *Context) ClipRRect(rr RRect) {
 	// and per-corner clips match Skia.
 	userPath := NewPath()
 	userPath.RRect(rr)
-	devicePath := userPath.Transform(c.totalMatrix())
+	var devicePath *Path
+	if c.projActive() {
+		// P3.7 批 1d：投影层非恒等 ⇒ 展平+逐点投影映射（曲线先展平：投影不保
+		// 圆锥截线，映射采样折线是精确投影像）+ 具名计数。链序按拍板 B：用户
+		// RRect 先过用户矩阵，再过投影，最后叠设备缩放。
+		dp, ok := c.projTransformPath(userPath.Transform(c.matrix), 0.25)
+		if !ok {
+			return // behind-eye: refuse the clip push
+		}
+		devicePath = dp
+		c.projClipDegrades++
+	} else {
+		devicePath = userPath.Transform(c.totalMatrix())
+	}
 	c.pushDevicePathClip(devicePath, c.paint.FillRule)
 }
 
@@ -189,6 +216,9 @@ func (c *Context) ClipRRect(rr RRect) {
 // path took it and keeps its historic pixels. Nine-patch/complex/per-corner
 // elliptic cases stay on the exact path raster.
 func (c *Context) tryOrientedRRectClip(rr RRect) bool {
+	if c.projActive() {
+		return false // P3.7 批 1d：投影层非恒 ⇒ 快路拒绝，落精确路径裁剪（计数在上层）
+	}
 	if rr.Type() != RRectSimple {
 		return false
 	}
@@ -278,6 +308,9 @@ func (c *Context) canUseRRectClipFastPath(rr RRect) bool {
 		return false
 	}
 
+	if c.projActive() {
+		return false // P3.7 批 1d：投影层非恒 ⇒ 均匀缩放快路拒绝（落精确路径）
+	}
 	tm := c.totalMatrix()
 	if tm.B != 0 || tm.C != 0 {
 		return false

@@ -73,11 +73,25 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 
 	// Transform all four user-space corners through the full CTM so rotation,
 	// scale, shear, and translation are preserved in device pixels.
+	// P3.7 批 1d：投影层非恒等时四角经投影映射（任一角 behind-eye ⇒ 整 quad
+	// 拒绝＝退 CPU 兜底由调用方表态），blend/透视腿合成见下。
 	ctm := c.totalMatrix()
 	tl := ctm.TransformPoint(Pt(opts.X, opts.Y))
 	tr := ctm.TransformPoint(Pt(opts.X+dstWidth, opts.Y))
 	br := ctm.TransformPoint(Pt(opts.X+dstWidth, opts.Y+dstHeight))
 	bl := ctm.TransformPoint(Pt(opts.X, opts.Y+dstHeight))
+	projW := [4]float64{1, 1, 1, 1}
+	projActive := c.projActive()
+	if projActive {
+		pdev, pw, ok := c.projMapQuad([4]Point{{X: opts.X, Y: opts.Y}, {X: opts.X + dstWidth, Y: opts.Y},
+			{X: opts.X + dstWidth, Y: opts.Y + dstHeight}, {X: opts.X, Y: opts.Y + dstHeight}})
+		if !ok {
+			c.recordCPUFallbackReason("image:behind-eye")
+			return false
+		}
+		tl, tr, br, bl = pdev[0], pdev[1], pdev[2], pdev[3]
+		copy(projW[:], pw[:])
+	}
 
 	target := c.gpuRenderTarget()
 	vpW := uint32(target.Width)  //nolint:gosec // viewport fits uint32
@@ -99,6 +113,26 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 
 	nearest := opts.Interpolation == InterpNearest
 	bicubic := opts.Interpolation == InterpBicubic
+	if projActive {
+		// 投影层生效 ⇒ 走 1a 合批后的透视槽（QueueImageDrawQuadW；blend 与
+		// bicubic 在透视槽无变体 ⇒ 退 CPU 兜底由调用方表态，不静默降画面）。
+		if opts.BlendMode != BlendNormal || bicubic {
+			c.recordCPUFallbackReason("image:proj-no-variant")
+			return false
+		}
+		rc.QueueImageDrawQuadW(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
+			float32(tl.X), float32(tl.Y),
+			float32(tr.X), float32(tr.Y),
+			float32(br.X), float32(br.Y),
+			float32(bl.X), float32(bl.Y),
+			float32(projW[0]), float32(projW[1]),
+			float32(projW[2]), float32(projW[3]),
+			float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1,
+			1, 1, 1, 1,
+			nearest)
+		c.recordGPUOp()
+		return true
+	}
 	if opts.BlendMode != BlendNormal {
 		// Fixed-function Porter-Duff compositing (B.02) rides per-mode quad
 		// pipeline variants. Advanced (destination-sampling) modes and the
@@ -138,11 +172,22 @@ func (c *Context) prepareGPUTextureDraw(view gpucontext.TextureView, x, y float6
 	}
 	// Full CTM quad (same as tryGPUDrawImage): rotation/scale/shear ride
 	// the four corners, Dst rect stays the AABB for damage/scissor.
+	// P3.7 批 1d：投影层非恒等时四角经投影映射；队列口是设备矩形（无 quad
+	// 形参）⇒ 按拍板 D-3 降级为投影四角 AABB + 计数（画面仍在，近似）。
 	ctm := c.totalMatrix()
 	tl := ctm.TransformPoint(Pt(x, y))
 	tr := ctm.TransformPoint(Pt(x+float64(width), y))
 	br := ctm.TransformPoint(Pt(x+float64(width), y+float64(height)))
 	bl := ctm.TransformPoint(Pt(x, y+float64(height)))
+	if c.projActive() {
+		pdev, _, ok := c.projMapQuad([4]Point{{X: x, Y: y}, {X: x + float64(width), Y: y},
+			{X: x + float64(width), Y: y + float64(height)}, {X: x, Y: y + float64(height)}})
+		if !ok {
+			return g, false // behind-eye: refuse
+		}
+		tl, tr, br, bl = pdev[0], pdev[1], pdev[2], pdev[3]
+		c.projGPUTexDegrades++
+	}
 	minX := min4(tl.X, tr.X, br.X, bl.X)
 	maxX := max4(tl.X, tr.X, br.X, bl.X)
 	minY := min4(tl.Y, tr.Y, br.Y, bl.Y)
@@ -312,6 +357,19 @@ func (c *Context) DrawVideoPlanes(slot *VideoPlaneSlot, opts VideoDrawOptions) b
 	ctm := c.totalMatrix()
 	tl := ctm.TransformPoint(Pt(opts.X, opts.Y))
 	br := ctm.TransformPoint(Pt(opts.X+dw, opts.Y+dh))
+	// P3.7 批 1d：投影层非恒等 ⇒ 投影四角 AABB 降级 + 计数（拍板 D-3）。
+	if c.projActive() {
+		pdev, _, ok := c.projMapQuad([4]Point{{X: opts.X, Y: opts.Y}, {X: opts.X + dw, Y: opts.Y},
+			{X: opts.X + dw, Y: opts.Y + dh}, {X: opts.X, Y: opts.Y + dh}})
+		if !ok {
+			// 眼后 ⇒ 不画。返回 true（本口已接管这一帧）而不是 false：false 会让
+			// 上层 video bridge 兜底再画一遍**未投影**的画面。
+			return true
+		}
+		tl = Pt(min4(pdev[0].X, pdev[1].X, pdev[2].X, pdev[3].X), min4(pdev[0].Y, pdev[1].Y, pdev[2].Y, pdev[3].Y))
+		br = Pt(max4(pdev[0].X, pdev[1].X, pdev[2].X, pdev[3].X), max4(pdev[0].Y, pdev[1].Y, pdev[2].Y, pdev[3].Y))
+		c.projGPUTexDegrades++
+	}
 	target := c.gpuRenderTarget()
 	defer c.setGPUClipRect()()
 	if mul := c.layerOpacityMul(); mul < 1 {
@@ -394,6 +452,19 @@ func (c *Context) DrawVideoSlot(slot *VideoSlot, opts VideoDrawOptions) bool {
 	ctm := c.totalMatrix()
 	tl := ctm.TransformPoint(Pt(opts.X, opts.Y))
 	br := ctm.TransformPoint(Pt(opts.X+dw, opts.Y+dh))
+	// P3.7 批 1d：投影层非恒等 ⇒ 投影四角 AABB 降级 + 计数（拍板 D-3）。
+	if c.projActive() {
+		pdev, _, ok := c.projMapQuad([4]Point{{X: opts.X, Y: opts.Y}, {X: opts.X + dw, Y: opts.Y},
+			{X: opts.X + dw, Y: opts.Y + dh}, {X: opts.X, Y: opts.Y + dh}})
+		if !ok {
+			// 眼后 ⇒ 不画。返回 true（本口已接管这一帧）而不是 false：false 会让
+			// 上层 video bridge 兜底再画一遍**未投影**的画面。
+			return true
+		}
+		tl = Pt(min4(pdev[0].X, pdev[1].X, pdev[2].X, pdev[3].X), min4(pdev[0].Y, pdev[1].Y, pdev[2].Y, pdev[3].Y))
+		br = Pt(max4(pdev[0].X, pdev[1].X, pdev[2].X, pdev[3].X), max4(pdev[0].Y, pdev[1].Y, pdev[2].Y, pdev[3].Y))
+		c.projGPUTexDegrades++
+	}
 	target := c.gpuRenderTarget()
 	defer c.setGPUClipRect()()
 	if mul := c.layerOpacityMul(); mul < 1 {

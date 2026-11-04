@@ -497,6 +497,8 @@ func (s *recordingSpyBackend) Begin(_, _ int) error { s.begin = true; return nil
 func (s *recordingSpyBackend) End() error           { s.end = true; return nil }
 func (s *recordingSpyBackend) Save()                { s.hit("Save") }
 func (s *recordingSpyBackend) Restore()             { s.hit("Restore") }
+func (s *recordingSpyBackend) Projection(_ recording.ProjectionMode, _ render.Matrix4) { s.hit("Projection") }
+
 func (s *recordingSpyBackend) Concat(_ recording.Matrix) {
 	s.hit("Concat")
 }

@@ -159,6 +159,29 @@ func (c *Context) ClipBounds() image.Rectangle {
 		{X: float64(dev.Max.X), Y: float64(dev.Max.Y)},
 		{X: float64(dev.Min.X), Y: float64(dev.Max.Y)},
 	}
+	if c.projActive() {
+		// P3.7 批 1d：投影层非恒等 ⇒ 组合链（totalMatrix ∘ projection）按 4×4
+		// 精确求逆映射回用户空间（评估 F 组口径：Matrix4.Invert 备选转正）。
+		if full, okM := c.projTotalMatrix4(); okM {
+			if invFull, okI := full.Invert(); okI {
+				for i := range corners {
+					d := corners[i]
+					u, _, okP := invFull.ProjectPoint(d.X, d.Y, 0)
+					if !okP {
+						return image.Rectangle{} // behind-eye sample: no meaningful local bounds
+					}
+					corners[i] = u
+				}
+				for i := range corners {
+					minX = math.Min(minX, corners[i].X)
+					minY = math.Min(minY, corners[i].Y)
+					maxX = math.Max(maxX, corners[i].X)
+					maxY = math.Max(maxY, corners[i].Y)
+				}
+				return image.Rect(int(minX)-1, int(minY)-1, int(maxX)+1, int(maxY)+1)
+			}
+		}
+	}
 	for _, corner := range corners {
 		q := inv.TransformPoint(corner)
 		if q.X < minX {
@@ -215,7 +238,14 @@ func (c *Context) DrawShadow(path *Path, col RGBA, elevation float64, transparen
 	// elevation*dpr device pixels and blur with the same device-space scale.
 	// Convert the lift back to local units so the current CTM (including DPR)
 	// produces that device offset.
+	// P3.7 批 1d：投影层非恒等 ⇒ 抬升/模糊比例按 2×3 层（不含投影）计算
+	// + 具名计数（剪影仍经 doFill 的投影映射绘制，参数近似，登记）。
 	tm := c.totalMatrix()
+	if c.projActive() {
+		if _, aff := c.projTotalAffine(); !aff {
+			c.projMiscDegrades++
+		}
+	}
 	scaleY := math.Hypot(tm.B, tm.E)
 	if scaleY <= 1e-9 {
 		return
@@ -276,6 +306,9 @@ func shadowSpotColor(col RGBA) RGBA {
 // The current path and paint are left untouched. Color-glyph runs are not
 // supported by this entry point (use DrawShapedColorGlyphs for those).
 func (c *Context) DrawParagraph(layout *text.Layout, x, y float64) {
+	if c.projTextBlocked() {
+		return
+	}
 	if c == nil || layout == nil || len(layout.Lines) == 0 {
 		return
 	}

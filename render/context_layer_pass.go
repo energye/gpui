@@ -37,6 +37,11 @@ func (c *Context) acquireEffectPublishView() (view gpucontext.TextureView, w, h 
 func (c *Context) Push() {
 
 	c.stack = append(c.stack, c.matrix)
+	// P3.7 批 1d：投影层随 Push/Pop 同拍保存/恢复（Skia SkM44 风格，拍板 D-1）。
+	// 存归一化快照（恒等态存 Matrix4Identity()）：零值 Matrix4 的 IsIdentity() 是
+	// false，直接存 c.projection 会让 Pop 回来时把上下文标成「投影已装 + 全零矩阵」，
+	// 之后所有绘制被全零矩阵映射到空（D6 状态钉实测画面全白）。
+	c.projectionStack = append(c.projectionStack, c.Projection())
 
 	// Save current clip stack depth
 	depth := 0
@@ -69,6 +74,13 @@ func (c *Context) Pop() {
 	// Restore transform matrix
 	c.matrix = c.stack[len(c.stack)-1]
 	c.stack = c.stack[:len(c.stack)-1]
+
+	// Restore projection layer (P3.7 批 1d：与 matrix 同拍恢复，拍板 D-1)。
+	if len(c.projectionStack) > 0 {
+		m := c.projectionStack[len(c.projectionStack)-1]
+		c.projectionStack = c.projectionStack[:len(c.projectionStack)-1]
+		c.projRestore(m)
+	}
 
 	// Restore clip stack depth
 	if len(c.clipStackDepth) > 0 {

@@ -1,0 +1,277 @@
+=== RUN   TestQuadAreaExactAgainstNumericIntegral
+--- PASS: TestQuadAreaExactAgainstNumericIntegral (0.00s)
+=== RUN   TestQuadBez_Eval
+=== RUN   TestQuadBez_Eval/t=0
+=== RUN   TestQuadBez_Eval/t=1
+=== RUN   TestQuadBez_Eval/t=0.5
+--- PASS: TestQuadBez_Eval (0.00s)
+    --- PASS: TestQuadBez_Eval/t=0 (0.00s)
+    --- PASS: TestQuadBez_Eval/t=1 (0.00s)
+    --- PASS: TestQuadBez_Eval/t=0.5 (0.00s)
+=== RUN   TestQuadBez_StartEnd
+--- PASS: TestQuadBez_StartEnd (0.00s)
+=== RUN   TestQuadBez_Subdivide
+--- PASS: TestQuadBez_Subdivide (0.00s)
+=== RUN   TestQuadBez_Extrema
+--- PASS: TestQuadBez_Extrema (0.00s)
+=== RUN   TestQuadBez_BoundingBox
+--- PASS: TestQuadBez_BoundingBox (0.00s)
+=== RUN   TestQuadBez_Raise
+--- PASS: TestQuadBez_Raise (0.00s)
+=== RUN   TestD6DrawImageExNoAmbientLeak
+--- PASS: TestD6DrawImageExNoAmbientLeak (0.00s)
+=== RUN   TestD6DrawShaderMaskNoShaderOrSpaceLeak
+--- PASS: TestD6DrawShaderMaskNoShaderOrSpaceLeak (0.00s)
+=== RUN   TestD6DrawShaderMaskAmbientShaderDoesNotHijack
+--- PASS: TestD6DrawShaderMaskAmbientShaderDoesNotHijack (0.00s)
+=== RUN   TestQuadPerspectiveWeightsValidation
+--- PASS: TestQuadPerspectiveWeightsValidation (0.00s)
+=== RUN   TestQuadPerspectiveBandPixels
+--- PASS: TestQuadPerspectiveBandPixels (0.00s)
+=== RUN   TestQuadPerspectiveEqualWeightsMatchAffine
+--- PASS: TestQuadPerspectiveEqualWeightsMatchAffine (0.01s)
+=== RUN   TestQuadPerspectiveDamageBounds
+--- PASS: TestQuadPerspectiveDamageBounds (0.01s)
+=== RUN   TestQuadBez_Subsegment
+=== RUN   TestQuadBez_Subsegment/first_half
+=== RUN   TestQuadBez_Subsegment/second_half
+=== RUN   TestQuadBez_Subsegment/middle_third
+=== RUN   TestQuadBez_Subsegment/full_range
+=== RUN   TestQuadBez_Subsegment/small_segment
+--- PASS: TestQuadBez_Subsegment (0.00s)
+    --- PASS: TestQuadBez_Subsegment/first_half (0.00s)
+    --- PASS: TestQuadBez_Subsegment/second_half (0.00s)
+    --- PASS: TestQuadBez_Subsegment/middle_third (0.00s)
+    --- PASS: TestQuadBez_Subsegment/full_range (0.00s)
+    --- PASS: TestQuadBez_Subsegment/small_segment (0.00s)
+=== RUN   TestQuadBez_Extrema_Symmetric
+--- PASS: TestQuadBez_Extrema_Symmetric (0.00s)
+=== RUN   TestP37ProjectionAffineSemantic
+--- PASS: TestP37ProjectionAffineSemantic (0.00s)
+=== RUN   TestP37ProjectionCounters
+--- PASS: TestP37ProjectionCounters (0.27s)
+=== RUN   TestP37ProjectionZeroValueNeverActive
+--- PASS: TestP37ProjectionZeroValueNeverActive (0.00s)
+=== RUN   TestQuadAreaUsesSymmetricGreenForm
+--- PASS: TestQuadAreaUsesSymmetricGreenForm (0.01s)
+=== RUN   TestAtlasR4IdentityFromCases
+    atlas_r4_test.go:259: no GPU ops on probe, old-vs-new GPU road deferred
+--- PASS: TestAtlasR4IdentityFromCases (0.00s)
+=== RUN   TestAtlasR4RotFlipFromCases
+--- PASS: TestAtlasR4RotFlipFromCases (0.00s)
+=== RUN   TestAtlasR4TintFilterFromCases
+--- PASS: TestAtlasR4TintFilterFromCases (0.01s)
+=== RUN   TestAtlasR4EdgesNoCrash
+--- PASS: TestAtlasR4EdgesNoCrash (0.00s)
+=== RUN   TestAtlasR4PerfBatch
+    atlas_r4_test.go:466: atlas-r4-perf: 50 batches x100 sprites in 6.903339ms (0.12 ms/batch drawn=100)
+--- PASS: TestAtlasR4PerfBatch (0.01s)
+=== RUN   TestAtlasR4LongRunStable
+    atlas_r4_test.go:498: atlas-r4-longrun: 500 alternating draws ok, final TR [255 0 0 255]
+--- PASS: TestAtlasR4LongRunStable (0.03s)
+=== RUN   TestAtlasR4CPUGPUParity
+    atlas_r4_test.go:557: identity parity changed=0/1024 (0.000%) mean=0.000 rmse=0.000 max=0
+    atlas_r4_test.go:557: rot90_center parity changed=0/1024 (0.000%) mean=0.003 rmse=0.051 max=1
+--- PASS: TestAtlasR4CPUGPUParity (0.01s)
+=== RUN   TestAtlasR4OffscreenGolden
+    atlas_r4_test.go:570: window-intent: game_sprite--case=rot (P2 build, S30 keeps offscreen only)
+--- PASS: TestAtlasR4OffscreenGolden (0.00s)
+=== RUN   TestM1ColorSpaceChainEquivalence
+    m1_colorspace_audit_test.go:66: solid: GPU=[255 153 153 255] CPU=[255 153 153 255] 等值（tol 0）
+    m1_colorspace_audit_test.go:71: gradient: GPU=[226 229 153 255] CPU=[226 229 152 255] 等值（tol 1）
+    m1_colorspace_audit_test.go:79: mask-cov100: GPU=[255 215 215 255] CPU=[255 215 215 255] 等值（tol 0）
+=== RUN   TestM1ColorSpaceChainEquivalence/layer
+    m1_colorspace_audit_test.go:119: layer: [255 153 153 255] 等值
+--- PASS: TestM1ColorSpaceChainEquivalence (0.02s)
+    --- PASS: TestM1ColorSpaceChainEquivalence/layer (0.01s)
+=== RUN   TestQuadPerspectiveLadderEveryPlateLands
+--- PASS: TestQuadPerspectiveLadderEveryPlateLands (0.09s)
+=== RUN   TestQuadPerspectiveGPURoutes
+--- PASS: TestQuadPerspectiveGPURoutes (0.01s)
+=== RUN   TestQuadPerspectiveGPUProbesClosedForm
+--- PASS: TestQuadPerspectiveGPUProbesClosedForm (0.01s)
+=== RUN   TestQuadPerspectiveCPUGPUParity
+--- PASS: TestQuadPerspectiveCPUGPUParity (0.02s)
+=== RUN   TestD8UniformShrinkAfterWarmup
+--- PASS: TestD8UniformShrinkAfterWarmup (0.01s)
+=== RUN   TestD8LateSetImage
+--- PASS: TestD8LateSetImage (0.01s)
+=== RUN   TestD8SetImageNilAfterWarmup
+--- PASS: TestD8SetImageNilAfterWarmup (0.01s)
+=== RUN   TestD8PlaceholderNoLeak
+--- PASS: TestD8PlaceholderNoLeak (0.02s)
+=== RUN   TestD9PremulOutputContract
+--- PASS: TestD9PremulOutputContract (0.01s)
+=== RUN   TestD9CPUModeSkips
+--- PASS: TestD9CPUModeSkips (0.00s)
+=== RUN   TestD10NoFragmentEntry
+    p32_shader_validate_test.go:28: no-fs rejected: shader: contract: missing @fragment entry point fs_main
+--- PASS: TestD10NoFragmentEntry (0.00s)
+=== RUN   TestD10ComputeOnly
+    p32_shader_validate_test.go:34: compute-only rejected: shader: contract: missing @fragment entry point fs_main
+--- PASS: TestD10ComputeOnly (0.00s)
+=== RUN   TestD10Vec3Return
+    p32_shader_validate_test.go:40: vec3-return rejected: shader: contract: fs_main must return vec4<f32>, got a vector
+--- PASS: TestD10Vec3Return (0.00s)
+=== RUN   TestD10ScalarReturn
+    p32_shader_validate_test.go:48: scalar-return rejected: shader: contract: fs_main must return vec4<f32>, got a non-vector type
+--- PASS: TestD10ScalarReturn (0.00s)
+=== RUN   TestD10UniformOverBudget
+    p32_shader_validate_test.go:65: uniform-288B rejected: shader: contract: uniform block 288 bytes exceeds 256
+--- PASS: TestD10UniformOverBudget (0.00s)
+=== RUN   TestD10SamplerWithoutTexture
+    p32_shader_validate_test.go:71: sampler-no-texture rejected: shader: contract: sampler at binding(2) requires a texture at binding(1)
+--- PASS: TestD10SamplerWithoutTexture (0.00s)
+=== RUN   TestD10TextureOutsideContractSlot
+    p32_shader_validate_test.go:79: tex-at-3 rejected: shader: contract: @group(0) binding(3) ("tex") is outside the contract slots (0/1/2)
+--- PASS: TestD10TextureOutsideContractSlot (0.00s)
+=== RUN   TestD10F64Uniform
+    p32_shader_validate_test.go:89: f64 rejected: shader: contract: f64 scalars are not supported (f64 scalar)
+--- PASS: TestD10F64Uniform (0.00s)
+=== RUN   TestD10ValidModulesStillAccepted
+--- PASS: TestD10ValidModulesStillAccepted (0.00s)
+=== RUN   TestD12ClipRRectGuardContinuity
+    p35_cliprrect_paths_test.go:80: r=2    微旋转 0/8 差≤0（断言≤2）；微非等比 1/8 差≤96（观测：快路均匀语义固有量化差）
+    p35_cliprrect_paths_test.go:80: r=8    微旋转 0/8 差≤0（断言≤2）；微非等比 0/8 差≤0（观测：快路均匀语义固有量化差）
+    p35_cliprrect_paths_test.go:80: r=12   微旋转 0/8 差≤0（断言≤2）；微非等比 0/8 差≤0（观测：快路均匀语义固有量化差）
+    p35_cliprrect_paths_test.go:80: r=30   微旋转 0/8 差≤0（断言≤2）；微非等比 0/8 差≤0（观测：快路均匀语义固有量化差）
+--- PASS: TestD12ClipRRectGuardContinuity (0.00s)
+=== RUN   TestD12ClipRRectUniformPixelsUnchanged
+--- PASS: TestD12ClipRRectUniformPixelsUnchanged (0.00s)
+=== RUN   TestD12ClipRRectDeformContinuity
+--- PASS: TestD12ClipRRectDeformContinuity (0.00s)
+=== RUN   TestP37AtlasPerspCPUGPUParity
+    p37_atlas_persp_test.go:169: P37 图集透视 GPU/CPU 稳定区最大通道差=1
+--- PASS: TestP37AtlasPerspCPUGPUParity (0.01s)
+=== RUN   TestP37AtlasPerspTrapezoidUV
+    p37_atlas_persp_test.go:212: P37 图集透视 vs 仿射：差异格=63 最大通道差=128（错切区必分叉）
+--- PASS: TestP37AtlasPerspTrapezoidUV (0.01s)
+=== RUN   TestP37AtlasPerspTintDarkens
+    p37_atlas_persp_test.go:259: P37 图集透视 tint 生效：差异格=75 最大通道差=100
+--- PASS: TestP37AtlasPerspTintDarkens (0.01s)
+=== RUN   TestP37AtlasPerspZeroIsIdentity
+--- PASS: TestP37AtlasPerspZeroIsIdentity (0.01s)
+=== RUN   TestP37AtlasPerspSentinels
+=== RUN   TestP37AtlasPerspSentinels/非有限角
+=== RUN   TestP37AtlasPerspSentinels/零面积
+=== RUN   TestP37AtlasPerspSentinels/自交
+=== RUN   TestP37AtlasPerspSentinels/权重_0
+=== RUN   TestP37AtlasPerspSentinels/权重负
+=== RUN   TestP37AtlasPerspSentinels/权重_NaN
+=== RUN   TestP37AtlasPerspSentinels/透视+bicubic
+--- PASS: TestP37AtlasPerspSentinels (0.00s)
+    --- PASS: TestP37AtlasPerspSentinels/非有限角 (0.00s)
+    --- PASS: TestP37AtlasPerspSentinels/零面积 (0.00s)
+    --- PASS: TestP37AtlasPerspSentinels/自交 (0.00s)
+    --- PASS: TestP37AtlasPerspSentinels/权重_0 (0.00s)
+    --- PASS: TestP37AtlasPerspSentinels/权重负 (0.00s)
+    --- PASS: TestP37AtlasPerspSentinels/权重_NaN (0.00s)
+    --- PASS: TestP37AtlasPerspSentinels/透视+bicubic (0.00s)
+=== RUN   TestP37DepthSpritesCarryPersp
+--- PASS: TestP37DepthSpritesCarryPersp (0.02s)
+=== RUN   TestP37ImageMixedOrderDraws
+    p37_atlas_persp_test.go:513: P37 混批四序全上屏：透视/仿射 × quad/图集
+--- PASS: TestP37ImageMixedOrderDraws (0.03s)
+=== RUN   TestP37ProjectionMeshCPUMapsOnce
+    p37_projection_chain_test.go:153: 钉1 非白像素：A(被测)=9920 B(一次映射期望)=9920 C(两次映射指纹)=1072
+    p37_projection_chain_test.go:154: 钉1 逐像素差异：A vs B=0  A vs C=10992
+--- PASS: TestP37ProjectionMeshCPUMapsOnce (0.02s)
+=== RUN   TestP37ProjectionBehindEyeRefusedCPU
+    p37_projection_chain_test.go:184: 钉2 非白像素：A(投影+眼后)=0 B(无投影对照)=1024
+--- PASS: TestP37ProjectionBehindEyeRefusedCPU (0.01s)
+=== RUN   TestP37ProjectionAffineLiftEqualsCTM
+    p37_projection_chain_test.go:246: 钉3 非白像素：路径(投影提升)=1240 路径(CTM缩放)=1240 图像(投影提升)=2400 图像(CTM缩放)=2400
+    p37_projection_chain_test.go:248: 钉3 逐像素差异：路径 A vs B=0  图像 C vs D=0
+--- PASS: TestP37ProjectionAffineLiftEqualsCTM (0.01s)
+=== RUN   TestP37ProjectionChainOrderUniform
+    p37_projection_chain_test.go:332: 钉4 非白像素：图像链=1638 路径链=1733
+    p37_projection_chain_test.go:335: 钉4 墨迹包围盒：图像链=(x 150..207, y 65..103) 路径链=(x 150..208, y 65..104)
+    p37_projection_chain_test.go:336: 钉4 按点判据：查 20 格，落点错=图像 0 / 路径 0 / 图集 0
+--- PASS: TestP37ProjectionChainOrderUniform (0.02s)
+=== RUN   TestP37ProjectionStatsCensus
+    p37_projection_chain_test.go:441: P37 对外计数读口在位：降级 4 次 / 跳过 1 次 / 映射 1 次（复位前快照 {ClipDegrades:1 PathExpansions:1 TextSkips:1 GPUTextureAABBs:0 BrushBakes:0 Misc:0 InterpDowngrades:4}）
+--- PASS: TestP37ProjectionStatsCensus (0.01s)
+=== RUN   TestP37ProjectionStackSemantics
+--- PASS: TestP37ProjectionStackSemantics (0.00s)
+=== RUN   TestP37ProjectionQuadMatchesQuadLeg
+    p37_projection_test.go:176: P37 投影层 ≡ quad 透视腿（逐位一致）
+--- PASS: TestP37ProjectionQuadMatchesQuadLeg (0.02s)
+=== RUN   TestP37ProjectionQuadBehindEyeRefused
+--- PASS: TestP37ProjectionQuadBehindEyeRefused (0.00s)
+=== RUN   TestP37ProjectionImageExPerspParity
+    p37_projection_test.go:244: P37 投影层 DrawImageEx GPU/CPU 稳定区最大通道差=1
+--- PASS: TestP37ProjectionImageExPerspParity (0.01s)
+=== RUN   TestP37ProjectionAtlasAffineUpgrade
+    p37_projection_test.go:307: P37 图集仿射精灵在投影层下升格 ≡ 1c 批绘透视腿（逐位一致）
+--- PASS: TestP37ProjectionAtlasAffineUpgrade (0.02s)
+=== RUN   TestP37ProjectionIdentityBitIdentical
+--- PASS: TestP37ProjectionIdentityBitIdentical (0.02s)
+=== RUN   TestP37ProjectionClipDegrade
+    p37_projection_test.go:428: P37 投影裁剪降级 ≡ 直接路径裁剪（逐位一致 + 半区定性）
+--- PASS: TestP37ProjectionClipDegrade (0.03s)
+=== RUN   TestP37ProjectionPathFillMatchesQuad
+    p37_projection_test.go:495: P37 投影下矩形填充 ≡ 投影 quad 填充（内部 16 格一致）
+--- PASS: TestP37ProjectionPathFillMatchesQuad (0.01s)
+=== RUN   TestP37ProjectionTextSkipped
+    p37_projection_test.go:558: P37 投影层文字跳过（对照路黑像素 719，投影路 0）
+--- PASS: TestP37ProjectionTextSkipped (0.01s)
+=== RUN   TestP37ProjectionRecordingRoundTrip
+    p37_projection_test.go:617: P37 录制（含投影命令）回放 ≡ 直接画（逐位一致）
+--- PASS: TestP37ProjectionRecordingRoundTrip (0.02s)
+=== RUN   TestP37QuadBicubicActuallyEngages
+    p37_quad_bicubic_test.go:114: P37 bicubic 生效：差异像素=11020（两档必须分叉）
+    p37_quad_bicubic_test.go:154: P37 bicubic GPU/CPU 稳定区最大通道差=1
+--- PASS: TestP37QuadBicubicActuallyEngages (0.03s)
+=== RUN   TestP37AtlasTintBicubicEngages
+    p37_quad_bicubic_test.go:214: P37 图集 bicubic 生效：差异像素=11020
+--- PASS: TestP37AtlasTintBicubicEngages (0.02s)
+=== RUN   TestP37QuadTintDoesNotChangeSampling
+--- PASS: TestP37QuadTintDoesNotChangeSampling (0.02s)
+=== RUN   TestP37QuadTintPerspCPUGPUParity
+--- PASS: TestP37QuadTintPerspCPUGPUParity (0.05s)
+=== RUN   TestP37QuadTintAffineCPUGPUParity
+--- PASS: TestP37QuadTintAffineCPUGPUParity (0.02s)
+=== RUN   TestP37QuadTintActuallyDarkens
+--- PASS: TestP37QuadTintActuallyDarkens (0.03s)
+=== RUN   TestP37QuadTintZeroIsIdentity
+--- PASS: TestP37QuadTintZeroIsIdentity (0.03s)
+=== RUN   TestP37QuadTintRejectsNonFinite
+--- PASS: TestP37QuadTintRejectsNonFinite (0.00s)
+=== RUN   TestQuadDrawNearestFromCases
+--- PASS: TestQuadDrawNearestFromCases (0.00s)
+=== RUN   TestQuadDrawRectFromCases
+--- PASS: TestQuadDrawRectFromCases (0.00s)
+=== RUN   TestQuadClassifyFromCases
+--- PASS: TestQuadClassifyFromCases (0.00s)
+=== RUN   TestQuadEdgeNoCrash
+--- PASS: TestQuadEdgeNoCrash (0.00s)
+=== RUN   TestQuadGoldenBilinear
+    quad_cpu_test.go:293: golden diff changed=0/6000 (0.000%) mean=0.000 rmse=0.000 max=0 tol_pct=1.0 tol_mean=1.0
+--- PASS: TestQuadGoldenBilinear (0.00s)
+=== RUN   TestQuadCPUGPUParity
+    quad_cpu_test.go:370: parity nearest changed=0/6000 (0.000%) mean=0.000 rmse=0.000 max=0 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+    quad_cpu_test.go:370: parity bilinear changed=0/6000 (0.000%) mean=0.019 rmse=0.138 max=1 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestQuadCPUGPUParity (0.01s)
+=== RUN   TestQuadPerfSingle
+    quad_cpu_test.go:400: quad-perf: 20 draws 100x60 trapezoid in 9.167772ms (0.46 ms/draw)
+--- PASS: TestQuadPerfSingle (0.01s)
+=== RUN   TestQuadLongRunNoLeak
+    quad_cpu_test.go:427: quad-longrun: 500 alternating draws ok, final probe green
+--- PASS: TestQuadLongRunNoLeak (0.09s)
+=== RUN   TestR1_PushMaskLayerGPU
+    r1_residual_gpu_test.go:43: R1 mask gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+    r1_residual_gpu_test.go:52: left=20,0,235 right=255,255,255
+--- PASS: TestR1_PushMaskLayerGPU (0.01s)
+=== RUN   TestR1_BackdropSeedGPU
+    r1_residual_gpu_test.go:86: R1 backdrop gpu_ops=3 cpu_fallback_ops=0 frame_flushes=4 base=1
+    r1_residual_gpu_test.go:95: center=19,44,115
+    r1_residual_gpu_test.go:101: outer blue=38,89,229
+--- PASS: TestR1_BackdropSeedGPU (0.01s)
+=== RUN   TestR1_ImageMipmapUsesGPU
+    r1_residual_gpu_test.go:164: 显存读回离中性均值：None=71.6 Linear=0.5
+--- PASS: TestR1_ImageMipmapUsesGPU (0.02s)
+=== RUN   TestR1_MipLevelBlendSelect
+    r1_residual_gpu_test.go:220: 差异像素数（共 576）：None↔Linear=576 None↔Nearest=536 Nearest↔Linear=312
+--- PASS: TestR1_MipLevelBlendSelect (0.03s)
+PASS
+ok  	github.com/energye/gpui/render	1.357s

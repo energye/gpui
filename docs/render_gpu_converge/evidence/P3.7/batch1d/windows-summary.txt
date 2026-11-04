@@ -1,0 +1,21 @@
+# 批 1d 真窗复验汇总（2026-11-04，最终代码：链序 B + 零值守卫之后）
+
+跑法：一轮一窗、`-auto-only` 自检后自管关闭、串行不并发；每轮前后 `pgrep -c Xwayland` 均 =1（Wayland + XWayland :0，无 Xorg）；
+环境三件套 CGO_ENABLED=1 + LD_LIBRARY_PATH=lib + WGPU_NATIVE_PATH=lib/libwgpu_native.so；六轮 rc 全 0，无 SIGTERM 兜底、无 kill -9。
+
+窗 1：examples/ui_wr_p35_persp（P3.5 透视金窗，恒等护栏最直接的载体）
+native：logic=9/9 pixel=17/17 golden=0.0000%（pixel_golden_diff_pct=0）presents=357 gpu_ops=51054 cpu_fallback_ops=0 fps_wall=56.7 gate=true
+go    ：logic=9/9 pixel=17/17 golden=0.0000%                    presents=354 gpu_ops=50625 cpu_fallback_ops=0 fps_wall=55.2 gate=true
+⇒ 存量金图逐位零变化（本批没装投影层 ⇒ 全链走恒等快速位）。
+
+窗 2：examples/engine/sprite（DrawAtlasEx + DrawDepthSprites 直接消费者窗）
+native：parity_changed_pct=0.0000% gpu_ops=8646 cpu_fallback_ops=0 presents=480 fps_wall=59.2
+go    ：parity_changed_pct=0.0000% gpu_ops=8430 cpu_fallback_ops=0 presents=468 fps_wall=56.5
+⇒ 图集三口改喂用户空间角点 + perspSlot 分流后，仿射路逐位不变。
+
+窗 3：examples/engine/camera（相机投影出口 + 1c 示例绕路回收窗）
+native：probes 全 true（converge=29 err=0.743 travel=555 moves=30 holds=447）golden changed=0 gpu_ops=14667 cpu_fallback_ops=0
+go    ：probes 全 true（converge=29 err=0.743 travel=555 moves=30 holds=436）golden changed=0 gpu_ops=14538 cpu_fallback_ops=0
+⇒ 相机链与批绘透视腿在双后端下与既有金图零差异。
+
+结论：**「恒等投影 ⇒ 存量逐位不变」的构造性护栏得到三窗双后端像素实证**（三窗各自覆盖 quad/图集/相机三链）。

@@ -37,6 +37,16 @@ func (c *Context) ClipRectOp(x, y, w, h float64, op ClipOp) {
 	if c.clipStack == nil {
 		c.initClipStack()
 	}
+	// P3.7 批 1d：投影层非恒等 ⇒ 投影四角按直边 quad 路径裁剪（投影保直线：
+	// 矩形的投影像=精确 quad，无需展平）+ 具名计数。
+	if c.projActive() {
+		if pdev, _, ok := c.projMapQuad([4]Point{{X: x, Y: y}, {X: x + w, Y: y},
+			{X: x + w, Y: y + h}, {X: x, Y: y + h}}); ok {
+			c.projClipDegrades++
+			c.deviceQuadClipPath(pdev[0], pdev[1], pdev[2], pdev[3], op)
+		}
+		return
+	}
 	tm := c.totalMatrix()
 	if tm.B != 0 || tm.C != 0 {
 		// Non-axis-aligned: clip to the transformed quad as a path.
