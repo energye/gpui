@@ -135,6 +135,38 @@ func TestP37BIdentityMaterialEqualsPlain(t *testing.T) {
 	}
 }
 
+// TestP37BDrawAtlasLegacyMaterialParity 老口 DrawAtlas（GPU 分支）材质路由钉：
+// 批 3b 审计补——老口此前只有 CPU skip 钉，GPU 分支的材质队列（材质+仿射 ⇒
+// QueueImageDrawMaterial）无像素咬合。恒等材质 ≡ 无材质逐位（同批两精灵）。
+func TestP37BDrawAtlasLegacyMaterialParity(t *testing.T) {
+	requireFilterOpsGPU(t)
+	img := p37BChecker(16, 16)
+	e, err := render.NewShaderEffect(p37BIdentityWGSL)
+	if err != nil {
+		t.Fatalf("NewShaderEffect: %v", err)
+	}
+	defer e.Close()
+
+	dc := render.NewContext(64, 32)
+	defer func() { _ = dc.Close() }()
+	dc.ClearWithColor(render.White)
+	dc.DrawAtlas(img, []render.AtlasSprite{
+		{SrcX: 0, SrcY: 0, SrcW: 16, SrcH: 16, DstX: 4, DstY: 8, DstW: 16, DstH: 16},
+		{SrcX: 0, SrcY: 0, SrcW: 16, SrcH: 16, DstX: 36, DstY: 8, DstW: 16, DstH: 16, Material: e},
+	})
+	if err := dc.Fill(); err != nil {
+		t.Fatal(err)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatal(err)
+	}
+	a := p37BRegion(t, dc, 4, 8, 16, 16)
+	b := p37BRegion(t, dc, 36, 8, 16, 16)
+	if n, worst := p37BDiff(a, b); n != 0 {
+		t.Fatalf("DrawAtlas (legacy GPU branch) identity material vs plain: %d differing channels, worst %d", n, worst)
+	}
+}
+
 // TestP37BMaterialLegEngages 区分钉（防假绿）：uv-gradient 材质腿必须真接上——
 // 材质画面 ≠ 无材质画面（成片差异），且 ≡ 同 shader 走填充路（同矩形同 uv 映射，
 // 两条生产腿互证；两腿量化链不同 ⇒ ±1 容差，探针 P3 实测 0 差）。
