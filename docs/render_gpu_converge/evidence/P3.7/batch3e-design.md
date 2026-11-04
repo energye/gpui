@@ -83,7 +83,7 @@ scene/recording 两包全测试单跑、`render` 投影族定向（`TestP37Proje
 - scene 编码无版本号/魔数、纯内存双流 ⇒ 「编码流演进」的兼容靠 tag 穷举绊线（`AppendWithTranslation` default panic）
   与 delta 零发射保证；若将来要落盘，需要另立版本化设计（不在本批）。
 
-## 7 步 3e-1 交付记录（2026-11-04，未提交）
+## 7 步 3e-1 交付记录（2026-11-04，已提交 `1a84bd80`、未推送）
 
 **做了什么**：`ProjectionMode`（Set/Push/Pop）从 `render/recording` 上移到 `render` 主包（scene 与 recording 共用一份，
 不留 alias 垫片；`Backend` 契约 39 与 `Recorder` 137 方法数不变）；`Matrix4` 加 `Elements()`/`Matrix4FromElements`
@@ -120,7 +120,7 @@ recording `go/ast` 186→**183**（类型 84、常量 64）；scene 顶层 143�
 **口径**：scene 仍零生产消费者（边界钉保证 `engine/`、`ui/` 不接），本步是"标准能力到位"，不得标生产；
 3e-2（quad+权重通道，2.5D 正路）与 3e-3（材质编码，依赖 3a–3d，粒度按 item 级）在后面。
 
-## 8 步 3e-2 交付记录（2026-11-04，未提交）
+## 8 步 3e-2 交付记录（2026-11-04，已提交 `1b287b4d`、未推送）
 
 **做了什么**：给 `render/scene` 补上 2.5D 的正路——四角 + 齐次权重的「算好再喂」quad 通道，形态照 Godot 2D：
 命令面不带任何投影参数，透视由调用方把四角与 1/w 算好再提交（对标 `canvas_item_add_polygon` /
