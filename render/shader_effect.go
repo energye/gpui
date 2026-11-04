@@ -10,12 +10,37 @@ package render
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
 
 	"github.com/energye/gpui/gpu/shader"
 	"github.com/energye/gpui/gpu/shader/ir"
+)
+
+// Batch 3d sentinel family (design.md §4.4): every rejection the engine can
+// judge is a named error judgeable via errors.Is. 同族在册 M3（WGSL 前端放行
+// 非法 intrinsic）不冒充修完——本族只覆盖「我方已能判的」。
+var (
+	// ErrShaderBadWGSL wraps WGSL front-end failures (Parse/Lower/Validate and
+	// composed-module revalidation).
+	ErrShaderBadWGSL = errors.New("shader: WGSL rejected by the front end")
+	// ErrShaderNoEntry wraps a missing @fragment fs_main.
+	ErrShaderNoEntry = errors.New("shader: missing @fragment entry point fs_main")
+	// ErrShaderBadReturn wraps a non-vec4<f32> fs_main return.
+	ErrShaderBadReturn = errors.New("shader: fs_main must return vec4<f32>")
+	// ErrShaderSlotConflict wraps binding/pair violations (stray or unpaired
+	// bindings, over-cap pairs, bad parameter prefixes).
+	ErrShaderSlotConflict = errors.New("shader: binding contract violation")
+	// ErrShaderUniformTooLarge wraps uniform blocks beyond ShaderUniformBudgetMax.
+	ErrShaderUniformTooLarge = errors.New("shader: uniform block exceeds the budget")
+	// ErrShaderClosed wraps use-after-Close refusals.
+	ErrShaderClosed = errors.New("shader: effect closed")
+	// ErrShaderBackendCompile wraps backend shader/pipeline compilation
+	// failures (gles first-draw 等) — always also errors.Is(ErrFallbackToCPU)
+	// where the legacy fallback semantics must keep working.
+	ErrShaderBackendCompile = errors.New("shader: backend compilation failed")
 )
 
 // ShaderEffect is a compiled user shader (P3.2): an application-supplied WGSL
@@ -225,10 +250,10 @@ func validateShaderContract(mod *ir.Module) error {
 		}
 	}
 	if fs < 0 {
-		return fmt.Errorf("shader: contract: missing @fragment entry point fs_main")
+		return fmt.Errorf("%w: contract: missing @fragment entry point fs_main", ErrShaderNoEntry)
 	}
 	if err := checkFsReturn(mod, &mod.EntryPoints[fs].Function); err != nil {
-		return err
+		return fmt.Errorf("%w: %v", ErrShaderBadReturn, err)
 	}
 	// Batch 3c (D4 加重档): texture+sampler pairs at bindings (1,2), (3,4), …
 	// (pair k = texture@(2k+1) + sampler@(2k+2)), cap MaxShaderImagePairs;
@@ -253,13 +278,13 @@ func validateShaderContract(mod *ir.Module) error {
 		switch b {
 		case shaderSlotUniform:
 			if _, ok := inner.(ir.StructType); !ok {
-				return fmt.Errorf("shader: contract: binding(0) must be a uniform struct, %q is %T", gv.Name, inner)
+				return fmt.Errorf("%w: contract: binding(0) must be a uniform struct, %q is %T", ErrShaderSlotConflict, gv.Name, inner)
 			}
 			if sz := ir.TypeSize(mod, gv.Type); sz > ShaderUniformBudgetMax {
-				return fmt.Errorf("shader: contract: uniform block %d bytes exceeds ShaderUniformBudgetMax %d", sz, ShaderUniformBudgetMax)
+				return fmt.Errorf("%w: contract: uniform block %d bytes exceeds ShaderUniformBudgetMax %d", ErrShaderUniformTooLarge, sz, ShaderUniformBudgetMax)
 			}
 			if uniformBytes > 0 {
-				return fmt.Errorf("shader: contract: only one uniform block at binding(0) is supported, %q is a second", gv.Name)
+				return fmt.Errorf("%w: contract: only one uniform block at binding(0) is supported, %q is a second", ErrShaderSlotConflict, gv.Name)
 			}
 			uniformBytes = int(ir.TypeSize(mod, gv.Type))
 		default:
@@ -267,36 +292,36 @@ func validateShaderContract(mod *ir.Module) error {
 			if b%2 == shaderSlotTexture%2 && b >= shaderSlotTexture && pair < MaxShaderImagePairs && b == 2*pair+1 {
 				img, ok := inner.(ir.ImageType)
 				if !ok {
-					return fmt.Errorf("shader: contract: binding(%d) must be texture_2d<f32>, %q is %T", b, gv.Name, inner)
+					return fmt.Errorf("%w: contract: binding(%d) must be texture_2d<f32>, %q is %T", ErrShaderSlotConflict, b, gv.Name, inner)
 				}
 				if img.Class != ir.ImageClassSampled || img.SampledKind != ir.ScalarFloat {
-					return fmt.Errorf("shader: contract: binding(%d) must be a sampled float texture, %q is not", b, gv.Name)
+					return fmt.Errorf("%w: contract: binding(%d) must be a sampled float texture, %q is not", ErrShaderSlotConflict, b, gv.Name)
 				}
 				textures[b] = true
 				continue
 			}
 			if b%2 == shaderSlotSampler%2 && b >= shaderSlotSampler && pair < MaxShaderImagePairs && b == 2*pair+2 {
 				if _, ok := inner.(ir.SamplerType); !ok {
-					return fmt.Errorf("shader: contract: binding(%d) must be a sampler, %q is %T", b, gv.Name, inner)
+					return fmt.Errorf("%w: contract: binding(%d) must be a sampler, %q is %T", ErrShaderSlotConflict, b, gv.Name, inner)
 				}
 				samplers[b] = true
 				continue
 			}
-			return fmt.Errorf("shader: contract: @group(0) binding(%d) (%q) is outside the contract slots (uniform 0, texture/sampler pairs 1..%d)", b, gv.Name, 2*MaxShaderImagePairs)
+			return fmt.Errorf("%w: contract: @group(0) binding(%d) (%q) is outside the contract slots (uniform 0, texture/sampler pairs 1..%d)", ErrShaderSlotConflict, b, gv.Name, 2*MaxShaderImagePairs)
 		}
 	}
 	for b := range textures {
 		if !samplers[b+1] {
-			return fmt.Errorf("shader: contract: texture at binding(%d) requires a sampler at binding(%d)", b, b+1)
+			return fmt.Errorf("%w: contract: texture at binding(%d) requires a sampler at binding(%d)", ErrShaderSlotConflict, b, b+1)
 		}
 	}
 	for b := range samplers {
 		if !textures[b-1] {
-			return fmt.Errorf("shader: contract: sampler at binding(%d) requires a texture at binding(%d)", b, b-1)
+			return fmt.Errorf("%w: contract: sampler at binding(%d) requires a texture at binding(%d)", ErrShaderSlotConflict, b, b-1)
 		}
 	}
 	if len(textures) > MaxShaderImagePairs {
-		return fmt.Errorf("shader: contract: %d texture pairs exceeds MaxShaderImagePairs %d", len(textures), MaxShaderImagePairs)
+		return fmt.Errorf("%w: contract: %d texture pairs exceeds MaxShaderImagePairs %d", ErrShaderSlotConflict, len(textures), MaxShaderImagePairs)
 	}
 	for h := range mod.Types {
 		if bad, why := hasF64(mod, mod.Types[h].Inner, map[int]bool{}); bad {
@@ -409,16 +434,16 @@ func declaredBindInterface(mod *ir.Module) (texturePairs, uniformBytes int) {
 func validateUserShader(wgsl string) (*ir.Module, error) {
 	ast, err := shader.Parse(wgsl)
 	if err != nil {
-		return nil, fmt.Errorf("shader: parse: %w", err)
+		return nil, fmt.Errorf("%w: parse: %w", ErrShaderBadWGSL, err)
 	}
 	mod, err := shader.Lower(ast)
 	if err != nil {
-		return nil, fmt.Errorf("shader: lower: %w", err)
+		return nil, fmt.Errorf("%w: lower: %w", ErrShaderBadWGSL, err)
 	}
 	if errs, err := shader.Validate(mod); err != nil {
-		return nil, fmt.Errorf("shader: validate: %w", err)
+		return nil, fmt.Errorf("%w: validate: %w", ErrShaderBadWGSL, err)
 	} else if len(errs) > 0 {
-		return nil, fmt.Errorf("shader: validate: %d error(s), first: %v", len(errs), errs[0])
+		return nil, fmt.Errorf("%w: validate: %d error(s), first: %v", ErrShaderBadWGSL, len(errs), errs[0])
 	}
 	return mod, nil
 }
@@ -442,12 +467,12 @@ func (e *ShaderEffect) SetUniformBytes(data []byte) error {
 		return fmt.Errorf("shader: nil effect")
 	}
 	if len(data) > ShaderUniformBudgetMax {
-		return fmt.Errorf("shader: uniform block %d bytes exceeds ShaderUniformBudgetMax %d", len(data), ShaderUniformBudgetMax)
+		return fmt.Errorf("%w: uniform block %d bytes exceeds ShaderUniformBudgetMax %d", ErrShaderUniformTooLarge, len(data), ShaderUniformBudgetMax)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.closed {
-		return fmt.Errorf("shader: effect closed")
+		return fmt.Errorf("%w: SetUniformBytes after Close", ErrShaderClosed)
 	}
 	e.uniform = append([]byte(nil), data...)
 	return nil
@@ -491,10 +516,10 @@ func (e *ShaderEffect) SetImageAt(slot int, img *ImageBuf) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.closed {
-		return fmt.Errorf("shader: effect closed")
+		return fmt.Errorf("%w: SetImageAt after Close", ErrShaderClosed)
 	}
 	if slot < 0 || slot >= len(e.images) {
-		return fmt.Errorf("shader: image slot %d outside the declared pairs (%d)", slot, len(e.images))
+		return fmt.Errorf("%w: image slot %d outside the declared pairs (%d)", ErrShaderSlotConflict, slot, len(e.images))
 	}
 	e.images[slot] = img
 	return nil

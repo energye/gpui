@@ -84,7 +84,9 @@ func (rc *GPURenderContext) fillShaderAsImage(target render.GPURenderTarget, pat
 	srcRegion, err := rc.runUserShaderPass(device, queue, effect, bw, bh)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "[user_shader] pass1 err:", err)
-		return render.ErrFallbackToCPU
+		// P3.7 批 3d：后端编译/执行失败升具名错误，同时保持 ErrFallbackToCPU
+		// 链（调用方的 CPU 兜底判定不变）——双 %w 同链。
+		return fmt.Errorf("%w (%w)", render.ErrShaderBackendCompile, render.ErrFallbackToCPU)
 	}
 
 	// Coverage: rasterize the path opaque; the alpha channel is the AA

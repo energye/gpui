@@ -268,7 +268,7 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if effect == nil || effect.Closed() {
-		return nil, fmt.Errorf("material: effect closed or nil")
+		return nil, fmt.Errorf("%w: material ensure after Close", render.ErrShaderClosed)
 	}
 	if s.clipBindLayout == nil {
 		return nil, fmt.Errorf("material: clip bind layout not ready")
@@ -295,7 +295,7 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 		module, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{WGSL: effect.ComposedQuadWGSL()})
 		if err != nil {
 			bgl0.Destroy()
-			return nil, fmt.Errorf("material: module: %w", err)
+			return nil, fmt.Errorf("%w: material module: %w", render.ErrShaderBackendCompile, err)
 		}
 		ubuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "material_user_uniform",
@@ -365,7 +365,7 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 	})
 	if err != nil {
 		layout.Destroy()
-		return nil, fmt.Errorf("material: pipeline: %w", err)
+		return nil, fmt.Errorf("%w: material pipeline: %w", render.ErrShaderBackendCompile, err)
 	}
 	entry.pipelines[leg] = pipe
 	return entry, nil

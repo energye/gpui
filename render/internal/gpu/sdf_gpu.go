@@ -439,6 +439,13 @@ func isGPUSolidPaint(paint *render.Paint) bool {
 	if paint == nil {
 		return false
 	}
+	// P3.7 批 3d：shader 是颜色源本身（SetShader 文档「fills and strokes」），
+	// 带 Shader 的画刷永远不是 solid——旧状让它冒充 solid，描边/形状快路把
+	// 渐变画成环境实心色（L2 深审登记的描边洞；Skia 单 shader 槽对 stroke
+	// 同样生效）。
+	if paint.Shader != nil {
+		return false
+	}
 	if paint.IsSolid() {
 		return true
 	}

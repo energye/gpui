@@ -57,7 +57,7 @@ func fragmentParams(mod *ir.Module) (int, error) {
 	}
 	args := mod.EntryPoints[entry].Function.Arguments
 	if len(args) > 3 {
-		return 0, fmt.Errorf("shader: contract: fs_main takes %d parameters, the contract prefix is at most (uv, tint, hom_w)", len(args))
+		return 0, fmt.Errorf("%w: contract: fs_main takes %d parameters, the contract prefix is at most (uv, tint, hom_w)", ErrShaderSlotConflict, len(args))
 	}
 	for i := range args {
 		arg := &args[i]
@@ -67,7 +67,7 @@ func fragmentParams(mod *ir.Module) (int, error) {
 			loc, hasLoc = (*arg.Binding).(ir.LocationBinding)
 		}
 		if !hasLoc || loc.Location != uint32(i) {
-			return 0, fmt.Errorf("shader: contract: fs_main parameter %d must carry @location(%d)", i, i)
+			return 0, fmt.Errorf("%w: contract: fs_main parameter %d must carry @location(%d)", ErrShaderSlotConflict, i, i)
 		}
 		inner := typeInnerOf(mod, arg.Type)
 		wantSize := ir.Vec2
@@ -77,16 +77,16 @@ func fragmentParams(mod *ir.Module) (int, error) {
 		if i < 2 {
 			vec, ok := inner.(ir.VectorType)
 			if !ok || vec.Size != wantSize || vec.Scalar.Kind != ir.ScalarFloat {
-				return 0, fmt.Errorf("shader: contract: fs_main parameter %d must be a f32 vector (position %d of the uv/tint/hom_w prefix)", i, i)
+				return 0, fmt.Errorf("%w: contract: fs_main parameter %d must be a f32 vector (position %d of the uv/tint/hom_w prefix)", ErrShaderSlotConflict, i, i)
 			}
 			continue
 		}
 		// i == 2: hom_w: f32
 		if _, ok := inner.(ir.VectorType); ok {
-			return 0, fmt.Errorf("shader: contract: fs_main parameter %d (hom_w) must be a plain f32, got a vector", i)
+			return 0, fmt.Errorf("%w: contract: fs_main parameter %d (hom_w) must be a plain f32, got a vector", ErrShaderSlotConflict, i)
 		}
 		if sc, ok := inner.(ir.ScalarType); !ok || sc.Kind != ir.ScalarFloat {
-			return 0, fmt.Errorf("shader: contract: fs_main parameter %d (hom_w) must be a plain f32", i)
+			return 0, fmt.Errorf("%w: contract: fs_main parameter %d (hom_w) must be a plain f32", ErrShaderSlotConflict, i)
 		}
 	}
 	return len(args), nil

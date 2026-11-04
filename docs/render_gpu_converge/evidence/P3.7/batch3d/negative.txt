@@ -1,0 +1,19 @@
+P3.7 批 3d 负向对照（2026-11-05，变异→红→还原→绿，逐条可复跑）
+判据源：batch3d-design.md §3；变异全部「仍在编译」的打断。
+
+N1 revert isGPUSolidPaint shader 检查（`if false && paint.Shader != nil`）
+   → TestP37DStrokeWithShaderGradient 红（SetRGB+SetShader 描边画回环境实心红，
+   渐变环上/下沿 Δ<60）
+   → 还原绿。
+N2 FillShape 分支变异——**如实收回，未采信**：变异后钉仍绿，追因发现
+   `tryGPUOpRC`（context_gpu.go:553，深审已装）把 shader 画刷直达 pathFn——
+   **FillShape 从不接 shader 画刷**，我在 FillShape 加的分支是死代码，「同族
+   新洞」判断错误，照「核实后发现没问题的，如实收回判断」纪律：删除死分支、
+   收回登记（design.md §1.2 已改写）；形状钉改标为 tryGPUOpRC 路由钉。
+N3 摘哨兵包装（validateUserShader parse 步回裸错）
+   → TestP37DSentinelFamily 红（bad WGSL 不再 errors.Is ErrShaderBadWGSL）
+   → 还原绿。
+N4 计数触发（ShaderBackendFails 的真触发）——无确定性构造器（需 gles 首绘
+   失败场景/M3 家族反向工程），照 1a N3 先例如实登记「当前不可观测、不冒充
+   红」；接线由双链包装钉 + noteShaderBackend 闭包覆盖，真触发随批 6 材质窗
+   的 gles 腿承载。

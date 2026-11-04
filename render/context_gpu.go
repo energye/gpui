@@ -11,6 +11,7 @@
 package render
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"os"
@@ -634,6 +635,12 @@ func (c *Context) tryGPUFillWithMode(mode RasterizerMode) (bool, RasterizerMode)
 	if c.paint != nil && c.paint.Shader != nil && c.gpuCtxOps() == nil {
 		return true, mode
 	}
+	noteShaderBackend := func(err error) {
+		// P3.7 批 3d：后端编译失败可观测（design §1.3）——skip 语义不变。
+		if err != nil && errors.Is(err, ErrShaderBackendCompile) {
+			c.pathStats.ShaderBackendFails++
+		}
+	}
 	if mode == RasterizerSDF {
 		c.setForceSDF(true)
 		err := c.tryGPUFill()
@@ -643,6 +650,7 @@ func (c *Context) tryGPUFillWithMode(mode RasterizerMode) (bool, RasterizerMode)
 			c.takeBrushBootstrapIfAny()
 			return true, mode
 		}
+		noteShaderBackend(err)
 		mode = RasterizerAuto // Non-SDF shape → auto CPU fallback.
 	}
 	if mode == RasterizerAuto {
@@ -650,12 +658,15 @@ func (c *Context) tryGPUFillWithMode(mode RasterizerMode) (bool, RasterizerMode)
 			c.recordGPUOp()
 			c.takeBrushBootstrapIfAny()
 			return true, mode
-		} else if c.gpuPathAvailable() {
-			reason := "fill"
-			if err != nil {
-				reason = "fill:" + err.Error()
+		} else {
+			noteShaderBackend(err)
+			if c.gpuPathAvailable() {
+				reason := "fill"
+				if err != nil {
+					reason = "fill:" + err.Error()
+				}
+				c.recordCPUFallbackReason(reason)
 			}
-			c.recordCPUFallbackReason(reason)
 		}
 	}
 	return false, mode

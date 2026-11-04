@@ -200,7 +200,7 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if effect == nil || effect.Closed() {
-		return nil, fmt.Errorf("user shader: effect closed or nil")
+		return nil, fmt.Errorf("%w: user shader ensure after Close", render.ErrShaderClosed)
 	}
 	if err := c.ensureLocked(device); err != nil {
 		return nil, err
@@ -249,7 +249,7 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 	if err != nil {
 		layout.Destroy()
 		bgl.Destroy()
-		return nil, fmt.Errorf("user shader: fs module: %w", err)
+		return nil, fmt.Errorf("%w: user shader fs module: %w", render.ErrShaderBackendCompile, err)
 	}
 	sl := uint32(dualTexUniformSlotStride)
 	layoutSize := maxInt(maxInt(int(sl), bind.UniformBytes), (len(uniforms)+int(sl)-1)/int(sl)*int(sl))
@@ -288,7 +288,7 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 		fs.Destroy()
 		layout.Destroy()
 		bgl.Destroy()
-		return nil, fmt.Errorf("user shader: pipeline: %w", err)
+		return nil, fmt.Errorf("%w: user shader pipeline: %w", render.ErrShaderBackendCompile, err)
 	}
 	p := &userShaderPipeline{module: fs, uniform: ubuf, uniformSize: layoutSize, bgl: bgl, layout: layout, pipeline: pipe, hasTex: hasTex, texturePairs: bind.TexturePairs}
 	c.entries[effect] = p

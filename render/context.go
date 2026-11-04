@@ -241,4 +241,9 @@ type RenderPathStats struct {
 	// Deliberately NOT CPUFallbackOps — a refused material draw must never
 	// repaint unmaterial'd pixels as a "fallback" (P3.2 GPU-only contract).
 	MaterialSkips int
+	// ShaderBackendFails counts backend shader/pipeline compilation failures
+	// (P3.7 batch 3d, errors.Is ErrShaderBackendCompile) — gles first-draw
+	// 等; the draw still falls to the CPU skip per the P3.2 contract, this
+	// counter just makes the failure observable.
+	ShaderBackendFails int
 }
