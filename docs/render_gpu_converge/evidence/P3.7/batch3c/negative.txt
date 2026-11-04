@@ -1,0 +1,26 @@
+P3.7 批 3c 负向对照（2026-11-05，变异→红→还原→绿，逐条可复跑）
+判据源：batch3c-design.md §3；变异全部「仍在编译」的打断。
+
+N1 摘第二纹理绑定（render_session.go 材质绑定组 pair k≥1 分支强制走黑占位）
+   → TestP37CMultiTextureMaterialPixel 红（mix_level=1 画面≠第二纹理，
+   SetImage 槽位没绑到位）
+   → 还原绿。
+N2 摘预算放开（SetUniformBytes 上限回 256B 旧值）
+   → TestP37CBigUniformMaterialPixel 红（272B uniform 被拒，大 uniform 钉
+   Fatal）
+   → 还原绿。
+N3 摘槽位派生（materialUserBGL0 的 TexturePairs 循环 `k < 0` —— 布局丢全部
+   纹理对）
+   → TestP37CMultiTextureMaterialPixel 红（绑定组创建失败：pair 1 条目不在
+   布局里，整批构建错误）
+   → 还原绿。
+N4 摘 SetImageAt 槽位校验（越槽写降级为写 slot 0）
+   → TestP37CSetImageAtSlots 红（越槽必须具名拒绝的断言翻红）
+   → 还原绿。
+
+无效果变异登记：无（本批四条一次有效）。
+测试自身修正如实记（判据不改，改的是 pin 自身错误）：
+- 图尺寸 16×16 画成 24×24 ⇒ texel 读越界 panic（改 24×24 一比一）；
+- UniformBytes 期望值两处按 WGSL uniform 布局对齐规则修正（{f32,vec3}→32B、
+  {f32,vec3,array16}→288B——数组按 16 对齐排布）；
+- split=0.5 的 f32 LE 编码笔误（128→63）。

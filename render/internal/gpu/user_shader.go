@@ -82,6 +82,9 @@ type userShaderPipeline struct {
 	layout      hal.PipelineLayout
 	pipeline    hal.RenderPipeline
 	hasTex      bool
+	// texturePairs is the declared pair count (batch 3c); the bind group must
+	// feed every declared pair (slot 0 = SetImage/fill slot).
+	texturePairs int
 }
 
 func (c *userShaderCache) ensureLocked(device hal.Device) error {
@@ -209,22 +212,28 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 	uniforms := effect.Uniforms()
 	// L2-P1-3: the bind layout is derived from the shader module's declared
 	// bindings, never from first-draw runtime state. The uniform slot is laid
-	// out at the full 256B budget (contract cap), and the texture+sampler
-	// pair exists iff the module declares it — so later SetImage/SetImage(nil)
-	// or uniform-size changes can never outdate the cached layout.
-	hasTex := effect.ShaderBinding().UsesImage
+	// out at max(256B default budget, declared uniform size) (batch 3c, D4
+	// 预算放开)，and the declared texture+sampler pairs ride bindings
+	// (1,2), (3,4), … — so later SetImageAt/SetImageAt(nil) or uniform-size
+	// changes can never outdate the cached layout.
+	bind := effect.ShaderBinding()
+	hasTex := bind.TexturePairs > 0
 
+	uniMin := uint64(shaderUniformMinBindingSize)
+	if bind.UniformBytes > int(shaderUniformMinBindingSize) {
+		uniMin = uint64(bind.UniformBytes)
+	}
 	entries := []types.BindGroupLayoutEntry{
 		{
 			Binding:    0,
 			Visibility: types.ShaderStageFragment,
-			Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: shaderUniformMinBindingSize},
+			Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: uniMin},
 		},
 	}
-	if hasTex {
+	for k := 0; k < bind.TexturePairs; k++ {
 		entries = append(entries,
-			types.BindGroupLayoutEntry{Binding: 1, Visibility: types.ShaderStageFragment, Texture: &types.TextureBindingLayout{SampleType: types.TextureSampleTypeFloat, ViewDimension: types.TextureViewDimension2D}},
-			types.BindGroupLayoutEntry{Binding: 2, Visibility: types.ShaderStageFragment, Sampler: &types.SamplerBindingLayout{Type: types.SamplerBindingTypeFiltering}},
+			types.BindGroupLayoutEntry{Binding: uint32(2*k + 1), Visibility: types.ShaderStageFragment, Texture: &types.TextureBindingLayout{SampleType: types.TextureSampleTypeFloat, ViewDimension: types.TextureViewDimension2D}},
+			types.BindGroupLayoutEntry{Binding: uint32(2*k + 2), Visibility: types.ShaderStageFragment, Sampler: &types.SamplerBindingLayout{Type: types.SamplerBindingTypeFiltering}},
 		)
 	}
 	bgl, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{Label: "user_shader_bgl", Entries: entries})
@@ -243,7 +252,7 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 		return nil, fmt.Errorf("user shader: fs module: %w", err)
 	}
 	sl := uint32(dualTexUniformSlotStride)
-	layoutSize := maxInt(int(sl), (len(uniforms)+int(sl)-1)/int(sl)*int(sl))
+	layoutSize := maxInt(maxInt(int(sl), bind.UniformBytes), (len(uniforms)+int(sl)-1)/int(sl)*int(sl))
 	ubuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "user_shader_uniform",
 		Size:  uint64(layoutSize),
@@ -281,7 +290,7 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 		bgl.Destroy()
 		return nil, fmt.Errorf("user shader: pipeline: %w", err)
 	}
-	p := &userShaderPipeline{module: fs, uniform: ubuf, uniformSize: layoutSize, bgl: bgl, layout: layout, pipeline: pipe, hasTex: hasTex}
+	p := &userShaderPipeline{module: fs, uniform: ubuf, uniformSize: layoutSize, bgl: bgl, layout: layout, pipeline: pipe, hasTex: hasTex, texturePairs: bind.TexturePairs}
 	c.entries[effect] = p
 	return p, nil
 }

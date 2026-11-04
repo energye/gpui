@@ -184,12 +184,15 @@ func (rc *GPURenderContext) runUserShaderPass(device hal.Device, queue hal.Queue
 	// bound at the layout's full size, and a declared image slot falls back
 	// to the cached 1x1 black placeholder when no image is bound.
 	entries := []hal.BindGroupEntry{{Binding: 0, Buffer: pipe.uniform, Offset: 0, Size: uint64(pipe.uniformSize)}}
-	if pipe.hasTex {
+	// P3.7 批 3c：逐声明对喂图（slot 0 = SetImage/fill 槽，slot 1+ = SetImageAt
+	// 槽）；未绑图的对落 1×1 黑占位（Dawn default-bindings 同款）。上传照既有
+	// per-pass dualTexCreateTex 惯例（池化=在册尾巴）。
+	for k := 0; k < pipe.texturePairs; k++ {
 		var imgView hal.TextureView
 		var samp hal.Sampler
-		if img := effect.Image(); img != nil {
+		if img := effect.ImageAt(k); img != nil {
 			data := img.PremultipliedData()
-			imgTex, view, terr := dualTexCreateTex(device, queue, "user_shader_img", img.Width(), img.Height(), data,
+			imgTex, view, terr := dualTexCreateTex(device, queue, fmt.Sprintf("user_shader_img_%d", k), img.Width(), img.Height(), data,
 				types.TextureUsageTextureBinding|types.TextureUsageCopyDst)
 			if terr != nil {
 				return nil, terr
@@ -213,8 +216,8 @@ func (rc *GPURenderContext) runUserShaderPass(device hal.Device, queue hal.Queue
 			}
 		}
 		entries = append(entries,
-			hal.BindGroupEntry{Binding: 1, TextureView: imgView},
-			hal.BindGroupEntry{Binding: 2, Sampler: samp},
+			hal.BindGroupEntry{Binding: uint32(2*k + 1), TextureView: imgView},
+			hal.BindGroupEntry{Binding: uint32(2*k + 2), Sampler: samp},
 		)
 	}
 	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{Layout: pipe.layoutBindGroupLayout(), Entries: entries})

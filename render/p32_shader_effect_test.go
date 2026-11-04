@@ -48,11 +48,16 @@ func TestShaderEffectUniformAPI(t *testing.T) {
 		t.Fatalf("construct: %v", err)
 	}
 	defer e.Close()
-	if err := e.SetUniformBytes(make([]byte, 257)); err == nil {
-		t.Fatal("uniform block over 256 bytes must be rejected")
+	// P3.7 批 3c（D4 加重档）：预算上限 256B → ShaderUniformBudgetMax=65536，
+	// 本钉同步改边界（257B 现已合法；超上限仍拒绝）。
+	if err := e.SetUniformBytes(make([]byte, 257)); err != nil {
+		t.Fatalf("257-byte uniform block legal after batch 3c: %v", err)
 	}
 	if err := e.SetUniformBytes(make([]byte, 256)); err != nil {
 		t.Fatalf("256-byte uniform block legal: %v", err)
+	}
+	if err := e.SetUniformBytes(make([]byte, ShaderUniformBudgetMax+1)); err == nil {
+		t.Fatal("uniform block over ShaderUniformBudgetMax must be rejected")
 	}
 	if err := e.SetFloatUniforms([]float32{0.25, 0.5, 0.75, 1.0}); err != nil {
 		t.Fatalf("float uniforms: %v", err)

@@ -427,6 +427,7 @@ type GPURenderSession struct {
 	materialBindGroups    []hal.BindGroup // user @group(0) per material slot
 	materialBGViews       []hal.TextureView
 	materialBGSampler     []ImageSamplerKey
+	materialBGSlotGens    []uint64        // batch 3c: SetImageAt slot generations cache key
 	materialEngineBGs     []hal.BindGroup // @group(1) per material slot
 	// Session-owned material pipeline cache (P3.7 batch 3a): per-effect state
 	// from the composed modules; standalone sessions never touch a GPUShared.
@@ -2392,6 +2393,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	}
 	s.materialBGViews = nil
 	s.materialBGSampler = nil
+	s.materialBGSlotGens = nil
 	if s.materialVertBuf != nil {
 		s.materialVertBuf.Destroy()
 		s.materialVertBuf = nil
@@ -4664,31 +4666,62 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			// Both caches key on the material-slot index (contents re-packed
 			// per frame; the slab offset is baked per index like the image
 			// slab).
+			entry := materialEntries[slot.material]
+			// P3.7 批 3c：SetImageAt 槽位纹理（slots 1+，gen 键控）先就绪——
+			// 绑定组键含槽位代次，重绑图后必重建。
+			if err := s.ensureMaterialSlotTextures(entry, slot.material); err != nil {
+				return nil, err
+			}
+			slotGenHash := uint64(0)
+			for _, g := range entry.slotTexGen {
+				slotGenHash = slotGenHash*131 + g
+			}
 			for len(s.materialBindGroups) <= matSlotIdx {
 				s.materialBindGroups = append(s.materialBindGroups, nil)
 				s.materialBGViews = append(s.materialBGViews, nil)
 				s.materialBGSampler = append(s.materialBGSampler, ImageSamplerKey{})
+				s.materialBGSlotGens = append(s.materialBGSlotGens, uint64(0))
 				s.materialEngineBGs = append(s.materialEngineBGs, nil)
 			}
-			entry := materialEntries[slot.material]
 			bg := s.materialBindGroups[matSlotIdx]
-			if bg == nil || s.materialBGViews[matSlotIdx] != slot.texView || s.materialBGSampler[matSlotIdx] != slot.sampler {
+			if bg == nil || s.materialBGViews[matSlotIdx] != slot.texView || s.materialBGSampler[matSlotIdx] != slot.sampler || s.materialBGSlotGens[matSlotIdx] != slotGenHash {
 				if bg != nil {
 					s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
 				}
 				entries := []hal.BindGroupEntry{
 					{Binding: 0, Buffer: entry.uniform, Offset: 0, Size: uint64(entry.uniSize)},
 				}
-				if entry.hasTex {
+				for k := 0; k < entry.texturePairs; k++ {
+					var view hal.TextureView
+					var samp hal.Sampler
+					if k == 0 {
+						view = slot.texView
+						samp = s.imagePipeline.SamplerForFilter(slot.sampler)
+					} else {
+						st := entry.slotTex[k-1]
+						if st != nil {
+							if err := s.userMaterial.ensureLinearLocked(s.device); err != nil {
+								return nil, err
+							}
+							view = st.view
+							samp = s.userMaterial.linearSamp
+						} else {
+							if err := s.userMaterial.ensureBlackLocked(s.device, s.queue); err != nil {
+								return nil, err
+							}
+							view = s.userMaterial.blackView
+							samp = s.userMaterial.blackSamp
+						}
+					}
 					entries = append(entries,
-						hal.BindGroupEntry{Binding: 1, TextureView: slot.texView},
-						hal.BindGroupEntry{Binding: 2, Sampler: s.imagePipeline.SamplerForFilter(slot.sampler)},
+						hal.BindGroupEntry{Binding: uint32(2*k + 1), TextureView: view},
+						hal.BindGroupEntry{Binding: uint32(2*k + 2), Sampler: samp},
 					)
 				}
 				var err error
 				bg, err = s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 					Label:   fmt.Sprintf("material_bind_%d", matSlotIdx),
-					Layout:  s.userMaterial.userBGL(entry.hasTex),
+					Layout:  entry.bgl0,
 					Entries: entries,
 				})
 				if err != nil {
@@ -4697,6 +4730,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				s.materialBindGroups[matSlotIdx] = bg
 				s.materialBGViews[matSlotIdx] = slot.texView
 				s.materialBGSampler[matSlotIdx] = slot.sampler
+				s.materialBGSlotGens[matSlotIdx] = slotGenHash
 			}
 			engineBG := s.materialEngineBGs[matSlotIdx]
 			if engineBG == nil {

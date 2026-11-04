@@ -46,13 +46,15 @@ import (
 //     (the engine multiplies only opacity × clip coverage after user code);
 //     without the declaration the engine keeps the historic
 //     texel * opacity * tint order (Godot COLOR-takeover semantics).
-//   - Optional bindings, both at @group(0): binding(0) a uniform block
-//     (≤256 bytes, 16-byte field alignment) fed by SetUniformBytes/
-//     SetFloatUniforms, and binding(1)+binding(2) one texture_2d<f32> +
-//     sampler pair fed by SetImage. The GPU bind layout is derived from the
-//     module's declared bindings, never from whichever image happens to be
-//     bound at one draw (L2-P1-3: first-draw runtime values used to freeze
-//     the cached bind group layout and poison every later state change).
+//   - Optional bindings, all at @group(0): binding(0) a uniform block
+//     (up to ShaderUniformBudgetMax bytes — default 256, batch 3c raised the
+//     ceiling — 16-byte field alignment) fed by SetUniformBytes/
+//     SetFloatUniforms, and texture+sampler pairs at bindings (1,2), (3,4),
+//     … (batch 3c, D4; pair 0 fed by SetImage, further pairs by SetImageAt).
+//     The GPU bind layout is derived from the module's declared bindings,
+//     never from whichever image happens to be bound at one draw (L2-P1-3:
+//     first-draw runtime values used to freeze the cached bind group layout
+//     and poison every later state change).
 //   - Compilation happens here, eagerly: Parse → Lower → Validate; a module
 //     that fails any step is rejected with a readable error and never
 //     reaches a backend driver.
@@ -63,10 +65,12 @@ type ShaderEffect struct {
 	mu      sync.Mutex
 	wgsl    string
 	uniform []byte
-	image   *ImageBuf
+	images  []*ImageBuf // per declared texture pair (batch 3c); slot 0 = SetImage/fill slot
 
-	usesImage bool // declared texture_2d at @group(0) binding(1) (immutable)
-	closed    bool
+	usesImage    bool // declared texture_2d at @group(0) binding(1) (immutable)
+	texturePairs int  // declared texture+sampler pairs (0..MaxShaderImagePairs, batch 3c)
+	uniformBytes int  // declared uniform block size (0 = none, batch 3c)
+	closed       bool
 
 	// P3.7 batch 3a: eager engine-template composition (D-3a-1 拍板 A). Both
 	// leg variants are composed and re-validated at NewShaderEffect time —
@@ -79,10 +83,18 @@ type ShaderEffect struct {
 
 // ShaderInterface reports the immutable bind requirements derived from the
 // module source at NewShaderEffect time: binding(0) uniform is always laid
-// out at the full 256-byte budget, and the binding(1)/(2) texture+sampler
-// pair is laid out iff the module declares it (UsesImage).
+// out (its buffer sized to max(shaderUniformMax, UniformBytes)), and the
+// declared texture+sampler pairs ride bindings (1,2), (3,4), … (2k, 2k+1)
+// (batch 3c, D4). Pair 0 carries the drawn image itself on the material leg
+// (Godot TEXTURE/UV) and the SetImage slot on the fill leg.
 type ShaderInterface struct {
 	UsesImage bool
+	// TexturePairs is the declared texture+sampler pair count (0..MaxShaderImagePairs).
+	TexturePairs int
+	// UniformBytes is the declared @group(0) binding(0) uniform block size in
+	// bytes (0 = the module declares no uniform block; the layout still
+	// reserves the default slot).
+	UniformBytes int
 }
 
 // ShaderBinding returns the derived bind interface (L2-P1-3: pipeline caches
@@ -93,17 +105,36 @@ func (e *ShaderEffect) ShaderBinding() ShaderInterface {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return ShaderInterface{UsesImage: e.usesImage}
+	return ShaderInterface{UsesImage: e.usesImage, TexturePairs: e.texturePairs, UniformBytes: e.uniformBytes}
 }
 
-// shaderUniformMax is the uniform budget for one effect (one 256B slot minus
-// the engine's own stride overhead stays well inside every backend limit).
-// GPU bind layouts use this contract value, never the live uniform length.
+// shaderUniformMax is the DEFAULT uniform budget for one effect (one 256B
+// slot minus the engine's own stride overhead stays well inside every backend
+// limit). GPU bind layouts use max(shaderUniformMax, declared size) as the
+// binding size, never less.
 const shaderUniformMax = 256
 
-// ShaderUniformBudget is the public handle on the uniform-block budget in
-// bytes (the @group(0) binding(0) layout size used by GPU pipeline caches).
+// ShaderUniformBudget is the public handle on the DEFAULT uniform-block
+// budget in bytes (the @group(0) binding(0) layout size used by GPU pipeline
+// caches for effects that declare a block up to this size). Batch 3c (D4
+// 加重档) raised the ceiling: blocks up to ShaderUniformBudgetMax are
+// accepted and their buffers sized accordingly.
 const ShaderUniformBudget = shaderUniformMax
+
+// ShaderUniformBudgetMax is the package ceiling on one effect's uniform
+// block (batch 3c, D4). 65536 matches the measured backend floor
+// (gles MaxUniformBufferBindingSize, TestP37CProbeGLESMultiTextureBindings
+// 2026-11-05); the pipeline ensure clamps to the device's real limit with a
+// named error beyond that.
+const ShaderUniformBudgetMax = 65536
+
+// MaxShaderImagePairs is the package ceiling on declared texture+sampler
+// pairs (batch 3c, D4): pair k = texture@binding(2k+1) + sampler@binding(2k+2).
+// 8 pairs = 8 textures + 8 samplers, inside the measured per-stage limits of
+// both backends (gles: 16/16). Pair 0 carries the drawn image itself (Godot
+// TEXTURE/UV on the material leg; the fill path's SetImage slot); pairs 1+
+// carry SetImageAt-bound images.
+const MaxShaderImagePairs = 8
 
 // NewShaderEffect compiles and validates a user WGSL fragment module.
 // It returns a readable error for parse, lowering, or validation failures —
@@ -134,13 +165,20 @@ func NewShaderEffect(wgsl string) (*ShaderEffect, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ShaderEffect{
+	texturePairs, uniformBytes := declaredBindInterface(mod)
+	eff := &ShaderEffect{
 		wgsl:         wgsl,
-		usesImage:    declaresImageBinding(mod),
+		usesImage:    texturePairs >= 1,
+		texturePairs: texturePairs,
+		uniformBytes: uniformBytes,
 		fragParams:   params,
 		fillComposed: fillComposed,
 		quadComposed: quadComposed,
-	}, nil
+	}
+	if texturePairs > 0 {
+		eff.images = make([]*ImageBuf, texturePairs)
+	}
+	return eff, nil
 }
 
 // ComposedFillWGSL returns the engine-composed fragment module for the fill
@@ -192,7 +230,19 @@ func validateShaderContract(mod *ir.Module) error {
 	if err := checkFsReturn(mod, &mod.EntryPoints[fs].Function); err != nil {
 		return err
 	}
-	slots := map[uint32]string{}
+	// Batch 3c (D4 加重档): texture+sampler pairs at bindings (1,2), (3,4), …
+	// (pair k = texture@(2k+1) + sampler@(2k+2)), cap MaxShaderImagePairs;
+	// binding(0) stays the single uniform block, capped at
+	// ShaderUniformBudgetMax (D4 预算放开，包级上限=实测两端设备 limits 下限，
+	// 管线 ensure 再夹设备真值)。
+	const (
+		shaderSlotUniform = 0
+		shaderSlotTexture = 1 // pair 0 texture; pair k texture at binding 2k+1
+		shaderSlotSampler = 2 // pair 0 sampler; pair k sampler at binding 2k+2
+	)
+	uniformBytes := 0
+	textures := map[uint32]bool{}
+	samplers := map[uint32]bool{}
 	for i := range mod.GlobalVariables {
 		gv := &mod.GlobalVariables[i]
 		if gv.Binding == nil || gv.Binding.Group != 0 {
@@ -205,30 +255,48 @@ func validateShaderContract(mod *ir.Module) error {
 			if _, ok := inner.(ir.StructType); !ok {
 				return fmt.Errorf("shader: contract: binding(0) must be a uniform struct, %q is %T", gv.Name, inner)
 			}
-			if sz := ir.TypeSize(mod, gv.Type); sz > shaderUniformMax {
-				return fmt.Errorf("shader: contract: uniform block %d bytes exceeds %d", sz, shaderUniformMax)
+			if sz := ir.TypeSize(mod, gv.Type); sz > ShaderUniformBudgetMax {
+				return fmt.Errorf("shader: contract: uniform block %d bytes exceeds ShaderUniformBudgetMax %d", sz, ShaderUniformBudgetMax)
 			}
-			slots[b] = "uniform"
-		case shaderSlotTexture:
-			img, ok := inner.(ir.ImageType)
-			if !ok {
-				return fmt.Errorf("shader: contract: binding(1) must be texture_2d<f32>, %q is %T", gv.Name, inner)
+			if uniformBytes > 0 {
+				return fmt.Errorf("shader: contract: only one uniform block at binding(0) is supported, %q is a second", gv.Name)
 			}
-			if img.Class != ir.ImageClassSampled || img.SampledKind != ir.ScalarFloat {
-				return fmt.Errorf("shader: contract: binding(1) must be a sampled float texture, %q is not", gv.Name)
-			}
-			slots[b] = "texture"
-		case shaderSlotSampler:
-			if _, ok := inner.(ir.SamplerType); !ok {
-				return fmt.Errorf("shader: contract: binding(2) must be a sampler, %q is %T", gv.Name, inner)
-			}
-			slots[b] = "sampler"
+			uniformBytes = int(ir.TypeSize(mod, gv.Type))
 		default:
-			return fmt.Errorf("shader: contract: @group(0) binding(%d) (%q) is outside the contract slots (0/1/2)", b, gv.Name)
+			pair := (b - shaderSlotTexture) / 2
+			if b%2 == shaderSlotTexture%2 && b >= shaderSlotTexture && pair < MaxShaderImagePairs && b == 2*pair+1 {
+				img, ok := inner.(ir.ImageType)
+				if !ok {
+					return fmt.Errorf("shader: contract: binding(%d) must be texture_2d<f32>, %q is %T", b, gv.Name, inner)
+				}
+				if img.Class != ir.ImageClassSampled || img.SampledKind != ir.ScalarFloat {
+					return fmt.Errorf("shader: contract: binding(%d) must be a sampled float texture, %q is not", b, gv.Name)
+				}
+				textures[b] = true
+				continue
+			}
+			if b%2 == shaderSlotSampler%2 && b >= shaderSlotSampler && pair < MaxShaderImagePairs && b == 2*pair+2 {
+				if _, ok := inner.(ir.SamplerType); !ok {
+					return fmt.Errorf("shader: contract: binding(%d) must be a sampler, %q is %T", b, gv.Name, inner)
+				}
+				samplers[b] = true
+				continue
+			}
+			return fmt.Errorf("shader: contract: @group(0) binding(%d) (%q) is outside the contract slots (uniform 0, texture/sampler pairs 1..%d)", b, gv.Name, 2*MaxShaderImagePairs)
 		}
 	}
-	if slots[shaderSlotSampler] == "sampler" && slots[shaderSlotTexture] != "texture" {
-		return fmt.Errorf("shader: contract: sampler at binding(2) requires a texture at binding(1)")
+	for b := range textures {
+		if !samplers[b+1] {
+			return fmt.Errorf("shader: contract: texture at binding(%d) requires a sampler at binding(%d)", b, b+1)
+		}
+	}
+	for b := range samplers {
+		if !textures[b-1] {
+			return fmt.Errorf("shader: contract: sampler at binding(%d) requires a texture at binding(%d)", b, b-1)
+		}
+	}
+	if len(textures) > MaxShaderImagePairs {
+		return fmt.Errorf("shader: contract: %d texture pairs exceeds MaxShaderImagePairs %d", len(textures), MaxShaderImagePairs)
 	}
 	for h := range mod.Types {
 		if bad, why := hasF64(mod, mod.Types[h].Inner, map[int]bool{}); bad {
@@ -303,21 +371,35 @@ func hasF64(mod *ir.Module, inner ir.TypeInner, seen map[int]bool) (bool, string
 	return false, ""
 }
 
-// declaresImageBinding reports whether the lowered module declares a
-// sampled texture at @group(0) @binding(1) — the contract's image slot.
-func declaresImageBinding(mod *ir.Module) bool {
+// declaredBindInterface derives the texture-pair count and uniform size from
+// the validated module (batch 3c): pairs at bindings (1,2), (3,4), …; the
+// contract has already verified well-formedness.
+func declaredBindInterface(mod *ir.Module) (texturePairs, uniformBytes int) {
+	uniformBytes = 0
+	pairs := 0
 	for i := range mod.GlobalVariables {
 		gv := &mod.GlobalVariables[i]
-		if gv.Binding == nil || gv.Binding.Group != 0 || gv.Binding.Binding != 1 {
+		if gv.Binding == nil || gv.Binding.Group != 0 {
 			continue
 		}
-		if int(gv.Type) < len(mod.Types) {
+		b := gv.Binding.Binding
+		if b == 0 {
+			if int(gv.Type) < len(mod.Types) {
+				if _, ok := mod.Types[gv.Type].Inner.(ir.StructType); ok {
+					uniformBytes = int(ir.TypeSize(mod, gv.Type))
+				}
+			}
+			continue
+		}
+		if b%2 == 1 && int(gv.Type) < len(mod.Types) {
 			if _, ok := mod.Types[gv.Type].Inner.(ir.ImageType); ok {
-				return true
+				if p := int(b)/2 + 1; p > pairs {
+					pairs = p
+				}
 			}
 		}
 	}
-	return false
+	return pairs, uniformBytes
 }
 
 // validateUserShader runs the shared translator pipeline (Parse → Lower →
@@ -351,14 +433,16 @@ func (e *ShaderEffect) WGSL() string {
 	return e.wgsl
 }
 
-// SetUniformBytes installs the uniform block contents (≤256 bytes; WGSL
-// uniform layout rules apply — 16-byte field alignment). Passing nil clears.
+// SetUniformBytes installs the uniform block contents (up to
+// ShaderUniformBudgetMax bytes — batch 3c, D4 raised the ceiling from the
+// 256B default; WGSL uniform layout rules apply, 16-byte field alignment).
+// Passing nil clears.
 func (e *ShaderEffect) SetUniformBytes(data []byte) error {
 	if e == nil {
 		return fmt.Errorf("shader: nil effect")
 	}
-	if len(data) > shaderUniformMax {
-		return fmt.Errorf("shader: uniform block %d bytes exceeds %d", len(data), shaderUniformMax)
+	if len(data) > ShaderUniformBudgetMax {
+		return fmt.Errorf("shader: uniform block %d bytes exceeds ShaderUniformBudgetMax %d", len(data), ShaderUniformBudgetMax)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -380,29 +464,51 @@ func (e *ShaderEffect) SetFloatUniforms(f []float32) error {
 	return e.SetUniformBytes(data)
 }
 
-// SetImage binds one sampled image for the @group(0) binding(1)/(2)
-// texture+sampler pair. Passing nil unbinds. The engine owns the GPU
-// texture lifetime for the bound copy.
+// SetImage binds one sampled image for the first declared texture pair
+// (pair 0: @group(0) binding(1)/(2)) — the slot the fill path samples and,
+// on the material leg, the slot the drawn image itself occupies (Godot
+// TEXTURE/UV). Batch 3c: additional declared pairs bind via SetImageAt.
+// Passing nil unbinds. The engine owns the GPU texture lifetime for the
+// bound copy.
 func (e *ShaderEffect) SetImage(img *ImageBuf) {
+	e.SetImageAt(0, img)
+}
+
+// Image returns the pair-0 bound image (GPU upload keying / recording).
+func (e *ShaderEffect) Image() *ImageBuf {
+	return e.ImageAt(0)
+}
+
+// SetImageAt binds one sampled image to declared texture pair slot (batch
+// 3c, D4): slot k rides bindings (2k+1)/(2k+2). On the material leg slot 0
+// is the drawn image itself, so extra textures bind from slot 1 up (slots
+// must stay inside the declared pair count — a named error beyond it; the
+// pipeline layout derives from the module, L2-P1-3). Passing nil unbinds.
+func (e *ShaderEffect) SetImageAt(slot int, img *ImageBuf) error {
 	if e == nil {
-		return
+		return fmt.Errorf("shader: nil effect")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.closed {
-		return
+		return fmt.Errorf("shader: effect closed")
 	}
-	e.image = img
+	if slot < 0 || slot >= len(e.images) {
+		return fmt.Errorf("shader: image slot %d outside the declared pairs (%d)", slot, len(e.images))
+	}
+	e.images[slot] = img
+	return nil
 }
 
-// Image returns the bound image (GPU upload keying / recording).
-func (e *ShaderEffect) Image() *ImageBuf {
-	if e == nil {
+// ImageAt returns the bound image at declared texture pair slot (nil when
+// unbound or out of range).
+func (e *ShaderEffect) ImageAt(slot int) *ImageBuf {
+	if e == nil || slot < 0 || slot >= len(e.images) {
 		return nil
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.image
+	return e.images[slot]
 }
 
 // Uniforms returns a copy of the uniform block (per-draw upload source).
@@ -476,7 +582,7 @@ func (e *ShaderEffect) Close() error {
 		return nil
 	}
 	e.closed = true
-	e.image = nil
+	e.images = nil
 	e.uniform = nil
 	e.mu.Unlock()
 	notifyShaderEffectClosed(e)

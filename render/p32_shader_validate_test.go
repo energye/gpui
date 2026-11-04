@@ -53,7 +53,9 @@ func TestD10ScalarReturn(t *testing.T) {
 }
 
 func TestD10UniformOverBudget(t *testing.T) {
-	// 17 个 vec4 = 288B > 256B 契约预算（规范 WGSL struct：成员逐行分号结尾）
+	// P3.7 批 3c（D4 加重档）把 uniform 预算从 256B 放开到
+	// ShaderUniformBudgetMax=65536（gles 实测设备上限），本钉同步改边界：
+	// 288B（18 vec4）现已合法；超 65536 仍拒绝。（规范 WGSL struct：成员逐行分号结尾）
 	var b strings.Builder
 	b.WriteString("struct Big {\n")
 	for i := 0; i < 18; i++ {
@@ -62,7 +64,18 @@ func TestD10UniformOverBudget(t *testing.T) {
 	b.WriteString("}\n")
 	b.WriteString("@group(0) @binding(0) var<uniform> u: Big;\n")
 	b.WriteString("@fragment fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> { return u.m0; }\n")
-	d9Accepts(t, "uniform-288B", b.String())
+	if _, err := render.NewShaderEffect(b.String()); err != nil {
+		t.Fatalf("uniform-288B must be accepted after batch 3c budget raise: %v", err)
+	}
+	var over strings.Builder
+	over.WriteString("struct Huge {\n")
+	for i := 0; i < 4097; i++ { // 4097*16 = 65552 > 65536
+		fmt.Fprintf(&over, "    m%d: vec4<f32>,\n", i)
+	}
+	over.WriteString("}\n")
+	over.WriteString("@group(0) @binding(0) var<uniform> u: Huge;\n")
+	over.WriteString("@fragment fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> { return u.m0; }\n")
+	d9Accepts(t, "uniform-65552B", over.String())
 }
 
 func TestD10SamplerWithoutTexture(t *testing.T) {
