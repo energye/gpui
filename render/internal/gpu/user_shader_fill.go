@@ -72,18 +72,20 @@ func (rc *GPURenderContext) fillShaderAsImage(target render.GPURenderTarget, pat
 	}
 
 	// Pass 1: run the user shader over the bounds. The effect returns
-	// premultiplied color (ShaderEffect contract: the engine premultiplies a
-	// straight result, so users may emit either; the chain below is fed
-	// straight). Un-premultiply here because the image-draw composite leg
-	// multiplies uploaded alpha into RGB at draw time (L2-P1-4 calibration:
-	// premul-fed data gets alpha squared — (0.5,0,0,0.5) landed as (0.25,0,0)
-	// contribution, read back as washed gray).
+	// premultiplied color (ShaderEffect contract), and the bytes ride the
+	// premul-native chain unchanged: the image leg uploads level-0 data
+	// as-is (image_cache.go) and blends with BlendStatePremultiplied, and the
+	// context's nil-view flush merges GPU work into the pixmap with the premul
+	// src-over composite (context_layer_blend.go). Feeding straight bytes here
+	// used to invert the handoff — the un-premultiply was undone by the
+	// downstream premul interpretation, leaving u8 rounding plus a uint8
+	// overflow wrap in the layer composite (probe P3, 2026-11-05:
+	// uint8(c_s+255-a_s) reproduced 576/576 px; d9's 126 was 382 mod 256).
 	srcRegion, err := rc.runUserShaderPass(device, queue, effect, bw, bh)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "[user_shader] pass1 err:", err)
 		return render.ErrFallbackToCPU
 	}
-	premulToStraightRGBA(srcRegion)
 
 	// Coverage: rasterize the path opaque; the alpha channel is the AA
 	// coverage the mask chain multiplies with (same basis as
@@ -152,21 +154,6 @@ func (rc *GPURenderContext) fillShaderAsImage(target render.GPURenderTarget, pat
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
-}
-
-// premulToStraightRGBA converts premultiplied bytes to straight in place
-// (c = c*255/a, round-half-up; a==0 leaves rgb untouched, they are masked
-// out downstream anyway).
-func premulToStraightRGBA(data []byte) {
-	for i := 0; i+3 < len(data); i += 4 {
-		a := uint16(data[i+3])
-		if a == 0 || a == 255 {
-			continue
-		}
-		data[i] = uint8((uint16(data[i])*255 + a/2) / a)
-		data[i+1] = uint8((uint16(data[i+1])*255 + a/2) / a)
-		data[i+2] = uint8((uint16(data[i+2])*255 + a/2) / a)
-	}
 }
 
 // runUserShaderPass renders the effect into a scratch BGRA8 RT and maps it

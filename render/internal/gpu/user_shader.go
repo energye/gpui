@@ -236,7 +236,7 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 		bgl.Destroy()
 		return nil, fmt.Errorf("user shader: layout: %w", err)
 	}
-	fs, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{WGSL: effect.WGSL()})
+	fs, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{WGSL: effect.ComposedFillWGSL()})
 	if err != nil {
 		layout.Destroy()
 		bgl.Destroy()

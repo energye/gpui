@@ -1,0 +1,36 @@
+P3.7 批 3a 负向对照（2026-11-05，变异→红→还原→绿，逐条可复跑）
+判据源：batch3a-design.md §5；变异全部「仍在编译」的打断（3e-2 首轮教训照守）。
+
+N1 摘引擎后乘（shader_compose.go engineQuadSegment
+   `return user * opacity{{TINT}}` → `return user{{TINT}}`）
+   → TestP37AMaterialLeg/TintAndOpacityRideEngineBlock 红（opacity=0.5 画面偏离）
+   → 还原绿。如实登记：IdentityEqualsStandard 钉对本变异不敏感——opacity=1 时
+   `× 1.0` 是 IEEE 恒等（逐位相同），「恒等材质」钉天生照不出 opacity 腿的摘除；
+   opacity 维度由 TintOpacity 钉承担。
+N2 摘 premul blend（premulBlendStatePtr → straight SrcAlpha 混合）
+   → TestP37AMaterialLeg/IdentityEqualsStandard 红（premul 纹理走 straight 混合，
+   白底合成值全变）
+   → 还原绿。
+N3 摘 fs_main 参数校验（fragmentParams 提前 return len(args)）
+   → TestP37AContractRejectsBadPrefixes 红（乱序/超前缀/缺 location 全放行）
+   → 还原绿。
+N4 摘材质合批断点（canMergeImageDraw 的 `a.Material != b.Material` → `false && ...`）
+   → TestP37AMaterialLeg/BatchShape 红（材质/无材质/异 effect 三槽并成一槽）
+   → 还原绿。
+N5 摘驱逐 delete（evictEffect 的 `ok` → `ok && false`）
+   → TestP37AMaterialLeg/Eviction 红（Close 后条目仍在缓存）
+   → 还原绿。
+
+无效变异如实登记（照 3e-2 纪律，不算证据重跑后才采信）：
+- N5 首轮：Eviction 子测试直调 ensureMaterialPipeline 前没走 ensureImagePipeline，
+  clip 布局未就绪 → 环境红（不是判据红）→ 钉补 ensureImagePipeline 引导后重做。
+- N5 首轮补丁锚点过期（gofmt 重排缩进后 python replace 静默未命中）→
+  改为带 assert 的锚点重做。
+- 「摘 RecordDraws 材质分支」未做：该分支是结构性存在（不摘则材质命令落标准
+  管线=布局不匹配 submit 崩），崩红非判据红，不冒充。
+
+登记不做（3a 范围内不可达 / 归后续批）：
+- depth-clip 腿的像素钉：需要 depth-clip 资源的 pass 搭建，3a 骨架以腿选择
+  结构 + 拒绝面覆盖；像素级归批 6 材质真窗（clip-enabled 场景同批）。
+- CPU 腿计数钉：3a 材质命令无公开入口（R1 内部字段），CPU 路径不可达；
+  3b 公开入口落地时随队列前拒绝一并交付。

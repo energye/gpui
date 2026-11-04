@@ -414,7 +414,23 @@ type GPURenderSession struct {
 	imageSliceDrawScratch []imageDrawCall
 	// Perspective quads (P3.5 batch 3) pack into their own 36-byte-stride
 	// buffer so the historic affine buffer layout stays bit-identical.
-	imagePerspStaging    []byte
+	imagePerspStaging []byte
+
+	// P3.7 batch 3a: material-leg frame storage. Material quads pack into
+	// their own 36-byte buffer (same vertex layout as perspective); the
+	// engine per-draw block (transform + opacity, ImageUniforms bytes) rides
+	// its own 256B-stride slab; per-slot bind groups mirror the image caches.
+	materialVertBuf       hal.Buffer
+	materialVertBufCap    uint64
+	materialEngineSlab    hal.Buffer
+	materialEngineSlabCap uint64
+	materialBindGroups    []hal.BindGroup // user @group(0) per material slot
+	materialBGViews       []hal.TextureView
+	materialBGSampler     []ImageSamplerKey
+	materialEngineBGs     []hal.BindGroup // @group(1) per material slot
+	// Session-owned material pipeline cache (P3.7 batch 3a): per-effect state
+	// from the composed modules; standalone sessions never touch a GPUShared.
+	userMaterial         materialCache
 	imagePerspVertBuf    hal.Buffer
 	imagePerspVertBufCap uint64
 	// skip image uniform WriteBuffer when viewport/opacity unchanged.
@@ -2360,6 +2376,33 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.imageVertBuf = nil
 		s.imageVertBufCap = 0
 	}
+	// P3.7 batch 3a: material-leg frame storage + per-effect pipeline cache.
+	render.UnregisterShaderEffectEvictor(fmt.Sprintf("material-session-%p", s))
+	for i := range s.materialBindGroups {
+		if s.materialBindGroups[i] != nil {
+			s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, s.materialBindGroups[i])
+			s.materialBindGroups[i] = nil
+		}
+	}
+	for i := range s.materialEngineBGs {
+		if s.materialEngineBGs[i] != nil {
+			s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, s.materialEngineBGs[i])
+			s.materialEngineBGs[i] = nil
+		}
+	}
+	s.materialBGViews = nil
+	s.materialBGSampler = nil
+	if s.materialVertBuf != nil {
+		s.materialVertBuf.Destroy()
+		s.materialVertBuf = nil
+		s.materialVertBufCap = 0
+	}
+	if s.materialEngineSlab != nil {
+		s.materialEngineSlab.Destroy()
+		s.materialEngineSlab = nil
+		s.materialEngineSlabCap = 0
+	}
+	s.userMaterial.destroyLocked()
 	if s.imageCache != nil {
 		s.imageCache.Destroy()
 		s.imageCache = nil
@@ -2681,6 +2724,9 @@ func (s *GPURenderSession) ensureImagePipeline() error {
 		s.imageCache = NewImageCache(s.device, s.queue)
 		s.imageCache.SetRetireHook(s.RetireTexture)
 	}
+	// ShaderEffect.Close evicts this session's material cache (P3.7 batch 3a).
+	// Same id overwrites, so re-registration stays idempotent.
+	render.RegisterShaderEffectEvictor(fmt.Sprintf("material-session-%p", s), s.userMaterial.evictEffect)
 	return nil
 }
 
@@ -4218,6 +4264,26 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		return nil, nil //nolint:nilnil // no images
 	}
 
+	// Material-command guards (P3.7 batch 3a): the composed leg rides the
+	// affine 36B emission with Normal blending only. The combinations below
+	// are named rejections (never silent re-interpretation); the public
+	// entries in 3b enforce the same contract at queue time.
+	for i := range cmds {
+		cmd := &cmds[i]
+		if cmd.Material == nil {
+			continue
+		}
+		if cmd.Perspective {
+			return nil, fmt.Errorf("material: perspective + material combination is not supported yet (batch 3b)")
+		}
+		if cmd.BlendMode != render.BlendNormal {
+			return nil, fmt.Errorf("material: non-Normal blend is not supported on the material leg yet (batch 3b)")
+		}
+		if cmd.Material.Closed() {
+			return nil, fmt.Errorf("material: effect closed")
+		}
+	}
+
 	// Build combined vertex data (6 verts per quad) with a single allocation.
 	totalVertBytes := len(cmds) * 6 * imageVertexStride //nolint:mnd // 6 verts per quad
 	if cap(s.imageVertexStaging) < totalVertBytes {
@@ -4250,6 +4316,11 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			// Perspective quads are packed into their own 36-byte buffer below;
 			// this index space stays reserved so affine draw offsets keep the
 			// historic firstVertex = i*6 invariant.
+			continue
+		}
+		if cmds[i].Material != nil {
+			// Material quads (P3.7 batch 3a) pack into their own 36-byte
+			// buffer below; this index space stays reserved like perspective.
 			continue
 		}
 		off := i * 6 * imageVertexStride
@@ -4293,6 +4364,71 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		return nil, err
 	}
 
+	// Material quads (P3.7 batch 3a) pack into their own 36-byte buffer on
+	// the composed-module pipeline. Pipeline families ensure per effect ×
+	// leg; the user uniform slot uploads once per effect per frame.
+	matCount := 0
+	matIdxs := make([]int, len(cmds))
+	for i := range matIdxs {
+		matIdxs[i] = -1
+	}
+	for i := range cmds {
+		if cmds[i].Material != nil {
+			matIdxs[i] = matCount
+			matCount++
+		}
+	}
+	var materialBuf hal.Buffer
+	materialEntries := make(map[*render.ShaderEffect]*materialEffectEntry, 4)
+	if matCount > 0 {
+		needMat := uint64(matCount) * 6 * imagePerspVertexStride //nolint:gosec // bounded by command count
+		if s.materialVertBuf == nil || s.materialVertBufCap < needMat {
+			if s.materialVertBuf != nil {
+				s.RetireBuffer(s.materialVertBuf)
+			}
+			buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
+				Label: "material_vert_buf",
+				Size:  needMat,
+				Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("create material vertex buffer: %w", err)
+			}
+			s.materialVertBuf = buf
+			s.materialVertBufCap = needMat
+		}
+		matStaging := make([]byte, needMat)
+		matIdx := 0
+		for i := range cmds {
+			if cmds[i].Material == nil {
+				continue
+			}
+			entry, err := s.ensureMaterialPipeline(cmds[i].Material, false)
+			if err != nil {
+				return nil, err
+			}
+			if _, ok := materialEntries[cmds[i].Material]; !ok {
+				materialEntries[cmds[i].Material] = entry
+				if err := uploadMaterialUniforms(s.queue, cmds[i].Material, entry.uniform); err != nil {
+					return nil, fmt.Errorf("upload material uniform: %w", err)
+				}
+			}
+			if _, err := s.ensureMaterialPipeline(cmds[i].Material, true); err != nil {
+				return nil, err
+			}
+			// Affine emission (batch 3a): corners with hom_w = 1 per corner.
+			cmd := cmds[i]
+			cmd.Weights = [4]float32{1, 1, 1, 1}
+			off := matIdx * 6 * imagePerspVertexStride
+			buildPerspVerticesInto(matStaging[off:off+6*imagePerspVertexStride], &cmd)
+			matIdx++
+		}
+		if err := s.queueWriteBuffer(s.materialVertBuf, 0, matStaging); err != nil {
+			return nil, fmt.Errorf("upload material vertices: %w", err)
+		}
+		materialBuf = s.materialVertBuf
+	}
+
 	if cap(s.imageDrawCallScratch) < len(cmds) {
 		s.imageDrawCallScratch = make([]imageDrawCall, 0, len(cmds))
 	} else {
@@ -4310,7 +4446,41 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		perspective          bool
 		vertBuf              hal.Buffer // nil = affine res.vertBuf; persp slots pin the 36B buffer
 		firstVertex, vertCnt uint32
-		cmdStart, cmdCount   uint32 // span in the image command list (group slicing)
+		cmdStart, cmdCount   uint32               // span in the image command list (group slicing)
+		material             *render.ShaderEffect // non-nil = quad-material leg (batch 3a)
+	}
+	// Material engine slab ensured BEFORE the slot loop: engine bind groups
+	// created per material slot reference it. Sized to the command upper
+	// bound (matCount >= material runs); contents packed after the loop.
+	if matCount > 0 {
+		needSlab := uint64(matCount) * imageUniformSlotStride
+		if s.materialEngineSlab == nil || s.materialEngineSlabCap < needSlab {
+			if s.materialEngineSlab != nil {
+				s.RetireBuffer(s.materialEngineSlab)
+				s.materialEngineSlab = nil
+			}
+			alloc := needSlab * 2
+			if alloc < imageUniformSlotStride*4 {
+				alloc = imageUniformSlotStride * 4
+			}
+			buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
+				Label: "material_engine_slab",
+				Size:  alloc,
+				Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("create material engine slab: %w", err)
+			}
+			s.materialEngineSlab = buf
+			s.materialEngineSlabCap = alloc
+			// Bind groups hold offsets into the old slab — drop them.
+			for i := range s.materialEngineBGs {
+				if s.materialEngineBGs[i] != nil {
+					s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, s.materialEngineBGs[i])
+					s.materialEngineBGs[i] = nil
+				}
+			}
+		}
 	}
 	// Reuse imageUniformScratch as slot meta is small; pack into grow-only staging.
 	slots := make([]imageSlot, 0, len(cmds))
@@ -4362,6 +4532,26 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				vertCnt:     uint32((j - i) * 6), //nolint:gosec
 				cmdStart:    uint32(i),           //nolint:gosec
 				cmdCount:    uint32(j - i),       //nolint:gosec
+			})
+			i = j
+			continue
+		}
+		if cmd.Material != nil {
+			// Material run (P3.7 batch 3a): one composed pipeline per effect,
+			// sprite texture rides the user's declared binding(1)/(2), engine
+			// transform/opacity per slot, clip group at @group(2) from the
+			// caller. firstVertex counts material quads only (36B buffer).
+			slots = append(slots, imageSlot{
+				opacity:     cmd.Opacity,
+				texView:     texView,
+				nearest:     cmd.Nearest,
+				sampler:     cmd.FilterKey(),
+				material:    cmd.Material,
+				vertBuf:     materialBuf,
+				firstVertex: uint32(matIdxs[i] * 6), //nolint:gosec
+				vertCnt:     uint32((j - i) * 6),    //nolint:gosec
+				cmdStart:    uint32(i),              //nolint:gosec
+				cmdCount:    uint32(j - i),          //nolint:gosec
 			})
 			i = j
 			continue
@@ -4464,8 +4654,80 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		s.imageUniformSlots = 0
 	}
 
+	matSlotIdx := 0
 	for poolIdx := range slots {
 		slot := &slots[poolIdx]
+		if slot.material != nil {
+			// Material slot (P3.7 batch 3a): the user @group(0) binds the
+			// effect's uniform slot + the sprite texture pair; the engine
+			// @group(1) binds this slot's engine block in the material slab.
+			// Both caches key on the material-slot index (contents re-packed
+			// per frame; the slab offset is baked per index like the image
+			// slab).
+			for len(s.materialBindGroups) <= matSlotIdx {
+				s.materialBindGroups = append(s.materialBindGroups, nil)
+				s.materialBGViews = append(s.materialBGViews, nil)
+				s.materialBGSampler = append(s.materialBGSampler, ImageSamplerKey{})
+				s.materialEngineBGs = append(s.materialEngineBGs, nil)
+			}
+			entry := materialEntries[slot.material]
+			bg := s.materialBindGroups[matSlotIdx]
+			if bg == nil || s.materialBGViews[matSlotIdx] != slot.texView || s.materialBGSampler[matSlotIdx] != slot.sampler {
+				if bg != nil {
+					s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
+				}
+				entries := []hal.BindGroupEntry{
+					{Binding: 0, Buffer: entry.uniform, Offset: 0, Size: uint64(entry.uniSize)},
+				}
+				if entry.hasTex {
+					entries = append(entries,
+						hal.BindGroupEntry{Binding: 1, TextureView: slot.texView},
+						hal.BindGroupEntry{Binding: 2, Sampler: s.imagePipeline.SamplerForFilter(slot.sampler)},
+					)
+				}
+				var err error
+				bg, err = s.device.CreateBindGroup(&hal.BindGroupDescriptor{
+					Label:   fmt.Sprintf("material_bind_%d", matSlotIdx),
+					Layout:  s.userMaterial.userBGL(entry.hasTex),
+					Entries: entries,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("create material bind group %d: %w", matSlotIdx, err)
+				}
+				s.materialBindGroups[matSlotIdx] = bg
+				s.materialBGViews[matSlotIdx] = slot.texView
+				s.materialBGSampler[matSlotIdx] = slot.sampler
+			}
+			engineBG := s.materialEngineBGs[matSlotIdx]
+			if engineBG == nil {
+				var err error
+				engineBG, err = s.device.CreateBindGroup(&hal.BindGroupDescriptor{
+					Label:  fmt.Sprintf("material_engine_%d", matSlotIdx),
+					Layout: s.userMaterial.bgl1,
+					Entries: []hal.BindGroupEntry{
+						{Binding: 0, Buffer: s.materialEngineSlab, Offset: uint64(matSlotIdx) * imageUniformSlotStride, Size: materialEngineUniformSize},
+					},
+				})
+				if err != nil {
+					return nil, fmt.Errorf("create material engine bind group %d: %w", matSlotIdx, err)
+				}
+				s.materialEngineBGs[matSlotIdx] = engineBG
+			}
+			drawCalls = append(drawCalls, imageDrawCall{
+				bindGroup:     bg,
+				firstVertex:   slot.firstVertex,
+				vertexCount:   slot.vertCnt,
+				blendMode:     render.BlendNormal,
+				vertBuf:       slot.vertBuf,
+				cmdStart:      slot.cmdStart,
+				cmdCount:      slot.cmdCount,
+				material:      true,
+				materialEntry: entry,
+				engineBG:      engineBG,
+			})
+			matSlotIdx++
+			continue
+		}
 		for len(s.imageBindGroups) <= poolIdx {
 			s.imageBindGroups = append(s.imageBindGroups, nil)
 			s.imageBGViews = append(s.imageBGViews, nil)
@@ -4510,13 +4772,37 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		})
 	}
 
+	// Material engine uniform contents: one block per material slot
+	// (transform + opacity, ImageUniforms bytes) — one WriteBuffer.
+	if matSlotIdx > 0 {
+		packBytes := matSlotIdx * imageUniformSlotStride
+		if cap(s.imageUniformScratch) < packBytes {
+			s.imageUniformScratch = make([]byte, packBytes)
+		} else {
+			s.imageUniformScratch = s.imageUniformScratch[:packBytes]
+		}
+		matSlot := 0
+		for i := range slots {
+			if slots[i].material == nil {
+				continue
+			}
+			off := matSlot * imageUniformSlotStride
+			putImageUniform(s.imageUniformScratch[off:off+imageUniformSlotStride], w, h, slots[i].opacity)
+			matSlot++
+		}
+		if err := s.queueWriteBuffer(s.materialEngineSlab, 0, s.imageUniformScratch[:packBytes]); err != nil {
+			return nil, fmt.Errorf("upload material engine slab: %w", err)
+		}
+	}
+
 	quads := len(cmds)
 	s.imageDrawCallScratch = drawCalls
 	s.lastImageDrawCalls = len(drawCalls)
 	s.lastImageQuads = quads
 	return &imageFrameResources{
-		vertBuf:   s.imageVertBuf,
-		drawCalls: drawCalls,
+		vertBuf:         s.imageVertBuf,
+		drawCalls:       drawCalls,
+		materialVertBuf: s.materialVertBuf,
 	}, nil
 }
 

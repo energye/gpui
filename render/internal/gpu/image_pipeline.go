@@ -147,9 +147,20 @@ type ImageDrawCommand struct {
 	// (CPU twin: render.triSampler persp branch). False keeps the historic
 	// 32-byte affine emission bit-identical. Never merges with affine quads.
 	Perspective bool
-	// Weights are the TL/TR/BR/BL homogeneous weights (> 0, validated by the
+	// Weights are the TL/TR/BL homogeneous weights (> 0, validated by the
 	// render layer before queueing).
 	Weights [4]float32
+
+	// Material rides the quad fragment-material leg (P3.7 batch 3a): the
+	// composed module renders this quad with the effect's fragment and the
+	// engine output section (opacity × clip coverage; tint per the declared-
+	// prefix contract). Nil = standard textured quad (historic path,
+	// bit-identical). Material draws are affine-only and Normal-blend in
+	// batch 3a — buildImageResources rejects the other combinations by name.
+	// The sprite's own texture rides the effect's declared binding(1)/(2)
+	// (Godot TEXTURE/UV semantics); CPU evaluators do not exist (P3.2
+	// contract), so material commands never enter a CPU leg.
+	Material *render.ShaderEffect
 }
 
 // TexturedQuadPipeline manages GPU resources for image rendering (Tier 3).
@@ -910,6 +921,43 @@ func (p *TexturedQuadPipeline) RecordDraws(rp hal.RenderPassEncoder, res *imageF
 	rp.SetVertexBuffer(0, curBuf, 0)
 	var lastPipe hal.RenderPipeline
 	for _, dc := range res.drawCalls {
+		if dc.material && dc.materialEntry != nil {
+			// Quad-material leg (P3.7 batch 3a): composed-module pipeline per
+			// effect × leg, user @group(0), engine @group(1), and the same
+			// clip bind group the standard draws use at @group(2). Vertices
+			// ride the 36-byte material buffer (hom_w = 1, affine).
+			leg := 0
+			if useDepthClip {
+				leg = 1
+			}
+			pipe := dc.materialEntry.pipelines[leg]
+			if pipe == nil {
+				continue
+			}
+			wantBuf := res.materialVertBuf
+			if wantBuf == nil {
+				wantBuf = res.vertBuf
+			}
+			if wantBuf != curBuf {
+				rp.SetVertexBuffer(0, wantBuf, 0)
+				curBuf = wantBuf
+			}
+			if pipe != lastPipe {
+				clearPassBindGroups(rp)
+				rp.SetPipeline(pipe)
+				if clipBG != nil {
+					rp.SetBindGroup(2, clipBG, nil)
+				}
+				lastPipe = pipe
+			}
+			rp.SetBindGroup(0, dc.bindGroup, nil)
+			rp.SetBindGroup(1, dc.engineBG, nil)
+			if clipBG != nil {
+				rp.SetBindGroup(2, clipBG, nil)
+			}
+			rp.Draw(imageDrawVertexCount(dc), 1, dc.firstVertex, 0)
+			continue
+		}
 		pipe := p.pipelineForDraw(dc, useDepthClip)
 		if pipe == nil {
 			continue
@@ -1023,6 +1071,9 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 type imageFrameResources struct {
 	vertBuf   hal.Buffer
 	drawCalls []imageDrawCall
+	// materialVertBuf carries material commands' quads in the 36-byte stride
+	// (P3.7 batch 3a); nil when the frame has no material draws.
+	materialVertBuf hal.Buffer
 }
 
 // imageDrawCall holds per-image (or multi-quad batch) draw parameters within a frame.
@@ -1033,6 +1084,14 @@ type imageDrawCall struct {
 	bicubic     bool   // uses bicubic pipeline variant (I.03), no merge with linear
 	yuv         bool   // video plane quad: YUV pipeline variant, no merge with linear
 	blendMode   render.BlendMode
+	// material marks a quad-material draw (P3.7 batch 3a): materialEntry
+	// carries the effect's composed pipelines (leg picked at record time),
+	// and engineBG carries the per-draw engine block for @group(1) while
+	// bindGroup stays the user's @group(0). The clip bind group rides the
+	// caller's clipBG at @group(2), same object as the standard pipelines.
+	material      bool
+	materialEntry *materialEffectEntry
+	engineBG      hal.BindGroup
 	// perspective selects the projective quad pipeline variant (P3.5 batch 3).
 	perspective bool
 	// vertBuf overrides imageFrameResources.vertBuf when non-nil (perspective
@@ -1184,6 +1243,13 @@ func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 	// per-vertex data exactly like tint, so 1000 depth-projected sprites stay
 	// one Draw instead of 1000 bind groups and 1000 uniform slots.
 	if a.Perspective != b.Perspective {
+		return false
+	}
+	// Material commands never share a batch with a different (or nil)
+	// material (P3.7 batch 3a): the effect pointer selects the composed
+	// pipeline, the user bind group, and the uniform slot. Same-effect
+	// neighbours coalesce like same-texture ones.
+	if a.Material != b.Material {
 		return false
 	}
 	if a.GenerationID == 0 || a.GenerationID != b.GenerationID {

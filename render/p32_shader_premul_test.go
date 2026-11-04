@@ -44,14 +44,18 @@ func d9Pixel(t *testing.T, wgsl string) (int, int, int, int) {
 	return int(r >> 8), int(g >> 8), int(b >> 8), int(a >> 8)
 }
 
-// 契约腿钉：premul (0.5,0,0,0.5) 过「去预乘 → straight 合成链」后必须等价于
-// 50% 纯红合成——全通道 128（旧洞：premul 直接喂 straight 链 → alpha 平方，
-// 灰化 (126,127,127)；兄弟路 ordinary 半透明填充同病，登记另行处理）。
+// 契约腿钉：premul (0.5,0,0,0.5) 是 50% 纯红（premul 语义 rgb 已随 a 缩过），
+// premul src-over 白底：r = 0.5 + 1×(1−0.5) = 1.0 → 255，g/b = 0 + 0.5 → 128，
+// 即 (255,128,128)——与其自身注释「等价于 50% 纯红合成」一致的数学值。
+// 2026-11-05 修正（探针 P3，evidence/P3.7/batch3a/probe-p3-premul.txt）：旧断言
+// r=128±3 实际锁的是填充腿 premul 反交洞的回绕值（uint8(255+127)=382 mod 256=126，
+// 被容差吞掉）；fillShaderAsImage 已改为交 premul（与图像腿契约/兄弟函数对齐），
+// 本钉同步锁住正确语义。
 func TestD9PremulOutputContract(t *testing.T) {
 	requireFilterOpsGPU(t)
 	r, g, b, a := d9Pixel(t, d9HalfRedWGSL)
-	if d := r - 128; d < -3 || d > 3 {
-		t.Fatalf("premul contract R=%d want 128±3 got (%d,%d,%d,%d) — 去预乘腿失效（alpha 平方灰 (126,127,127)）", r, r, g, b, a)
+	if d := r - 255; d < -3 || d > 3 {
+		t.Fatalf("premul contract R=%d want 255±3 got (%d,%d,%d,%d) — 50%% premul 红合成白底必须全红（回绕洞回归？）", r, r, g, b, a)
 	}
 	if d := g - 128; d < -3 || d > 3 {
 		t.Fatalf("G=%d want 128±3（白底 50%% 合成）got (%d,%d,%d,%d)", g, r, g, b, a)

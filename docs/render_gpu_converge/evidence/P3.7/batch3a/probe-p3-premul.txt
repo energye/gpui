@@ -1,0 +1,113 @@
+P3.7 批 3a 前置探针 P3（design.md §10；拍板 P1 档：定稿后立即跑）
+日期：2026-11-05　分支：feat/p2-收敛整合（HEAD 3e-2 收口 + 本会话评估/方案/探针三件，未提交）
+环境：CGO_ENABLED=1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so，native wgpu 后端
+复跑：go test ./render/internal/gpu -run "TestP37AProbe" -v；go test ./render -run "TestP37AProbe" -v
+
+════════════════════════════════════════════════════════════════
+一、组合可行性（D-3a-1 拍板 A：引擎模板合成）—— ✅ 成立
+════════════════════════════════════════════════════════════════
+四类声明前缀全部通过「组合 → Parse→Lower→Validate → native CreateShaderModule 真编译」：
+  uv_only / full_prefix(uv+tint+hom_w) / zero_param / identity(textureSample)
+测试：TestP37AProbeComposeValidate 4/4 PASS（0.25s）。
+
+组合器手术规格两处实测修正（已写回 batch3a-design.md §2.1）：
+  ① 只摘参数 @location 不摘返回类型 @location ⇒ naga 判模块无效
+    （错误异步浮出：CreateRenderPipeline 报 "ShaderModule with '' label is invalid"）；
+  ② 参数表闭括号扫描必须配对括号（@location(0) 自带括号，首现 ')' 截断会切进
+    属性内部，摘除落空）。
+前提验证：IR 参数表可读（gpu/shader/ir/ir.go:605-621 Function.Arguments{Name,Type,Binding}）。
+布局要点：组合模块引擎段在 @group(1)，用户无绑定时 layout 槽 0 须垫空 bgl（按位对 @group(N)）。
+
+════════════════════════════════════════════════════════════════
+二、quad 片元腿 premul 契约 —— ✅ 逐位正确
+════════════════════════════════════════════════════════════════
+材质腿（组合管线 + BlendStatePremultiplied 直出，无读回）：
+  quad-vs-analytic:  max=0 diff=0（24×24 全域逐位等于 premul-src-over 白底解析值）
+  fill-vs-quad(replica): max=1（360 通道差 1，全部来自填充路 RT 写入+去预乘+重预乘
+    的量化链 —— 与「各 ≤1」声明一致）
+测试：TestP37AProbeQuadPremulPath PASS（0.27s）。
+
+════════════════════════════════════════════════════════════════
+三、恒等材质 ≡ 无材质 —— ✅ 逐位（A 档红利实测成立）
+════════════════════════════════════════════════════════════════
+用户字面 textureSample 的材质腿，1:1 贴 16×16 不透明棋盘：
+  材质腿 vs 源纹素:      diff=0 worst=0（256 像素逐位同）
+  跨包对拍: internal/gpu 材质腿 digest == render 生产 DrawImage 腿 digest
+           = d2e2090f6c6057ac（256 像素 sha256）
+测试：TestP37AProbeIdentityMaterial + TestP37AProbeImageCheckerDigest PASS。
+含义：组合保持引擎乘链不变 ⇒ 「恒等材质 ≡ 无材质」可做逐位像素钉（3a 正式钉）。
+
+════════════════════════════════════════════════════════════════
+四、premul 双路口径 —— ❌ 实测不一致，根因=填充腿 premul 交接反向（新洞）
+════════════════════════════════════════════════════════════════
+【现象】同一份 shader（premul 输出，alpha 梯度 0.3→0.9，防纯色假绿）：
+  quad 腿（材质路）= premul-src-over 白底解析值，逐位精确；
+  生产填充腿（render.Context: ClearWithColor(White)+SetShader+DrawRectangle+Fill+FlushGPU）
+  = 全域偏离：max=213，1728/2304 通道差。
+  逐字节对账（24×24 全域，digest 3caad11558fb545f 两跑一致）：
+    生产输出 ≡ uint8( straight_c + 255 - straight_a )   —— u8 加法回绕，576/576 像素精确吻合
+  （straight_c/straight_a = premulToStraightRGBA 之后的 straight 字节）
+
+【根因链（全部实测到行号）】
+  1. fillShaderAsImage（render/internal/gpu/user_shader_fill.go:86）pass-1 读回后
+     premulToStraightRGBA 去预乘，把 straight 字节交给 QueueImageDraw；
+  2. 图像腿 level0 原样上传（image_cache.go:553-570 直传 PixelData，premul 只用于
+     mip 1+），下游消费链按 premul 解释；
+  3. Context 无视图 flush 把 GPU 工作合回 pixmap 走层合成
+     （render/context_layer_blend.go:174：out = uint8(sr + dst*(255-sa)/255) ——
+     premul src-over 的 u8 形态）——吃到 straight 字节：
+       204 + 255*(255-80)/255 = 379 → uint8 回绕 = 123（实测 (4,4)=(123,8,201,255) 精确复现）；
+  4. d9 契约钉（render/p32_shader_premul_test.go:50-65）实测值 126 = uint8(255+127)=
+     382 mod 256 —— 回绕值落进 128±3 容差被吞；其注释「等价于 50% 纯红合成」的
+     数学正确值是 (255,127.5→128,127.5→128)，断言 r=128 与自身注释矛盾。
+     （钉 2026-11-03 落地时即「带着回绕绿」，容差掩盖。）
+
+【隔离证据（逐段切开）】
+  - 图像腿本身干净：QueueImageDraw+FlushOffscreen 到自管目标 = straight 字节
+    原样采样原样画（TestP37AProbeQueueDrain，got(204,89,26,80) 逐字节同）；
+  - fillShaderAsImage+FlushOffscreen 到自管白底目标：同样原样直出（透明清底+
+    premul blend，无回绕）——回绕只在 Context 无视图 flush 的 pixmap 合成段；
+  - blendPixel/compositeAdvanced/blend 包均为浮点+钳位，不背锅；
+  - p37a 临时 dump（user_shader_fill.go 队列交数据处）证实交队数据本身正确
+    （straight (204,89,26,80)…），排除「数据错」。
+
+【旁证：premul 才是真契约】
+  - 兄弟函数 fillPaintFilteredAsImage（user_shader_fill.go:275 起）交的就是软件
+    光栅的 premul pixmap 字节 —— 同一 QueueImageDraw 消费面；
+  - 图像腿全部既有消费者（DrawImageEx/图集/动图）走 chain.PremultipliedData；
+  - textured_quad.wgsl:102-105 注释自述 texel 为 premultiplied。
+
+【影响面】
+  - 填充路 shader 有 a<255 输出时像素系统性错误：GPU 白底钳位洗白 / CPU 合成回绕；
+    a=255（不透明）时 premulToStraight 是恒等 ⇒ 不透明 shader 逐位不受影响。
+  - p32 真窗 ui_wr_p32_shader 两卡 shader 均输出 alpha=1（examples/ui_wr_p32_shader/
+    main.go:55,69 的 s.a 来自不透明源）⇒ 金图预计零变化（修时复跑验证）。
+  - d9 钉的「绿」是回绕被容差掩盖，修复后必须同步改期望。
+
+【修法（probe verdict，待拍板）】
+  摘掉 fillShaderAsImage 的 premulToStraightRGBA（:86），交 premul —— 与兄弟函数、
+  图像腿契约、quad 材质腿四方对齐；d9 期望改 (255,127,128,128)±小容差并修正注释；
+  真窗复跑 + 探针 TestP37AProbeFillLegGradient 改回 p37AProbeGradOverWhite 期望。
+  停在拍板节点：用户暂离未答，本次按「停下报告」纪律登记不修（本文件 §五）。
+
+════════════════════════════════════════════════════════════════
+五、待用户拍板（2026-11-05 question 两问未答，保守分支：登记不修）
+════════════════════════════════════════════════════════════════
+  问 1：填充腿 premul 反交洞 —— 现在修（作为 3a premul 校准结论落地，推荐档）
+        vs 先登记后修（3a 只建 quad 腿，填充腿保持现状）。
+  问 2：d9 期望值 —— 同步修正为 (255,128,128)（推荐，对齐其自身注释语义）
+        vs 不动（不同步改钉必红，违背「门禁绿≠洞修了」）。
+  附带登记：context_layer_blend.go:174 的 u8 加法对 premul 合规输入数学有界
+  （S+D−SD≤255），缺钳位属防护缺非活洞——修复落地时可顺手加 clamp 作不断言防护。
+
+════════════════════════════════════════════════════════════════
+六、本次产物与状态
+════════════════════════════════════════════════════════════════
+  探针代码（未提交，成熟为 3a 正式钉）：
+    render/internal/gpu/p37_3a_probe_test.go（组合器原形 + 组合可行性 + quad premul
+    腿 + 恒等材质 + 两个隔离段）
+    render/p37_3a_probe_test.go（生产填充腿现状钉 + 生产 DrawImage 摘要对拍）
+  全套门禁：go vet ./render ./render/internal/gpu rc=0；探针 6 测试全 PASS
+    （ComposeValidate 4/4 / QuadPremulPath / IdentityMaterial / QueueDrain /
+    FillShaderOnOwnTarget / FillLegGradient + ImageCheckerDigest）。
+  临时诊断已清理：user_shader_fill.go 的 P37A_DUMP_QUEUE 已 git restore 回 HEAD。

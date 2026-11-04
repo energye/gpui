@@ -29,10 +29,23 @@ import (
 //     [0,1] (Flutter FragmentProgram uv semantics); the return is a
 //     PREMULTIPLIED-alpha RGBA color (docs.flutter.dev fragment-shader
 //     contract: "output must be premultiplied alpha") — rgb must already be
-//     scaled by a. The engine un-premultiplies pass-1 back into the
-//     straight-alpha image composite chain, so a premul result composites
-//     exactly as written (L2-P1-4: feeding premul bytes straight into that
-//     chain squared the alpha — vec4(0.5,0,0,0.5) grayed to (126,127,127)).
+//     scaled by a. The composite chain is premul-native end to end (the image
+//     leg uploads level-0 bytes as-is and blends BlendStatePremultiplied; the
+//     context flush merges with the premul src-over composite), so a premul
+//     result composites exactly as written. (L2-P1-4 originally inserted an
+//     un-premultiply here; probe P3, 2026-11-05, proved that inverted the
+//     handoff — the straight bytes re-entered a premul interpretation and
+//     wrapped in the u8 layer composite. The un-premultiply is gone; the
+//     chain stays premul from the shader output to the destination.)
+//   - Batch 3a: fs_main's parameters are a declared PREFIX of
+//     (uv: vec2<f32>, tint: vec4<f32>, hom_w: f32) — each at
+//     @location(index), names free, zero parameters allowed. The quad
+//     (material) vertex stage feeds all three per-vertex; the fill pass-1
+//     stage feeds uv and literal defaults (tint = white, hom_w = 1) for the
+//     rest. A fragment that declares the tint input owns tint application
+//     (the engine multiplies only opacity × clip coverage after user code);
+//     without the declaration the engine keeps the historic
+//     texel * opacity * tint order (Godot COLOR-takeover semantics).
 //   - Optional bindings, both at @group(0): binding(0) a uniform block
 //     (≤256 bytes, 16-byte field alignment) fed by SetUniformBytes/
 //     SetFloatUniforms, and binding(1)+binding(2) one texture_2d<f32> +
@@ -54,6 +67,14 @@ type ShaderEffect struct {
 
 	usesImage bool // declared texture_2d at @group(0) binding(1) (immutable)
 	closed    bool
+
+	// P3.7 batch 3a: eager engine-template composition (D-3a-1 拍板 A). Both
+	// leg variants are composed and re-validated at NewShaderEffect time —
+	// any surgery drift or user/engine symbol collision is a named rejection
+	// before any backend sees the source.
+	fragParams   int    // declared fs_main input prefix length (0..3)
+	fillComposed string // fill pass-1 variant (uv-only vertex stage)
+	quadComposed string // quad material variant (36B vertex stage + engine groups)
 }
 
 // ShaderInterface reports the immutable bind requirements derived from the
@@ -101,7 +122,50 @@ func NewShaderEffect(wgsl string) (*ShaderEffect, error) {
 	if err := validateShaderContract(mod); err != nil {
 		return nil, err
 	}
-	return &ShaderEffect{wgsl: wgsl, usesImage: declaresImageBinding(mod)}, nil
+	params, err := fragmentParams(mod)
+	if err != nil {
+		return nil, err
+	}
+	fillComposed, err := composeAndValidate(wgsl, params, false)
+	if err != nil {
+		return nil, err
+	}
+	quadComposed, err := composeAndValidate(wgsl, params, true)
+	if err != nil {
+		return nil, err
+	}
+	return &ShaderEffect{
+		wgsl:         wgsl,
+		usesImage:    declaresImageBinding(mod),
+		fragParams:   params,
+		fillComposed: fillComposed,
+		quadComposed: quadComposed,
+	}, nil
+}
+
+// ComposedFillWGSL returns the engine-composed fragment module for the fill
+// pass-1 leg (P3.7 batch 3a). The raw WGSL() stays available for diagnostics;
+// GPU pipelines must build from the composed source so the engine output
+// section (opacity/clip/tint handling) is part of the module.
+func (e *ShaderEffect) ComposedFillWGSL() string {
+	if e == nil {
+		return ""
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.fillComposed
+}
+
+// ComposedQuadWGSL returns the engine-composed fragment+vertex module for the
+// quad material leg (P3.7 batch 3a): engine vertex stage, user function, and
+// the engine output section in one module.
+func (e *ShaderEffect) ComposedQuadWGSL() string {
+	if e == nil {
+		return ""
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.quadComposed
 }
 
 // Shader bind-slot contract (fixed by capability definition):
