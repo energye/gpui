@@ -387,6 +387,20 @@ func RegisterGPUFilterGraphFromView(fn func(srcView gpucontext.TextureView, w, h
 	gpuFilterGraphApplyFromView = fn
 }
 
+// UnregisterGPUFilterGraphs clears the pixel/texture/from-view GPU filter hooks.
+// The registering GPUShared calls it on Close (same discipline as the
+// Unregister{PurgeEvictable,GPUPoolStatsCollector,ShaderEffectEvictor} trio):
+// the hook closures capture that shared, and leaving them registered kept a
+// closed shared alive globally — the next filter op resurrected it, installed
+// a fresh device on it, and the published view then crossed devices at
+// readback (H20). After unregistering, GPUFilterGraphRegistered reports false
+// and filter ops fall back to CPU until a live shared re-registers.
+func UnregisterGPUFilterGraphs() {
+	gpuFilterGraphApply = nil
+	gpuFilterGraphApplyTexture = nil
+	gpuFilterGraphApplyFromView = nil
+}
+
 // GPUFilterGraphRegistered reports whether a GPU multi-RT filter graph is wired.
 // GPUFilterGraphRegistered reports whether a GPU multi-RT filter graph is wired.
 func GPUFilterGraphRegistered() bool {

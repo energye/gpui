@@ -216,6 +216,21 @@ type GPUShared struct {
 	// Per-context GPURenderSession must rebuild when gen changes.
 	deviceGen uint64
 
+	// closed latches once Close ran. A closed shared must never come back to
+	// life (H20): a stale closure or surviving RC calling ensureGPU on it used
+	// to install a brand-new device on the closed holder, and the handles that
+	// came out of it crossed devices at the next readback — wgpu treats a
+	// foreign-device texture id as a non-unwinding abort, not an error.
+	closed bool
+
+	// filterGraphHooksRegistered records that THIS shared registered the
+	// render-package filter graph hooks, so Close can unregister them — the
+	// same Close discipline as the Unregister{PurgeEvictable,
+	// GPUPoolStatsCollector,ShaderEffectEvictor} trio above. Leaving them
+	// registered kept the closed shared alive inside global closures, and the
+	// next filter op resurrected it (H20).
+	filterGraphHooksRegistered bool
+
 	// liveCtxs: per-window GPURenderContexts that hold session MSAA/depth textures.
 	// AbandonExternalDevice must Destroy these *before* Device.Release or VRAM
 	// stays pinned → CreateTexture OOM on the recovered device (minimize recover).
@@ -698,6 +713,16 @@ func (s *GPUShared) Close() {
 	render.UnregisterPurgeEvictable(s)
 	render.UnregisterGPUPoolStatsCollector(s)
 	render.UnregisterShaderEffectEvictor(s.poolLabel)
+	if s.filterGraphHooksRegistered {
+		// The render-package filter hooks capture THIS shared in their
+		// closures; leaving them registered resurrected the closed shared on
+		// the next filter op, which installed a fresh device on it and fed
+		// its views to the current shared's device at readback (H20). Same
+		// Close discipline as the three Unregister calls above.
+		render.UnregisterGPUFilterGraphs()
+		s.filterGraphHooksRegistered = false
+		gpuFilterGraphRegistered = false
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -706,6 +731,7 @@ func (s *GPUShared) Close() {
 	s.strategy = 0
 	s.softwareMode = false
 	s.externalDevice = false
+	s.closed = true
 }
 
 func (s *GPUShared) SampleCount() uint32 {
@@ -780,6 +806,12 @@ func resolveSampleCount(_ hal.Device) uint32 {
 // ensureGPU lazily initializes a standalone GPU device if no shared device
 // was provided. Must be called with s.mu held.
 func (s *GPUShared) ensureGPU() error {
+	// A closed shared stays closed (H20): resurrecting it here used to install
+	// a brand-new device on the closed holder whose handles then crossed
+	// devices at readback. Callers get an error and fall back to CPU.
+	if s.closed {
+		return fmt.Errorf("gpu-shared: closed")
+	}
 	// J5 campaign: a Released device reports IsLost — re-create instead of
 	// handing sessions a released device (the stale wrapper SIGSEGVs on the
 	// next CreateTexture).
@@ -986,6 +1018,10 @@ func (s *GPUShared) ensureTextEngine() {
 // probe/offscreen passes run before any window exists, borrow when present,
 // open policy-selected only when absent.
 func (s *GPUShared) initGPU() error {
+	// A closed shared stays closed (H20 — see ensureGPU).
+	if s.closed {
+		return fmt.Errorf("gpu-shared: closed")
+	}
 	// A live window already published the shared present device: borrow it
 	// (same device, N surfaces) instead of opening a second device.
 	if inst, adpt, dev, borrowable, _ := render.AcquireSharedPresentDevice(); borrowable && dev != nil {
@@ -1325,6 +1361,11 @@ func (s *GPUShared) MaskTextureView() (hal.TextureView, bool) {
 var gpuFilterGraphRegistered bool
 
 func (s *GPUShared) registerFilterGraphIfNeeded() {
+	// A closed shared stays closed (H20): it must not (re)register hooks that
+	// capture it.
+	if s.closed {
+		return
+	}
 	if gpuFilterGraphRegistered {
 		return
 	}
@@ -1362,6 +1403,7 @@ func (s *GPUShared) registerFilterGraphIfNeeded() {
 		return runGPUFilterGraphFromView(device, queue, cache, srcView, w, h, nodes)
 	})
 	gpuFilterGraphRegistered = true
+	s.filterGraphHooksRegistered = true
 }
 
 // PathGeomCache returns the shared path tessellation cache, creating if needed.
