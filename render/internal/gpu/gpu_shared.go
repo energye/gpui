@@ -120,6 +120,11 @@ type GPUShared struct {
 	// pipelines, N surfaces.
 	clipBindLayout hal.BindGroupLayout
 	maskBindLayout hal.BindGroupLayout
+	// sharedLayoutsDev is the device the two layouts above were created on.
+	// A nil-check alone cannot tell a live handle from a foreign device's:
+	// passing another device's bind group layout to CreatePipelineLayout is a
+	// non-unwinding abort inside wgpu-native (H19), not an error return.
+	sharedLayoutsDev hal.Device
 
 	// Text/glyph atlas engines (append-only, shared across contexts).
 	textEngine       *GPUTextEngine    // MSDF atlas (Tier 4)
@@ -668,6 +673,25 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 	s.deviceReady = false
 }
 
+// installDeviceGuardLocked runs the rebind half of the device funnel: when the
+// incoming device is not the one already bound, everything the old device owns
+// has to be torn down before the caller installs the new one. Caller holds s.mu.
+//
+// SetDeviceProvider always abandoned; the standalone paths (ensureGPU → initGPU)
+// used to assign a new device with no abandon at all, so cached device-owned
+// handles — shared clip/mask bind group layouts first — survived the swap and
+// were fed to the new device. wgpu-native treats that as a non-unwinding abort,
+// not an error return (H19). Identity decides because abandoning on an identical
+// rebind would throw away caches that are still valid for this device.
+func (s *GPUShared) installDeviceGuardLocked(dev hal.Device) {
+	if s.device == nil || dev == nil || s.device == dev {
+		return
+	}
+	// abandonDeviceOwnedLocked releases the old device only when this shared
+	// holder opened it (externalDevice), so borrowed window devices stay alive.
+	s.abandonDeviceOwnedLocked(true /* releaseOwnedDevice */)
+}
+
 // Close releases all shared GPU resources. After this call, GPU rendering
 // is no longer possible. Idempotent.
 func (s *GPUShared) Close() {
@@ -764,8 +788,11 @@ func (s *GPUShared) ensureGPU() error {
 		return nil
 	}
 	if s.device != nil {
-		// Drop the released device's borrowed state before re-creating.
-		s.device = nil
+		// The bound device is lost (its owner released it): tear down everything
+		// it owns before re-creating. Dropping only the Go reference left the
+		// shared clip/mask layouts and the device-owned caches pointing at the
+		// dead device, which the next install then reused (H19's abort path).
+		s.abandonDeviceOwnedLocked(false /* already released by its owner */)
 	}
 	if err := s.initGPU(); err != nil {
 		return err
@@ -774,12 +801,20 @@ func (s *GPUShared) ensureGPU() error {
 	return nil
 }
 
-// ensureSharedLayoutsLocked creates the shared clip/mask layouts once.
-// Must be called with s.mu held and a live device; sessions borrow the
-// handles and never destroy them.
+// ensureSharedLayoutsLocked creates the shared clip/mask layouts for the device
+// currently bound. Must be called with s.mu held and a live device; sessions
+// borrow the handles and never destroy them.
 func (s *GPUShared) ensureSharedLayoutsLocked() error {
 	if s.device == nil {
 		return fmt.Errorf("gpu-shared: no device for shared layouts")
+	}
+	if s.sharedLayoutsDev != s.device {
+		// The device changed under us (install, loss-recreate, provider swap):
+		// the cached pair belongs to the previous one. Recreating beats
+		// handing those handles to this device's CreatePipelineLayout, which
+		// aborts inside wgpu-native rather than returning an error (H19).
+		// Sessions rebuild on the deviceGen bump that accompanies every install.
+		s.destroySharedLayoutsLocked()
 	}
 	if s.clipBindLayout == nil {
 		layout, err := createClipBindGroupLayout(s.device, "shared_clip_bind_layout")
@@ -795,7 +830,22 @@ func (s *GPUShared) ensureSharedLayoutsLocked() error {
 		}
 		s.maskBindLayout = layout
 	}
+	s.sharedLayoutsDev = s.device
 	return nil
+}
+
+// destroySharedLayoutsLocked releases the shared clip/mask layouts, if any.
+// Caller holds s.mu. Single release outlet for the pair.
+func (s *GPUShared) destroySharedLayoutsLocked() {
+	if s.maskBindLayout != nil {
+		s.maskBindLayout.Destroy()
+		s.maskBindLayout = nil
+	}
+	if s.clipBindLayout != nil {
+		s.clipBindLayout.Destroy()
+		s.clipBindLayout = nil
+	}
+	s.sharedLayoutsDev = nil
 }
 
 // surfaceCacheLocked returns the device-level surface trio cache, creating the
@@ -939,6 +989,7 @@ func (s *GPUShared) initGPU() error {
 	// A live window already published the shared present device: borrow it
 	// (same device, N surfaces) instead of opening a second device.
 	if inst, adpt, dev, borrowable, _ := render.AcquireSharedPresentDevice(); borrowable && dev != nil {
+		s.installDeviceGuardLocked(dev)
 		s.instance = inst
 		s.adapter = adpt
 		s.device = dev
@@ -966,6 +1017,10 @@ func (s *GPUShared) initGPU() error {
 	if err != nil {
 		return err
 	}
+	// Same funnel as SetDeviceProvider: when this is not the device we already
+	// hold, everything the old one owned (pipelines, shared layouts, surface
+	// trio, mask/dual-tex/filter caches) has to go before the new one is bound.
+	s.installDeviceGuardLocked(sd.Device)
 	s.instance = sd.Instance
 	s.adapter = sd.Adapter
 
@@ -979,6 +1034,9 @@ func (s *GPUShared) initGPU() error {
 
 	s.device = sd.Device
 	s.queue = sd.Device.Queue()
+	// This one we opened ourselves: borrow-after-window bookkeeping from a
+	// previous install must not mark it external, or nothing releases it.
+	s.externalDevice = false
 	s.deviceGen++
 
 	// Probe MSAA support.
@@ -1046,14 +1104,7 @@ func (s *GPUShared) destroyPipelinesLocked() {
 	}
 	// Shared layouts die with the pipelines that embed them. Sessions that
 	// borrowed the handles re-borrow the recreated ones on the next flush.
-	if s.maskBindLayout != nil {
-		s.maskBindLayout.Destroy()
-		s.maskBindLayout = nil
-	}
-	if s.clipBindLayout != nil {
-		s.clipBindLayout.Destroy()
-		s.clipBindLayout = nil
-	}
+	s.destroySharedLayoutsLocked()
 }
 
 // LockSubmit acquires the present-submit serialization lock (leaf lock:
