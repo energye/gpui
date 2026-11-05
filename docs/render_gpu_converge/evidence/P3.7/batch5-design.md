@@ -44,9 +44,10 @@ render 的 CPU 模糊公开口只有绑画布的 `Context.ApplyBlur/ApplyBlurXY`
 | (b) engine/fx 自带高斯核 | 引擎内再写一份核 | **第二套实现**，AGENTS 明禁 |
 | (c) CPU 泛光整链交给 render | `fx.Bloom` 不再自己算像素，只做参数与组装；CPU 回退走 render 滤镜链 | 最"合一"，但动 fx 包能力面与 Grade 链，范围显著大于批 5 |
 
-⇒ **已拍 (a)**（2026-11-05 用户拍板）：render 新增公开 `GaussianKernel(sigma)` 转发 `CachedGaussianKernel`，
+⇒ ~~**已拍 (a)**（2026-11-05 用户拍板）：render 新增公开 `GaussianKernel(sigma)` 转发 `CachedGaussianKernel`，
 engine/fx 用它替换 `boxBlur`，同一处实现、引擎只写薄对接；(c)（CPU 泛光整链交回 render）另案——
 「fx 的 CPU 后处理与 render 的 CPU 滤镜链是否双实现」单列为架构观察项（M 族），本批不处理，登记不隐。
+**（本小节已被同日拍板 A 取代，见 §7——引擎不再自己算像素，公开 `GaussianKernel` 因此不必新增。）**
 
 ## 4 恒等与边界语义（必须可钉）
 
@@ -72,5 +73,40 @@ engine/fx 用它替换 `boxBlur`，同一处实现、引擎只写薄对接；(c)
   （kind/参数/CPU 回退分派）、`render/filter_ops_cpu.go`（CPU 链语义对齐）、CPU 核公开口所在文件。
 - 引擎层：`engine/fx/bloom.go`（换核 + 参数换型 + 校验委托）、`engine/fx/lut.go`（Grade 组装）、
   调用 `fx.Bloom`/`NewBloom` 的示例与测试同笔切换（实测 `fx.Bloom` 在 `engine/fx/` 外零消费者，改动半径小）。
-- 不动：`render/hdr`（真 float 属 M5 专项）、呈现链、`engine/` 其它包。
+- ~~不动：`render/hdr`（真 float 属 M5 专项）~~ → **拍板 A 后本批动的正是 `render/hdr`（CPU 半边）**；不动的仍是呈现链、`engine/` 其它包，以及 `hdr` 的 **GPU 半边**（`TextureView()` 恒 nil，真 float 的 GPU 后处理属 M5）。
 - 文档：目录（新公开面 + LDR 声明一处）、台账 §2.1/§7、在册 M5 行保持 ⬜ 不动。
+
+## 7. 同日拍板修订（2026-11-05，步骤 1 落地前）：泛光核落 `render/hdr` 的 float 域，fx 薄转调
+
+**先如实收回一句本文件写前的前提。** 我先前判断「薄转调会把 fx 的 float64 精度打到 8-bit premul `Pixmap`」，
+那建立在「渲染层的 CPU 后处理只能吃 Pixmap」这一条上。实测不成立：`render/hdr/float_target.go:39-44` 早就有
+CPU 线性 float 目标（每 texel 4×float32，注释明写「values above 1.0 are legal light, not clamped storage」），
+出口 `Encode(exposure)` 是 Reinhard x/(1+x) + sRGB（`:129-151`）。所以「一份算法」和「不掉精度」可以同时拿到。
+
+用户据此在 A（fx 薄转调，中间态走 `FloatTarget`）/ B（并存挂 M5）/ A 但先不动 fx 三选一里**拍 A**。
+
+### 7.1 落点（比 §3(a) 更收敛：公开面不增反减）
+
+| 件 | 位置 | 为什么在这 |
+|---|---|---|
+| 泛光算法本体 `BloomFloat` | `render/internal/filter/bloom_float.go`（internal，不对外） | CPU 滤镜算法的家就在这里（`blur.go`/`shadow.go` 同包同风格）；步骤 2 的 8-bit 图节点要复用它，而 `render` 主包引不到 `internal/filter`（后者 import 前者），既有解法是 `RegisterFilterOps` 注入缝由 `render/filters` 注册——放这里两条腿都够得着 |
+| float 域公开门 `FloatTarget.Bloom` + `BloomParams`/`Validate`/`IsIdentity` + `MaxBloomSigma`/`MaxBloomIntensity` | `render/hdr/bloom.go` | 线性 float 像素的家；`render/hdr → render/internal/filter → render` 无环（`render` 永不 import `hdr`，这一点步骤 2 也不能破） |
+| 引擎侧 | `engine/fx/bloom.go` 只剩参数、校验、LDR 出口钳 | 引擎不再自己算像素；`boxBlur`/`brightMask`/`luminance` 整块删除，Rec.709 权重从此只有一处（渲染层核内） |
+
+因此 **§3(a) 里那枚公开 `render.GaussianKernel(sigma)` 不必新增**：公开面比原方案少一枚，
+`hdr` 直接同树引 internal 的 `CachedGaussianKernel`（Go 的 internal 规则允许 `render/hdr` 引 `render/internal/...`）。
+
+### 7.2 两条实测出来的口径（都写进了钉）
+
+- **加法不回钳**：核本身不钳，>1 的光留到 `Encode` 的 Reinhard 收；fx 在自己那一层出口钳 [0,1]（那是 fx 的 LDR 契约，
+  不是算法的性质）。两件事分开，步骤 2 的 GPU LDR 腿才有对照物：GPU 只能在合成时钳，那正是「RGBA8≈LDR」的由来。
+- **alpha 不进核**：fx 把 alpha 原样带回，不过 float32 往返。实测负向 FX4 给的就是那枚数字
+  （0.3 → 0.30000001192092896），薄转调若顺手把 alpha 也塞进缓冲，逐位契约当场破。
+
+### 7.3 步骤 1 实测半径（改动面）
+
+新增 4 文件（`render/internal/filter/bloom_float.go`、`render/hdr/bloom.go`+`bloom_test.go`、`engine/fx/p37_5_bloom_test.go`），
+改 5 文件（`engine/fx/bloom.go`、`engine/fx/bloom_lut_test.go`、`engine/fx/testdata/bloom_lut_cases.json`、
+`examples/engine/fx/main.go`、`examples/engine/fx/README.md`）。fx 外部 `NewBloom` 调用点实测 1 处。
+金图 JSON 的 `want` 按新算法再生，但**不是自证**：同一用例我用独立算式（含 float32 逐步舍入）复算到逐位一致，
+见 `batch5-cpu-slice/golden-recheck.txt`。

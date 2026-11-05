@@ -11,7 +11,7 @@
 | P3.4 GPU 滤镜图 `filter_gpu_graph.go:64-67,842` | 文件真身在 **`render/internal/gpu/filter_gpu_graph.go`**（不在 `render/` 根）；13 个 `ImageFilterKind`（`render/filter_ops_gpu.go:432-460`）：Blur/BlurXY/DropShadow/ColorMatrix/Grayscale/Invert/Erode/Dilate/Offset/AlphaThreshold/Lighting/Tile/Displacement | 路径与行号需按真身重定；**无 bloom/亮部提取类 kind** |
 | 「blur/merge/aux_tex 双输入」 | 高斯是**可分离**且与 CPU 逐核对齐（`filter_gpu_graph.go:238-252`：`half=ceil(3σ)`，与 `CachedGaussianKernel` 同式）；`aux_tex`（binding 3）确有双输入，但那段是 **drop shadow 的「content over shadow」**（`:188-190`），**不是加法合成** | 「merge」≠ 泛光要的 additive；亮部叠加要新 pass 或新 blend |
 | 「降采样模糊」 | **无任何降采样/多级 pass**（图里没有 downsample/mip 级链，模糊只有全分辨率单遍可分离高斯） | 泛光的「降采样」要么真造多级 pass，要么改用大 σ 全分辨率近似 ⇒ **待拍板** |
-| `render/hdr` 的 Reinhard 曲线（CPU，零 importer） | `render/hdr/float_target.go` 只有 `FloatTarget`（CPU `[]float32`、`TextureView()`/`Pixels()` 返回 nil），**全仓无 Reinhard/Tonemap 曲线函数** | **design 引用不存在**；调子映射的真身在 `engine/fx/lut.go`（四档 tonemap + `ApplyTonemap(exposure)`），属引擎层 |
+| `render/hdr` 的 Reinhard 曲线（CPU，零 importer） | `render/hdr/float_target.go` 只有 `FloatTarget`（CPU `[]float32`、`TextureView()`/`Pixels()` 返回 nil），**全仓无 Reinhard/Tonemap 曲线函数**（此句已作废，见文末勘误 C1：导出面确实没有，包内有未导出的 `reinhard()` 且 `Encode` 在用它） | **design 引用不存在**；调子映射的真身在 `engine/fx/lut.go`（四档 tonemap + `ApplyTonemap(exposure)`），属引擎层 |
 | `engine/fx.Bloom{Threshold,Radius,Intensity}`（`bloom.go:175-179`） | 真身在 `engine/fx/bloom.go:184`（`NewBloom`）+ `Validate`（`:195`）+ `IsIdentity`（`:211`）+ `Apply`（`:216`）；语义实测为：`brightMask(luminance, threshold)` **软斜坡**（`lum<=thr→0`，向上线性升到 1，`threshold==1` 处处为 0）→ `boxBlur`（**盒式，非高斯**）→ `原色 + 模糊×intensity` 三通道各自 `clamp01` | 存在且**零消费者**（`fx.Bloom`/`Bloom(` 在 `engine/fx/` 外零命中；仅被 `NewGrade` 参数用） |
 
 ## 2 缺口清单（本批要造的东西）
@@ -47,3 +47,15 @@
 - 不动：`render/hdr`（M5 专项）、呈现链（无 float 输出）。
 - 风险：新 pass 数量上升影响帧耗时（泛光是 2~3 遍全屏/半屏）⇒ 需按性能红线在批 6 窗上量；本批先加计数与探针不做门。
 - 回归面：`render`、`engine/fx`、`engine/renderconv` 三包逐文件 + conformance + race。
+
+## 勘误（2026-11-05 步骤 1 落地时实测，原文保留不删）
+
+- **C1 本文件第 14 行「`render/hdr` 全仓无 Reinhard/Tonemap 曲线函数」写错了。** 实情：`render/hdr/float_target.go:153`
+  就有未导出的 `reinhard(x) = x/(1+x)`，注释还明写「same math as fx Reinhard」，`:129` 的 `Encode(exposure)` 正在用它
+  （Reinhard → sRGB → 8-bit）。要收回的只有「**导出面**没有调子映射口」这一半。这条错判的直接后果是我先拍错了方向：
+  因为它，我把「泛光核只能落 8-bit `Pixmap`」当成前提，进而判断「fx 薄转调必然把 float64 链打到 1/255」；
+  步骤 1 动手前实测到 `FloatTarget` 本身就是 CPU 线性 float32、>1 合法（`:39-44`），前提塌了，
+  拍板随即从「(a) 提升核为公开口 + 并存」改为 **A：核落 `render/hdr` float 域、fx 薄转调**（`batch5-design.md` §7）。
+- **C2 「`fx.Bloom` 在 `engine/fx/` 外零消费者」按字面也不准。** 实测：`examples/engine/fx/main.go:175` 就在调
+  `fx.NewBloom`（真窗示例），`ui/kit` 与 2.5D 模块库确实零调用。准确说法是**生产零消费者、示例一处在调**——
+  这条差别在本次动手时直接影响改动面（示例调用点与 README 必须同笔切 `Radius`→`Sigma`）。

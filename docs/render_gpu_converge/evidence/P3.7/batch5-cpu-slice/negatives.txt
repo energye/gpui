@@ -1,0 +1,75 @@
+P3.7 批 5 · 步骤 1（CPU 竖条）负向与钉缺陷记录（2026-11-05）
+================================================================
+
+跑法：单点变异 → `go test ./render/hdr`（或 `./engine/fx -run 对应枚`）→ 立刻还原并逐字节比对。
+每枚都要求「行为红」而不是「编译红」；编译不过的变异形态一律重做（见文末缺陷 D3）。
+
+一、渲染层核（`render/internal/filter/bloom_float.go` + `render/hdr/bloom.go`）
+--------------------------------------------------------------------------
+N1 摘亮部掩膜（`glow[j] = r * float32(m)` → `glow[j] = r`）
+   rc=1 红 3：TestBloomThresholdOneEmitsNoGlow / TestBloomBrightMaskRampValue /
+            TestBloomUniformFieldStaysUniform
+N2 摘加法合成（`dst[j] = src[j] + glow[j]*gain` → `dst[j] = src[j]`）
+   rc=1 红 5：RampValue / UniformField / ProfileIsGaussianNotBox /
+            SeparableOuterProduct / KeepsSuperUnityLight
+N3 摘共享高斯核（`CachedGaussianKernel(sigma)` → 同长度等权盒）
+   rc=1 红 2：ProfileIsGaussianNotBox / SeparableOuterProduct
+N4 摘边缘夹取（`clampInt(x+k-half,0,w-1)` → 越界抽头 continue 即补零）
+   rc=1 红 3：RampValue / UniformField / KeepsSuperUnityLight
+   —— 均匀场边界变暗正是补零边缘的形态，这枚是唯一直接量到边缘语义的钉。
+N5 摘 float 余量（加法结果提前 clamp01：`dst[j] = src[j] + glow[j]*gain` → 外面裹 `clampFloat01`）
+   rc=1 红 5：RampValue / UniformField / ProfileIsGaussianNotBox /
+            SeparableOuterProduct / KeepsSuperUnityLight
+N6 摘参数具名校验（`hdr.BloomParams.Validate` 的 threshold 分支短路成 false）
+   rc=1 红 1：TestBloomParamsNamedErrors
+
+二、引擎薄转调（`engine/fx/bloom.go`；核那侧另标）
+--------------------------------------------------------------------------
+FX1 换回盒核（同 N3，从引擎入口侧再测一遍）
+   rc=1 红 1：TestP375BloomProfileIsGaussianDecay
+   —— 与 N3 是同一变异、两层各测，跨层重复 1 枚。
+FX2 引擎自立更宽的域（`MaxBloomSigma = hdr.MaxBloomSigma` → `= 32`）
+   rc=1 红 1：TestP375BloomDomainDelegatesToRenderLayer
+   —— 域委托反了（引擎允许 σ=32，渲染层只到 16）当场可测。
+FX3 摘恒等早退（删 `if b.IsIdentity()` 分支）
+   rc=1 红 1：TestP375BloomIdentityIsBitwise
+FX4 alpha 跟着过 float32（出口 alpha 由 `c.A` 改读 `float64(lit[j+3])`）
+   rc=1 红 1：TestP375BloomSoftKneeAndLDRExitClamp
+      alpha=0.30000001192092896，want 逐位不变的 0.3
+   —— 这枚数字就是「薄转调不掉精度」的边界条件：颜色过 float32 可接受（1e-7），
+      alpha 顺带过去就把 fx 的逐位契约破了，所以实现里 alpha 明确不进核。
+FX5 摘尺寸具名拒绝（删单边超 `hdr.MaxFloatDimension` 的守卫）
+   rc=1 红 1：TestP375BloomRefusesOverCapImage（实得 OutOfMemory 形态而非 InvalidArg "float target"）
+FX6 摘 σ 校验（删 `Validate` 的 sigma 分支）
+   rc=1 红 1：TestP375BloomDomainDelegatesToRenderLayer
+
+合计 12 枚变异（跨层重复 1 枚 → 独立变异 11 枚），全部 rc=1、全部还原后逐字节一致。
+
+三、本步自己踩到的钉缺陷（如实记，不当引擎洞）
+--------------------------------------------------------------------------
+D1 钉 7（剖面=核抽头）首版把期望写成 `k[half+x-4]`，9 宽行在心距边不足半核时
+   索引越界 panic → 是测试的索引算术错，不是实现的错。改成 15 宽（亮心离两边
+   都隔一个核半径）并按「窗口外必是 0」写期望。
+D2 钉 9（>1 不回钳）首版把 `Encode` 的对照基线当成 255，实测 188 —— Reinhard 是
+   x/(1+x)，有限光永远到不了纯白。判据换成与「钳到 1.0 的孪生图」比单调性
+   （4.0 的光必须严格亮于 1.0 的光，且两者都 <255），不再依赖魔法数。
+D3 FX4 首版只把出口 alpha 表达式改掉，`for i, c := range` 的 `c` 变成未用 →
+   编译不通过，拿到的是编译红不是行为红。重做为「循环头 + alpha 表达式」两处
+   一起改，才量到 0.30000001192092896。
+D4 步骤 1 的 `MaxBloomSigma/MaxBloomIntensity` 上限值（16/8）是我按 CPU 抽头代价
+   定的（σ=16 ⇒ 每向 49 抽头），仓内无同类先例可抄；引擎旧 `MaxBloomRadius=16`
+   的量级保持可比，故 σ 上限取同一数字、亮度上限留 8 让引擎能夹得更严。此数若
+   后续被性能门推翻，改的是这枚常量而不是算法。
+
+四、实现复核后的两处自查改动与重跑（同日）
+--------------------------------------------------------------------------
+G1 **摘掉 `BloomFloat` 里 `intensity == 0` 的冗余早退**。恒等只该有一个主人：
+   `hdr.FloatTarget.Bloom` 的 `IsIdentity()` 分支。核里那条 `copy(dst, src)` 与
+   「加法项乘 0」的结果逐位等价，属重复防护，删。
+   删完复跑 FX3（摘 fx 出口自己的恒等早退）仍红，且红得很实在：
+   `恒等帧改了像素：[{0.30000001192092896 0.699999988079071 0.10000000149011612 0.25} …] vs [{0.3 0.7 0.1 0.25} …]`
+   ——说明 fx 那一层早退是**承重件**（它保的是「颜色不过 float32 往返」这条逐位契约），不是装饰。
+G2 **核的两块暂存改用包内 `getTempBuffer`/`putTempBuffer` 池**，与 `BlurFilter` 同规格
+   （stride 4 的 float32 缓冲），泛光在按帧淡入的玩法里是每帧都跑的，白 Alloc 两块全屏缓冲说不过去。
+   改完 12 枚负向全部重跑，红集与首跑逐条一致：N1=3、N2=5、N3=2、N4=3、N5=5、N6=1、
+   FX1=1、FX2=1、FX3=1、FX4=1、FX5=1、FX6=1；`-race` 三包复跑 ok（1.26s / 1.39s / 33.8s）。
