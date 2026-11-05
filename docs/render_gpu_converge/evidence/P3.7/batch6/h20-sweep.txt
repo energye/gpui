@@ -1,0 +1,51 @@
+H20 修复 · 触及包逐文件 sweep 与在册基线比对（2026-11-06）
+============================================================
+
+一、跑法（AGENTS「回归按测试文件逐个跑，禁止一次全量」）
+--------------------------------------------------------
+    export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so LD_LIBRARY_PATH=$PWD/lib DISPLAY=:0
+    printf 'render/internal/gpu\nrender\n' > /tmp/h20.pkgs
+    tools/per-file-tests.sh /tmp/h20.pkgs tmp/per-file-h20
+
+- 脚本正本 = P2.5 `tools/per-file-tests.sh`，清单 = H20 触及的两包（render/internal/gpu、render）。
+- **WGPU_NATIVE_PATH 已设**（tmp/h20-sweep-gates.log 里有记录）——native 用例没有被静默 skip。
+- 日志在 tmp/per-file-h20/，总控 tmp/h20-sweep-gates.log 以 SWEEP_RC 收尾；
+  summary.tsv 落盘后 uniq 计数（先落文件再取数）。
+- 覆盖 396 个 *_test.go 文件 = H19 轮的 394 枚 + 本修新增两枚钉
+  （render/internal/gpu/h20_filter_hooks_test.go、render/p37_6_h20_test.go，均实测 PASS）。
+
+二、总数与结论
+--------------
+      6  FAIL
+    376  PASS
+     14  SKIP_TAGGED
+
+FAIL_TOTAL=6，对照在册基线 docs/render_gpu_converge/baseline/tests/failures.tsv：
+**只减不增、零新增红**。六枚红与 H19 轮 sweep 的六枚逐名相同（全在册），
+触及两包在册红仍是 28→6（H19 修转绿的 22 枚维持绿），SKIP_TAGGED 14 枚与
+H19 轮同名单（脚本口径：helper/bench 无顶层 Test/Benchmark 大写函数，
+见 h19-sweep.txt §五的抽查记录，WGPU_NATIVE_PATH 已设非假绿）。
+
+三、FAIL 六枚逐条与在册比对
+---------------------------
+| 文件（均在 render 包）            | 本次实测顶层红用例                                   | 数 | 在册注记          | 一致 |
+|----------------------------------|------------------------------------------------------|----|-------------------|------|
+| context_misc_draw_gpu_test.go    | TestMiscDrawGPUPath                                  | 1  | 1 failing test(s) | ✓    |
+| filter_present_coherence_test.go | TestPresentDamage_ImageMatchesView                   | 1  | 1 failing test(s) | ✓    |
+| rasterizer_tile_value_test.go    | TestRasterizerValueMatchesAnalytic                   | 1  | 1 failing test(s) | ✓    |
+| s6_9_heavy_budget_test.go        | TestS69_HeavyBudget_TierGates、TestS69_Contract_FromJSON | 2 | 2 failing test(s) | ✓  |
+| text_transform_gpu_test.go       | TestTextTransformAutoRoutesOutlines                  | 1  | 1 failing test(s) | ✓    |
+| video_direct_upload_test.go      | TestVideoDrawFrameMarksDamage、TestVideoBridgeFallbackConverged、TestVideoBridgePlanesFallback | 3 | 3 failing test(s) | ✓ |
+
+四、新钉文件
+------------
+render/internal/gpu/h20_filter_hooks_test.go：PASS（钩子随 shared 生死 + closed 不复活两枚钉）
+render/p37_6_h20_test.go：PASS（T2+P04 子进程复现钉）
+
+五、与整包口径的关系（两种口径各答各的账）
+------------------------------------------
+逐文件 sweep（门禁正口径）：零新增红，六枚红逐名同在册。
+整包 `go test ./render`（首次跑到底，见 h20-fix.md §六）：18 红 = 9 在册 + 1 存量
+顺序耦合（HEAD worktree 同组隔离 A/B 实证早于本修）+ 8 隔离绿顺序耦合（HEAD 整包
+跑不到该区段无对照，如实登记不当回归不当收益）。整包口径基线此前不存在——这是
+H20 修完才第一次拿得到的口径，建账留待后续；逐文件口径的「只减不增」不受影响。
