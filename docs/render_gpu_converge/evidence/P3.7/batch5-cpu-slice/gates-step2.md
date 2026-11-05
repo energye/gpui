@@ -25,7 +25,7 @@
 | `gofmt -l`（触及目录） | 净 |
 | **64 包全量逐文件 sweep**（`tools/per-file-tests.sh` 默认名单，带 `WGPU_NATIVE_PATH`） | **895 PASS / 12 FAIL / 24 SKIP_TAGGED / 1 NO_TESTS**；12 枚红逐一对上 `baseline/tests/failures.tsv` 在册名单（脚本核对：不在册的 = 空）⇒ **零新增红**；同轮 `video/playback_parallel_test.go` 转绿（在册抖动源，不计收益） |
 | 触及两包逐文件复跑（新增测试文件之后） | 370 PASS / 6 FAIL / 14 SKIP_TAGGED；其中 5 枚为在册红，第 6 枚见下「抖动复核」 |
-| `CGO_ENABLED=1 go test -race ./render`（整包，含 GL provider 切换那枚钉） | rc=0 |
+| `CGO_ENABLED=1 go test -race ./render`（整包，含 GL provider 切换那枚钉） | ~~rc=0~~ **2026-11-05 回收：这条是假绿**。当时命令按 `cmd \| tail -5; echo RC=$?` 取状态位，拿到的是 `tail` 的 0。同一命令在批 6 ① 复跑：跑到 `TestP37ProjectionCounters` 被 wgpu-native `invalid bind group layout` 非展开 panic **硬中止**（rc=1，`DATA RACE` 命中 0 次），且把批 6 全部改动移开、两个 session 文件回退 HEAD 后同点同因复现 ⇒ 存量洞 **H19**（登记见 `doc-audit-20261105.md` ⑦ 与 `batch6/window-1-gates.md`），非批 5 引入。本批其余各行不受影响：逐文件与逐窗都是进程隔离，恰好绕开该点。 |
 | `-race ./render/hdr ./render/internal/filter ./engine/fx`（步骤 1 已跑，本轮改动后复跑） | ok |
 | conformance 双后端 `TestConformanceDualBackend` | rc=0（输出到 `tmp/conformance-b5s2`，未覆盖基线目录） |
 | **五目标交叉构建 {默认,nogpu}** | **10/10 rc=0**（linux/amd64、linux/arm64、windows/amd64、darwin/amd64、darwin/arm64）；新增测试文件之后再复核 linux/windows/darwin 三目标 default 段仍 rc=0 |

@@ -59,3 +59,49 @@
 
 ①③② 三扇不依赖未开工批次，可先行；④ 依赖批 4、⑤ 依赖批 5（且 ⑤ 依赖 M6 先修）。
 H8 已随本轮扩容解决（engine/video 进门禁）；剩余待拍板：**性能门重定标**要不要排在批 6 之前。
+
+---
+
+## 5 交付进展与一处归属修正（2026-11-05）
+
+**① 透视批绘窗已交付**：`examples/engine/p37_persp_batch`（14 枚逻辑探针 + 语义像素 + 双后端
+`_native`/`_go` 金图逐位 0.0000%，H15/H16 各有实测正反面），证据
+`batch6/window-1-persp-batch.md`。§2 反查表里 739/740/741/742 四行（批 1a/1b/1c/1d）
+因此从 ☑ 改回 ✅。为拿窗内证据另加一枚渲染层观测口 `Context.ImageBatchStats`（见目录 §3.17），
+因为 H12 要的「N 张一段 → 1 次 draw」在 `render/internal/gpu` 外读不到。
+
+**归属修正（不照 §2 原表执行）**：3e-1（scene 4×4 投影口）、3e-2（scene 四角+权重 quad 通道）、
+3e-3（scene item 级材质编码）三行原写「① 或 ③（scene 流）」——**engine 窗收不了它们**。
+批 3e-2 已把「`engine/`、`ui/` 对 `render/scene` 零引用」钉成结构约束（Godot 2D 命令面不带投影参数，
+2.5D 走的是引擎自己算好再喂），所以这三行只能由 scene 侧窗 `examples/ui_render_base_scene`
+（或另立 scene 真窗）收口。本批把它列为**第 ⑥ 扇**（scene 流收口窗），不硬塞进 ①/③。
+
+**第 ⑥ 扇范围**：`Scene.SetProjection/PushProjection/PopProjection` 出图、`Scene.DrawImageQuad`
+（梯形 + 权重）出图、`Scene.SetMaterial` item 级粘滞出图 + `MaterialSkips` 计数可见 +
+三条既有 3e 钉的窗内像素版；三证据与 fail-closed 金图同 §3。
+
+---
+
+## 6 ① 的门禁账与新排的队（2026-11-05）
+
+**① 已按 §3 六条硬要求跑齐**（逐条落点见 `batch6/window-1-persp-batch.md`，原始跑数见
+`batch6/window-1-runs.md`，门禁见 `batch6/window-1-gates.md`）：三证据合证且容差显式写死
+（合批≡拆开 `diff=0`、染色 6 档）、金图按后端分文件 `_native`/`_go` 且 fail-closed（缺基线红、
+播种不算过，h15 三轮实测留档）、双后端各一轮且两基线互比整窗零差、`examples/engine/` 归位、
+`-auto-only` 门禁相 + `-manual-seconds` 常驻人工相二合一、像素坐标从窗内同一份投影输出反推。
+逐文件回归触及 5 包 408 文件 = 387 PASS / 6 FAIL（6/6 在册零新增红）/ 15 SKIP_TAGGED；
+apidoc rc=0；build/vet rc=0（按「先落文件再取 `$?`」复测）。
+
+**队变了（用户拍板）**：批 6 ① 收尾时挖出 **H19**——整包 `go test ./render` 跑到
+`TestP37ProjectionCounters` 被 wgpu-native `invalid bind group layout` 非展开 panic 硬中止
+（带不带 `-race` 都一样、`DATA RACE` 零命中、单测隔离绿、移开本批改动作回退 HEAD 复现 ⇒ 存量洞，
+定位 `gpu_shared.go:863` → `sdf_render.go:326/373-379`）。它让「整包 `-race`」这道门在本仓不可用，
+而逐文件口径看不见它。**先修 H19（资源生命周期线，走完整修复流程：影响面评估 + 复现钉 +
+对齐 Skia/Flutter 共享句柄释放口径 + 停下报告节点），修完再开 ②**。
+
+**③ 材质窗的范围补一句**：§1 表里 3d 那臂（描边吃 shader + 七枚具名拒绝态 + `ErrShaderBackendCompile`
+gles 真触发）**代码侧早已交付**（`bfdd853d`，台账 750 行是 ☑），③ 窗只欠把它的画面断出来并跑 gles 腿，
+不是重新实现；目录 §13 那句「⬜ 未开工：3d 描边洞+哨兵」的陈旧措辞已随本批修正。
+
+**待跑（批 6 收尾统一补，口径按批 3 收尾登记）**：五目标交叉构建 {默认,nogpu} 10 段、
+64 包全量 sweep 对在册只减不增、conformance 双后端一轮，并回填 §7 与 H19 修复后的整包 `-race`。
