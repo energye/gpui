@@ -92,17 +92,17 @@ func mustAtlas(sp sprite.AtlasSprite, err error) sprite.AtlasSprite {
 func rotSprites(ox, oy float64) []sprite.AtlasSprite {
 	red := mustAtlas(sprite.NewAtlasSprite(spriteAtlasID,
 		core.NewRect(0, 0, 8, 8), core.NewRect(ox+8, oy+24, 48, 24),
-		1, math.Pi/2, core.V2(24, 12), core.Color{}, sprite.AtlasFilterNearest, false, false))
+		1, math.Pi/2, core.V2(24, 12), core.Color{}, render.InterpNearest, false, false))
 	feetDst := core.NewRect(ox+8, oy+68, 40, 32)
 	feet := mustAtlas(sprite.NewAtlasSprite(spriteAtlasID,
 		core.NewRect(0, 8, 8, 8), feetDst,
-		1, 0, sprite.FeetPivot(feetDst), core.Color{}, sprite.AtlasFilterNearest, false, false))
+		1, 0, sprite.FeetPivot(feetDst), core.Color{}, render.InterpNearest, false, false))
 	tint := mustAtlas(sprite.NewAtlasSprite(spriteAtlasID,
 		core.NewRect(8, 8, 8, 8), core.NewRect(ox+56, oy+68, 32, 32),
-		1, 0, core.V2(0, 0), core.RGBA(0.5, 0.5, 0.5, 1), sprite.AtlasFilterNearest, false, false))
+		1, 0, core.V2(0, 0), core.RGBA(0.5, 0.5, 0.5, 1), render.InterpNearest, false, false))
 	flip := mustAtlas(sprite.NewAtlasSprite(spriteAtlasID,
 		core.NewRect(0, 0, 16, 8), core.NewRect(ox+56, oy+24, 32, 16),
-		1, 0, core.V2(16, 8), core.Color{}, sprite.AtlasFilterNearest, true, false))
+		1, 0, core.V2(16, 8), core.Color{}, render.InterpNearest, true, false))
 	return []sprite.AtlasSprite{red, feet, tint, flip}
 }
 

@@ -454,7 +454,7 @@ func slashToAtlas(pool *particle.GPUPool, ox, oy float64) []sprite.AtlasSprite {
 			mx, my := (s.P0.X+s.P1.X)/2, (s.P0.Y+s.P1.Y)/2
 			dst := core.NewRect(ox+mx-(length+avgW)/2, oy+my-avgW/2, length+avgW, avgW)
 			as, err := sprite.NewAtlasSprite(trailImageID, trailSrc, dst, 1,
-				s.Angle, core.V2(dst.W/2, dst.H/2), avgC, sprite.AtlasFilterNearest, false, false)
+				s.Angle, core.V2(dst.W/2, dst.H/2), avgC, render.InterpNearest, false, false)
 			if err != nil {
 				continue
 			}
@@ -472,7 +472,7 @@ func slashToAtlas(pool *particle.GPUPool, ox, oy float64) []sprite.AtlasSprite {
 			}
 			dst := core.NewRect(ox+q.X-w/2, oy+q.Y-w/2, w, w)
 			as, err := sprite.NewAtlasSprite(trailImageID, trailSrc, dst, 1,
-				0, core.Vec2{}, c, sprite.AtlasFilterNearest, false, false)
+				0, core.Vec2{}, c, render.InterpNearest, false, false)
 			if err != nil {
 				continue
 			}

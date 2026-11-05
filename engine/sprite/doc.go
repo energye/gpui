@@ -36,16 +36,23 @@
 // existing render DrawAtlas (Src.X/Y/W/H, Dst.X/Y/W/H, EffectiveOpacity
 // field for field), render main path untouched.
 //
-// Frozen 2026-09-15: AtlasFilter
-// (AtlasFilterDefault/Nearest/Bilinear/Bicubic), ParseAtlasFilter,
-// AtlasSprite, NewAtlasSprite, Validate, Skippable, HasTint, PivotPoint,
-// FeetPivot, ToRender, AtlasToRender. Additive changes only. Rotation is
+// Frozen 2026-09-15, 采样枚举于 P3.7 批 4（2026-11-05）并入渲染层现成枚举：
+// AtlasSprite.Filter 改 render.InterpolationMode（零值 FilterUnset=未指定，由 render
+// 归一 Bilinear 老路；nearest/bilinear/bicubic 三档 1:1 保留），新增
+// AtlasSprite.Mipmap render.MipmapMode（零值 MipmapNone=单档历史路，逐位不变）；
+// 删 AtlasFilter 与其四常量（同一能力的重复副本），字符串词汇不裁剪——
+// ParseAtlasFilter→ParseFilter（default/nearest/bilinear/bicubic 照旧）、
+// 稳定小写名走 FilterName，档位另有 ParseMipmap/MipmapName（none/nearest/linear）。
+// NewAtlasSprite 的 filter 形参随之换型（接口全量切换制，不留垫片）。
+// 冻结面其余不变：AtlasSprite, NewAtlasSprite, Validate, Skippable, HasTint,
+// PivotPoint, FeetPivot, ToRender, AtlasToRender. Additive changes only. Rotation is
 // radians about the pivot;
 // FlipX/FlipY mirror about the pivot before Rot; Pivot is the offset from
 // the Dst origin in Dst units (zero is top-left, FeetPivot pins the feet);
 // Tint zero struct means no tint, else straight multiply incl alpha;
-// Filter zero means the historic bilinear road, per-sprite
-// nearest/bilinear/bicubic each on its own. Pure numbers plus one boundary
+// Filter zero means the historic bilinear road (render normalizes it),
+// per-sprite nearest/bilinear/bicubic each on its own; Mipmap zero stays on
+// the single-level road. Pure numbers plus one boundary
 // conversion; the caller draws the result with the existing render
 // DrawAtlasEx (field for field), render main path untouched. Window intent
 // Bad numbers are core InvalidArg and change nothing.

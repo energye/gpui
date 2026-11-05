@@ -110,9 +110,9 @@ func buildAtlasSprites(t *testing.T, defs []atlasSpriteDef) []AtlasSprite {
 	t.Helper()
 	out := make([]AtlasSprite, len(defs))
 	for i, d := range defs {
-		filt, err := ParseAtlasFilter(d.Filter)
+		filt, err := ParseFilter(d.Filter)
 		if err != nil {
-			t.Fatalf("sprite %q: ParseAtlasFilter %q: %v", d.Tag, d.Filter, err)
+			t.Fatalf("sprite %q: ParseFilter %q: %v", d.Tag, d.Filter, err)
 		}
 		s, err := NewAtlasSprite(core.AssetID(d.Image),
 			atlasRect(t, d.Src, d.Tag+"/src"), atlasRect(t, d.Dst, d.Tag+"/dst"),
@@ -245,7 +245,7 @@ func TestAtlasAnglesFiltersFromCases(t *testing.T) {
 			if s.Tint != core.RGBA(d.Tint[0], d.Tint[1], d.Tint[2], d.Tint[3]) {
 				t.Errorf("%s[%d]: tint = %v, want %v", name, i, s.Tint, d.Tint)
 			}
-			wantFilt, err := ParseAtlasFilter(d.Filter)
+			wantFilt, err := ParseFilter(d.Filter)
 			if err != nil {
 				t.Fatalf("%s[%d]: filter %q: %v", name, i, d.Filter, err)
 			}
@@ -282,10 +282,8 @@ func TestAtlasAnglesFiltersFromCases(t *testing.T) {
 			if rs.Tint != renderconv.ColorToRender(core.RGBA(d.Tint[0], d.Tint[1], d.Tint[2], d.Tint[3])) {
 				t.Errorf("%s[%d]: render tint = %v, want %v", name, i, rs.Tint, d.Tint)
 			}
-			wantMode, err := wantFilt.ToRender()
-			if err != nil {
-				t.Fatalf("%s[%d]: filter ToRender: %v", name, i, err)
-			}
+			// 枚举合一后没有「转换」这一步了：精灵带的就是渲染层那一枚。
+			wantMode := wantFilt
 			if rs.Filter != wantMode {
 				t.Errorf("%s[%d]: render filter = %v, want %v", name, i, rs.Filter, wantMode)
 			}
@@ -308,14 +306,20 @@ func TestAtlasAnglesFiltersFromCases(t *testing.T) {
 	// Filter names round-trip; unknown stays loud.
 	for _, tc := range []struct {
 		in   string
-		want AtlasFilter
-	}{{"", AtlasFilterDefault}, {"default", AtlasFilterDefault}, {"nearest", AtlasFilterNearest}, {"bilinear", AtlasFilterBilinear}, {"bicubic", AtlasFilterBicubic}} {
-		gotF, err := ParseAtlasFilter(tc.in)
+		want render.InterpolationMode
+	}{{"", FilterUnset}, {"default", FilterUnset}, {"nearest", render.InterpNearest}, {"bilinear", render.InterpBilinear}, {"bicubic", render.InterpBicubic}} {
+		gotF, err := ParseFilter(tc.in)
 		if err != nil || gotF != tc.want {
-			t.Errorf("ParseAtlasFilter(%q) = %v,%v, want %v,nil", tc.in, gotF, err, tc.want)
+			t.Errorf("ParseFilter(%q) = %v,%v, want %v,nil", tc.in, gotF, err, tc.want)
 		}
-		if gotF.String() != tc.in && !(tc.in == "" && gotF.String() == "default") {
-			t.Errorf("Filter %v String = %q, want %q", gotF, gotF.String(), tc.in)
+		// sprite 的小写稳定名（存档与金图对比用）随迁保留：走 FilterName，
+		// 不是渲染层枚举自己的大写 String()；"" 与 "default" 都归到 default。
+		want := tc.in
+		if want == "" {
+			want = "default"
+		}
+		if got := FilterName(gotF); got != want {
+			t.Errorf("FilterName(%v) = %q, want %q", gotF, got, want)
 		}
 	}
 }
@@ -331,7 +335,7 @@ func TestAtlasEdgesNoCrash(t *testing.T) {
 	}
 	// Zero-size sprites are valid but skippable, mirroring the R4 skip.
 	mk := func(src, dst core.Rect) AtlasSprite {
-		s, err := NewAtlasSprite("tex/atlas", src, dst, 1, 0, core.V2(0, 0), core.Color{}, AtlasFilterDefault, false, false)
+		s, err := NewAtlasSprite("tex/atlas", src, dst, 1, 0, core.V2(0, 0), core.Color{}, FilterUnset, false, false)
 		if err != nil {
 			t.Fatalf("NewAtlasSprite zero probe: %v", err)
 		}
@@ -354,34 +358,34 @@ func TestAtlasEdgesNoCrash(t *testing.T) {
 		t.Error("mirrored Dst Skippable = true, want false")
 	}
 	// Bad constructions store nothing and report invalid-arg.
-	badFilter := AtlasFilter(99)
+	badFilter := render.InterpolationMode(99)
 	bads := []func() error{
 		func() error {
-			_, err := NewAtlasSprite("", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, 0, core.V2(0, 0), core.Color{}, AtlasFilterDefault, false, false)
+			_, err := NewAtlasSprite("", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, 0, core.V2(0, 0), core.Color{}, FilterUnset, false, false)
 			return err
 		},
 		func() error {
-			_, err := NewAtlasSprite("tex/a", core.NewRect(math.NaN(), 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, 0, core.V2(0, 0), core.Color{}, AtlasFilterDefault, false, false)
+			_, err := NewAtlasSprite("tex/a", core.NewRect(math.NaN(), 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, 0, core.V2(0, 0), core.Color{}, FilterUnset, false, false)
 			return err
 		},
 		func() error {
-			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, math.Inf(1)), 1, 0, core.V2(0, 0), core.Color{}, AtlasFilterDefault, false, false)
+			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, math.Inf(1)), 1, 0, core.V2(0, 0), core.Color{}, FilterUnset, false, false)
 			return err
 		},
 		func() error {
-			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), math.NaN(), 0, core.V2(0, 0), core.Color{}, AtlasFilterDefault, false, false)
+			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), math.NaN(), 0, core.V2(0, 0), core.Color{}, FilterUnset, false, false)
 			return err
 		},
 		func() error {
-			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, math.Inf(1), core.V2(0, 0), core.Color{}, AtlasFilterDefault, false, false)
+			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, math.Inf(1), core.V2(0, 0), core.Color{}, FilterUnset, false, false)
 			return err
 		},
 		func() error {
-			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, 0, core.V2(math.NaN(), 0), core.Color{}, AtlasFilterDefault, false, false)
+			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, 0, core.V2(math.NaN(), 0), core.Color{}, FilterUnset, false, false)
 			return err
 		},
 		func() error {
-			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, 0, core.V2(0, 0), core.RGBA(math.NaN(), 0, 0, 1), AtlasFilterDefault, false, false)
+			_, err := NewAtlasSprite("tex/a", core.NewRect(0, 0, 8, 8), core.NewRect(0, 0, 8, 8), 1, 0, core.V2(0, 0), core.RGBA(math.NaN(), 0, 0, 1), FilterUnset, false, false)
 			return err
 		},
 		func() error {
@@ -394,11 +398,16 @@ func TestAtlasEdgesNoCrash(t *testing.T) {
 			t.Errorf("bad NewAtlasSprite[%d] code = %v, want invalid-arg", i, core.CodeOf(err))
 		}
 	}
-	if _, err := ParseAtlasFilter("sharp"); core.CodeOf(err) != core.CodeInvalidArg {
-		t.Errorf("ParseAtlasFilter sharp err = %v, want invalid-arg", err)
+	if _, err := ParseFilter("sharp"); core.CodeOf(err) != core.CodeInvalidArg {
+		t.Errorf("ParseFilter sharp err = %v, want invalid-arg", err)
 	}
-	if _, err := badFilter.ToRender(); core.CodeOf(err) != core.CodeInvalidArg {
+	if _, err := (AtlasSprite{Image: "tex/a", Src: core.NewRect(0, 0, 8, 8),
+		Dst: core.NewRect(0, 0, 8, 8), Opacity: 1, Filter: badFilter}).ToRender(); core.CodeOf(err) != core.CodeInvalidArg {
 		t.Errorf("bad filter ToRender err = %v, want invalid-arg", err)
+	}
+	if _, err := (AtlasSprite{Image: "tex/a", Src: core.NewRect(0, 0, 8, 8),
+		Dst: core.NewRect(0, 0, 8, 8), Opacity: 1, Mipmap: render.MipmapMode(7)}).ToRender(); core.CodeOf(err) != core.CodeInvalidArg {
+		t.Errorf("bad mipmap ToRender err = %v, want invalid-arg", err)
 	}
 	// Struct-literal bad paths fail closed at Validate/ToRender.
 	literal := AtlasSprite{Image: "tex/a", Src: core.NewRect(0, 0, 8, 8), Dst: core.NewRect(0, 0, 8, 8), Opacity: 1, Filter: badFilter}

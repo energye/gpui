@@ -18,74 +18,97 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// AtlasFilter selects per-sprite sampling: near stays crisp, far stays
-// stable, each picture on its own. Zero means the historic smooth road.
-type AtlasFilter int
-
+// Per-sprite sampling reuses render's two existing enums (P3.7 batch 4, D6):
+// render.InterpolationMode picks the resampling quality and render.MipmapMode
+// picks the level path. The engine no longer owns a third filter enum — the
+// old AtlasFilter/AtlasFilter* set was a duplicate of the render vocabulary
+// (bicubic included, 1:1). Both zero values are load-bearing: Filter 0 is
+// «unset» (render normalizes it to bilinear, the historic road) and Mipmap 0
+// is MipmapNone (single-level path, bit-identical to every pre-batch-4 sprite).
 const (
-	// AtlasFilterDefault is the zero value: historic bilinear road.
-	AtlasFilterDefault AtlasFilter = 0
-	// AtlasFilterNearest keeps texels sharp (near/crisp pictures).
-	AtlasFilterNearest AtlasFilter = 1
-	// AtlasFilterBilinear blends neighbours (far/stable pictures).
-	AtlasFilterBilinear AtlasFilter = 2
-	// AtlasFilterBicubic uses a 4x4 neighbourhood (highest quality).
-	AtlasFilterBicubic AtlasFilter = 3
+	// FilterUnset is the zero quality: render maps it to bilinear (old road).
+	FilterUnset = render.InterpolationMode(0)
 )
 
-// String returns the stable log name of f.
-func (f AtlasFilter) String() string {
-	switch f {
-	case AtlasFilterDefault:
+// validFilter reports whether m is a settable quality (never guess a bad one).
+func validFilter(m render.InterpolationMode) bool {
+	switch m {
+	case FilterUnset, render.InterpNearest, render.InterpBilinear, render.InterpBicubic:
+		return true
+	}
+	return false
+}
+
+// validMipmap reports whether m is a settable level path.
+func validMipmap(m render.MipmapMode) bool {
+	switch m {
+	case render.MipmapNone, render.MipmapNearest, render.MipmapLinear:
+		return true
+	}
+	return false
+}
+
+// FilterName returns the stable log/data name of one sampling quality.
+func FilterName(m render.InterpolationMode) string {
+	switch m {
+	case FilterUnset:
 		return "default"
-	case AtlasFilterNearest:
+	case render.InterpNearest:
 		return "nearest"
-	case AtlasFilterBilinear:
+	case render.InterpBilinear:
 		return "bilinear"
-	case AtlasFilterBicubic:
+	case render.InterpBicubic:
 		return "bicubic"
 	default:
 		return "unknown"
 	}
 }
 
-// Valid reports whether f is a settable choice.
-func (f AtlasFilter) Valid() bool {
-	return f == AtlasFilterDefault || f == AtlasFilterNearest ||
-		f == AtlasFilterBilinear || f == AtlasFilterBicubic
-}
-
-// ParseAtlasFilter maps "", "default", "nearest", "bilinear", "bicubic"
-// to a filter. Anything else is a core InvalidArg error, never a guess.
-func ParseAtlasFilter(s string) (AtlasFilter, error) {
-	switch s {
+// ParseFilter maps "", "default", "nearest", "bilinear", "bicubic" to a
+// sampling quality. Anything else is a core InvalidArg error, never a guess
+// (the vocabulary the atlas case data uses stayed intact through the merge).
+func ParseFilter(str string) (render.InterpolationMode, error) {
+	switch str {
 	case "", "default":
-		return AtlasFilterDefault, nil
+		return FilterUnset, nil
 	case "nearest":
-		return AtlasFilterNearest, nil
+		return render.InterpNearest, nil
 	case "bilinear":
-		return AtlasFilterBilinear, nil
+		return render.InterpBilinear, nil
 	case "bicubic":
-		return AtlasFilterBicubic, nil
+		return render.InterpBicubic, nil
 	default:
-		return AtlasFilterDefault, core.InvalidArg("sprite.ParseAtlasFilter", s)
+		return FilterUnset, core.InvalidArg("sprite.ParseFilter", str)
 	}
 }
 
-// ToRender maps f to the render sampler at the boundary. Default maps to
-// the zero mode (render normalizes it to bilinear, the old road).
-func (f AtlasFilter) ToRender() (render.InterpolationMode, error) {
-	switch f {
-	case AtlasFilterDefault:
-		return render.InterpolationMode(0), nil
-	case AtlasFilterNearest:
-		return render.InterpNearest, nil
-	case AtlasFilterBilinear:
-		return render.InterpBilinear, nil
-	case AtlasFilterBicubic:
-		return render.InterpBicubic, nil
+// MipmapName returns the stable log/data name of one level path.
+func MipmapName(m render.MipmapMode) string {
+	switch m {
+	case render.MipmapNone:
+		return "none"
+	case render.MipmapNearest:
+		return "nearest"
+	case render.MipmapLinear:
+		return "linear"
 	default:
-		return render.InterpBilinear, core.InvalidArg("sprite.AtlasFilter.ToRender", f.String())
+		return "unknown"
+	}
+}
+
+// ParseMipmap maps "", "none", "nearest", "linear" to a level path. Anything
+// else errors: an unset field means «stay on the single-level road», not «pick
+// something nicer» — that is what keeps every existing sprite bit-identical.
+func ParseMipmap(str string) (render.MipmapMode, error) {
+	switch str {
+	case "", "none":
+		return render.MipmapNone, nil
+	case "nearest":
+		return render.MipmapNearest, nil
+	case "linear":
+		return render.MipmapLinear, nil
+	default:
+		return render.MipmapNone, core.InvalidArg("sprite.ParseMipmap", str)
 	}
 }
 
@@ -112,8 +135,11 @@ type AtlasSprite struct {
 	FlipY   bool
 	Pivot   core.Vec2
 	Tint    core.Color
-	Filter  AtlasFilter
-	Tag     string
+	Filter  render.InterpolationMode
+	// Mipmap is the per-sprite level path (P3.7 batch 4): the zero value
+	// MipmapNone keeps the historic single-level draw bit-identical.
+	Mipmap render.MipmapMode
+	Tag    string
 
 	Perspective bool
 	Corners     [4]core.Vec2
@@ -137,7 +163,7 @@ func finiteAtlasColor(c core.Color) bool {
 // Filter must be a settable choice. Zero-size rects are allowed here and
 // skipped later by the render draw, mirroring the R4 skip. Tag stays empty;
 // the caller sets it for debugging.
-func NewAtlasSprite(image core.AssetID, src, dst core.Rect, opacity, rot float64, pivot core.Vec2, tint core.Color, filter AtlasFilter, flipX, flipY bool) (AtlasSprite, error) {
+func NewAtlasSprite(image core.AssetID, src, dst core.Rect, opacity, rot float64, pivot core.Vec2, tint core.Color, filter render.InterpolationMode, flipX, flipY bool) (AtlasSprite, error) {
 	const op = "sprite.NewAtlasSprite"
 	if image.Empty() {
 		return AtlasSprite{}, core.InvalidArg(op, "image")
@@ -160,7 +186,7 @@ func NewAtlasSprite(image core.AssetID, src, dst core.Rect, opacity, rot float64
 	if !finiteAtlasColor(tint) {
 		return AtlasSprite{}, core.InvalidArg(op, "tint")
 	}
-	if !filter.Valid() {
+	if !validFilter(filter) {
 		return AtlasSprite{}, core.InvalidArg(op, "filter")
 	}
 	return AtlasSprite{Image: image, Src: src, Dst: dst, Opacity: opacity, Rot: rot, Pivot: pivot, Tint: tint, Filter: filter, FlipX: flipX, FlipY: flipY}, nil
@@ -192,8 +218,11 @@ func (s AtlasSprite) Validate() error {
 	if !finiteAtlasColor(s.Tint) {
 		return core.InvalidArg(op, "tint")
 	}
-	if !s.Filter.Valid() {
+	if !validFilter(s.Filter) {
 		return core.InvalidArg(op, "filter")
+	}
+	if !validMipmap(s.Mipmap) {
+		return core.InvalidArg(op, "mipmap")
 	}
 	if s.Perspective {
 		for i := range s.Corners {
@@ -241,17 +270,16 @@ func (s AtlasSprite) ToRender() (render.AtlasSprite, error) {
 	if err := s.Validate(); err != nil {
 		return render.AtlasSprite{}, err
 	}
-	filt, err := s.Filter.ToRender()
-	if err != nil {
-		return render.AtlasSprite{}, err
-	}
 	out := render.AtlasSprite{
 		SrcX: s.Src.X, SrcY: s.Src.Y, SrcW: s.Src.W, SrcH: s.Src.H,
 		DstX: s.Dst.X, DstY: s.Dst.Y, DstW: s.Dst.W, DstH: s.Dst.H,
 		Opacity: s.Opacity, Rot: s.Rot, FlipX: s.FlipX, FlipY: s.FlipY,
 		PivotX: s.Pivot.X, PivotY: s.Pivot.Y,
-		Tint:   renderconv.ColorToRender(s.Tint),
-		Filter: filt,
+		Tint: renderconv.ColorToRender(s.Tint),
+		// Both axes ride straight through: render owns the vocabularies, and its
+		// zero values already mean «historic road» (batch 4 merged the enums).
+		Filter: s.Filter,
+		Mipmap: s.Mipmap,
 	}
 	if s.Perspective {
 		out.Perspective = true
