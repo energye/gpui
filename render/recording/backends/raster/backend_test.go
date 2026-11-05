@@ -113,7 +113,7 @@ func TestBackendFillPath(t *testing.T) {
 	path.Close()
 
 	brush := recording.NewSolidBrush(render.Blue)
-	backend.FillPath(path, brush, recording.FillRuleNonZero, render.BlendNormal, render.BlendSpaceSRGB)
+	backend.FillPath(path, brush, recording.FillRuleNonZero, render.BlendNormal, render.BlendSpaceSRGB, nil)
 
 	err = backend.End()
 	if err != nil {
@@ -153,7 +153,7 @@ func TestBackendStrokePath(t *testing.T) {
 		Join:       recording.LineJoinRound,
 		MiterLimit: 4.0,
 	}
-	backend.StrokePath(path, brush, stroke, render.BlendNormal, render.BlendSpaceSRGB)
+	backend.StrokePath(path, brush, stroke, render.BlendNormal, render.BlendSpaceSRGB, nil)
 
 	err = backend.End()
 	if err != nil {
@@ -488,7 +488,7 @@ func TestBackendDashedStroke(t *testing.T) {
 		DashPattern: []float64{10, 5}, // 10px dash, 5px gap
 		DashOffset:  0,
 	}
-	backend.StrokePath(path, brush, stroke, render.BlendNormal, render.BlendSpaceSRGB)
+	backend.StrokePath(path, brush, stroke, render.BlendNormal, render.BlendSpaceSRGB, nil)
 
 	err = backend.End()
 	if err != nil {

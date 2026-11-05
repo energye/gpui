@@ -123,10 +123,10 @@ type Backend interface {
 	// The rule determines how to handle self-intersecting paths. blend is the
 	// Porter-Duff mode the recording captured for this draw; backends apply it
 	// for this call only.
-	FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode, space render.BlendSpace)
+	FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode, space render.BlendSpace, shader *render.ShaderEffect)
 
 	// StrokePath strokes the given path with the brush and stroke style.
-	StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode, space render.BlendSpace)
+	StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode, space render.BlendSpace, shader *render.ShaderEffect)
 
 	// FillRect is an optimized method for filling axis-aligned rectangles.
 	// Backends may implement this more efficiently than FillPath with a rect path.

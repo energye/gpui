@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 
 	"github.com/energye/gpui/gpu/shader"
 	"github.com/energye/gpui/gpu/shader/ir"
@@ -92,9 +93,11 @@ type ShaderEffect struct {
 	uniform []byte
 	images  []*ImageBuf // per declared texture pair (batch 3c); slot 0 = SetImage/fill slot
 
-	usesImage    bool // declared texture_2d at @group(0) binding(1) (immutable)
-	texturePairs int  // declared texture+sampler pairs (0..MaxShaderImagePairs, batch 3c)
-	uniformBytes int  // declared uniform block size (0 = none, batch 3c)
+	usesImage    bool   // declared texture_2d at @group(0) binding(1) (immutable)
+	texturePairs int    // declared texture+sampler pairs (0..MaxShaderImagePairs, batch 3c)
+	uniformBytes int    // declared uniform block size (0 = none, batch 3c)
+	gen          uint64 // bumped on every state mutation (batch 3e-3: scene LayerCache keys)
+	id           uint64 // immutable identity (global counter, batch 3e-3 scene LayerCache keys)
 	closed       bool
 
 	// P3.7 batch 3a: eager engine-template composition (D-3a-1 拍板 A). Both
@@ -161,6 +164,11 @@ const ShaderUniformBudgetMax = 65536
 // carry SetImageAt-bound images.
 const MaxShaderImagePairs = 8
 
+// shaderEffectIDCounter assigns immutable identities for scene LayerCache
+// keying (batch 3e-3): two distinct effects must never collide even when
+// both are unmutated (gen 0).
+var shaderEffectIDCounter atomic.Uint64
+
 // NewShaderEffect compiles and validates a user WGSL fragment module.
 // It returns a readable error for parse, lowering, or validation failures —
 // rejection happens here, before any backend sees the source. Contract
@@ -196,6 +204,7 @@ func NewShaderEffect(wgsl string) (*ShaderEffect, error) {
 		usesImage:    texturePairs >= 1,
 		texturePairs: texturePairs,
 		uniformBytes: uniformBytes,
+		id:           shaderEffectIDCounter.Add(1),
 		fragParams:   params,
 		fillComposed: fillComposed,
 		quadComposed: quadComposed,
@@ -475,6 +484,7 @@ func (e *ShaderEffect) SetUniformBytes(data []byte) error {
 		return fmt.Errorf("%w: SetUniformBytes after Close", ErrShaderClosed)
 	}
 	e.uniform = append([]byte(nil), data...)
+	e.gen++
 	return nil
 }
 
@@ -497,6 +507,30 @@ func (e *ShaderEffect) SetFloatUniforms(f []float32) error {
 // bound copy.
 func (e *ShaderEffect) SetImage(img *ImageBuf) {
 	e.SetImageAt(0, img)
+}
+
+// ID returns the effect's immutable identity (batch 3e-3): two distinct
+// effects never collide, even when both are unmutated. Scene LayerCache keys
+// mix ID ^ (Gen << 1).
+func (e *ShaderEffect) ID() uint64 {
+	if e == nil {
+		return 0
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.id
+}
+
+// Gen returns the effect's state generation — bumped on every SetUniformBytes/
+// SetImageAt mutation (batch 3e-3): scene LayerCache keys mix ptr^gen so a
+// uniform change after recording invalidates the cached layer.
+func (e *ShaderEffect) Gen() uint64 {
+	if e == nil {
+		return 0
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.gen
 }
 
 // Image returns the pair-0 bound image (GPU upload keying / recording).
@@ -522,6 +556,7 @@ func (e *ShaderEffect) SetImageAt(slot int, img *ImageBuf) error {
 		return fmt.Errorf("%w: image slot %d outside the declared pairs (%d)", ErrShaderSlotConflict, slot, len(e.images))
 	}
 	e.images[slot] = img
+	e.gen++
 	return nil
 }
 

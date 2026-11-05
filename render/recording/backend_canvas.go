@@ -258,11 +258,23 @@ func (b *CanvasBackend) withBlend(blend render.BlendMode, space render.BlendSpac
 }
 
 // FillPath fills the path with the brush.
-func (b *CanvasBackend) FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode, space render.BlendSpace) {
+func (b *CanvasBackend) FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode, space render.BlendSpace, shader *render.ShaderEffect) {
 	if path == nil {
 		return
 	}
 	ApplyBrush(b.dc, brush, true)
+	// P3.7 批 3e-3 (D9)：命令携带的 shader 替换画刷作颜色源（Paint.Shader
+	// precedence，批 3d）；作用域限本次绘制，回放后清除不留痕。可选接口断言：
+	// *Context 支持 SetShader；非 Context 的 Canvas（Pixmap 等）按 P3.2
+	// GPU-only 契约静默跳过 shader（DrawGPUTexture 语义），不假装支持。
+	if shader != nil {
+		if ss, ok := b.dc.(interface {
+			SetShader(*render.ShaderEffect)
+		}); ok {
+			ss.SetShader(shader)
+			defer ss.SetShader(nil)
+		}
+	}
 	b.dc.SetFillRule(rule)
 	b.withBlend(blend, space, func() {
 		b.dc.DrawPath(path)
@@ -271,12 +283,22 @@ func (b *CanvasBackend) FillPath(path *render.Path, brush Brush, rule FillRule, 
 }
 
 // StrokePath strokes the path with the brush and stroke style.
-func (b *CanvasBackend) StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode, space render.BlendSpace) {
+func (b *CanvasBackend) StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode, space render.BlendSpace, shader *render.ShaderEffect) {
 	if path == nil {
 		return
 	}
 	ApplyBrush(b.dc, brush, false)
 	ApplyStroke(b.dc, stroke)
+	// P3.7 批 3e-3：fills AND strokes（SetShader 文档契约，批 3d 修复后
+	// GPU 描边吃 shader）；作用域限本次绘制。可选接口断言同上。
+	if shader != nil {
+		if ss, ok := b.dc.(interface {
+			SetShader(*render.ShaderEffect)
+		}); ok {
+			ss.SetShader(shader)
+			defer ss.SetShader(nil)
+		}
+	}
 	b.withBlend(blend, space, func() {
 		b.dc.DrawPath(path)
 		_ = b.dc.Stroke()

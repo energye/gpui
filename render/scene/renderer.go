@@ -185,6 +185,11 @@ type Renderer struct {
 	statsMu   sync.RWMutex
 	lastFrame time.Time
 
+	// materialSkips counts draw commands the CPU tile path refused because an
+	// item-level material is active (batch 3e-3): the CPU has no WGSL
+	// evaluator (P3.2 contract) — the draw is refused, never painted bare.
+	materialSkips atomic.Uint64
+
 	// projDegrades counts draw commands the CPU tile path refused because the
 	// scene carried a genuinely projective 4×4 layer (there is no CPU
 	// perspective sampler; affine-representable layers fold in exactly). Tiles
@@ -192,6 +197,16 @@ type Renderer struct {
 	// statsMu, which the raster phase itself holds.
 	projDegrades atomic.Uint64
 }
+
+// MaterialSkips reports how many CPU-leg draws were refused because an
+// item-level material was active (batch 3e-3; no CPU WGSL evaluator — the
+// P3.2 GPU-only contract, 禁止静默裸画).
+func (r *Renderer) MaterialSkips() uint64 {
+	return r.materialSkips.Load()
+}
+
+// ResetMaterialSkips zeroes the counter.
+func (r *Renderer) ResetMaterialSkips() { r.materialSkips.Store(0) }
 
 // ProjectionDegrades reports how many CPU-leg draws were refused under a
 // projective scene projection since the last reset (P3.7 batch 3e: a refusal is
@@ -405,6 +420,7 @@ func (r *Renderer) RenderWithContext(ctx context.Context, target *render.Pixmap,
 	startEncode := time.Now()
 	enc := scene.Encoding()
 	images := scene.Images()
+	materials := scene.Materials()
 	r.fontRegistry = scene.FontRegistry()
 	encodeTime := time.Since(startEncode)
 
@@ -421,7 +437,7 @@ func (r *Renderer) RenderWithContext(ctx context.Context, target *render.Pixmap,
 
 	// Render tiles in parallel with context
 	startRaster := time.Now()
-	if err := r.renderTilesWithContext(ctx, tiles, enc, target, images); err != nil {
+	if err := r.renderTilesWithContext(ctx, tiles, enc, target, images, materials); err != nil {
 		return err
 	}
 	rasterTime := time.Since(startRaster)
@@ -568,7 +584,7 @@ func (r *Renderer) RenderDirtyWithContext(ctx context.Context, target *render.Pi
 
 	// Render dirty tiles in parallel with context
 	startRaster := time.Now()
-	if err := r.renderTilesWithContext(ctx, tiles, enc, target, images); err != nil {
+	if err := r.renderTilesWithContext(ctx, tiles, enc, target, images, scene.Materials()); err != nil {
 		return err
 	}
 	rasterTime := time.Since(startRaster)
@@ -595,7 +611,7 @@ func (r *Renderer) RenderDirtyWithContext(ctx context.Context, target *render.Pi
 
 // renderTilesWithContext renders the scene encoding to the specified tiles in parallel
 // with cancellation support.
-func (r *Renderer) renderTilesWithContext(ctx context.Context, tiles []*parallel.Tile, enc *Encoding, target *render.Pixmap, images []*Image) error {
+func (r *Renderer) renderTilesWithContext(ctx context.Context, tiles []*parallel.Tile, enc *Encoding, target *render.Pixmap, images []*Image, materials []*render.ShaderEffect) error {
 	if len(tiles) == 0 || enc == nil || enc.IsEmpty() {
 		return nil
 	}
@@ -622,7 +638,7 @@ func (r *Renderer) renderTilesWithContext(ctx context.Context, tiles []*parallel
 			default:
 			}
 		}
-		r.renderTile(tiles[i], enc, target, images)
+		r.renderTile(tiles[i], enc, target, images, materials)
 	})
 
 	// Check if context was canceled during execution
@@ -635,7 +651,7 @@ func (r *Renderer) renderTilesWithContext(ctx context.Context, tiles []*parallel
 }
 
 // renderTile renders the scene encoding to a single tile.
-func (r *Renderer) renderTile(tile *parallel.Tile, enc *Encoding, _ *render.Pixmap, images []*Image) {
+func (r *Renderer) renderTile(tile *parallel.Tile, enc *Encoding, _ *render.Pixmap, images []*Image, materials []*render.ShaderEffect) {
 	if tile == nil || enc == nil {
 		return
 	}
@@ -666,7 +682,7 @@ func (r *Renderer) renderTile(tile *parallel.Tile, enc *Encoding, _ *render.Pixm
 	dec := r.pool.getDecoder(enc)
 
 	// Render commands using render.SoftwareRenderer
-	r.executeEncodingOnTile(dec, tile, pm, sr, images)
+	r.executeEncodingOnTile(dec, tile, pm, sr, images, materials)
 
 	// Copy rendered pixmap data into the tile buffer.
 	// Pixmap stores premultiplied RGBA, same as tile.Data.
@@ -702,7 +718,7 @@ type tileLayerState struct {
 // rasterization to render.SoftwareRenderer for analytic anti-aliased output.
 //
 //nolint:gocyclo,cyclop,gocognit,funlen // Command interpreter with multiple cases is inherently complex
-func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *render.Pixmap, sr *render.SoftwareRenderer, images []*Image) { //nolint:maintidx // tag dispatch across all scene command types
+func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *render.Pixmap, sr *render.SoftwareRenderer, images []*Image, materials []*render.ShaderEffect) { //nolint:maintidx // tag dispatch across all scene command types
 	// Reusable scene.Path for the decode loop — reset per TagBeginPath instead of allocating.
 	currentPath := r.pool.getScenePath()
 	defer r.pool.putScenePath(currentPath)
@@ -715,6 +731,8 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 	rawTransform := IdentityAffine()
 	currentTransform := IdentityAffine()
 	var projStack []render.Matrix4
+	// currentMaterial is the item-level material draws ride (batch 3e-3); non-nil ⇒ refuse+count.
+	var currentMaterial *render.ShaderEffect
 	projAffine, projective := IdentityAffine(), false
 
 	applyProjection := func(m render.Matrix4) {
@@ -756,6 +774,11 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 			// 真透视（或一般四边形）没有 CPU 透视采样 ⇒ 整笔拒画并计数，
 			// 与投影那条同一纪律（batch3e-design.md §2/§4）。
 			imageIndex, corners, _, perspective, _, _ := dec.ImageQuad()
+			if currentMaterial != nil {
+				// Batch 3e-3: material'd draw on the CPU leg — refuse + count.
+				r.materialSkips.Add(1)
+				break
+			}
 			if imageIndex >= uint32(len(images)) || images[imageIndex] == nil {
 				break
 			}
@@ -775,6 +798,17 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 				break
 			}
 			blitImageToTile(img, aff, tileX, tileY, activePM)
+
+		case TagMaterial:
+			// Batch 3e-3: sticky item-level material; the CPU tile leg has no
+			// WGSL evaluator — subsequent material'd draws are refused and
+			// counted (MaterialSkips).
+			idx, cleared := dec.Material()
+			if cleared || idx >= uint32(len(materials)) {
+				currentMaterial = nil
+			} else {
+				currentMaterial = materials[idx]
+			}
 
 		case TagProjection:
 			mode, m := dec.Projection()
@@ -844,6 +878,13 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 		case TagFill:
 			brush, style := dec.Fill()
+			if currentMaterial != nil {
+				// Batch 3e-3: no CPU WGSL evaluator — a material'd fill is
+				// refused whole and counted, never repainted bare.
+				r.materialSkips.Add(1)
+				pathActive = false
+				break
+			}
 			if projective {
 				r.projDegrades.Add(1)
 				pathActive = false
@@ -858,6 +899,11 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 		case TagFillRoundRect:
 			brush, style, rect, rx, ry := dec.FillRoundRect()
+			if currentMaterial != nil {
+				r.materialSkips.Add(1)
+				pathActive = false
+				break
+			}
 			if projective {
 				r.projDegrades.Add(1)
 				pathActive = false
@@ -886,6 +932,11 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 		case TagStroke:
 			brush, style := dec.Stroke()
+			if currentMaterial != nil {
+				r.materialSkips.Add(1)
+				pathActive = false
+				break
+			}
 			if projective {
 				r.projDegrades.Add(1)
 				pathActive = false
@@ -982,6 +1033,12 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 		case TagImage:
 			imageIndex, imgTransform := dec.Image()
+			if currentMaterial != nil {
+				// Batch 3e-3: material'd draw on the CPU leg — no WGSL
+				// evaluator; refuse and count (P3.2 GPU-only contract).
+				r.materialSkips.Add(1)
+				break
+			}
 			if projective {
 				// The CPU image blit is affine-only; drawing anyway would paint
 				// the image at the un-warped place. Refuse and count instead.

@@ -89,6 +89,7 @@ func (r *Recorder) Fill() error {
 		Rule:       r.fillRule,
 		Blend:      r.blendMode,
 		BlendSpace: r.blendSpace,
+		Shader:     r.shader,
 	})
 
 	r.currentPath = render.NewPath()
@@ -116,6 +117,7 @@ func (r *Recorder) recordFill(clear bool) error {
 		Rule:       r.fillRule,
 		Blend:      r.blendMode,
 		BlendSpace: r.blendSpace,
+		Shader:     r.shader,
 	})
 	if clear {
 		r.currentPath = render.NewPath()
@@ -159,6 +161,7 @@ func (r *Recorder) recordStroke(clear bool) error {
 		Stroke:     stroke,
 		Blend:      r.blendMode,
 		BlendSpace: r.blendSpace,
+		Shader:     r.shader,
 	})
 	if clear {
 		r.currentPath = render.NewPath()

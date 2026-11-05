@@ -254,3 +254,13 @@ func (r *Recorder) SetBlendSpace(space render.BlendSpace) {
 func (r *Recorder) BlendSpace() render.BlendSpace {
 	return r.blendSpace
 }
+
+// SetShader installs (or with nil clears) the user shader for subsequent
+// Fill/Stroke commands (P3.7 batch 3e-3, D9; mirrors Context.SetShader).
+// 录制期取值：commands capture the pointer; replay reads only.
+func (r *Recorder) SetShader(e *render.ShaderEffect) {
+	if r == nil {
+		return
+	}
+	r.shader = e
+}

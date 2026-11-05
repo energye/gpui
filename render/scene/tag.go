@@ -52,6 +52,13 @@ const (
 	// render.Context's own projection layer, keeping the batch 1d chain order
 	// (device ∘ projection ∘ matrix ∘ user) in exactly one place.
 	TagProjection Tag = 0x03
+	// TagMaterial switches the item-level material for subsequent draws
+	// (P3.7 batch 3e-3, Godot canvas_item_set_material item-level form:
+	// rendering_server.h:867). Payload: uint32 material index into the
+	// scene's material registry, 0xFFFFFFFF = clear (nil). Sticky across
+	// layer boundaries (TagSetAntiAlias 同族); delta-encoded against the
+	// last emitted effect pointer.
+	TagMaterial Tag = 0x04
 
 	// TagBeginPath marks the start of a new path.
 	// Data: none (marker only)

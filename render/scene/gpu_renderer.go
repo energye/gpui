@@ -35,7 +35,10 @@ import (
 //	gpuR := scene.NewGPUSceneRenderer(dc)
 //	err := gpuR.RenderScene(myScene)
 type GPUSceneRenderer struct {
-	dc *render.Context
+	// currentMaterial is the item-level material subsequent draws ride
+	// (batch 3e-3, TagMaterial sticky state); nil = unmaterial'd.
+	currentMaterial *render.ShaderEffect
+	dc              *render.Context
 }
 
 // NewGPUSceneRenderer creates a GPU scene renderer that renders through
@@ -83,6 +86,10 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 	// layer is a context-level state, and TagProjection uses Set/Push/Pop on
 	// render.Context directly (chain order lives in render, not here).
 	baseProjection := dc.Projection()
+	// The item material is per-scene sticky state: reset it here so a renderer
+	// reused across scenes cannot carry one scene's material into the next
+	// (same explicit-reset discipline as the matrix and projection above).
+	r.currentMaterial = nil
 
 	for dec.Next() {
 		switch dec.Tag() {
@@ -132,6 +139,10 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 		case TagFill:
 			brush, style := dec.Fill()
 			applySceneBrush(dc, brush)
+			// Batch 3e-3: the item-level material replaces the brush as the
+			// color source (Paint.Shader precedence, batch 3d isGPUSolidPaint);
+			// scoped set/clear so the ambient paint stays unmaterial'd.
+			scoped := r.beginMaterial(dc)
 			if style == FillEvenOdd {
 				dc.SetFillRule(render.FillRuleEvenOdd)
 			} else {
@@ -139,10 +150,12 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 			}
 			_ = dc.FillPath(path)
 			path.Clear()
+			r.endMaterial(dc, scoped)
 
 		case TagFillRoundRect:
 			brush, style, rect, rx, ry := dec.FillRoundRect()
 			applySceneBrush(dc, brush)
+			scoped := r.beginMaterial(dc)
 			if style == FillEvenOdd {
 				dc.SetFillRule(render.FillRuleEvenOdd)
 			} else {
@@ -158,10 +171,12 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 				radius,
 			)
 			_ = dc.Fill()
+			r.endMaterial(dc, scoped)
 
 		case TagStroke:
 			brush, style := dec.Stroke()
 			applySceneBrush(dc, brush)
+			scoped := r.beginMaterial(dc)
 			if style != nil {
 				if style.Width > 0 {
 					dc.SetLineWidth(float64(style.Width))
@@ -174,6 +189,7 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 			}
 			_ = dc.StrokePath(path)
 			path.Clear()
+			r.endMaterial(dc, scoped)
 
 		case TagPushLayer:
 			blend, alpha := dec.PushLayer()
@@ -228,6 +244,16 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 			run, glyphs, str, brush := dec.Text()
 			r.resolveText(scene, run, glyphs, str, brush)
 
+		case TagMaterial:
+			// Batch 3e-3 (Godot canvas_item_set_material item-level form):
+			// sticky state — subsequent draws ride the material (3a 材质腿).
+			idx, cleared := dec.Material()
+			if cleared || idx >= uint32(len(scene.Materials())) {
+				r.currentMaterial = nil
+			} else {
+				r.currentMaterial = scene.Materials()[idx]
+			}
+
 		case TagImage:
 			imageIndex, imgTransform := dec.Image()
 			r.resolveImage(scene, imageIndex, imgTransform)
@@ -243,6 +269,7 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 				Opacity:       opacity,
 				Perspective:   perspective,
 				Weights:       weights,
+				Material:      r.currentMaterial,
 			})
 
 		default:
@@ -256,8 +283,29 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 	// The projection layer is restored the same way: an unbalanced Push inside
 	// the scene must not leak a projection into whatever draws next.
 	dc.SetProjection(baseProjection)
+	r.currentMaterial = nil
 
 	return nil
+}
+
+// beginMaterial scopes the stream's sticky item material onto one draw
+// (batch 3e-3): the material replaces the brush as the color source
+// (Paint.Shader precedence, batch 3d). It reports whether it actually touched
+// the context, so endMaterial clears only what was set — an unmaterial'd draw
+// leaves the caller's own ambient shader alone.
+func (r *GPUSceneRenderer) beginMaterial(dc *render.Context) bool {
+	if r.currentMaterial == nil {
+		return false
+	}
+	dc.SetShader(r.currentMaterial)
+	return true
+}
+
+// endMaterial closes the scope beginMaterial opened.
+func (r *GPUSceneRenderer) endMaterial(dc *render.Context, set bool) {
+	if set {
+		dc.SetShader(nil)
+	}
 }
 
 // resolveText resolves a TagText glyph run. Prefers DrawShapedGlyphs (no re-shaping)
@@ -340,6 +388,7 @@ func (r *GPUSceneRenderer) resolveImage(scene *Scene, imageIndex uint32, transfo
 		Y:         float64(transform.F),
 		DstWidth:  dstW,
 		DstHeight: dstH,
+		Material:  r.currentMaterial,
 	})
 }
 

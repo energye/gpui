@@ -1,0 +1,108 @@
+# P3.7 批 3e-3（材质编码 item 级）· 复现红 / 负向变异留档（2026-11-05）
+
+判据正本：`batch3e3-design.md` §1/§3。钉落点：`render/scene/p37_3e3_material_test.go`（包内测：编码/合并/CPU 瓦片腿）、
+`render/scene/p37_3e3_material_gpu_test.go`（包外测：回放腿转交 + ≡ 手写 + 复位）、`render/recording/p37_3e3_material_test.go`（录制面四段链）。
+
+环境口径：以下全部在 `WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so` 下复跑确认（不带该变量时 `./render`
+的 conformance/p32_leak 会因静默回落 CPU 而假红——台账 H1 同族，本轮踩过一次，如实记）。
+
+---
+
+## 1 修复前的复现红（实现完成、钉写完，首次跑的真实输出）
+
+```
+--- FAIL: TestP37E3EncodingRoundTrip
+    SetMaterial(nil) 没编出清除载荷
+--- FAIL: TestP37E3HashMixesMaterialIdentityAndGen
+    两枚不同材质撞键：不可变 ID 没进 Hash
+--- FAIL: TestP37E3MergeCarriesMaterials/append_with_images
+    合并后的材质索引应 [0 1]，实得 [0 0]
+--- FAIL: TestP37E3MergeCarriesMaterials/append_with_translation
+    合并后的材质索引应 [0 1]，实得 [0 0]
+--- FAIL: TestP37E3MergePassesClearPayload
+    child 的材质索引没抬：0 want 1
+--- FAIL: TestP37E3CPUTileMaterialRefusesAndCounts
+    材质下的 CPU 瓦片腿画出了 584 格：裸画（P3.2 无 CPU 求值器，禁止静默画）
+--- FAIL: TestP37E3MaterialStickyAcrossLayers
+    跨层材质下的 CPU 腿画出了 128 格：粘滞位在某处被吞了
+--- FAIL: TestP37E3ReplayHandsMaterialToEveryArm/stroke
+    stroke 臂带材质仍画出 400 格：材质没交到这一笔手上，被裸画了
+--- FAIL: TestP37E3ReplayEqualsHandWrittenMaterialCalls
+    scene 的 stroke 材质回放与手写 SetShader+StrokePath 差 400 像素：描边臂没接材质
+--- FAIL: TestP37E3ReplayResetsMaterialBetweenScenes
+    同一份几何、没装材质的第二份场景没画：上一份的粘滞材质跨场景泄漏了
+```
+
+## 2 定位用的探针实测（`Scene` 动词写进 layer 编码、`Encoding()` 才摊平这一事实）
+
+```
+fresh:        current=nil  lastEnc=nil  tags=0
+after A:      current=true lastEnc=false tags=[] entries=[] draw=[]      ← 切换写进 layer 编码，root 仍空
+after B:      current=true lastEnc=false tags=[] entries=[] draw=[]
+after nil:    current=false lastEnc=false tags=[] entries=[] draw=[]
+layerStack.Top().Encoding == nil ? false
+
+child（Encoding() 之后）: tags=[Material BeginPath MoveTo LineTo×3 ClosePath EndPath Fill]
+                          drawData=[0 0 0]  materialEntries=[0]  materialEffects=0 枚
+host.Append(child) 之后（layer 编码）: drawData=[0 0 0 1 1 0]  materialEntries=[0 0]  materialEffects=1 枚
+host.Append(child) 之后（摊平 root） : materialEntries=[0 0]  materialEffects=0 枚  registry=2 枚
+```
+
+三条结论（后续都按此修）：
+
+1. **H1 双份 delta 记忆失同步**：`Scene.SetMaterial` 认 `s.currentMaterial`，`EncodeMaterial` 又认
+   `e.lastEncodedMaterial`；`Encoding()` 每次都 `flattenLayers()` 并 `rootLayer.Encoding.Reset()`，Reset 把
+   编码器那份抹成 nil，Scene 那份还停在 eB ⇒ 之后的 `SetMaterial(nil)` 被「nil == nil」判成同一位，**清除永远发不出来**。
+2. **H2 合并丢 `materialEffects` 镜像**：合并只并 `materialEntries`，Hash 却按 `materialEffects` 遍历
+   ⇒ 任何读过 `Encoding()`（即每次摊平）的场景，材质整体从 Hash 消失，LayerCache 键对材质完全失明（E5b 同族）。
+3. **H3 两表征分叉**：`drawData` 里的材质索引按 `materialOffset` 抬了（回放真消费的那份），镜像列表没抬
+   ⇒ 镜像与载荷指不同枚。
+
+另有两条回放腿的洞（设计 §1 要求「材质作用于 item 全部命令」「回放结束复位」）：
+
+- **H4** GPU 腿 `TagStroke`/`TagFillRoundRect` 没接材质（只有 `TagFill` 接了）⇒ 描边被裸画。
+- **H5** `GPUSceneRenderer.currentMaterial` 起止都不复位 ⇒ 同一渲染器连放两份场景，前一份的材质渗进后一份。
+- **H6** CPU 瓦片腿只对 image/quad 拒画，`TagFill`/`TagStroke`/`TagFillRoundRect` 照旧画 ⇒ 与 GPU 腿表态不对称，
+  两腿分叉（584 格裸画实测）。
+
+## 3 修复方案（对齐标准，非自造）
+
+- delta 只留一份真源：Scene 拥有粘滞 item 状态，`EncodeMaterial` 无条件发射（删 `lastEncodedMaterial` 字段与
+  Reset 抹除），文档写清「为什么编码器侧不留第二份」。Godot `canvas_item_set_material` 也是 item 状态一份、
+  发射在 item 边界。
+- 合并走同一 helper `appendMaterialStream(other, materialOffset)`：镜像与载荷同抬、`materialEffects` 随之并全，
+  0xFFFFFFFF 原样透传。
+- 两腿对称：GPU 腿 `beginMaterial/endMaterial` 收到 fill/roundrect/stroke 三处（只清自己设过的，不碰调用方环境
+  shader）；CPU 腿同三处补「整笔拒画 + `materialSkips` 计数」。`TagText` 两腿都不接材质（3a/3d 未做文字材质腿），
+  保持对称、不冒充做全。
+- 回放复位：`RenderScene` 起止各一次 `currentMaterial = nil`，与 `baseMatrix`/`baseProjection` 同一条显式复位纪律。
+
+## 4 负向变异（修复后逐条打断，全红 ⇒ 还原复绿）
+
+| 号 | 打断点 | 变红的钉与真实输出 |
+|---|---|---|
+| N1 | 摘 `Scene.SetMaterial` 的 `e == s.currentMaterial` 守卫 | 钉 1「nil→nil 不该发射，发了 1 枚」+ 钉 2「材质切换应 2 枚，实得 3」 |
+| N2 | Hash 里摘掉 gen（`mid ^ (gen & 0)`） | 钉 2b「uniform 改动没进 Hash」+ 钉 4「合并进来的材质没进 Hash」 |
+| N2b | Hash 里摘掉不可变 id（`(mid & 0) ^ (gen<<1)`） | 钉 2b「两枚不同材质撞键：不可变 ID 没进 Hash」 |
+| N3 | 合并退回只并 `materialEntries`（摘 `appendMaterialStream`） | 钉 2b「两枚不同材质撞键」（摊平后 effects 空 ⇒ 材质整体从 Hash 消失）+ 钉 4「索引应 [0 1]，实得 [0 0]」 |
+| N4 | 摘 CPU 腿 `TagFill` 的拒画块 | 钉 5「画出了 384 格：裸画」+ 粘滞跨层「128 格」 |
+| N5 | 摘录制抓取（三处 `Shader: r.shader` → nil） | 钉 7a「携带材质的命令 = 0, want 2」+ 7c「[<nil> <nil>] want [e nil]」+ 7d「带材质的录制回放画出 2400 格：被 CPU 裸画了」 |
+| N6 | **回插**编码器侧 delta 记忆（复现 H1 原始形态） | 钉 2「SetMaterial(nil) 没编出清除载荷」——证明 H1 是真洞而非推测，删这份第二记忆是必要修复 |
+| N7 | 摘 GPU 腿 `TagStroke` 的材质臂 | 3a「stroke 臂带材质仍画出 400 格」+ 3b「差 400 像素：描边臂没接材质」 |
+| N8 | 摘回放复位（起止两处都摘） | 3d「没装材质的第二份场景没画：粘滞材质跨场景泄漏」 |
+| N9a | 只摘合并里的 `drawData` 抬位（保留镜像抬位） | **首轮没红** ⇒ 说明钉只看了编码镜像、没看回放真正消费的载荷流，属钉不够硬；补 `materialPayloadFromStream`（按每枚 tag 的载荷宽度完整走查，未登记 tag 直接判失败）后复跑 ⇒ 钉 4「回放真正消费的材质载荷索引应 [0 1]，实得 [0 0]」+ 清除钉「编码镜像与回放消费的载荷流不齐：镜像 [0 1 4294967295] 载荷 [0 0 4294967295]」 |
+| N9b | 整块摘 `AppendWithTranslation` 的 `case TagMaterial` | panic 绊线如设计预期：`scene.AppendWithTranslation: unhandled tag 0x04 (Unknown) — update switch to handle pathData/drawData layout for this tag` |
+
+无效变异：无（N9a 首轮无红是钉的缺陷，加固后成立，已如实记在上面）。
+
+## 5 门禁实测（2026-11-05）
+
+- `go build ./...` rc=0；`go vet ./render/scene ./render/recording ./render/recording/backends/raster
+  ./examples/ui_render_base_recording` rc=0（接口全量切换：示例侧 spy 后端同笔切完，编译才绿）。
+- 逐文件回归（带 `WGPU_NATIVE_PATH`）：`render/scene` 30 个测试文件、`render/recording` 19 个、
+  `render/recording/backends/raster` 7 个 —— 全 PASS，仅 `benchmark_test`（无用例）与 `backend_stub_test`（桩）SKIP。
+- `render` 主包相关逐文件：`p32_shader_effect/validate/premul/leak`、`p32_pipeline_cache`、`p37_3a/3b/3c/3d`、
+  `conformance` —— 全 ok。
+- `CGO_ENABLED=1 go test -race` 三包全 ok。
+- `go run ./scripts/apidoc` rc=0（3e-3 新公开面登记见目录 §3.16/§6.2/§6.3/§0/§13）。
+- 真窗 `ui_wr_p32_shader`：本轮未跑（开窗属 GPU 真窗安全条，待用户点头后按「一轮一窗 + WM_DELETE 正常关闭」跑）。

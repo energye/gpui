@@ -34,6 +34,7 @@ func (r *Recorder) Save() {
 		dashPattern: dashCopy,
 		dashOffset:  r.dashOffset,
 		pathEffect:  r.pathEffect,
+		shader:      r.shader,
 		fillRule:    r.fillRule,
 		antiAlias:   r.antiAlias,
 		transform:   r.transform,
@@ -65,6 +66,7 @@ func (r *Recorder) Restore() {
 	r.dashPattern = state.dashPattern
 	r.dashOffset = state.dashOffset
 	r.pathEffect = state.pathEffect
+	r.shader = state.shader
 	r.fillRule = state.fillRule
 	r.antiAlias = state.antiAlias
 	r.transform = state.transform

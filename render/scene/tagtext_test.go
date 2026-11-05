@@ -363,7 +363,7 @@ func TestEncoding_AppendWithImages_TagText_BrushOffset(t *testing.T) {
 	run := GlyphRunData{GlyphCount: 1, TextLen: 1, BrushIndex: 0, FontSize: 12}
 	enc2.EncodeText(run, []GlyphEntry{{GlyphID: 42}}, "X")
 
-	enc1.AppendWithImages(enc2, 0)
+	enc1.AppendWithImages(enc2, 0, 0)
 
 	dec := NewDecoder(enc1)
 	dec.Next()
@@ -388,7 +388,7 @@ func TestEncoding_AppendWithTranslation_TagText_OriginOffset(t *testing.T) {
 	}
 	enc2.EncodeText(run, []GlyphEntry{{GlyphID: 1, X: 0, Y: 0}}, "AB")
 
-	enc1.AppendWithTranslation(enc2, 100, 200, 0)
+	enc1.AppendWithTranslation(enc2, 100, 200, 0, 0)
 
 	dec := NewDecoder(enc1)
 	dec.Next()
@@ -419,7 +419,7 @@ func TestEncoding_AppendWithTranslation_TagText_Mixed(t *testing.T) {
 	run := GlyphRunData{GlyphCount: 1, TextLen: 1, FontSize: 12, OriginX: 0, OriginY: 0, BrushIndex: 1}
 	enc2.EncodeText(run, []GlyphEntry{{GlyphID: 65}}, "A")
 
-	enc1.AppendWithTranslation(enc2, 50, 50, 0)
+	enc1.AppendWithTranslation(enc2, 50, 50, 0, 0)
 
 	// Verify path data was offset.
 	dec := NewDecoder(enc1)

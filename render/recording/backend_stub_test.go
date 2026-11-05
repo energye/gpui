@@ -30,9 +30,9 @@ func (stubBackend) ClipRoundRect(_, _, _, _, _ float64) {}
 func (stubBackend) ClipRectOp(_ Rect, _ render.ClipOp)  {}
 func (stubBackend) ClipPathOp(_ *render.Path, _ FillRule, _ render.ClipOp) {
 }
-func (stubBackend) FillPath(_ *render.Path, _ Brush, _ FillRule, _ render.BlendMode, _ render.BlendSpace) {
+func (stubBackend) FillPath(_ *render.Path, _ Brush, _ FillRule, _ render.BlendMode, _ render.BlendSpace, _ *render.ShaderEffect) {
 }
-func (stubBackend) StrokePath(_ *render.Path, _ Brush, _ Stroke, _ render.BlendMode, _ render.BlendSpace) {
+func (stubBackend) StrokePath(_ *render.Path, _ Brush, _ Stroke, _ render.BlendMode, _ render.BlendSpace, _ *render.ShaderEffect) {
 }
 func (stubBackend) FillRect(_ Rect, _ Brush, _ render.BlendMode, _ render.BlendSpace)             {}
 func (stubBackend) StrokeRect(_ Rect, _ Brush, _ Stroke, _ render.BlendMode, _ render.BlendSpace) {}

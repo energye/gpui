@@ -28,13 +28,14 @@ func renderAllTiles(t *testing.T, r *Renderer, s *Scene) (painted bool) {
 	t.Helper()
 	enc := s.Encoding()
 	images := s.Images()
+	materials := s.Materials()
 	for ty := 0; ty*64 <= r.height; ty++ {
 		for tx := 0; tx*64 <= r.width; tx++ {
 			tile := r.tileGrid.TileAt(tx, ty)
 			if tile == nil || tile.Width <= 0 || tile.Height <= 0 {
 				continue
 			}
-			r.renderTile(tile, enc, nil, images)
+			r.renderTile(tile, enc, nil, images, materials)
 			for _, b := range tile.Data[:tile.Width*tile.Height*4] {
 				if b != 0 {
 					painted = true
@@ -140,6 +141,7 @@ func cpuCanvasInto(t *testing.T, r *Renderer, s *Scene) []byte {
 	t.Helper()
 	enc := s.Encoding()
 	images := s.Images()
+	materials := s.Materials()
 	out := make([]byte, r.width*r.height*4)
 	for ty := 0; ty*64 <= r.height; ty++ {
 		for tx := 0; tx*64 <= r.width; tx++ {
@@ -147,7 +149,7 @@ func cpuCanvasInto(t *testing.T, r *Renderer, s *Scene) []byte {
 			if tile == nil || tile.Width <= 0 || tile.Height <= 0 {
 				continue
 			}
-			r.renderTile(tile, enc, nil, images)
+			r.renderTile(tile, enc, nil, images, materials)
 			x0, y0, tw, th := tile.Bounds()
 			for row := 0; row < th; row++ {
 				base := ((y0+row)*r.width + x0) * 4

@@ -434,6 +434,15 @@ type Encoding struct {
 	// matching this encoding's coordinate precision.
 	projections []projectionEntry
 
+	// materialEntries holds the TagMaterial payloads in stream order (batch
+	// 3e-3): uint32 indices into the scene's material registry, 0xFFFFFFFF =
+	// clear. Parallel stream, decoded sequentially like projections.
+	// materialEffects mirrors it with the registered effect pointers so Hash
+	// can mix the LIVE state generation (uniform/image mutations bump gen ⇒
+	// LayerCache keys change; nil entries hash a zero gen).
+	materialEntries []uint32
+	materialEffects []*render.ShaderEffect
+
 	// lastEncodedProjection is the projection layer this stream is currently
 	// under (a fresh stream starts identity). Set is delta-encoded against it
 	// the way lastEncodedTransform does for TagTransform: a scene that never
@@ -497,6 +506,8 @@ func (e *Encoding) Reset() {
 	e.drawData = e.drawData[:0]
 	e.transforms = e.transforms[:0]
 	e.projections = e.projections[:0]
+	e.materialEntries = e.materialEntries[:0]
+	e.materialEffects = e.materialEffects[:0]
 	e.lastEncodedProjection = render.Matrix4Identity()
 	e.textData = e.textData[:0]
 	e.brushes = e.brushes[:0]
@@ -558,6 +569,48 @@ func (e *Encoding) EncodeProjection(mode render.ProjectionMode, m render.Matrix4
 		e.lastEncodedProjection = m
 	}
 	e.projections = append(e.projections, entry)
+}
+
+// EncodeMaterial appends an item-level material switch (batch 3e-3). nil effect
+// clears (0xFFFFFFFF payload). The delta lives on the Scene — it owns the
+// sticky item state and only calls this when the pointer actually changed.
+// The encoder must not keep a second copy of that memory: Encoding.Reset()
+// (called by Scene.flattenLayers on every Encoding() read) wipes the encoder's
+// state while the Scene keeps its own, and a clear that follows a flatten is
+// silently swallowed by a dedup comparing against the wiped copy.
+func (e *Encoding) EncodeMaterial(idx uint32, effect *render.ShaderEffect) {
+	e.tags = append(e.tags, TagMaterial)
+	const clearIdx = ^uint32(0)
+	if effect == nil {
+		e.materialEntries = append(e.materialEntries, clearIdx)
+		e.materialEffects = append(e.materialEffects, nil)
+		e.drawData = append(e.drawData, clearIdx)
+		return
+	}
+	e.materialEntries = append(e.materialEntries, idx)
+	e.materialEffects = append(e.materialEffects, effect)
+	e.drawData = append(e.drawData, idx)
+}
+
+// appendMaterialStream merges the material mirror of another encoding into this
+// one (batch 3e-3): the payload indices ride the registry offset the same way
+// the TagMaterial drawData slots do (0xFFFFFFFF = clear passes through
+// untouched), and the effect pointers must travel with them — Hash mixes each
+// entry's live id^gen, so dropping the mirror silently blinds the LayerCache
+// key to every merged material.
+func (e *Encoding) appendMaterialStream(other *Encoding, materialOffset uint32) {
+	const clearIdx = ^uint32(0)
+	for i, idx := range other.materialEntries {
+		if materialOffset > 0 && idx != clearIdx {
+			idx += materialOffset
+		}
+		e.materialEntries = append(e.materialEntries, idx)
+		var effect *render.ShaderEffect
+		if i < len(other.materialEffects) {
+			effect = other.materialEffects[i]
+		}
+		e.materialEffects = append(e.materialEffects, effect)
+	}
 }
 
 // EncodeDrawTransform emits the transform a draw command depends on, skipping
@@ -915,6 +968,25 @@ func (e *Encoding) Hash() uint64 {
 	// Hash projections. A scene that never uses the layer leaves this stream
 	// empty, so every pre-existing hash is untouched; one that does must not
 	// collide in LayerCache with the same geometry drawn flat.
+	// Hash materials (batch 3e-3): a scene that never uses the stream leaves
+	// it empty, so pre-existing hashes are untouched. Each entry mixes the
+	// registry index AND the effect's immutable identity + live state
+	// generation — two distinct unmutated effects never collide, and a
+	// uniform/image mutation after recording changes the hash and
+	// invalidates LayerCache entries keyed on the old geometry (E5b 同族防线).
+	for i, me := range e.materialEffects {
+		var mid, gen uint64
+		if me != nil {
+			mid, gen = me.ID(), me.Gen()
+		}
+		if i < len(e.materialEntries) {
+			hash ^= uint64(e.materialEntries[i])
+			hash *= fnvPrime
+		}
+		hash ^= mid ^ (gen << 1)
+		hash *= fnvPrime
+	}
+
 	for _, pe := range e.projections {
 		hash ^= uint64(pe.mode)
 		hash *= fnvPrime
@@ -951,7 +1023,7 @@ func (e *Encoding) Hash() uint64 {
 // Append merges another Encoding into this one, adjusting brush indices.
 // For scene-level merging with image registry offset, use AppendWithImages.
 func (e *Encoding) Append(other *Encoding) {
-	e.AppendWithImages(other, 0)
+	e.AppendWithImages(other, 0, 0)
 }
 
 // AppendWithImages merges another Encoding into this one, adjusting both
@@ -959,7 +1031,7 @@ func (e *Encoding) Append(other *Encoding) {
 // imageOffset is the number of images already registered in the target scene;
 // it shifts TagImage drawData entries so they reference the correct images
 // after merging two image registries.
-func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
+func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32, materialOffset uint32) {
 	if other == nil || len(other.tags) == 0 {
 		return
 	}
@@ -1028,6 +1100,16 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 		case TagProjection:
 			// Projection data lives in its own stream; no brush/image index here.
 
+		case TagMaterial:
+			// Batch 3e-3: payload is a material registry index — remap by
+			// materialOffset; 0xFFFFFFFF (clear) passes through untouched.
+			if materialOffset > 0 && drawIdx < len(other.drawData) {
+				if v := e.drawData[drawDataStart+drawIdx]; v != ^uint32(0) {
+					e.drawData[drawDataStart+drawIdx] += materialOffset
+				}
+			}
+			drawIdx++
+
 		case TagText:
 			if textOff+glyphRunDataSize <= len(other.textData) {
 				glyphCount := int(binary.LittleEndian.Uint16(other.textData[textOff+12:]))
@@ -1051,6 +1133,7 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 	// identity reset silently un-projected every appended draw (measured: layer
 	// composition emitted a second TagProjection that cancelled the parent's).
 	e.projections = append(e.projections, other.projections...)
+	e.appendMaterialStream(other, materialOffset)
 
 	// Append brushes
 	e.brushes = append(e.brushes, other.brushes...)
@@ -1113,12 +1196,12 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 // case in the switch below. Adding a new tag with pathData without updating
 // this switch will cause silent coordinate corruption. The default case
 // handles tags with zero pathData/drawData (markers, clip, pop).
-func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageOffset uint32) {
+func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageOffset uint32, materialOffset uint32) {
 	if other == nil || len(other.tags) == 0 {
 		return
 	}
 	if dx == 0 && dy == 0 {
-		e.AppendWithImages(other, imageOffset)
+		e.AppendWithImages(other, imageOffset, materialOffset)
 		return
 	}
 
@@ -1222,6 +1305,16 @@ func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageO
 			// Projection data is in the projections stream (appended below);
 			// nothing here consumes pathData or drawData.
 
+		case TagMaterial:
+			// Batch 3e-3: payload is a material registry index — remap by
+			// materialOffset; 0xFFFFFFFF (clear) passes through untouched.
+			if materialOffset > 0 && drawIdx < len(other.drawData) {
+				if v := e.drawData[drawDataStart+drawIdx]; v != ^uint32(0) {
+					e.drawData[drawDataStart+drawIdx] += materialOffset
+				}
+			}
+			drawIdx++
+
 		case TagText:
 			// Text data is in the textData stream. Handled in a second pass below.
 
@@ -1246,6 +1339,7 @@ func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageO
 	e.transforms = append(e.transforms, other.transforms...)
 
 	e.projections = append(e.projections, other.projections...)
+	e.appendMaterialStream(other, materialOffset)
 
 	e.brushes = append(e.brushes, other.brushes...)
 

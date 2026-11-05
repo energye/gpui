@@ -380,6 +380,22 @@ func (d *Decoder) PushLayer() (blend BlendMode, alpha float32) {
 // Image Command Decoder
 // ---------------------------------------------------------------------------
 
+// Material reads the current TagMaterial payload (batch 3e-3): the material
+// registry index (0xFFFFFFFF = cleared/nil). Consumes one drawData slot, in
+// stream order with the tag walk.
+func (d *Decoder) Material() (idx uint32, cleared bool) {
+	if d.drawIdx >= len(d.enc.drawData) {
+		return ^uint32(0), true
+	}
+	idx = d.enc.drawData[d.drawIdx]
+	d.drawIdx++
+	const clearIdx = ^uint32(0)
+	if idx == clearIdx {
+		return clearIdx, true
+	}
+	return idx, false
+}
+
 // Image reads the current Image command data.
 // Returns the image index and transform.
 // Only valid when Tag() == TagImage.

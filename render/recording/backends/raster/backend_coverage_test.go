@@ -86,7 +86,7 @@ func TestBackendApplyStrokeBrush(t *testing.T) {
 		Join:       recording.LineJoinBevel,
 		MiterLimit: 4.0,
 	}
-	backend.StrokePath(path, grad, stroke, render.BlendNormal, render.BlendSpaceSRGB)
+	backend.StrokePath(path, grad, stroke, render.BlendNormal, render.BlendSpaceSRGB, nil)
 
 	_ = backend.End()
 }
@@ -116,7 +116,7 @@ func TestBackendFillPathNil(t *testing.T) {
 	_ = backend.Begin(100, 100)
 
 	// Nil path should not panic
-	backend.FillPath(nil, recording.NewSolidBrush(render.Red), recording.FillRuleNonZero, render.BlendNormal, render.BlendSpaceSRGB)
+	backend.FillPath(nil, recording.NewSolidBrush(render.Red), recording.FillRuleNonZero, render.BlendNormal, render.BlendSpaceSRGB, nil)
 
 	_ = backend.End()
 }
@@ -126,7 +126,7 @@ func TestBackendStrokePathNil(t *testing.T) {
 	_ = backend.Begin(100, 100)
 
 	// Nil path should not panic
-	backend.StrokePath(nil, recording.NewSolidBrush(render.Red), recording.Stroke{Width: 2}, render.BlendNormal, render.BlendSpaceSRGB)
+	backend.StrokePath(nil, recording.NewSolidBrush(render.Red), recording.Stroke{Width: 2}, render.BlendNormal, render.BlendSpaceSRGB, nil)
 
 	_ = backend.End()
 }
@@ -192,7 +192,7 @@ func TestBackendFillRuleEvenOdd(t *testing.T) {
 
 	path := render.NewPath()
 	path.Rectangle(10, 10, 80, 80)
-	backend.FillPath(path, recording.NewSolidBrush(render.Red), recording.FillRuleEvenOdd, render.BlendNormal, render.BlendSpaceSRGB)
+	backend.FillPath(path, recording.NewSolidBrush(render.Red), recording.FillRuleEvenOdd, render.BlendNormal, render.BlendSpaceSRGB, nil)
 
 	_ = backend.End()
 }

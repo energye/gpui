@@ -65,6 +65,14 @@ type Scene struct {
 	// only when the value differs from lastEncodedAA).
 	antiAlias bool
 
+	// materialRegistry holds the scene's registered effects (batch 3e-3,
+	// Godot canvas_item_set_material item-level form). Indices ride the
+	// TagMaterial stream; SetMaterial delta-encodes against currentMaterial.
+	materialRegistry []*render.ShaderEffect
+	// currentMaterial is the material subsequent draws draw under (sticky
+	// across layer boundaries, TagSetAntiAlias 同族).
+	currentMaterial *render.ShaderEffect
+
 	// projection is the scene-level 4×4 projection layer (P3.7 batch 3e),
 	// identity when none is installed; projectionStack carries Push/Pop nesting.
 	// Like render.Context and render/recording, the scene layer never folds into
@@ -702,8 +710,11 @@ func (s *Scene) Append(other *Scene) {
 	otherEnc := other.Encoding()
 	//nolint:gosec // image registry length is bounded
 	imageOffset := uint32(len(s.imageRegistry))
-	s.currentEncoding().AppendWithImages(otherEnc, imageOffset)
+	//nolint:gosec // material registry length is bounded
+	materialOffset := uint32(len(s.materialRegistry))
+	s.currentEncoding().AppendWithImages(otherEnc, imageOffset, materialOffset)
 	s.imageRegistry = append(s.imageRegistry, other.imageRegistry...)
+	s.materialRegistry = append(s.materialRegistry, other.materialRegistry...)
 	for id, src := range other.fontRegistry {
 		s.fontRegistry[id] = src
 	}
@@ -724,7 +735,10 @@ func (s *Scene) AppendWithTranslation(other *Scene, dx, dy float32) {
 	otherEnc := other.Encoding()
 	//nolint:gosec // image registry length is bounded
 	imageOffset := uint32(len(s.imageRegistry))
-	s.currentEncoding().AppendWithTranslation(otherEnc, dx, dy, imageOffset)
+	//nolint:gosec // material registry length is bounded
+	materialOffset := uint32(len(s.materialRegistry))
+	s.currentEncoding().AppendWithTranslation(otherEnc, dx, dy, imageOffset, materialOffset)
+	s.materialRegistry = append(s.materialRegistry, other.materialRegistry...)
 	s.imageRegistry = append(s.imageRegistry, other.imageRegistry...)
 	for id, src := range other.fontRegistry {
 		s.fontRegistry[id] = src
@@ -917,6 +931,40 @@ func (s *Scene) registerImage(img *Image) int {
 // Images returns all registered images.
 func (s *Scene) Images() []*Image {
 	return s.imageRegistry
+}
+
+// registerMaterial adds an effect to the registry and returns its index
+// (pointer-identity dedup, same basis as registerImage).
+func (s *Scene) registerMaterial(e *render.ShaderEffect) int {
+	for i, registered := range s.materialRegistry {
+		if registered == e {
+			return i
+		}
+	}
+	idx := len(s.materialRegistry)
+	s.materialRegistry = append(s.materialRegistry, e)
+	return idx
+}
+
+// Materials returns the registered effects (replay-side registry access).
+func (s *Scene) Materials() []*render.ShaderEffect {
+	return s.materialRegistry
+}
+
+// SetMaterial switches the item-level material for subsequent draws (batch
+// 3e-3; Godot canvas_item_set_material). nil clears. Sticky across layer
+// boundaries; a Set matching the current effect is a no-op (delta encoding).
+func (s *Scene) SetMaterial(e *render.ShaderEffect) {
+	if s == nil || e == s.currentMaterial {
+		return
+	}
+	idx := ^uint32(0) // clear
+	if e != nil {
+		idx = uint32(s.registerMaterial(e)) //nolint:gosec // registry length bounded
+	}
+	s.currentEncoding().EncodeMaterial(idx, e)
+	s.currentMaterial = e
+	s.version++
 }
 
 // transformBounds transforms a bounding rectangle by an affine transform.

@@ -20,7 +20,7 @@ func TestAppendWithImages_ImageIndicesAdjusted(t *testing.T) {
 	encB.EncodeImage(0, IdentityAffine())
 	encB.EncodeImage(1, IdentityAffine())
 
-	encA.AppendWithImages(encB, 3)
+	encA.AppendWithImages(encB, 3, 0)
 
 	dd := encA.DrawData()
 	want := []uint32{0, 1, 2, 3, 4}
@@ -39,7 +39,7 @@ func TestAppendWithImages_ZeroOffset(t *testing.T) {
 	encB := NewEncoding()
 	encB.EncodeImage(5, IdentityAffine())
 
-	encA.AppendWithImages(encB, 0)
+	encA.AppendWithImages(encB, 0, 0)
 
 	dd := encA.DrawData()
 	if len(dd) != 1 || dd[0] != 5 {
@@ -63,7 +63,7 @@ func TestAppendWithImages_MixedTags(t *testing.T) {
 	encB.EncodeFill(SolidBrush(render.Blue), FillNonZero)
 	encB.EncodeImage(0, IdentityAffine())
 
-	encA.AppendWithImages(encB, 1)
+	encA.AppendWithImages(encB, 1, 0)
 
 	indices := extractImageIndices(encA)
 	if len(indices) != 2 {

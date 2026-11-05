@@ -62,6 +62,9 @@ type Recorder struct {
 	// Effects are immutable pure objects (render.PathEffect contract), so
 	// state save/restore and command capture share one reference.
 	pathEffect render.PathEffect
+	// shader rides Fill/Stroke commands recorded after it was set (P3.7
+	// batch 3e-3, D9). 录制期取值：captures the pointer, replay reads only.
+	shader     *render.ShaderEffect
 	fillRule   FillRule
 	antiAlias  bool
 	blendMode  render.BlendMode
@@ -94,6 +97,7 @@ type recorderState struct {
 	dashPattern []float64
 	dashOffset  float64
 	pathEffect  render.PathEffect
+	shader      *render.ShaderEffect
 	fillRule    FillRule
 	antiAlias   bool
 	transform   Matrix
@@ -284,11 +288,11 @@ func (r *Recording) Playback(backend Backend) error {
 		case FillPathCommand:
 			path := r.resources.GetPath(c.Path)
 			brush := r.resources.GetBrush(c.Brush)
-			backend.FillPath(path, brush, c.Rule, c.Blend, c.BlendSpace)
+			backend.FillPath(path, brush, c.Rule, c.Blend, c.BlendSpace, c.Shader)
 		case StrokePathCommand:
 			path := r.resources.GetPath(c.Path)
 			brush := r.resources.GetBrush(c.Brush)
-			backend.StrokePath(path, brush, c.Stroke, c.Blend, c.BlendSpace)
+			backend.StrokePath(path, brush, c.Stroke, c.Blend, c.BlendSpace, c.Shader)
 		case FillRectCommand:
 			brush := r.resources.GetBrush(c.Brush)
 			backend.FillRect(c.Rect, brush, c.Blend, c.BlendSpace)
@@ -392,7 +396,7 @@ func (r *Recording) Playback(backend Backend) error {
 			// glyphs where the live walk drew hollow outlines.
 			if face != nil {
 				if path := render.TextOutlinePath(face, c.Text, c.X, c.Y); path != nil {
-					backend.StrokePath(path, brush, c.Stroke, render.BlendNormal, render.BlendSpaceSRGB)
+					backend.StrokePath(path, brush, c.Stroke, render.BlendNormal, render.BlendSpaceSRGB, nil)
 					continue
 				}
 			}

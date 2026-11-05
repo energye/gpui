@@ -320,6 +320,10 @@ type FillPathCommand struct {
 	Blend render.BlendMode
 	// BlendSpace is the color domain of the blend captured at draw time (P3.1).
 	BlendSpace render.BlendSpace
+	// Shader is the user shader captured at draw time (P3.7 batch 3e-3, D9;
+	// the shader replaces the brush as the color source — Paint.Shader
+	// precedence, batch 3d). 录制期取值、回放只读 (PathEffect 先例).
+	Shader *render.ShaderEffect
 }
 
 // Type implements Command.
@@ -337,6 +341,10 @@ type StrokePathCommand struct {
 	Blend render.BlendMode
 	// BlendSpace is the color domain of the blend captured at draw time (P3.1).
 	BlendSpace render.BlendSpace
+	// Shader is the user shader captured at draw time (P3.7 batch 3e-3, D9;
+	// Paint.Shader precedence — fills AND strokes, batch 3d). 录制期取值、
+	// 回放只读 (PathEffect 先例).
+	Shader *render.ShaderEffect
 }
 
 // Type implements Command.
