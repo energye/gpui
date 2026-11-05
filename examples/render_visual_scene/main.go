@@ -46,9 +46,11 @@ func main() {
 	}
 
 	stats := renderer.Stats()
-	fmt.Printf("tiles_total=%d tiles_rendered=%d\n", stats.TilesTotal, stats.TilesRendered)
-
-	fmt.Println("gpu_ops=0 cpu_fallback_ops=0 note=scene_renderer")
+	// 真数来自 scene.Renderer.Stats()：以前这里硬印一行 gpu_ops=0，
+	// 是字面量冒充测量（本文件不导 GPU 加速器时 GPU 计数本就为 0，但必须量出来才算）。
+	fmt.Printf("tiles_total=%d tiles_rendered=%d gpu_leg=%v gpu_ops=%d cpu_fallback_ops=%d last_cpu_fallback=%q\n",
+		stats.TilesTotal, stats.TilesRendered, stats.GPULegTaken, stats.GPUOps,
+		stats.CPUFallbackOps, stats.LastCPUFallback)
 	if err := target.SavePNG(*out); err != nil {
 		log.Fatalf("save png: %v", err)
 	}

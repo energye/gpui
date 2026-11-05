@@ -1,5 +1,7 @@
 # P2.5 逐测试文件门禁包清单（正本）。
-# 口径：render→gpu 主链 9 包（P2.4c 起逐轮扩充）+ ui 全 25 包（P2.5 J4）。
+# 口径：render→gpu 主链 12 包（P2.4c 起逐轮扩充；P3.7 批 3 收尾补 render/scene、
+# render/recording、render/recording/backends/raster 三包——批 3 的材质/投影/quad 改动全落
+# 在这三包里，此前的 9 包名单对它们是零覆盖）+ ui 全 25 包（P2.5 J4）。
 # 用法：tools/per-file-tests.sh [此文件|自定义清单] [输出目录]；跑 GPU 包必须带
 # WGPU_NATIVE_PATH（脚本自设），否则 GPU 用例全 SKIP=假绿（池 H1 教训）。
 # 每行一个包路径（相对模块根），# 开头为注释。
@@ -7,6 +9,9 @@ render
 render/internal/gpu/res
 render/internal/gpu
 render/internal/image
+render/scene
+render/recording
+render/recording/backends/raster
 gpu
 gpu/hal
 gpu/hal/noop

@@ -283,6 +283,26 @@ type RenderStats struct {
 	// Frame timing
 	FrameTime time.Duration
 	FPS       float64
+
+	// Leg identity (P3.7 批 3 收尾): which path produced this frame, and what the
+	// Context actually queued on it. TilesRendered==0 is NOT proof of a GPU frame —
+	// the GPU leg never touches the tile counters, and per-shape CPU fallback
+	// happens inside the render.Context, so before these fields existed offscreen
+	// consumers could only print a made-up number for the GPU leg
+	// (examples/render_scene_gpu / render_visual_scene_gpu 硬印 gpu_ops=0).
+	GPULegTaken     bool
+	GPUOps          int
+	CPUFallbackOps  int
+	LastCPUFallback string
+}
+
+// resetStats starts a fresh frame on both legs, so a GPU frame can never carry
+// over the tile counts of the previous CPU frame (the GPU leg used to return
+// before any reset).
+func (r *Renderer) resetStats() {
+	r.statsMu.Lock()
+	r.stats = RenderStats{}
+	r.statsMu.Unlock()
 }
 
 // RendererOption configures a Renderer.
@@ -360,18 +380,22 @@ func NewRenderer(width, height int, opts ...RendererOption) *Renderer {
 // renderGPU renders the scene through the GPU accelerator via GPUSceneRenderer.
 // Creates a temporary render.Context backed by the target pixmap, renders the scene
 // through it (GPU shapes → FlushGPU → readback to pixmap), returns nil on success.
-func (r *Renderer) renderGPU(target *render.Pixmap, scene *Scene) error {
+// renderGPU runs the retained scene through the Context GPU leg and reports the
+// leg's own routing counters (queue-time ops, per-shape CPU fallbacks) — the
+// Context is the only holder of those numbers, and they must be read before it
+// closes and after the flush.
+func (r *Renderer) renderGPU(target *render.Pixmap, scene *Scene) (render.RenderPathStats, error) {
 	dc := render.NewContextForPixmap(target)
 	if dc == nil {
-		return render.ErrFallbackToCPU
+		return render.RenderPathStats{}, render.ErrFallbackToCPU
 	}
 	defer func() { _ = dc.Close() }()
 
-	gpuR := NewGPUSceneRenderer(dc)
-	if err := gpuR.RenderScene(scene); err != nil {
-		return err
+	if err := NewGPUSceneRenderer(dc).RenderScene(scene); err != nil {
+		return dc.RenderPathStats(), err
 	}
-	return dc.FlushGPU()
+	err := dc.FlushGPU()
+	return dc.RenderPathStats(), err
 }
 
 // Render renders the entire scene to the target pixmap.
@@ -402,16 +426,25 @@ func (r *Renderer) RenderWithContext(ctx context.Context, target *render.Pixmap,
 	// GPU fast path: if a GPU accelerator is registered, render through
 	// GPUSceneRenderer which decodes scene commands into render.Context GPU calls.
 	// The render.Context handles GPU→CPU fallback automatically per-shape.
+	//
+	// Either leg starts from a clean frame: the tile counters describe the CPU
+	// leg, and a GPU frame must not inherit the previous frame's tile counts.
+	r.resetStats()
 	if render.Accelerator() != nil {
-		if err := r.renderGPU(target, scene); err == nil {
+		ps, err := r.renderGPU(target, scene)
+		if err == nil {
+			r.statsMu.Lock()
+			r.stats.GPULegTaken = true
+			r.stats.GPUOps = ps.GPUOps
+			r.stats.CPUFallbackOps = ps.CPUFallbackOps
+			r.stats.LastCPUFallback = ps.LastCPUFallbackReason
+			r.statsMu.Unlock()
 			return nil
 		}
+		// 回落瓦片腿：GPU 那一路没成功，计数不写进本帧，Stats 只报真正出了图的那条腿。
 	}
 
 	startTotal := time.Now()
-	r.statsMu.Lock()
-	r.stats = RenderStats{} // Reset stats
-	r.statsMu.Unlock()
 
 	// Mark all tiles dirty for full render
 	r.dirty.MarkAll()
@@ -542,9 +575,7 @@ func (r *Renderer) RenderDirtyWithContext(ctx context.Context, target *render.Pi
 	}
 
 	startTotal := time.Now()
-	r.statsMu.Lock()
-	r.stats = RenderStats{}
-	r.statsMu.Unlock()
+	r.resetStats()
 
 	// Use provided dirty region or fall back to internal tracking
 	dirtyRegion := dirty

@@ -18,7 +18,7 @@ import (
 	"log"
 	"math"
 	"os"
-	
+
 	"time"
 
 	"github.com/energye/gpui/render"
@@ -47,11 +47,11 @@ func main() {
 	elapsed := time.Since(start)
 
 	stats := renderer.Stats()
-	if stats.TilesRendered == 0 {
-		fmt.Println("Rendered via: GPU (0 CPU tiles used)")
-	} else {
-		fmt.Printf("Rendered via: CPU (%d tiles)\n", stats.TilesRendered)
-	}
+	// 走了哪条腿、这一腿真排了多少 op，全部来自 scene.Renderer.Stats()：
+	// GPU 腿被采纳不等于真 GPU 求值（逐形状可在 Context 内回落 CPU），
+	// 「TilesRendered == 0」过去被当成 GPU 证据，其实是统计不重置造成的错觉。
+	fmt.Printf("gpu_leg=%v gpu_ops=%d cpu_fallback_ops=%d last_cpu_fallback=%q tiles_rendered=%d\n",
+		stats.GPULegTaken, stats.GPUOps, stats.CPUFallbackOps, stats.LastCPUFallback, stats.TilesRendered)
 	fmt.Printf("Time: %v\n", elapsed)
 
 	_ = os.MkdirAll("tmp", 0o755)

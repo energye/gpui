@@ -44,13 +44,11 @@ func main() {
 	}
 
 	stats := renderer.Stats()
-	if stats.TilesRendered == 0 {
-		fmt.Println("path=gpu tiles_rendered=0")
-	} else {
-		fmt.Printf("path=cpu tiles_rendered=%d\n", stats.TilesRendered)
-	}
-
-	fmt.Println("gpu_ops=0 cpu_fallback_ops=0 note=scene_renderer")
+	// 走没走 GPU 腿、这一腿真排了多少 op、逐形状回落了几次，全部读 Stats()。
+	// 「tiles_rendered == 0 ⇒ 走了 GPU」是无效判据（瓦片计数只描述瓦片腿），
+	// 上一行硬印的 gpu_ops=0 更是字面量冒充测量——两处一起换成真数。
+	fmt.Printf("gpu_leg=%v gpu_ops=%d cpu_fallback_ops=%d last_cpu_fallback=%q tiles_rendered=%d\n",
+		stats.GPULegTaken, stats.GPUOps, stats.CPUFallbackOps, stats.LastCPUFallback, stats.TilesRendered)
 	if err := target.SavePNG(*out); err != nil {
 		log.Fatalf("save png: %v", err)
 	}
