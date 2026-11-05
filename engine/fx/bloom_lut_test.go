@@ -11,14 +11,16 @@ import (
 	"github.com/energye/gpui/engine/core"
 )
 
-// Tolerance is explicit: pure float64 math replays bitwise, JSON goldens
-// round-trip exactly, so 1e-9 is generous slack, never a hidden fudge.
+// Tolerance is explicit and stays 1e-9: the goldens are frozen at exactly
+// the values this build produces (bloom colors cross the render layer's
+// float32 store by design, alpha never does), so a replay is still bitwise
+// and 1e-9 is only decimal round-trip slack, never a hidden fudge.
 const goldenEps = 1e-9
 
 type bloomCaseDef struct {
 	Name      string      `json:"name"`
 	Threshold float64     `json:"threshold"`
-	Radius    int         `json:"radius"`
+	Sigma     float64     `json:"sigma"`
 	Intensity float64     `json:"intensity"`
 	W         int         `json:"w"`
 	H         int         `json:"h"`
@@ -63,7 +65,7 @@ type tmCaseDef struct {
 type gradeCaseDef struct {
 	Name      string      `json:"name"`
 	Threshold float64     `json:"threshold"`
-	Radius    int         `json:"radius"`
+	Sigma     float64     `json:"sigma"`
 	Intensity float64     `json:"intensity"`
 	CX        float64     `json:"cx"`
 	CY        float64     `json:"cy"`
@@ -138,7 +140,7 @@ func checkPixels(t *testing.T, what string, got *Image, want [][]float64) {
 
 func buildGrade(t *testing.T, c gradeCaseDef) Grade {
 	t.Helper()
-	b, err := NewBloom(c.Threshold, c.Radius, c.Intensity)
+	b, err := NewBloom(c.Threshold, c.Sigma, c.Intensity)
 	if err != nil {
 		t.Fatalf("%s: NewBloom: %v", c.Name, err)
 	}
@@ -169,7 +171,7 @@ func buildGrade(t *testing.T, c gradeCaseDef) Grade {
 func TestBloomLUTGolden(t *testing.T) {
 	f := loadGradeFile(t)
 	for _, c := range f.Bloom {
-		b, err := NewBloom(c.Threshold, c.Radius, c.Intensity)
+		b, err := NewBloom(c.Threshold, c.Sigma, c.Intensity)
 		if err != nil {
 			t.Fatalf("%s: NewBloom: %v", c.Name, err)
 		}
@@ -310,7 +312,7 @@ func TestBloomLUTEdgesNoCrash(t *testing.T) {
 	badBuilds = append(badBuilds, err)
 	_, err = NewBloom(0.5, -1, 1)
 	badBuilds = append(badBuilds, err)
-	_, err = NewBloom(0.5, MaxBloomRadius+1, 1)
+	_, err = NewBloom(0.5, MaxBloomSigma+1, 1)
 	badBuilds = append(badBuilds, err)
 	_, err = NewBloom(0.5, 1, math.Inf(1))
 	badBuilds = append(badBuilds, err)
@@ -560,10 +562,10 @@ func TestBloomLUTOffscreenShapes(t *testing.T) {
 
 	// Bloom spreads: 3x3 single white blooms every neighbour above black.
 	for _, c := range f.Bloom {
-		if c.Name != "bloom_r1_spread_3x3" {
+		if c.Name != "bloom_s1_spread_3x3" {
 			continue
 		}
-		b, _ := NewBloom(c.Threshold, c.Radius, c.Intensity)
+		b, _ := NewBloom(c.Threshold, c.Sigma, c.Intensity)
 		img, _ := NewImageFromColors(c.W, c.H, pixFromRaw(t, c.Name, c.Src))
 		got, _ := b.Apply(img)
 		center := got.Pix[4].R

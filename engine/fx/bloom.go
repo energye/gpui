@@ -12,17 +12,19 @@ package fx
 
 import (
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/render/hdr"
 )
 
 // MaxImagePixels caps one grading intermediate (16M pixels, 64MB at RGBA8).
 // Bigger pictures report core OutOfMemory instead of allocating.
 const MaxImagePixels = 16 << 20
 
-// MaxBloomRadius caps the box-blur radius (16px each pass is plenty for a
-// glow; bigger radii belong to a GPU blur, not this CPU grade path).
-const MaxBloomRadius = 16
+// MaxBloomSigma is the render layer's own CPU cap (σ=16 is already 49 taps
+// per direction); the engine delegates the domain instead of re-inventing it.
+const MaxBloomSigma = hdr.MaxBloomSigma
 
-// MaxBloomIntensity caps the additive glow strength.
+// MaxBloomIntensity caps the additive glow strength. The render layer allows
+// more light than a game should ever ask for, so this stays the tighter cap.
 const MaxBloomIntensity = 4
 
 // Image is one isolated grading intermediate: W*H straight-alpha
@@ -162,32 +164,26 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// luminance is the Rec.709 luma of the straight-alpha RGB (alpha ignored,
-// alpha is always preserved by every stage).
-func luminance(c core.Color) float64 {
-	return 0.2126*c.R + 0.7152*c.G + 0.0722*c.B
-}
-
-// Bloom glows bright areas: pixels above Threshold are masked, box-blurred
-// by Radius, and added back scaled by Intensity. Radius 0 (or Intensity 0)
-// is a valid near-identity: the mask still applies but (almost) nothing is
-// added, so callers can freeze one Grade and fade the glow with Intensity.
+// Bloom glows bright areas: pixels above Threshold are masked with a soft
+// knee, blurred by the render layer's separable Gaussian (shared kernel, so
+// this is the same math the GPU leg runs), and added back scaled by
+// Intensity. Sigma 0 leaves the bright pass unblurred (a hard halo on the
+// masked pixels only); Intensity 0 is the identity, so callers can freeze one
+// Grade and fade the glow with Intensity.
 type Bloom struct {
 	Threshold float64
-	Radius    int
+	Sigma     float64
 	Intensity float64
 }
 
-// NewBloom builds a Bloom. Threshold must be in [0,1], Radius in
-// [0,MaxBloomRadius], Intensity in [0,MaxBloomIntensity]; all floats must
+// NewBloom builds a Bloom. Threshold must be in [0,1], Sigma in
+// [0,MaxBloomSigma], Intensity in [0,MaxBloomIntensity]; all floats must
 // be finite. Anything else is InvalidArg and builds nothing.
-func NewBloom(threshold float64, radius int, intensity float64) (Bloom, error) {
-	const op = "fx.NewBloom"
-	b := Bloom{Threshold: threshold, Radius: radius, Intensity: intensity}
+func NewBloom(threshold, sigma, intensity float64) (Bloom, error) {
+	b := Bloom{Threshold: threshold, Sigma: sigma, Intensity: intensity}
 	if err := b.Validate(); err != nil {
 		return Bloom{}, err
 	}
-	_ = op
 	return b, nil
 }
 
@@ -197,8 +193,8 @@ func (b Bloom) Validate() error {
 	if !finiteFloat(b.Threshold) || b.Threshold < 0 || b.Threshold > 1 {
 		return core.InvalidArg(op, "threshold")
 	}
-	if b.Radius < 0 || b.Radius > MaxBloomRadius {
-		return core.InvalidArg(op, "radius")
+	if !finiteFloat(b.Sigma) || b.Sigma < 0 || b.Sigma > MaxBloomSigma {
+		return core.InvalidArg(op, "sigma")
 	}
 	if !finiteFloat(b.Intensity) || b.Intensity < 0 || b.Intensity > MaxBloomIntensity {
 		return core.InvalidArg(op, "intensity")
@@ -207,12 +203,21 @@ func (b Bloom) Validate() error {
 }
 
 // IsIdentity reports whether Apply adds (almost) nothing: zero intensity
-// always, or zero radius with zero threshold-mask output handled by Apply.
+// always; a zero Sigma only blurs nothing, the mask can still light up, so it
+// is not an identity.
 func (b Bloom) IsIdentity() bool { return b.Intensity == 0 }
 
-// Apply returns src plus the blurred bright-pass, as a fresh image.
+// Apply returns src plus the blurred bright-pass, as a fresh image. The
+// pixel math is the render layer's float-domain bloom kernel (P3.7 batch 5:
+// one implementation for both legs), so an over-bright glow keeps its light
+// through the passes; this stage still hands back LDR colors, clamping its
+// output to [0,1] the way every other fx stage does. Colors cross the
+// render layer's float32 store (1e-7 relative), alpha never enters the
+// kernel and comes back exactly as it went in.
+//
 // src is never mutated. A nil src is InvalidArg, a corrupt src is BadData,
-// an invalid Bloom is InvalidArg; all leave nothing allocated to the caller.
+// an invalid Bloom is InvalidArg, an image wider than the render layer's
+// float target cap is InvalidArg; all leave nothing allocated to the caller.
 func (b Bloom) Apply(src *Image) (*Image, error) {
 	const op = "fx.Bloom.Apply"
 	if err := src.check(op); err != nil {
@@ -222,85 +227,37 @@ func (b Bloom) Apply(src *Image) (*Image, error) {
 		return nil, err
 	}
 	n := len(src.Pix)
-	masked := make([]core.Color, n)
-	for i, c := range src.Pix {
-		r, g, bl := clamp01(c.R), clamp01(c.G), clamp01(c.B)
-		m := brightMask(luminance(core.RGB(r, g, bl)), b.Threshold)
-		masked[i] = core.RGBA(r*m, g*m, bl*m, 0)
-	}
-	blurred := boxBlur(masked, src.W, src.H, b.Radius)
 	out := make([]core.Color, n)
+	if b.IsIdentity() {
+		copy(out, src.Pix)
+		return &Image{W: src.W, H: src.H, Pix: out}, nil
+	}
+	if src.W > hdr.MaxFloatDimension || src.H > hdr.MaxFloatDimension {
+		return nil, core.InvalidArg(op, "image side over float target cap")
+	}
+	target, err := hdr.NewFloatTarget(src.W, src.H)
+	if err != nil {
+		return nil, core.OutOfMemory(op, "bloom target")
+	}
+	texels := target.FloatPixels()
 	for i, c := range src.Pix {
-		r := clamp01(c.R + blurred[i].R*b.Intensity)
-		g := clamp01(c.G + blurred[i].G*b.Intensity)
-		bl := clamp01(c.B + blurred[i].B*b.Intensity)
-		out[i] = core.RGBA(r, g, bl, c.A)
+		j := i * 4
+		texels[j] = float32(c.R)
+		texels[j+1] = float32(c.G)
+		texels[j+2] = float32(c.B)
+		texels[j+3] = float32(c.A)
+	}
+	glowed, err := target.Bloom(hdr.BloomParams{
+		Threshold: b.Threshold, Sigma: b.Sigma, Intensity: b.Intensity,
+	})
+	if err != nil {
+		return nil, core.OutOfMemory(op, "bloom target")
+	}
+	lit := glowed.FloatPixels()
+	for i, c := range src.Pix {
+		j := i * 4
+		out[i] = core.RGBA(clamp01(float64(lit[j])), clamp01(float64(lit[j+1])),
+			clamp01(float64(lit[j+2])), c.A)
 	}
 	return &Image{W: src.W, H: src.H, Pix: out}, nil
-}
-
-// brightMask maps luminance to [0,1]: 0 at or below threshold, ramping to
-// 1 at full white. Threshold 1 yields 0 everywhere (nothing ever glows).
-func brightMask(lum, threshold float64) float64 {
-	if lum <= threshold {
-		return 0
-	}
-	denom := 1 - threshold
-	if denom <= 0 {
-		return 0
-	}
-	return clamp01((lum - threshold) / denom)
-}
-
-// boxBlur blurs RGB (alpha ignored) with a separable clamped-edge box of
-// half-width r. r<=0 returns a copy. Pure function: input never mutated.
-func boxBlur(src []core.Color, w, h, r int) []core.Color {
-	n := len(src)
-	tmp := make([]core.Color, n)
-	out := make([]core.Color, n)
-	if r <= 0 {
-		copy(out, src)
-		return out
-	}
-	width := 2*r + 1
-	inv := 1 / float64(width)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			var sr, sg, sb float64
-			for k := -r; k <= r; k++ {
-				xx := x + k
-				if xx < 0 {
-					xx = 0
-				}
-				if xx >= w {
-					xx = w - 1
-				}
-				c := src[y*w+xx]
-				sr += c.R
-				sg += c.G
-				sb += c.B
-			}
-			tmp[y*w+x] = core.RGBA(sr*inv, sg*inv, sb*inv, 0)
-		}
-	}
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			var sr, sg, sb float64
-			for k := -r; k <= r; k++ {
-				yy := y + k
-				if yy < 0 {
-					yy = 0
-				}
-				if yy >= h {
-					yy = h - 1
-				}
-				c := tmp[yy*w+x]
-				sr += c.R
-				sg += c.G
-				sb += c.B
-			}
-			out[y*w+x] = core.RGBA(sr*inv, sg*inv, sb*inv, 0)
-		}
-	}
-	return out
 }

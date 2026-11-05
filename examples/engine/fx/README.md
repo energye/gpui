@@ -31,7 +31,7 @@ RUN_SECONDS=8 go run ./examples/engine/fx --case=all
 - warp：`engine/fx` `Warp/NewWarp/DefaultNoise/OffsetAt/WarpPoint/WarpRGBA/SampleClamped`
  （强度 6.0，水晃，强度条可见）。
 - grade 整链：`Bloom/Vignette/LUT/Grade`，顺序发光→暗角→查表→映射
- （`Threshold=0.8/Radius=2/Intensity=0.9`，`Inner=0.25/Outer=0.85/Strength=0.45`，
+ （`Threshold=0.8/Sigma=2/Intensity=0.9`，`Inner=0.25/Outer=0.85/Strength=0.45`，
   暖片 LUT 4 点，`TonemapReinhard exposure=1.0`），四角压暗 + 亮日带晕。
 
 ## 三证据（容差写死在 main.go 常量区）

@@ -21,7 +21,10 @@
 //
 // Only core numbers are used (core.Vec2, core.Rect, core codes). This
 // package draws nothing; the caller feeds WarpPoint into the existing
-// render draws. No new Vec2/Color/AssetID is defined here.
+// render draws. No new Vec2/Color/AssetID is defined here. The one
+// render-side import is bloom.go's "render/hdr": since P3.7 batch 5 the
+// bloom kernel lives in the render layer's float domain and fx only feeds
+// it parameters (engine→render is the allowed direction).
 //
 // Math (frozen, both backends share it): 2D value noise over an integer
 // lattice, splitmix64 hash of (ix, iy, seed, channel), smoothstep blend,
@@ -49,5 +52,7 @@
 // outline and dissolve are CPU reference paths the GPU replaces with a
 // filtered shader (degraded true). A valid src with a bad hook still
 // returns a placeholder copy so the main path never breaks. Only core
-// numbers and core codes are used; render is never imported here.
+// numbers and core codes are used; custom.go itself imports nothing
+// outside core (the package's single render-side import is bloom.go's
+// "render/hdr").
 package fx

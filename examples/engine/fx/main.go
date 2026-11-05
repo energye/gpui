@@ -67,8 +67,11 @@ const (
 	haloGainMin     = 0.03 // halo ring minus far background, grade
 	pixelDiffThresh = 2    // per-channel byte threshold for moved
 	goldenTolPct    = 0.0  // static mask zero tolerance
+	goldenFrames    = 240  // 门禁停机帧数：末帧内容只由已完成帧数决定，与墙钟无关
+	goldenFreezeAt  = 120  // 门禁模式过这一帧就定格（golden 冻帧标准做法），末帧恒等
+	goldenHz        = 60.0 // 名义帧率，把帧号折成动画相位
 	bloomThreshold  = 0.8  // only the bright sun blooms, sky stays out
-	bloomRadius     = 2    // halo spread, px each pass
+	bloomSigma      = 2    // 高斯标准差（像素），两路同式的核
 	bloomIntensity  = 0.9  // glow strength
 	vigInner        = 0.25 // full-bright radius, UV
 	vigOuter        = 0.85 // fully-dimmed radius, UV
@@ -172,7 +175,7 @@ func mustWarp() fx.Warp {
 
 // mustGrade builds the frozen film chain bloom->vignette->lut->tonemap.
 func mustGrade() fx.Grade {
-	b, err := fx.NewBloom(bloomThreshold, bloomRadius, bloomIntensity)
+	b, err := fx.NewBloom(bloomThreshold, bloomSigma, bloomIntensity)
 	if err != nil {
 		panic(fmt.Sprintf("game_fx: NewBloom: %v", err))
 	}
@@ -565,6 +568,9 @@ func main() {
 	}
 	wrkit.EnsureUIFace()
 
+	// 门禁模式（-auto-only）用定帧停机 + 过 settling 帧定格；常驻人工模式照旧连动不限帧。
+	gateMode := *autoOnly
+
 	// Headless evidence before the window opens (post-close GPU draws lose depth).
 	wvb := mustWarp()
 	grd := mustGrade()
@@ -680,6 +686,10 @@ func main() {
 	// Precompute warp animation frames (frozen times, fresh intermediates).
 	const warpFrames = 8
 	warpBufs := make([]*render.ImageBuf, warpFrames)
+	// warpGraded：水晃帧再过一遍胶片链（bloom->vignette->LUT->tonemap）。
+	// 窗里摆的必须是这一路——否则窗口像素里根本没有泛光，窗口金图对它零敏感
+	//（实测：σ 2->3 时离屏金图报 10.16%，老窗口的窗金图 0.0000%）。
+	warpGraded := make([]*render.ImageBuf, warpFrames)
 	for i := 0; i < warpFrames; i++ {
 		t := float64(i) * 0.2
 		px, err := fx.WarpRGBA(srcBytes, srcW, srcH, t, wvb)
@@ -688,6 +698,22 @@ func main() {
 			os.Exit(1)
 		}
 		warpBufs[i] = bufFromRGBABytes(srcW, srcH, px)
+		cols := make([]core.Color, len(px)/4)
+		for k := range cols {
+			j := k * 4
+			cols[k] = core.ColorFromBytes(px[j], px[j+1], px[j+2], px[j+3])
+		}
+		frame, err := fx.NewImageFromColors(srcW, srcH, cols)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL: warp frame %d image: %v\n", i, err)
+			os.Exit(1)
+		}
+		filmed, err := grd.Apply(frame)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL: warp frame %d grade: %v\n", i, err)
+			os.Exit(1)
+		}
+		warpGraded[i] = bufFromColors(filmed.W, filmed.H, filmed.Pix)
 	}
 	gradeBuf := bufFromColors(gradedImg.W, gradedImg.H, gradedImg.Pix)
 	gradeForCase := gradeBuf
@@ -742,6 +768,9 @@ func main() {
 
 	warpIdx := 0
 	customIdx := 0
+	// presentIdx 是已完成的 present 数（门禁停机就停在这个数上）。画面相位
+	// 只认它，不认墙钟累积量：慢机器多等几轮、快机器少等几轮，末帧内容一样。
+	var presentIdx int64
 	// 满窗即内容：整窗为胶片场景（grade底+warp水晃+刀光+震屏+怪加厚）。
 	root := rendering.NewAbsoluteBox(winW, winH)
 	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
@@ -753,10 +782,24 @@ func main() {
 		if pc == nil || pc.DC == nil {
 			return
 		}
+		// 震屏/巡逻怪/水晃帧号都从已完成帧数折出来（goldenHz 名义帧率）；
+		// 门禁模式过 goldenFreezeAt 就定格，收尾那一笔的时机差不影响末帧内容。
+		idx := presentIdx
+		if gateMode && idx > goldenFreezeAt {
+			idx = goldenFreezeAt
+		}
+		phase := float64(idx) / goldenHz
+		shakeX = 6 * math.Sin(phase*22)
+		monX = math.Mod(phase*60, float64(winW)+144) - 72
+		warpIdx = int(phase / 0.12)
+		customIdx = warpIdx
 		ax, ay := pc.Abs(0, 0)
-		cur := warpBufs[warpIdx%len(warpBufs)]
+		cur := warpGraded[warpIdx%len(warpGraded)]
 		if caseName == "grade" {
-			cur = srcBuf
+			cur = gradeForCase
+		}
+		if caseName == "warp" {
+			cur = warpBufs[warpIdx%len(warpBufs)]
 		}
 		if caseName == "custom" {
 			cur = customDissolveBufs[customIdx%len(customDissolveBufs)]
@@ -837,7 +880,6 @@ func main() {
 	var summary manualSummary
 	summary.Note = "case=" + caseName
 	elapsed := 0.0
-	warpAccum := 0.0
 	setTitle := func() {
 		ctl := win.Controls()
 		if ctl == nil {
@@ -852,9 +894,14 @@ func main() {
 		snapPath = filepath.Join(testdataDir, "fx_custom_last.png")
 	}
 
+	gateMaxFrames := int64(0)
+	if gateMode {
+		gateMaxFrames = goldenFrames
+	}
 	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
+		MaxFrames:    gateMaxFrames,
 		WarmUp:       true,
 		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
@@ -887,17 +934,10 @@ func main() {
 	})
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
+		// elapsed 只喂标题/指标的显示；画面相位在 OnPaint 里按已完成帧数算。
 		elapsed += dt
-		warpAccum += dt
-		if warpAccum >= 0.12 {
-			warpAccum = 0
-			warpIdx++
-			customIdx++
-		}
+		presentIdx = app.PresentCount()
 		fullBox.MarkNeedsPaint()
-		// Screen-shake + monster walk advance (window only).
-		shakeX = 6 * math.Sin(elapsed*22)
-		monX = math.Mod(elapsed*60, float64(winW)+144) - 72
 		if caseName == "custom" {
 			metric.SetText(fmt.Sprintf("presents=%d outline=%d kept=%d edge=%d shake=%+.1f", app.PresentCount(), customOutlinePx, customKept, customEdged, shakeX))
 		} else {
@@ -939,6 +979,14 @@ func main() {
 	}
 	_ = os.MkdirAll(testdataDir, 0o755)
 	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_fx", testdataDir, snapName, customWinBase, goldenRects, winW)
+	// 停机由定帧赢得才算数：墙钟抢先（跑不满 goldenFrames）时末帧相位不可复现。
+	// 多出一帧是 harness 收尾时在飞的那一笔，画面早已定格，不算漂。
+	if gateMaxFrames > 0 && app.PresentCount() < gateMaxFrames {
+		// 停机是墙钟抢先的：末帧由这一刻用了多少时间决定，金图无从复现。
+		fmt.Fprintf(os.Stderr, "game_fx: FAIL 定帧停机没达成 presents=%d want>=%d（RUN_SECONDS=%d 内没跑满并过定格点 %d，末帧随墙钟漂，窗口金图不可复现）\n",
+			app.PresentCount(), gateMaxFrames, secs, goldenFreezeAt)
+		winGoldenDiff, winGoldenFirst = 100, false
+	}
 
 	parityPct, _ := parity["parity_changed_pct"].(float64)
 	extra := map[string]any{
