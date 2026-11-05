@@ -12,6 +12,7 @@ package fx
 
 import (
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/hdr"
 )
 
@@ -21,7 +22,7 @@ const MaxImagePixels = 16 << 20
 
 // MaxBloomSigma is the render layer's own CPU cap (σ=16 is already 49 taps
 // per direction); the engine delegates the domain instead of re-inventing it.
-const MaxBloomSigma = hdr.MaxBloomSigma
+const MaxBloomSigma = render.MaxBloomSigma
 
 // MaxBloomIntensity caps the additive glow strength. The render layer allows
 // more light than a game should ever ask for, so this stays the tighter cap.
@@ -247,7 +248,7 @@ func (b Bloom) Apply(src *Image) (*Image, error) {
 		texels[j+2] = float32(c.B)
 		texels[j+3] = float32(c.A)
 	}
-	glowed, err := target.Bloom(hdr.BloomParams{
+	glowed, err := target.Bloom(render.BloomParams{
 		Threshold: b.Threshold, Sigma: b.Sigma, Intensity: b.Intensity,
 	})
 	if err != nil {

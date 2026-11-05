@@ -25,38 +25,24 @@ func ResetFilterPoolStats() {
 	filterPixmapPool.ResetStats()
 }
 
-// RegisterFilterOps wires image-filter implementations (blur/shadow/color matrix).
-// Called from render/filters init to avoid import cycles with internal/filter.
-// RegisterFilterOps wires image-filter implementations (blur/shadow/color matrix).
-// Called from render/filters init to avoid import cycles with internal/filter.
-func RegisterFilterOps(
-	blur func(src, dst *Pixmap, radius float64),
-	blurXY func(src, dst *Pixmap, radiusX, radiusY float64),
-	shadow func(src, dst *Pixmap, offsetX, offsetY, blur float64, color RGBA),
-	colorMatrix func(src, dst *Pixmap, matrix [20]float32),
-	grayscale func(src, dst *Pixmap),
-	invert func(src, dst *Pixmap),
-	erode func(src, dst *Pixmap, radius int),
-	dilate func(src, dst *Pixmap, radius int),
-	offset func(src, dst *Pixmap, dx, dy int),
-	alphaThreshold func(src, dst *Pixmap, threshold uint8),
-	lighting func(src, dst *Pixmap, lightPos [3]float32, color RGBA, kd, surfaceScale float32),
-	tile func(src, dst *Pixmap, srcRect [4]float32),
-	displacement func(src, dst *Pixmap, xSel, ySel, scale int, disp *ImageBuf),
-) {
-	blurApply = blur
-	blurXYApply = blurXY
-	dropShadowApply = shadow
-	colorMatrixApply = colorMatrix
-	grayscaleApply = grayscale
-	invertApply = invert
-	erodeApply = erode
-	dilateApply = dilate
-	offsetApply = offset
-	alphaThresholdApply = alphaThreshold
-	lightingApply = lighting
-	tileApply = tile
-	displacementApply = displacement
+// RegisterFilterOps wires the CPU image-filter implementations (see
+// FilterOpImpls). Called from render/filters init to avoid import cycles with
+// internal/filter.
+func RegisterFilterOps(impls FilterOpImpls) {
+	blurApply = impls.Blur
+	blurXYApply = impls.BlurXY
+	dropShadowApply = impls.DropShadow
+	colorMatrixApply = impls.ColorMatrix
+	grayscaleApply = impls.Grayscale
+	invertApply = impls.Invert
+	erodeApply = impls.Erode
+	dilateApply = impls.Dilate
+	offsetApply = impls.Offset
+	alphaThresholdApply = impls.AlphaThreshold
+	lightingApply = impls.Lighting
+	tileApply = impls.Tile
+	displacementApply = impls.Displacement
+	bloomApply = impls.Bloom
 }
 
 func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
@@ -524,6 +510,35 @@ func (c *Context) ApplyDisplacementMap(xSel, ySel, scale int, displacement *Imag
 		if displacementApply != nil {
 			displacementApply(src, dst, xSel, ySel, scale, displacement)
 		}
+	})
+	c.markLayerFullComposite()
+}
+
+// ApplyBloom glows the bright areas of the current surface (P3.7 batch 5):
+// soft-knee bright pass, separable Gaussian, additive back. The GPU filter
+// graph runs it as four passes; without the graph the CPU node applies the
+// same render/internal/filter kernel, so both legs agree by construction.
+//
+// Surface storage is RGBA8, so the summed light clamps at 1 on this leg — an
+// explicit LDR approximation, not HDR. The float-domain entry that keeps
+// values above 1 as light is render/hdr.FloatTarget.Bloom.
+//
+// An invalid or identity BloomParams changes nothing (identity never enters
+// the graph). Requires render/filters registration (blank-import).
+func (c *Context) ApplyBloom(p BloomParams) {
+	if c == nil || c.pixmap == nil || bloomApply == nil {
+		return
+	}
+	if err := p.Validate(); err != nil || p.IsIdentity() {
+		return
+	}
+	node := ImageFilterNode{Kind: ImageFilterBloom, Bloom: p}
+	if c.tryApplyFilterGraphGPU(node) {
+		c.markLayerFullComposite()
+		return
+	}
+	c.applyFilterInPlace(func(src, dst *Pixmap) {
+		bloomApply(src, dst, p)
 	})
 	c.markLayerFullComposite()
 }

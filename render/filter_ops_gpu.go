@@ -455,6 +455,10 @@ const (
 	// ImageFilterTile repeats the source tile rect across the output (P3.4,
 	// Skia ImageFilters::Tile).
 	ImageFilterTile
+	// ImageFilterBloom glows the bright areas: bright pass, separable
+	// Gaussian, additive composite (P3.7 batch 5, four passes on the GPU leg;
+	// RGBA8 storage means the additive result clamps — LDR approximation).
+	ImageFilterBloom
 	// ImageFilterDisplacement resamples the source by a displacement map's
 	// selected channels (P3.4, Skia SkImageFilters::DisplacementMap). It
 	// needs the aux texture slot for the map, so it rides the GPU graph
@@ -499,6 +503,9 @@ type ImageFilterNode struct {
 
 	// Displacement (P3.4): channel selectors (0=R, 1=G, 2=B, 3=A), the
 	// offset scale in pixels, and the map image.
+	// Bloom (P3.7 batch 5): the one parameter struct all three legs read.
+	Bloom BloomParams
+
 	DispXChannel      int
 	DispYChannel      int
 	DispScale         int
@@ -637,7 +644,7 @@ func imageFilterGraphGPUSupported(nodes []ImageFilterNode) bool {
 		case ImageFilterBlur, ImageFilterBlurXY, ImageFilterGrayscale, ImageFilterInvert,
 			ImageFilterColorMatrix, ImageFilterDropShadow,
 			ImageFilterErode, ImageFilterDilate, ImageFilterOffset, ImageFilterAlphaThreshold,
-			ImageFilterLighting, ImageFilterTile:
+			ImageFilterLighting, ImageFilterTile, ImageFilterBloom:
 			any = true
 		case ImageFilterDisplacement:
 			// GPU-capable only when the node carries its map; the aux slot
@@ -680,6 +687,11 @@ func imageFilterNodeRunnable(n ImageFilterNode) bool {
 		return tileApply != nil && n.TileSrcRect[2] > n.TileSrcRect[0] && n.TileSrcRect[3] > n.TileSrcRect[1]
 	case ImageFilterDisplacement:
 		return displacementApply != nil && n.DisplacementImage != nil
+	case ImageFilterBloom:
+		// Identity and out-of-domain nodes are not runnable: an identity must
+		// never occupy a pass, and a bad parameter must never be clamped into
+		// one by guesswork.
+		return bloomApply != nil && bloomNodeRunnable(n.Bloom)
 	default:
 		return false
 	}
@@ -713,6 +725,8 @@ func applyImageFilterNode(n ImageFilterNode, src, dst *Pixmap) {
 		tileApply(src, dst, n.TileSrcRect)
 	case ImageFilterDisplacement:
 		displacementApply(src, dst, n.DispXChannel, n.DispYChannel, n.DispScale, n.DisplacementImage)
+	case ImageFilterBloom:
+		bloomApply(src, dst, n.Bloom)
 	}
 }
 

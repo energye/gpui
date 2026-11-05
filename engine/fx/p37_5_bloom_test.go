@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/hdr"
 )
 
@@ -152,13 +153,13 @@ func TestP375BloomThresholdOneAddsNothing(t *testing.T) {
 func TestP375BloomDomainDelegatesToRenderLayer(t *testing.T) {
 	// MaxBloomSigma 就是渲染层那枚常量（委托，不自立一套），
 	// 因此引擎允许的最大值必须还能被渲染层自己的域接受。
-	if err := (hdr.BloomParams{Threshold: 1, Sigma: MaxBloomSigma,
+	if err := (render.BloomParams{Threshold: 1, Sigma: MaxBloomSigma,
 		Intensity: MaxBloomIntensity}).Validate(); err != nil {
 		t.Fatalf("引擎上限被渲染层拒了：%v（域委托反了）", err)
 	}
-	if MaxBloomIntensity >= hdr.MaxBloomIntensity {
+	if MaxBloomIntensity >= render.MaxBloomIntensity {
 		t.Fatalf("引擎夹 %v 必须严于渲染层 %v（可更严不可更宽）",
-			MaxBloomIntensity, hdr.MaxBloomIntensity)
+			MaxBloomIntensity, render.MaxBloomIntensity)
 	}
 	_, err := NewBloom(0.5, MaxBloomSigma+1, 1)
 	if core.CodeOf(err) != core.CodeInvalidArg {

@@ -50,6 +50,7 @@ struct Params {
     size: vec2<f32>,
     direction: vec2<f32>,
     mode: u32,           // 0=blur 1=gray 2=invert 3=matrix 4=shadowExtract 5=shadowComposite 6=copy
+                         // 13=bloomExtract(color.r=threshold) 14=bloomAdditive(color.r=intensity)
     radius: u32,
     offset: vec2<f32>,   // shadow offset in texels
     color: vec4<f32>,    // shadow color (straight RGBA 0-1)
@@ -189,6 +190,31 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         let shadow = textureSampleLevel(src_tex, samp, in.uv, 0.0);
         let orig = textureSampleLevel(aux_tex, samp, in.uv, 0.0);
         return orig + shadow * (1.0 - orig.a);
+    }
+    if p.mode == 13u {
+        // Bright pass (P3.7 batch 5): the same soft knee the CPU kernel uses,
+        // on the stored (premultiplied) channels — the domain both legs share.
+        // Rec.709 luma, the exact weights the CPU bright pass uses; threshold 1
+        // masks everything out. Alpha goes to zero: the glow carries light,
+        // not coverage.
+        let c = textureSampleLevel(src_tex, samp, in.uv, 0.0);
+        let lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+        let thr = p.color.r;
+        var m = 0.0;
+        if (lum > thr && thr < 1.0) {
+            m = clamp((lum - thr) / (1.0 - thr), 0.0, 1.0);
+        }
+        return vec4<f32>(c.rgb * m, 0.0);
+    }
+    if p.mode == 14u {
+        // Additive composite: src keeps its own light, the blurred bright
+        // pass (aux) rides on top scaled by intensity, alpha stays src's.
+        // RGBA8 storage clamps here — this leg is an LDR approximation; the
+        // float leg (render/hdr) leaves values above 1 for the tonemap.
+        let s0 = textureSampleLevel(src_tex, samp, in.uv, 0.0);
+        let glow = textureSampleLevel(aux_tex, samp, in.uv, 0.0);
+        let sum = s0.rgb + glow.rgb * p.color.r;
+        return vec4<f32>(clamp(sum, vec3<f32>(0.0), vec3<f32>(1.0)), s0.a);
     }
     let c0 = textureSampleLevel(src_tex, samp, in.uv, 0.0);
     if p.mode == 1u {
@@ -1134,7 +1160,7 @@ func runGPUFilterGraphEx(
 	// pass uniforms share one slab (distinct offsets). Pack into CPU
 	// scratch during encode; single WriteBuffer before Finish/Submit so each
 	// bind range has distinct live content (cannot rewrite one uniform mid-CB).
-	estSlots := len(nodes)*4 + 2
+	estSlots := len(nodes)*5 + 2
 	if estSlots < filterPassUniformSlabMinSlots {
 		estSlots = filterPassUniformSlabMinSlots
 	}
@@ -1468,6 +1494,43 @@ func runGPUFilterGraphEx(
 				swap()
 			}
 			if err := doPass(passArgs{mode: 5, srcView: curView, auxView: viewH, dstView: nxtView}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+		case render.ImageFilterBloom:
+			// Four passes in one encoder: hold the original in H, bright pass
+			// + separable Gaussian over the ping-pong pair, then add the glow
+			// back onto H. Same radius rule as the blur leg
+			// (half = ceil(3*sigma)), so the CPU node and this leg agree.
+			bloomSigma := math.Max(0.01, n.Bloom.Sigma)
+			bloomR := uint32(math.Max(1, math.Ceil(bloomSigma*3)))
+			if err := doPass(passArgs{mode: 6, srcView: curView, dstView: viewH}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			if err := doPass(passArgs{mode: 13, colR: float32(n.Bloom.Threshold)}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+			if err := doPass(passArgs{mode: 0, radius: bloomR, dirX: 1, dirY: 0, offX: float32(bloomSigma)}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+			if err := doPass(passArgs{mode: 0, radius: bloomR, dirX: 0, dirY: 1, offX: float32(bloomSigma)}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+			if err := doPass(passArgs{mode: 14, srcView: viewH, auxView: curView,
+				colR: float32(n.Bloom.Intensity)}); err != nil {
 				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err

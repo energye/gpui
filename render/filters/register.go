@@ -22,47 +22,50 @@ import (
 )
 
 func init() {
-	render.RegisterFilterOps(
-		func(src, dst *render.Pixmap, radius float64) {
+	render.RegisterFilterOps(render.FilterOpImpls{
+		Blur: func(src, dst *render.Pixmap, radius float64) {
 			filter.NewBlurFilter(radius).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, radiusX, radiusY float64) {
+		BlurXY: func(src, dst *render.Pixmap, radiusX, radiusY float64) {
 			filter.NewBlurFilterXY(radiusX, radiusY).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, offsetX, offsetY, blur float64, color render.RGBA) {
+		DropShadow: func(src, dst *render.Pixmap, offsetX, offsetY, blur float64, color render.RGBA) {
 			filter.NewDropShadowFilter(offsetX, offsetY, blur, color).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, matrix [20]float32) {
+		ColorMatrix: func(src, dst *render.Pixmap, matrix [20]float32) {
 			filter.NewColorMatrixFilter(matrix).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap) {
+		Grayscale: func(src, dst *render.Pixmap) {
 			filter.NewGrayscaleFilter().Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap) {
+		Invert: func(src, dst *render.Pixmap) {
 			filter.NewInvertFilter().Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, radius int) {
+		Erode: func(src, dst *render.Pixmap, radius int) {
 			filter.NewErodeFilter(radius, radius).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, radius int) {
+		Dilate: func(src, dst *render.Pixmap, radius int) {
 			filter.NewDilateFilter(radius, radius).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, dx, dy int) {
+		Offset: func(src, dst *render.Pixmap, dx, dy int) {
 			filter.NewOffsetFilter(dx, dy).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, threshold uint8) {
+		AlphaThreshold: func(src, dst *render.Pixmap, threshold uint8) {
 			filter.NewAlphaThresholdFilter(threshold).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, lightPos [3]float32, color render.RGBA, kd, surfaceScale float32) {
+		Lighting: func(src, dst *render.Pixmap, lightPos [3]float32, color render.RGBA, kd, surfaceScale float32) {
 			filter.NewPointDiffuseFilter(lightPos, color, kd, surfaceScale).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, srcRect [4]float32) {
+		Tile: func(src, dst *render.Pixmap, srcRect [4]float32) {
 			filter.NewTileFilter(srcRect).Apply(src, dst, full(src))
 		},
-		func(src, dst *render.Pixmap, xSel, ySel, scale int, disp *render.ImageBuf) {
+		Displacement: func(src, dst *render.Pixmap, xSel, ySel, scale int, disp *render.ImageBuf) {
 			filter.NewDisplacementFilter(xSel, ySel, scale, disp).Apply(src, dst, full(src))
 		},
-	)
+		Bloom: func(src, dst *render.Pixmap, p render.BloomParams) {
+			filter.NewBloomFilter(p).Apply(src, dst, full(src))
+		},
+	})
 }
 
 func full(pm *render.Pixmap) scene.Rect {

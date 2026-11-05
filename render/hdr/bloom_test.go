@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/internal/filter"
 )
 
@@ -64,19 +65,19 @@ func equalFloatSlice(a, b []float32) bool {
 func TestBloomParamsNamedErrors(t *testing.T) {
 	cases := []struct {
 		name string
-		p    BloomParams
+		p    render.BloomParams
 		want string
 	}{
-		{"neg threshold", BloomParams{Threshold: -0.1, Sigma: 1, Intensity: 1}, "threshold"},
-		{"over threshold", BloomParams{Threshold: 1.01, Sigma: 1, Intensity: 1}, "threshold"},
-		{"nan threshold", BloomParams{Threshold: math.NaN(), Sigma: 1, Intensity: 1}, "threshold"},
-		{"inf threshold", BloomParams{Threshold: math.Inf(1), Sigma: 1, Intensity: 1}, "threshold"},
-		{"neg sigma", BloomParams{Threshold: 0.5, Sigma: -1, Intensity: 1}, "sigma"},
-		{"nan sigma", BloomParams{Threshold: 0.5, Sigma: math.NaN(), Intensity: 1}, "sigma"},
-		{"over sigma", BloomParams{Threshold: 0.5, Sigma: MaxBloomSigma + 1, Intensity: 1}, "sigma"},
-		{"neg intensity", BloomParams{Threshold: 0.5, Sigma: 1, Intensity: -1}, "intensity"},
-		{"nan intensity", BloomParams{Threshold: 0.5, Sigma: 1, Intensity: math.NaN()}, "intensity"},
-		{"over intensity", BloomParams{Threshold: 0.5, Sigma: 1, Intensity: MaxBloomIntensity + 1}, "intensity"},
+		{"neg threshold", render.BloomParams{Threshold: -0.1, Sigma: 1, Intensity: 1}, "threshold"},
+		{"over threshold", render.BloomParams{Threshold: 1.01, Sigma: 1, Intensity: 1}, "threshold"},
+		{"nan threshold", render.BloomParams{Threshold: math.NaN(), Sigma: 1, Intensity: 1}, "threshold"},
+		{"inf threshold", render.BloomParams{Threshold: math.Inf(1), Sigma: 1, Intensity: 1}, "threshold"},
+		{"neg sigma", render.BloomParams{Threshold: 0.5, Sigma: -1, Intensity: 1}, "sigma"},
+		{"nan sigma", render.BloomParams{Threshold: 0.5, Sigma: math.NaN(), Intensity: 1}, "sigma"},
+		{"over sigma", render.BloomParams{Threshold: 0.5, Sigma: render.MaxBloomSigma + 1, Intensity: 1}, "sigma"},
+		{"neg intensity", render.BloomParams{Threshold: 0.5, Sigma: 1, Intensity: -1}, "intensity"},
+		{"nan intensity", render.BloomParams{Threshold: 0.5, Sigma: 1, Intensity: math.NaN()}, "intensity"},
+		{"over intensity", render.BloomParams{Threshold: 0.5, Sigma: 1, Intensity: render.MaxBloomIntensity + 1}, "intensity"},
 	}
 	for _, c := range cases {
 		err := c.p.Validate()
@@ -92,17 +93,17 @@ func TestBloomParamsNamedErrors(t *testing.T) {
 
 // 钉 2：零值参数必须是合法且不改变画面的默认（与批 4 的 MipmapNone 同理）。
 func TestBloomParamsZeroValueIsValidIdentity(t *testing.T) {
-	var p BloomParams
+	var p render.BloomParams
 	if err := p.Validate(); err != nil {
 		t.Fatalf("零值参数必须合法，却报：%v", err)
 	}
 	if !p.IsIdentity() {
 		t.Fatal("零值参数必须报恒等")
 	}
-	if (BloomParams{Threshold: 0.5, Sigma: 2, Intensity: 0}).IsIdentity() != true {
+	if (render.BloomParams{Threshold: 0.5, Sigma: 2, Intensity: 0}).IsIdentity() != true {
 		t.Fatal("Intensity==0 必须恒等")
 	}
-	if (BloomParams{Threshold: 0.5, Sigma: 2, Intensity: 1}).IsIdentity() != false {
+	if (render.BloomParams{Threshold: 0.5, Sigma: 2, Intensity: 1}).IsIdentity() != false {
 		t.Fatal("真会发光的参数不许报恒等")
 	}
 }
@@ -114,7 +115,7 @@ func TestBloomZeroIntensityBitwiseIdentity(t *testing.T) {
 	})
 	before := copyFloatPixels(src.FloatPixels())
 
-	out, err := src.Bloom(BloomParams{Threshold: 0.2, Sigma: 3, Intensity: 0})
+	out, err := src.Bloom(render.BloomParams{Threshold: 0.2, Sigma: 3, Intensity: 0})
 	if err != nil {
 		t.Fatalf("Bloom: %v", err)
 	}
@@ -137,7 +138,7 @@ func TestBloomThresholdOneEmitsNoGlow(t *testing.T) {
 	})
 	before := copyFloatPixels(src.FloatPixels())
 
-	out, err := src.Bloom(BloomParams{Threshold: 1, Sigma: 2, Intensity: MaxBloomIntensity})
+	out, err := src.Bloom(render.BloomParams{Threshold: 1, Sigma: 2, Intensity: render.MaxBloomIntensity})
 	if err != nil {
 		t.Fatalf("Bloom: %v", err)
 	}
@@ -150,7 +151,7 @@ func TestBloomThresholdOneEmitsNoGlow(t *testing.T) {
 // v=0.75 的灰阶亮度 lum=v，thr=0.5 ⇒ m=(0.75-0.5)/0.5=0.5 ⇒ 增量 0.75*0.5。
 func TestBloomBrightMaskRampValue(t *testing.T) {
 	src := newFilledTarget(t, 1, 1, func(_, _ int) [4]float32 { return [4]float32{0.75, 0.75, 0.75, 1} })
-	out, err := src.Bloom(BloomParams{Threshold: 0.5, Sigma: 1, Intensity: 1})
+	out, err := src.Bloom(render.BloomParams{Threshold: 0.5, Sigma: 1, Intensity: 1})
 	if err != nil {
 		t.Fatalf("Bloom: %v", err)
 	}
@@ -171,7 +172,7 @@ func TestBloomBrightMaskRampValue(t *testing.T) {
 func TestBloomUniformFieldStaysUniform(t *testing.T) {
 	const v = 0.8
 	src := newFilledTarget(t, 5, 5, func(_, _ int) [4]float32 { return [4]float32{v, v, v, 1} })
-	out, err := src.Bloom(BloomParams{Threshold: 0, Sigma: 2, Intensity: 0.5})
+	out, err := src.Bloom(render.BloomParams{Threshold: 0, Sigma: 2, Intensity: 0.5})
 	if err != nil {
 		t.Fatalf("Bloom: %v", err)
 	}
@@ -204,7 +205,7 @@ func TestBloomProfileIsGaussianNotBox(t *testing.T) {
 		}
 		return [4]float32{}
 	})
-	out, err := src.Bloom(BloomParams{Threshold: 0.9, Sigma: sigma, Intensity: 1})
+	out, err := src.Bloom(render.BloomParams{Threshold: 0.9, Sigma: sigma, Intensity: 1})
 	if err != nil {
 		t.Fatalf("Bloom: %v", err)
 	}
@@ -244,7 +245,7 @@ func TestBloomIsSeparableOuterProduct(t *testing.T) {
 		}
 		return [4]float32{}
 	})
-	out, err := src.Bloom(BloomParams{Threshold: 0.9, Sigma: sigma, Intensity: 1})
+	out, err := src.Bloom(render.BloomParams{Threshold: 0.9, Sigma: sigma, Intensity: 1})
 	if err != nil {
 		t.Fatalf("Bloom: %v", err)
 	}
@@ -267,7 +268,7 @@ func TestBloomIsSeparableOuterProduct(t *testing.T) {
 // 这才是 float 域相对 8-bit 的全部意义（提前钳就等于白做）。
 func TestBloomKeepsSuperUnityLight(t *testing.T) {
 	src := newFilledTarget(t, 1, 1, func(_, _ int) [4]float32 { return [4]float32{3, 3, 3, 1} })
-	out, err := src.Bloom(BloomParams{Threshold: 0.5, Sigma: 1, Intensity: 1})
+	out, err := src.Bloom(render.BloomParams{Threshold: 0.5, Sigma: 1, Intensity: 1})
 	if err != nil {
 		t.Fatalf("Bloom: %v", err)
 	}
@@ -304,7 +305,7 @@ func TestBloomPreservesAlpha(t *testing.T) {
 	src := newFilledTarget(t, 4, 4, func(x, y int) [4]float32 {
 		return [4]float32{1, 1, 1, float32(x*4+y) / 15}
 	})
-	out, err := src.Bloom(BloomParams{Threshold: 0.1, Sigma: 2, Intensity: 2})
+	out, err := src.Bloom(render.BloomParams{Threshold: 0.1, Sigma: 2, Intensity: 2})
 	if err != nil {
 		t.Fatalf("Bloom: %v", err)
 	}
@@ -326,7 +327,7 @@ func TestBloomNeverMutatesSource(t *testing.T) {
 		return [4]float32{0.2, 0.2, 0.2, 1}
 	})
 	before := copyFloatPixels(src.FloatPixels())
-	if _, err := src.Bloom(BloomParams{Threshold: 0.5, Sigma: 3, Intensity: 2}); err != nil {
+	if _, err := src.Bloom(render.BloomParams{Threshold: 0.5, Sigma: 3, Intensity: 2}); err != nil {
 		t.Fatalf("Bloom: %v", err)
 	}
 	if !equalFloatSlice(src.FloatPixels(), before) {
@@ -337,11 +338,11 @@ func TestBloomNeverMutatesSource(t *testing.T) {
 // 钉 12：nil 源与非法参数都必须具名报错，且不给半个产物。
 func TestBloomRejectsNilAndBadParams(t *testing.T) {
 	var nilTarget *FloatTarget
-	if out, err := nilTarget.Bloom(BloomParams{Sigma: 1, Intensity: 1}); err == nil || out != nil {
+	if out, err := nilTarget.Bloom(render.BloomParams{Sigma: 1, Intensity: 1}); err == nil || out != nil {
 		t.Fatalf("nil 源必须报错且无产物：out=%v err=%v", out, err)
 	}
 	src := newFilledTarget(t, 2, 2, func(_, _ int) [4]float32 { return [4]float32{1, 1, 1, 1} })
-	if out, err := src.Bloom(BloomParams{Sigma: -1, Intensity: 1}); err == nil || out != nil {
+	if out, err := src.Bloom(render.BloomParams{Sigma: -1, Intensity: 1}); err == nil || out != nil {
 		t.Fatalf("非法参数必须报错且无产物：out=%v err=%v", out, err)
 	}
 }

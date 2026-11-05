@@ -249,30 +249,22 @@ func TestApplyMergeAndDisplacement(t *testing.T) {
 	// create an import cycle from this internal test). The registration is
 	// global — save the current ops and restore them so later tests (and
 	// -count>=2 reruns of this package) keep the real registry.
-	sb, sbXY, sSh := blurApply, blurXYApply, dropShadowApply
-	sCM, sGray, sInv := colorMatrixApply, grayscaleApply, invertApply
-	sEr, sDi, sOf := erodeApply, dilateApply, offsetApply
-	sAT, sLi, sTi, sDis := alphaThresholdApply, lightingApply, tileApply, displacementApply
-	t.Cleanup(func() {
-		RegisterFilterOps(sb, sbXY, sSh, sCM, sGray, sInv, sEr, sDi, sOf, sAT, sLi, sTi, sDis)
-	})
-	RegisterFilterOps(
-		nil, nil, nil, nil, nil,
-		func(src, dst *Pixmap) {
+	saved := snapshotFilterOps()
+	t.Cleanup(func() { RegisterFilterOps(saved) })
+	RegisterFilterOps(FilterOpImpls{
+		Invert: func(src, dst *Pixmap) {
 			d := dst.Data()
 			for i2 := 0; i2+3 < len(d); i2 += 4 {
 				a := d[i2+3]
 				d[i2], d[i2+1], d[i2+2] = a-d[i2], a-d[i2+1], a-d[i2+2]
 			}
 		},
-		func(src, dst *Pixmap, radius int) {},
-		func(src, dst *Pixmap, radius int) {},
-		func(src, dst *Pixmap, dx, dy int) {},
-		func(src, dst *Pixmap, threshold uint8) {},
-		nil,
-		func(src, dst *Pixmap, srcRect [4]float32) {},
-		nil,
-	)
+		Erode:          func(src, dst *Pixmap, radius int) {},
+		Dilate:         func(src, dst *Pixmap, radius int) {},
+		Offset:         func(src, dst *Pixmap, dx, dy int) {},
+		AlphaThreshold: func(src, dst *Pixmap, threshold uint8) {},
+		Tile:           func(src, dst *Pixmap, srcRect [4]float32) {},
+	})
 	dc := NewContext(32, 32)
 	t.Cleanup(func() { _ = dc.Close() })
 	dc.ClearWithColor(Black)
