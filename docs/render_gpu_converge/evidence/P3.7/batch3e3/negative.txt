@@ -105,4 +105,4 @@ host.Append(child) 之后（摊平 root） : materialEntries=[0 0]  materialEffe
   `conformance` —— 全 ok。
 - `CGO_ENABLED=1 go test -race` 三包全 ok。
 - `go run ./scripts/apidoc` rc=0（3e-3 新公开面登记见目录 §3.16/§6.2/§6.3/§0/§13）。
-- 真窗 `ui_wr_p32_shader`：本轮未跑（开窗属 GPU 真窗安全条，待用户点头后按「一轮一窗 + WM_DELETE 正常关闭」跑）。
+- 真窗 `ui_wr_p32_shader -auto-only`（用户拍板后跑，2026-11-05）：**PASS，gate=true，elapsed 6.3s**——backend=wayland（GNOME Wayland + 无根 Xwayland，本机无独立 Xorg，940MX+580+Xorg 那条已知崩溃基线不适用此路径）、`gpu_ops=23403`、`cpu_fallback_ops=0`、`last_cpu_fallback=""`、像素探针 3/3、`pixel_golden_diff_pct=0` / `pixel_golden_total_px=220800` / **`pixel_golden_first_run=false`（基线存在、真比过，不是播种跳过）**、fps_wall 57.1 / fps_interval 59.9、hitch 0。跑法：`RUN_SECONDS=6 go run ./examples/ui_wr_p32_shader -auto-only`，进程按 `RunFor` 自终止（`app.Run` 返回 → `app.Close()` → `win.Close()`），未用任何 kill；跑前后 Xwayland PID 不变（2938）、会话未掉。口径：本步改的是 scene/录制的**转交与编码面**，GPU 求值像素本就由这扇窗与 3a/3d 单元钉负责，实测**无回归**。

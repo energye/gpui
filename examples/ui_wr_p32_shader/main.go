@@ -266,7 +266,7 @@ func main() {
 	}
 
 	goldenRects := []rect{{x: 0, y: 0, w: winW, h: 48}, {x: bx + cardAt[0][0], y: by + cardAt[0][1], w: cardW, h: cardH}, {x: bx + cardAt[1][0], y: by + cardAt[1][1], w: cardW, h: cardH}}
-	goldenDiffPct, goldenTotalPx, goldenFirstRun := evaluateGolden(snapPath, goldenRects, dpr)
+	goldenDiffPct, goldenTotalPx, goldenSeeded, goldenMissing := evaluateGolden(snapPath, goldenRects, dpr)
 
 	route := ""
 	for i, c := range cards {
@@ -284,7 +284,7 @@ func main() {
 			"route":           route,
 			"pixel_probes_ok": pixelOK, "pixel_probes_total": pixelTotal,
 			"pixel_golden_diff_pct": goldenDiffPct, "pixel_golden_total_px": goldenTotalPx,
-			"pixel_golden_first_run": goldenFirstRun,
+			"pixel_golden_first_run": goldenSeeded,
 		},
 	})
 	raw, _ := json.Marshal(report)
@@ -299,7 +299,11 @@ func main() {
 	if pixelOK != pixelTotal || pixelTotal == 0 {
 		fail("pixel probes %d/%d ok", pixelOK, pixelTotal)
 	}
-	if !goldenFirstRun && goldenDiffPct != 0 {
+	if goldenMissing {
+		fail("golden baseline missing (goldens/p32_final.png) — re-run with GPUI_ACCEPT_GOLDEN=1 to seed, then review + commit")
+	} else if goldenSeeded {
+		fail("golden seeded from this run — not a pass; review + commit the baseline, then re-run")
+	} else if goldenDiffPct != 0 {
 		fail("golden diff %.4f%% want 0 over %d px", goldenDiffPct, goldenTotalPx)
 	}
 	for i, c := range cards {
@@ -357,27 +361,33 @@ func at(img image.Image, x, y int) (byte, byte, byte, byte) {
 	return byte(r >> 8), byte(g >> 8), byte(b >> 8), byte(a >> 8)
 }
 
-func evaluateGolden(snapPath string, rects []rect, dpr float64) (diffPct float64, totalPx int64, firstRun bool) {
+// evaluateGolden 按 wrkit.GoldenGate 的 fail-closed 口径比对基线：
+// 缺基线且没给 GPUI_ACCEPT_GOLDEN=1 ⇒ missing=true（判红，不自证绿）；
+// 显式播种 ⇒ seeded=true（这一跑不算 PASS，须 review + 提交基线后复跑）。
+func evaluateGolden(snapPath string, rects []rect, dpr float64) (diffPct float64, totalPx int64, seeded bool, missing bool) {
 	goldenPath := filepath.Join(filepath.Dir(snapPath), "goldens", "p32_final.png")
 	cur := loadImage(snapPath)
 	if cur == nil {
-		return 100, 0, false
+		return 100, 0, false, true
 	}
 	golden := loadImage(goldenPath)
-	if golden == nil || os.Getenv("GPUI_ACCEPT_GOLDEN") == "1" {
+	if golden == nil {
+		if os.Getenv("GPUI_ACCEPT_GOLDEN") != "1" {
+			return 100, 0, false, true
+		}
 		_ = os.MkdirAll(filepath.Dir(goldenPath), 0o755)
 		out, err := os.Create(goldenPath)
 		if err != nil {
-			return 100, 0, false
+			return 100, 0, false, true
 		}
 		defer out.Close()
 		if err := png.Encode(out, cur); err != nil {
-			return 100, 0, false
+			return 100, 0, false, true
 		}
-		return 0, 0, true
+		return 0, 0, true, false
 	}
 	if golden.Bounds() != cur.Bounds() {
-		return 100, 0, false
+		return 100, 0, false, true
 	}
 	var diff, total int64
 	for _, r := range rects {
@@ -393,7 +403,7 @@ func evaluateGolden(snapPath string, rects []rect, dpr float64) (diffPct float64
 		}
 	}
 	if total == 0 {
-		return 100, 0, false
+		return 100, 0, false, true
 	}
-	return float64(diff) * 100 / float64(total), total, false
+	return float64(diff) * 100 / float64(total), total, false, false
 }

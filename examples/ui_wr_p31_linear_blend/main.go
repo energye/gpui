@@ -197,7 +197,7 @@ func main() {
 	for _, ca := range cardAt {
 		goldenRects = append(goldenRects, rect{x: bx + ca[0], y: by + ca[1], w: cardW, h: cardH})
 	}
-	goldenDiffPct, goldenTotalPx, goldenFirstRun := evaluateGolden(snapPath, goldenRects, dpr)
+	goldenDiffPct, goldenTotalPx, goldenSeeded, goldenMissing := evaluateGolden(snapPath, goldenRects, dpr)
 
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "P31-linear-blend",
@@ -217,7 +217,7 @@ func main() {
 			"pixel_probes_total":     len(pixelResult),
 			"pixel_golden_diff_pct":  goldenDiffPct,
 			"pixel_golden_total_px":  goldenTotalPx,
-			"pixel_golden_first_run": goldenFirstRun,
+			"pixel_golden_first_run": goldenSeeded,
 			"resize_events":          resizeEvents,
 			"blend_space_default":    "srgb",
 			"fixed_function_policy":  "degrade_until_p31b",
@@ -235,7 +235,11 @@ func main() {
 	if pixelOK != len(pixelResult) || len(pixelResult) == 0 {
 		fail("pixel probes %d/%d ok", pixelOK, len(pixelResult))
 	}
-	if !goldenFirstRun && goldenDiffPct != 0 {
+	if goldenMissing {
+		fail("golden baseline missing (goldens/p31_final.png) — re-run with GPUI_ACCEPT_GOLDEN=1 to seed, then review + commit")
+	} else if goldenSeeded {
+		fail("golden seeded from this run — not a pass; review + commit the baseline, then re-run")
+	} else if goldenDiffPct != 0 {
 		fail("pixel_golden_diff_pct=%.4f want 0 over %d px", goldenDiffPct, goldenTotalPx)
 	}
 	if snap.GPUOps == 0 {
@@ -296,33 +300,37 @@ func atRGB(img image.Image, x, y int) (byte, byte, byte, byte) {
 // the given rects (physical pixels, scaled by dpr). First run (or
 // GPUI_ACCEPT_GOLDEN=1) accepts the snapshot as the golden and reports
 // firstRun=true.
-func evaluateGolden(snapPath string, rects []rect, dpr float64) (diffPct float64, totalPx int64, firstRun bool) {
+func evaluateGolden(snapPath string, rects []rect, dpr float64) (diffPct float64, totalPx int64, seeded bool, missing bool) {
 	goldenPath := filepath.Join(filepath.Dir(snapPath), "goldens", "p31_final.png")
 	cur := loadImage(snapPath)
 	if cur == nil {
-		return 100, 0, false
+		return 100, 0, false, true
 	}
 	golden := loadImage(goldenPath)
-	accept := golden == nil || os.Getenv("GPUI_ACCEPT_GOLDEN") == "1"
-	if accept {
+	// fail-closed（对齐 wrkit.GoldenGate）：缺基线且没显式 GPUI_ACCEPT_GOLDEN=1 ⇒ missing=true 判红，
+	// 不再「自动播种 + 跳过断言」自证绿。
+	if golden == nil && os.Getenv("GPUI_ACCEPT_GOLDEN") != "1" {
+		return 100, 0, false, true
+	}
+	if golden == nil {
 		if err := os.MkdirAll(filepath.Dir(goldenPath), 0o755); err != nil {
 			fmt.Fprintln(os.Stderr, "golden: mkdir:", err)
-			return 100, 0, false
+			return 100, 0, false, true
 		}
 		out, err := os.Create(goldenPath)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "golden: create:", err)
-			return 100, 0, false
+			return 100, 0, false, true
 		}
 		defer out.Close()
 		if err := png.Encode(out, cur); err != nil {
 			fmt.Fprintln(os.Stderr, "golden: encode:", err)
-			return 100, 0, false
+			return 100, 0, false, true
 		}
-		return 0, 0, true
+		return 0, 0, true, false
 	}
 	if golden.Bounds() != cur.Bounds() {
-		return 100, 0, false
+		return 100, 0, false, true
 	}
 	var diff int64
 	var total int64
@@ -344,7 +352,7 @@ func evaluateGolden(snapPath string, rects []rect, dpr float64) (diffPct float64
 		}
 	}
 	if total == 0 {
-		return 100, 0, false
+		return 100, 0, false, true
 	}
-	return float64(diff) * 100 / float64(total), total, false
+	return float64(diff) * 100 / float64(total), total, false, false
 }
