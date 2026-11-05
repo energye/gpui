@@ -197,7 +197,7 @@ catalog §13 的 P3.7 规划行（`:900`）在本项收口时转正式登记，`
 3. 五目标 cross build 5/5（CGO=0，另跑 `-tags nogpu`）；
 4. `tools/per-file-tests.sh` 逐文件对基线**只减不增**（当前主基线 **750 = 719/21/9/1**；FAIL 九枚名单见 `evidence/review-fix/per-file-tests-dbatch/`；M4 整包 SIGABRT 按 per-file 口径判，不顺手修）；
 5. `-race`：触及共享数据必跑（批 3 的 ShaderEffect 生命周期、批 6 的窗口探针）；
-6. 每批：单测红→修→绿 + **负向对照摘修复必红** + conformance 双后端 + 三证据真窗（批 6 集中出金图，前面各批用离屏/逻辑钉）；
+6. 每批：单测红→修→绿 + **负向对照摘修复必红** + conformance 双后端 + 三证据真窗。**2026-11-05 拍板修正**："批 6 集中出金图"只允许**延后像素收口**，不允许在延后期间标 ✅——出图前每批状态一律写 `☑ 已交付待金图（收口批=批 6）`，两态定义与「存量零变化只算无回归、不算收口」见 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §4.1；
 7. GPU 测试必带三件套（`CGO_ENABLED=1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so`），不带必假绿；
 8. 金图红线：**存量金图逐位零变化**是每批验收项；任何差异按窗 A/B 归因 + 显式声明理由，禁止调容差数字蒙过。
 
