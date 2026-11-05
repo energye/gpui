@@ -802,15 +802,35 @@ func (c *Context) materializeFilterGPUTo(primary, secondary []byte) bool {
 		c.pixmapFilterStale = false
 		return false
 	}
-	type viewReader interface {
+	// 通道顺序由这张效果面自己的格式决定（M6 的真正病灶）：这里曾把「filter 发布纹理是
+	// RGBA8Unorm」当普适事实，无条件走不翻通道的那个读口；而 SetEffectSurface 那条路发布
+	// 的实测是 BGRA8Unorm（types 0x1B），于是导出面整片红蓝互换 —— 绿与 alpha 不动、
+	// 白底不变，所以肉眼看不出来。格式未知一律 fail-closed，不再靠「先试一个、失败退另一个」猜。
+	type viewStraightReader interface {
 		ReadbackViewStraightRGBA(view gpucontext.TextureView, w, h int) ([]byte, error)
 	}
+	type viewSwizzleReader interface {
+		ReadbackViewRGBA(view gpucontext.TextureView, w, h int) ([]byte, error)
+	}
 	raw := c.GPURenderContext()
-	vr, ok := raw.(viewReader)
-	if !ok || vr == nil {
+	var rgba []byte
+	var err error
+	switch channelOrderOfView(c.filterGPUView) {
+	case viewOrderRGBA:
+		vr, ok := raw.(viewStraightReader)
+		if !ok || vr == nil {
+			return false
+		}
+		rgba, err = vr.ReadbackViewStraightRGBA(c.filterGPUView, c.filterGPUW, c.filterGPUH)
+	case viewOrderBGRA:
+		vr, ok := raw.(viewSwizzleReader)
+		if !ok || vr == nil {
+			return false
+		}
+		rgba, err = vr.ReadbackViewRGBA(c.filterGPUView, c.filterGPUW, c.filterGPUH)
+	default:
 		return false
 	}
-	rgba, err := vr.ReadbackViewStraightRGBA(c.filterGPUView, c.filterGPUW, c.filterGPUH)
 	if err != nil || len(rgba) < c.filterGPUW*c.filterGPUH*4 {
 		return false
 	}

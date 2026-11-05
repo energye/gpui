@@ -33,3 +33,23 @@
 **错的前提写在注释里**：`filter_ops_cpu.go:234-236` 自陈「Offscreen present targets are **BGRA8**; use the swizzling reader first」——把「离屏目标都是 BGRA8」当普适事实，而 `SetEffectSurface` 那条路发布的是 RGBA8Unorm（`ReadbackViewStraightRGBA` 的注释自己写明「Used for F.03 filter publish textures」，`layer_gpu_io.go:51-52`）。选读回函数的判据因此是**调用点硬编 + 失败再退**，而不是格式。
 
 修法（不需要新增 hal 口）：**由产出方带格式，同步方按格式选**——`markViewFlush(view, w, h)`（`filter_ops_cpu.go:220-228`）多记一个 `lastFlushedViewFormat types.TextureFormat`（调用它的那一侧本来就知道自己 flush 的是哪张 RT 的格式），`syncViewFlushIntoPixmap` 按该格式二选一：`RGBA8Unorm` → `ReadbackViewStraightRGBA`、`BGRA8Unorm` → `ReadbackViewRGBA`；同时把「谁负责 swizzle」收敛成单一声明点（与 M1 的观察「合成链色空间口径无单一声明点」并案处理）。配套长期钉：同一绘制在 effectSurface 两档下 `ExportImageBuf` 必须逐通道等值（本探针转正）。
+
+---
+
+## 更正（2026-11-05，批 4 修 M6 时实测）：本文的根因定位错了
+
+**现象登记是对的**（两档对照、只有 R/B 互换、两档都真走 GPU），**根因指错了地方**：本文把病灶定在
+`Context.syncViewFlushIntoPixmap`（`render/filter_ops_cpu.go`）的"先试 BGRA 翻转读口、失败退直取"。
+真修时给两个读回口与 sync 入口都打点跑了一遍，实测：
+
+```
+DBG sync entered, ahead= false          ← 两次，说明这条导出根本不进 syncViewFlushIntoPixmap
+DBG readback STRAIGHT(RGBA) fmt= 27     ← 只此一处；27 = types.TextureFormatBGRA8Unorm（0x1B）
+```
+
+也就是：**病灶是 `render/filter_ops_gpu.go:806-813` 把"filter 发布纹理是 RGBA8Unorm"当普适事实、
+无条件走不翻通道的那个读口**，而效果面这条路发布的是 BGRA8Unorm ⇒ 直取即 R/B 互换。方向与本文
+猜测**正好相反**（本文以为"该直取的被翻了"，实为"该翻的被直取了"）。修法、钉与前后实测见
+`batch4-m6-channel-order.md`；`syncViewFlushIntoPixmap` 那处同类的"按 fallback 猜"也一并改成按格式选，
+但它不是 M6 的成因。本文行号与"根因"段保留原样以便对照，不再当作事实引用。
+

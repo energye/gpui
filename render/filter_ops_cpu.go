@@ -12,6 +12,7 @@ package render
 
 import (
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/types"
 )
 
 func FilterPoolStats() (gets, puts, hits, misses int) {
@@ -231,10 +232,45 @@ func (c *Context) markViewFlush(view gpucontext.TextureView, w, h int) {
 
 // syncViewFlushIntoPixmap readbacks the last FlushGPUWithView* target into the
 // CPU pixmap so Image/SavePNG match present/offscreen content (D152 class).
-// Offscreen present targets are BGRA8; use the swizzling reader first.
-// syncViewFlushIntoPixmap readbacks the last FlushGPUWithView* target into the
-// CPU pixmap so Image/SavePNG match present/offscreen content (D152 class).
-// Offscreen present targets are BGRA8; use the swizzling reader first.
+//
+// 通道顺序由那张面自己的格式决定（见 viewChannelOrder，M6 修复点）：RGBA8 直取、
+// BGRA8 才翻。旧写法把「离屏呈现目标都是 BGRA8」当普适事实——先试翻转读口、只在
+// 报错或长度不足时退回直取，而 SetEffectSurface 那条路发布的正是 RGBA8Unorm，
+// 于是被多翻一次，导出面红蓝整体互换（绿与 alpha 不动、白底不变，肉眼看不出来）。
+// viewChannelOrder 是一条离屏面的通道顺序真源：问那张纹理自己，不问调用点。
+type viewChannelOrder uint8
+
+const (
+	viewOrderUnknown viewChannelOrder = iota
+	viewOrderRGBA
+	viewOrderBGRA
+)
+
+// 唯一的「谁负责 swizzle」判定处（M6）：RGBA8/SRGB8 直取，BGRA8 翻转，
+// 其余一律 Unknown —— 由调用方 fail-closed，不再靠「先试一个、失败退另一个」碰运气。
+func channelOrderOfView(view gpucontext.TextureView) viewChannelOrder {
+	if view.IsNil() {
+		return viewOrderUnknown
+	}
+	// gpu/context 的 TextureView 是盒子化的不透明句柄，格式只能经正规出口取回 hal 接口问。
+	halv := gpucontext.UnpackTextureView(view)
+	if halv == nil {
+		return viewOrderUnknown
+	}
+	tex := halv.Texture()
+	if tex == nil {
+		return viewOrderUnknown
+	}
+	switch tex.Format() {
+	case types.TextureFormatRGBA8Unorm, types.TextureFormatRGBA8UnormSrgb:
+		return viewOrderRGBA
+	case types.TextureFormatBGRA8Unorm, types.TextureFormatBGRA8UnormSrgb:
+		return viewOrderBGRA
+	default:
+		return viewOrderUnknown
+	}
+}
+
 func (c *Context) syncViewFlushIntoPixmap() bool {
 	if c == nil || !c.viewContentAheadOfPixmap || c.pixmap == nil {
 		return true
@@ -257,13 +293,19 @@ func (c *Context) syncViewFlushIntoPixmap() bool {
 	raw := c.GPURenderContext()
 	var rgba []byte
 	var err error
-	if br, ok := raw.(viewReaderBGRA); ok && br != nil {
-		rgba, err = br.ReadbackViewRGBA(c.lastFlushedView, w, h)
-	}
-	if err != nil || len(rgba) < need {
+	switch channelOrderOfView(c.lastFlushedView) {
+	case viewOrderRGBA:
 		if sr, ok := raw.(viewReaderStraight); ok && sr != nil {
 			rgba, err = sr.ReadbackViewStraightRGBA(c.lastFlushedView, w, h)
 		}
+	case viewOrderBGRA:
+		if br, ok := raw.(viewReaderBGRA); ok && br != nil {
+			rgba, err = br.ReadbackViewRGBA(c.lastFlushedView, w, h)
+		}
+	default:
+		// 未知格式：不猜通道顺序（猜就是 M6 的形状），同步失败让调用方保留 GPU 面，
+		// 宁可读到上一帧也不读出错色。产出方应声明格式，见 evidence/P3.7/m6-export-byteorder.md。
+		return false
 	}
 	if err != nil || len(rgba) < need {
 		return false
