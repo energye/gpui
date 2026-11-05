@@ -110,3 +110,53 @@ CPU 线性 float 目标（每 texel 4×float32，注释明写「values above 1.0
 `examples/engine/fx/main.go`、`examples/engine/fx/README.md`）。fx 外部 `NewBloom` 调用点实测 1 处。
 金图 JSON 的 `want` 按新算法再生，但**不是自证**：同一用例我用独立算式（含 float32 逐步舍入）复算到逐位一致，
 见 `batch5-cpu-slice/golden-recheck.txt`。
+
+## 8. 步骤 2（GPU 四 pass）落地记录（2026-11-05）
+
+### 8.1 参数真源归位：`render/hdr` → `render` 主包
+
+步骤 1 把 `BloomParams`/`Validate`/`IsIdentity`/`MaxBloomSigma`/`MaxBloomIntensity` 放在 `render/hdr`，
+是按「只需要 float 域那一扇门」做的局部选择。步骤 2 要把泛光接进**渲染层自己的滤镜图**时撞上硬约束：
+
+- `render/hdr` import `render/internal/filter`（要用那枚共享高斯核）；
+- `render/internal/filter` import `render`（`BlurFilter` 吃的就是 `*render.Pixmap`）；
+- ⇒ 若 `render` 反过来 import `render/hdr` 就成环。渲染层的 `Context.ApplyBloom` 与
+  `ImageFilterNode` 都够不到 `hdr` 的类型。
+
+所以真源只能上移到 `render` 主包（`render/bloom.go`），`hdr.FloatTarget.Bloom` 改收
+`render.BloomParams`、`engine/fx` 随迁——同一笔全量切换，不留垫片（接口全量切换制）。
+这不是改主意，是 design §2 原话「**定义在渲染层，引擎吃它**」与 M5 行「泛光参数真源保持同一组数字，
+禁止第二套」在步骤 2 才真正兑现。**收回**步骤 1 §7.1 表里「公开门 = `render/hdr`」那一格的位置描述。
+
+### 8.2 三条腿的同一份核
+
+| 腿 | 入口 | 与核的关系 |
+|---|---|---|
+| float（HDR 域） | `hdr.FloatTarget.Bloom(render.BloomParams)` | 直调 `filter.BloomFloat`，输出不回钳 |
+| CPU 8-bit（LDR） | `filter.NewBloomFilter(p).Apply(src,dst,bounds)` ← `RegisterFilterOps{Bloom:…}` | premul uint8 ↔ 0..1 float32 的薄封装 + 出口钳；**钉 = 与核逐位对照**（`bloom_pixmap_test.go`） |
+| GPU 8-bit（LDR） | 一份 WGSL 两枚新 mode（13 亮部提取软斜坡、14 加法合成），图内一次 encoder 跑 5 个 pass（原图暂存 + 提取 + H + V + 加法） | 亮度/阈值/加法与 CPU 核同式；对齐判据 = GPU vs CPU 8-bit 最大通道差 ≤2/255 |
+
+### 8.3 注册面顺手收的一处隐患
+
+`RegisterFilterOps` 原来是 **13 枚同签名位置参数**（`func(*Pixmap,*Pixmap,float64)` 与
+`func(*Pixmap,*Pixmap,float64,float64)` 这类只差一枚标量，写反两个编译器不报）。本批加第 14 枚时
+改成具名结构 `render.FilterOpImpls`；调用点实测 3 处（`render/filters/register.go`、
+`render/paragraph_test.go` 两处），同笔切完，另给测试留了 `snapshotFilterOps()` 存/取恢复口。
+
+### 8.4 实测出来的三条性质（都写进了钉或账）
+
+1. **对齐钉要有鉴别力得先有能分叉的图**：原场景只有白点，把 Rec.709 权重改成等权也测不出
+   （NB6 首版不红）。给场景加同亮度（0.95）的红块与绿块后，权重写反立刻 >2/255 分叉。
+2. **两性质由格式兜住、摘掉不红**，如实登记为「不断言的防护」：GPU 出口 clamp01（RGBA8 存储天然饱和）、
+   pass 槽估算（运行中 in-place 增长兜底，固定 4 槽也不红）。相应地把那条钉的断言内容改述成
+   「三枚 bloom 连排仍全走 GPU、零回落」。
+3. **恒等/非法不占 pass 是效率性质**：`RenderPathStats.GPUOps` 记 Context 级 op 数而非 pass 数，
+   恒等节点即使被跑（增益 0）像素也不变 ⇒ 摘掉 `bloomNodeRunnable` 的判定拿不到红。
+   图级 skip 仍然实现并保留了它真能断言的两半（不回落 CPU、像素不变）。
+
+### 8.5 双后端
+
+`gpu_shared.go:1280` 在后端无关的 GPUShared 初始化里注册滤镜图 ⇒ GL 后端也吃同一份 WGSL。
+本批因此加一枚 **GL 后端执行钉**（复用 `p1GLDevice` + `SetAcceleratorDeviceProvider`，跑完
+`AbandonAcceleratorDevice` 复原）：不只证「naga→GLSL 能编译」，而是证 GL 上这四 pass 真跑出像素、
+且与 CPU 腿在容差内一致。Metal 本机不可验，按跨平台标记纪律写明「待验」。

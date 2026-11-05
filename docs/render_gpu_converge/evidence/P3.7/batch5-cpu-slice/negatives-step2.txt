@@ -1,0 +1,54 @@
+P3.7 批 5 · 步骤 2（GPU 四 pass）负向与「摘掉不红」如实记（2026-11-05）
+========================================================================
+
+跑法同步骤 1：单点变异 → 跑对应测试 → 立刻还原并逐字节比对源码。
+GPU 侧一律带 `WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so`（不带则 native 用例文件级 SKIP = 假绿，池 H1）。
+
+一、逐条打红
+------------
+NB2 摘 GPU 亮部掩膜（WGSL mode 13 的 `return vec4<f32>(c.rgb * m, 0.0)` → `return c`）
+    rc=1 红 2：TestP375BloomGPUMatchesCPULeg / TestP375BloomGPUDarkFieldUnchanged
+    —— 后者红得实在：全场不提亮部就不该有任何变化，摘掉掩膜等于把整张图当亮部。
+NB3 摘 GPU 加法合成（mode 14 的 `s0.rgb + glow.rgb * p.color.r` → `s0.rgb`）
+    rc=1 红 3：GPURunsGraph / GPUMatchesCPULeg / GPUSpreadDecays
+NB5 摘 GPU「alpha 保留 src」（mode 14 出口 `s0.a` → `glow.a`，即提取段的 0）
+    rc=1 红 4：GPURunsGraph / GPUMatchesCPULeg / GPUDarkFieldUnchanged / GPUKeepsSourceAlpha
+NB6 改 GPU Rec.709 权重（`0.2126r+0.7152g+0.0722b` → `(r+g+b)/3`）
+    rc=1 红 1：TestP375BloomGPUMatchesCPULeg
+    —— 这条是**加了场景才有牙齿**的：原场景只有白点，任何权重都算出同一个亮度。
+      现在 `bloomSpotScene` 带同亮度（0.95）的红块与绿块，权重写反两路立刻分叉 >2/255。
+NB8 摘 CPU 泛光注册（`render/filters/register.go` 的 `Bloom:` 字段 → nil）
+    rc=1 红 7（CPU 腿整片失守，GPU 腿因 `imageFilterNodeRunnable` 要 bloomApply 也一并回落）
+NB9 CPU 核换回盒（`bloom_float.go` 的 `CachedGaussianKernel(sigma)` → 同长度等权）
+    rc=1 红 2：TestP375BloomGPUMatchesCPULeg / TestP375BloomCPULegSpreadDecays
+NB11 float 腿提前钳（`dst[j] = src[j] + glow[j]*gain` → 外面裹 clampFloat01）
+    rc=1 红 1：TestP375BloomLegsDivergeOnlyAboveOne（render）
+    同一变异打到 hdr 侧也红：TestBloomKeepsSuperUnityLight（NB11b）
+    —— 「>1 的光只有 float 腿留得住」这条分叉在两侧各有一枚真钉。
+
+二、如实记：摘掉不红的防护（不当绿证）
+------------------------------------
+NB1 pass 槽估算（`estSlots := len(nodes)*5 + 2` → `*4 + 2`，再极端到 `*1 + 2` 与固定 `4`）
+    rc=0 全不红。原因实测：`doPass` 有 in-place 增长兜底（`filterPassUniformSlabMinSlots=16`），
+    估算低于实际需求时会在跑到一半扩槽，只有「扩槽换了 buffer 对象」才报错——本图规模碰不到。
+    ⇒ `*5` 是省掉一次中途增长的正确尺寸选择，不是行为保证；相应地
+      `TestP375BloomGPUMultiNodeChainStaysOnGraph` 的断言内容改述为「三枚 bloom 连排仍全走 GPU、
+      零回落 CPU」（多节点链的分派器回归），不再宣称它钉住槽估算。
+NB4 摘 GPU 出口 clamp01（`clamp(sum, 0, 1)` → `sum`）
+    rc=0 不红。原因：写目标是不小于 8-bit 的 RGBA8 纹理，>1 在存储时天然饱和。
+    ⇒ 「加法不回绕」是**格式级**性质：CPU 腿由 `clampUint8` 的量化上界兜住，GPU 腿由纹理格式兜住。
+      对应观察性质钉仍在（`TestP375BloomCPULegClampsNoWrap`、`TestP375BloomGPURunsGraph` 的 255 判据），
+      但登记为「摘不掉，因为要摘得改公共量化器/换纹理格式」，不冒充有牙齿的防护。
+NB7 摘图级恒等/非法判定（`bloomNodeRunnable` → `return true`）
+    rc=0 不红。原因实测：`RenderPathStats.GPUOps` 记的是 Context 级 op 数（一次图跑算一次），
+    不是 pass 数；恒等节点即使被跑，加法增益为 0 ⇒ 像素不变 ⇒ 公开面看不出来。
+    ⇒ 「恒等/非法不占 pass」目前是**效率性质**，仓内没有 pass 级公开计数，所以按「不断言的防护」登记；
+      `TestP375BloomGraphSkipsIdentityAndBadNodes` 保留它真能断言的两半（不回落 CPU、像素不变）。
+
+三、本轮自己的钉缺陷（如实记）
+----------------------------
+D5 GPU 剖面钉首版要求 d=3 抽头「必须 > 0」：σ=1 的第三枚抽头是 0.0044 档，乘完掩膜与增益后
+   落在 1/255 以下，实测在 0 与 1 之间翻（CPU 给 1、GPU 给 0）——把判据压在量化余量上就是假红/假绿两可。
+   改成只压 d=1 vs d=2（盒模糊的分界就在窗口内等值）+ d=3 不许反弹，理由写进测试注释。
+D6 首版对齐场景只有白点，NB6 那种「权重写反」的量根本测不到；补同亮度红绿块后才有鉴别力。
+   这条与 H16（窗内像素必须含被测能力）是同一个教训的两个面：**没有能被打破的断言就不是证据**。
