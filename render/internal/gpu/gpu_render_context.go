@@ -230,6 +230,22 @@ func (rc *GPURenderContext) StagedWriteOverlaps() int64 {
 	return rc.session.StagedWriteOverlaps()
 }
 
+// ImageBatchStats / ResetImageBatchStats expose the session's cumulative image
+// batching census to render.Context (P3.7 batch 6 ①).
+func (rc *GPURenderContext) ImageBatchStats() render.ImageBatchStats {
+	if rc == nil || rc.session == nil {
+		return render.ImageBatchStats{}
+	}
+	return rc.session.ImageBatchStats()
+}
+
+func (rc *GPURenderContext) ResetImageBatchStats() render.ImageBatchStats {
+	if rc == nil || rc.session == nil {
+		return render.ImageBatchStats{}
+	}
+	return rc.session.ResetImageBatchStats()
+}
+
 func (rc *GPURenderContext) LastBatchDrawStats() BatchDrawStats {
 	if rc == nil || rc.session == nil {
 		return BatchDrawStats{}

@@ -456,6 +456,9 @@ type GPURenderSession struct {
 	lastImageQuads     int
 
 	lastBatchStats BatchDrawStats
+	// imageBatchCensus 是跨帧累计的合批账（批 6 ①：窗要断言「N 张一段 → 1 次
+	// draw」，单帧总数答不了这句）。同线程读写，与其它 session 计数一口径。
+	imageBatchCensus imageBatchCensus
 
 	lastSubmitStats SubmitPathStats
 	// submitHalScratch converts the submit list for Queue.Submit without a
@@ -4833,6 +4836,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	s.imageDrawCallScratch = drawCalls
 	s.lastImageDrawCalls = len(drawCalls)
 	s.lastImageQuads = quads
+	s.noteImageBatchCensus(drawCalls, quads)
 	return &imageFrameResources{
 		vertBuf:         s.imageVertBuf,
 		drawCalls:       drawCalls,
