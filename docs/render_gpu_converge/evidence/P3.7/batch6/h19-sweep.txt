@@ -1,0 +1,86 @@
+H19 修复 · 触及包逐文件 sweep 与在册基线比对（2026-11-05）
+============================================================
+
+一、跑法（AGENTS「回归按测试文件逐个跑，禁止一次全量」）
+--------------------------------------------------------
+    export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so LD_LIBRARY_PATH=$PWD/lib DISPLAY=:0
+    printf 'render/internal/gpu\nrender\n' > /tmp/h19.pkgs
+    tools/per-file-tests.sh /tmp/h19.pkgs tmp/per-file-h19
+
+- 脚本正本 = P2.5 `tools/per-file-tests.sh`，清单 = H19 触及的两包（render/internal/gpu、render）。
+- **WGPU_NATIVE_PATH 已设**（tmp/h19-gates.log 里有 export 记录）——native 用例没有被静默
+  skip，不存在「不设 WGPU_NATIVE_PATH = 假绿」那条坑。
+- 日志 388 份在 tmp/per-file-h19/，总控 tmp/h19-gates.log 以 SWEEP_DONE 收尾；
+  summary.tsv 落盘后 uniq 计数（先落文件再取数，不是管道尾数）。
+- 覆盖 394 个 *_test.go 文件：备忘口径 392 枚 + 本修新增两枚钉
+  （render/internal/gpu/h19_shared_layouts_test.go、render/p37_6_h19_test.go，均实测 PASS）。
+
+二、总数与结论
+--------------
+      6  FAIL
+    374  PASS
+     14  SKIP_TAGGED
+
+FAIL_TOTAL=6，对照在册基线 docs/render_gpu_converge/baseline/tests/failures.tsv：
+**只减不增、零新增红**。六枚红全部在册（名单外红 = 0，无需隔离复跑定性）；
+触及两包在册红 28 枚文件（render 9 + render/internal/gpu 19）→ 本次 6 枚，转绿 22 枚。
+
+三、FAIL 六枚逐条与在册比对
+---------------------------
+| 文件（均在 render 包）            | 本次实测顶层红用例                                   | 数 | 在册注记          | 一致 |
+|----------------------------------|------------------------------------------------------|----|-------------------|------|
+| context_misc_draw_gpu_test.go    | TestMiscDrawGPUPath                                  | 1  | 1 failing test(s) | ✓    |
+| filter_present_coherence_test.go | TestPresentDamage_ImageMatchesView                   | 1  | 1 failing test(s) | ✓    |
+| rasterizer_tile_value_test.go    | TestRasterizerValueMatchesAnalytic                   | 1  | 1 failing test(s) | ✓    |
+| s6_9_heavy_budget_test.go        | TestS69_HeavyBudget_TierGates、TestS69_Contract_FromJSON | 2 | 2 failing test(s) | ✓  |
+| text_transform_gpu_test.go       | TestTextTransformAutoRoutesOutlines                  | 1  | 1 failing test(s) | ✓    |
+| video_direct_upload_test.go      | TestVideoDrawFrameMarksDamage、TestVideoBridgeFallbackConverged、TestVideoBridgePlanesFallback | 3 | 3 failing test(s) | ✓ |
+
+顶层数与注记数逐条对得上，红名单零漂移。
+
+四、转绿 22 枚（在册红 → 本次实测 PASS）
+----------------------------------------
+render 包 9→6（转绿 3）：
+  context_clip_depth_test.go（在册 1）、context_coverage_test.go（在册 1）、
+  m5_color_glyph_api_test.go（在册 1）
+
+render/internal/gpu 包 19→0（转绿 19）：
+  bindgroup_switch_test.go(1)、convex_renderer_test.go(4)、depth_clip_test.go(1)、
+  gpu_texture_test.go(1)、integration_test.go(rc=2)、opt21_layer_defer_submit_test.go(1)、
+  opt24_sticky_index_uniform_test.go(crash marker: panic)、opt27_gputex_bg_cache_test.go(1)、
+  opt28_sticky_image_gputex_verts_test.go(crash marker: panic)、
+  opt29_image_uniform_slab_test.go(crash marker: panic)、
+  opt34_shared_encoder_no_flush_leading_test.go(2)、opt36_filter_seed_shared_encoder_test.go(1)、
+  opt38_ensure_pipelines_ready_test.go(2)、opt40_gputex_uniform_slab_test.go(1)、
+  render_session_test.go(11)、sdf_render_test.go(5)、stencil_pipeline_test.go(4)、
+  stencil_render_test.go(7)、ttc_cjk_gpu_repro_test.go(1)
+
+在册注记里 internal/gpu 这 19 枚多为 panic/crash 型——与 H19 同属「悬垂句柄穿到 wgpu =
+非展开 panic」（真源 ENGINE_GPU_RESOURCE_LIFECYCLE.md §1.1 D6 一族）。本次修复后单文件
+实测绿；因果链与三枚钉的证据以同目录 h19-device-swap-fix.md §2/§5 为准，本文件只记
+数字比对，不重复断言。
+
+五、SKIP_TAGGED 14 枚（脚本正本既有口径，非环境缺失）
+------------------------------------------------------
+脚本口径：文件里提取不到大写开头的顶层 Test/Benchmark 函数（纯 harness/helper、
+仅 bench），或 `go test` 报 no tests to run（构建标签排除）。
+
+render/internal/gpu（7）：alloc_bench、analytic_benchmark、benchmark、
+  brush_field_memo_bench、native_device、shared_layouts、stencil_metal_repro
+render（7）：benchmark、mem_harness、pixmap_bench、rasterizer_tile_bench、
+  s5_present_helpers、visual_diagnostic、vram_test_hook
+
+抽查三条（grep 实测 0 个顶层 Test/Benchmark 函数）：mem_harness_test.go、
+native_device_test.go、shared_layouts_test.go——均为共享 harness/helper 文件。
+两条与本账相关的说明：
+- stencil_metal_repro_test.go：Metal 专用，本机不可验，按「待验」标（AGENTS 跨平台纪律）。
+- mem_harness_test.go 只是 harness：TestMem_* 真用例在 mem_complex_offscreen /
+  mem_gpu_lifecycle / mem_window_x11_linux 三文件，本次实测 PASS——即 H20 毒手族
+  （TestMem_*ResetAccelerator 一族 + TestP04_ApplyDropShadowGPU）在逐文件口径下没有
+  触发：两用例被隔离进不同进程，复现需要同进程配对（见 h19-device-swap-fix.md §7）。
+  这与「批 6 剩余门禁靠逐文件 + 真窗双后端拿证据、整包 -race 仍被 H20 压着」的说法自洽。
+
+六、sweep 里的进程级中止残留
+----------------------------
+全量 grep 388 份日志：no longer alive / non-unwinding / SIGABRT 零命中——
+逐文件口径下没有任何文件被 H19/H20 型进程级中止带走。
