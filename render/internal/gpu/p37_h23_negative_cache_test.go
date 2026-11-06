@@ -51,7 +51,7 @@ func TestP37H23NegativeCacheStopsDeviceRetries(t *testing.T) {
 
 	const frames = 3
 	for i := 1; i <= frames; i++ {
-		if _, err := s.ensureMaterialPipeline(bad, false); err == nil {
+		if _, err := s.ensureMaterialPipeline(bad, false, false); err == nil {
 			t.Fatalf("第 %d 帧：被拒模块居然报可用", i)
 		} else if !errors.Is(err, render.ErrShaderBackendCompile) {
 			t.Fatalf("第 %d 帧：错误不具名：%v", i, err)
@@ -61,7 +61,7 @@ func TestP37H23NegativeCacheStopsDeviceRetries(t *testing.T) {
 		t.Errorf("负面缓存失效：%d 帧打了 %d 次设备编译（want 1，重复帧应只读缓存）", frames, got)
 	}
 	// 对照：合法模块必须照常真建一次，不许被前面的拒绝连带误拒。
-	if _, err := s.ensureMaterialPipeline(good, false); err != nil {
+	if _, err := s.ensureMaterialPipeline(good, false, false); err != nil {
 		t.Fatalf("合法模块被误拒：%v", err)
 	}
 	if got := s.MaterialRejectAttempts(); got != 2 {

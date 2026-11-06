@@ -261,7 +261,7 @@ type gpuContextOps interface {
 	QueueImageDrawMaterial(target GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip intImage.MipmapMode, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32,
-		perspLeg bool, weights [4]float32, material *ShaderEffect, nearest bool)
+		perspLeg bool, weights [4]float32, material *ShaderEffect, nearest, bicubic bool)
 	// QueueImageDrawBlend is QueueImageDrawTint plus a fixed-function Porter-Duff
 	// blend mode (B.02): the quad composites with the mode's blend factors
 	// instead of premultiplied SourceOver (DestinationIn mask draws and other

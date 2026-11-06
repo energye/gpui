@@ -48,10 +48,10 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 	// P3.7 材质×透视专项（2026-11-07，mat-persp-assessment.md 拍板）：材质+透视
 	// 放行——组合顶点机的引擎顶点段本就携带 hom_w（真 clip-space w），权重透传
 	// 到 36B 材质缓冲即可；画布投影层组合同放行（perspLeg 权重来自投影映射）。
-	// 材质+bicubic 仍具名拒（纹素契约腿随 B 批开启后摘除）。
-	if opts.Material != nil && interp == InterpBicubic {
-		return ErrQuadMaterialUnsupported
-	}
+	// 材质+bicubic 纹素契约（2026-11-07 拍板：引擎喂纹素）已放行——声明 texel
+	// 第 4 参的效果骑内嵌 16-tap 核变体，采样质量归引擎（对齐 Godot「TEXTURE
+	// 按 item 档位采样」）；未声明 texel 的效果自行采样（引擎按命令档绑定
+	// 采样器，bicubic 档即 nearest 档，语义如实写进 effect 文档）。
 	opacity := normalizeQuadOpacity(opts.Opacity)
 	if !quadTintFinite(opts.Tint) {
 		return ErrQuadBadTint
@@ -132,7 +132,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 					0, 0, 1, 1,
 					float32(ptR), float32(ptG), float32(ptB), float32(ta),
 					perspLeg, [4]float32{float32(wFinal[0]), float32(wFinal[1]), float32(wFinal[2]), float32(wFinal[3])},
-					opts.Material, nearest)
+					opts.Material, nearest, bicubic)
 				c.recordGPUOp()
 				return nil
 			}

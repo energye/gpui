@@ -73,7 +73,51 @@ p37_projection/p37_projection_chain/p37_projection_stances/atlas_r4/p37_atlas_pe
 基线同源，非本批带入，如实记）；internal/gpu——image_batch_census/
 batch_coalescing/p37_3a_material/opt29 全 PASS。build/vet rc=0。
 
-B 批：bicubic 纹素契约（待续）
-------------------------------
-（契约前缀扩展引擎采样纹素输入、组合模块采样段、材质管缓存键、
-bicubic+材质三口放行、③臂 e 图像口 skip 探针迁移——开工后补记。）
+B 批：bicubic 纹素契约（2026-11-07，同日第二枚）
+------------------------------------------------
+
+**拍板口径**：引擎喂纹素——契约前缀第 4 参 `texel: vec4<f32>` =引擎按本笔
+采样档采好的纹素（对齐 Godot「TEXTURE 按 item 档位采样」；采样质量归引擎，
+用户只管上色）。未声明 texel 的效果自行采样（引擎按命令档绑定采样器，
+bicubic 档即 nearest 档），语义如实写进 effect 文档。
+
+**红测先行**（`render/p37_mat_bicubic_test.go` 四钉，红态=A 批树 stash 实测
+`matbicubic-red-test.txt`：4 参被 fragmentParams 具名拒「prefix is at most
+(uv, tint, hom_w)」+ material+bicubic 被拒）：
+
+| 钉 | 判据 |
+|---|---|
+| TestP37MatTexelEchoQuadBitwise | **echo 材质（返回引擎纹素原样）≡ 无材质标准路逐位**——bicubic/nearest/linear 三档各一轮（引擎纹素=标准采样的最强证明） |
+| TestP37MatTexelEchoOwnBindingsBitwise | 用户自带纹理对声明路：引擎复用用户变量名（不注入），bicubic 档逐位 |
+| TestP37MatTexelEchoPerspBitwise | 纹素骑透视正确插值 UV（A 批×B 批组合态），linear 档逐位 |
+| TestP37MatTexelEchoSpriteAndImageBitwise | 批绘口与图像口 bicubic echo ≡ 标准路逐位（三口全通） |
+
+**实现**：
+
+1. `render/shader_compose.go`：契约前缀 0..4（第 4 参 texel=vec4）；引擎段
+   `gpuiEngTexelSection`——绑定名解析（用户已声明 binding(1)/(2) 对⇒复用
+   用户变量名，否则注入保留名 gpui_eng_tex/gpui_eng_samp 并计入绑定面）；
+   bicubic 变体在引擎段内嵌 16-tap Catmull-Rom 核（与 textured_quad_bicubic.wgsl
+   /CPU SampleBicubic 同常数，采样用命令绑定的 nearest 档）；填充路 texel
+   默认 vec4(0)（无纹理可采，语义如实写注释）。params<4 不拼——存量模块
+   字节不变。
+2. `render/shader_effect.go`：`quadComposedBicubic` 第二变体（eager 组合期
+   同验，D-3a-1 口径）；`ComposedQuadWGSLFor(bicubic)`；texel 注入对计入
+   绑定面（texturePairs≥1，bgl0/绑定组由此派生）。
+3. `render/internal/gpu/material_pipeline.go`：缓存键改 `materialKey{effect,
+   bicubic}`（entries/rejected 双 map 同键；evict 双变体同撤；H23 负面缓存
+   语义不变——plain 被拒不代表核变体被拒）。
+4. 三口放行 + `QueueImageDrawMaterial` 加 bicubic 位（接口全量切换：实现/
+   接口/3 调用点同笔）：m4_quadimage 摘 material+bicubic 拒、精灵路摘
+   perspSlot+bicubic skip、图像口摘 bicubic 假门（A 批遗留的半截——首版
+   echo 钉抓到：image 口 bicubic echo 画成白底=假门还在吞）。
+5. 既有钉迁移：`p37_3b_test` material+bicubic 拒绝断言撤（echo 钉承管画面）；
+   ③ 臂 e 图像口 skip 探针改 blend+材质（Normal-only 口径不变，skip+计数
+   演示保留）。
+
+**边界如实**：材质+透视+bicubic 三合一维持既有拒（`ErrQuadPerspectiveBicubic`
+——透视槽无 bicubic 变体，先于材质的边界；材质路虽可实现但 plain 路无对照
+锚，归「透视槽 bicubic 变体」另项）。
+
+**回归账**：echo 四钉 + p37_3b/p37_mat_persp/p37_3a/H23 负面缓存钉全绿；
+build/vet rc=0、gofmt 净。

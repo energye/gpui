@@ -1498,10 +1498,10 @@ func (rc *GPURenderContext) newImageDrawCmd(target render.GPURenderTarget, pixel
 func (rc *GPURenderContext) QueueImageDrawMaterial(target render.GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip render.MipmapMode, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32,
-	perspLeg bool, weights [4]float32, material *render.ShaderEffect, nearest bool) {
+	perspLeg bool, weights [4]float32, material *render.ShaderEffect, nearest, bicubic bool) {
 	cmd := rc.newImageDrawCmd(target, pixelData, genID, src, mip, imgWidth, imgHeight, imgStride,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity, viewportW, viewportH,
-		u0, v0, u1, v1, tintR, tintG, tintB, tintA, render.BlendNormal, nearest, false)
+		u0, v0, u1, v1, tintR, tintG, tintB, tintA, render.BlendNormal, nearest, bicubic)
 	if perspLeg {
 		cmd.Perspective = true
 		cmd.Weights = weights

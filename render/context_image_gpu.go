@@ -159,7 +159,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 	// 返 false 交调用方 CPU skip（绝不裸画；bicubic 纹素契约随 B 批开启）。
 	// DrawImageOptions 无 tint ⇒ 零结构体（顶点通道白）。
 	if opts.Material != nil {
-		if opts.BlendMode != BlendNormal || bicubic {
+		if opts.BlendMode != BlendNormal {
 			return false
 		}
 		if projActive {
@@ -171,7 +171,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 				float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1,
 				0, 0, 0, 0, true,
 				[4]float32{float32(projW[0]), float32(projW[1]), float32(projW[2]), float32(projW[3])},
-				opts.Material, nearest)
+				opts.Material, nearest, bicubic)
 			c.recordGPUOp()
 			return true
 		}
@@ -181,7 +181,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 			float32(br.X), float32(br.Y),
 			float32(bl.X), float32(bl.Y),
 			float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1,
-			0, 0, 0, 0, false, [4]float32{1, 1, 1, 1}, opts.Material, nearest)
+			0, 0, 0, 0, false, [4]float32{1, 1, 1, 1}, opts.Material, nearest, bicubic)
 		c.recordGPUOp()
 		return true
 	}

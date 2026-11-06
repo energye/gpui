@@ -4398,7 +4398,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	// 以保持 firstVertex 与预排索引对齐。只在真有材质笔时才铺：S6.9 计时门实测——
 	// 无条件 make([]bool, len(cmds)) 每帧多一次堆分配，连不含材质的路一起拖慢。
 	var refused []bool
-	materialEntries := make(map[*render.ShaderEffect]*materialEffectEntry, 4)
+	materialEntries := make(map[materialKey]*materialEffectEntry, 4)
 	if matCount > 0 {
 		if cap(s.materialRefusedScratch) < len(cmds) {
 			s.materialRefusedScratch = make([]bool, len(cmds))
@@ -4429,7 +4429,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			if cmds[i].Material == nil {
 				continue
 			}
-			entry, err := s.ensureMaterialPipeline(cmds[i].Material, false)
+			entry, err := s.ensureMaterialPipeline(cmds[i].Material, cmds[i].Bicubic, false)
 			if err != nil {
 				if !errors.Is(err, render.ErrShaderBackendCompile) {
 					return nil, err
@@ -4441,13 +4441,14 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				matIdx++
 				continue
 			}
-			if _, ok := materialEntries[cmds[i].Material]; !ok {
-				materialEntries[cmds[i].Material] = entry
+			mkey := materialKey{effect: cmds[i].Material, bicubic: cmds[i].Bicubic}
+			if _, ok := materialEntries[mkey]; !ok {
+				materialEntries[mkey] = entry
 				if err := uploadMaterialUniforms(s.queue, cmds[i].Material, entry.uniform); err != nil {
 					return nil, fmt.Errorf("upload material uniform: %w", err)
 				}
 			}
-			if _, err := s.ensureMaterialPipeline(cmds[i].Material, true); err != nil {
+			if _, err := s.ensureMaterialPipeline(cmds[i].Material, cmds[i].Bicubic, true); err != nil {
 				if !errors.Is(err, render.ErrShaderBackendCompile) {
 					return nil, err
 				}
@@ -4722,7 +4723,9 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			// Both caches key on the material-slot index (contents re-packed
 			// per frame; the slab offset is baked per index like the image
 			// slab).
-			entry := materialEntries[slot.material]
+			// 材质×bicubic 纹素契约（2026-11-07）：变体键带 bicubic 位——
+			// bicubic 档骑内嵌 16-tap 核模块，其余档共享 plain 模块。
+			entry := materialEntries[materialKey{effect: slot.material, bicubic: slot.sampler.Bicubic}]
 			// P3.7 批 3c：SetImageAt 槽位纹理（slots 1+，gen 键控）先就绪——
 			// 绑定组键含槽位代次，重绑图后必重建。
 			if err := s.ensureMaterialSlotTextures(entry, slot.material); err != nil {

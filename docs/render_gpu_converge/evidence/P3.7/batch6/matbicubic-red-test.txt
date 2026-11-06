@@ -1,0 +1,16 @@
+--- FAIL: TestP37MatTexelEchoQuadBitwise (0.28s)
+    --- FAIL: TestP37MatTexelEchoQuadBitwise/bicubic (0.00s)
+        p37_mat_bicubic_test.go:74: NewShaderEffect(echo): shader: binding contract violation: contract: fs_main takes 4 parameters, the contract prefix is at most (uv, tint, hom_w)（4 参契约 + 纹素馈送必须被接受）
+    --- FAIL: TestP37MatTexelEchoQuadBitwise/nearest (0.00s)
+        p37_mat_bicubic_test.go:74: NewShaderEffect(echo): shader: binding contract violation: contract: fs_main takes 4 parameters, the contract prefix is at most (uv, tint, hom_w)（4 参契约 + 纹素馈送必须被接受）
+    --- FAIL: TestP37MatTexelEchoQuadBitwise/linear (0.00s)
+        p37_mat_bicubic_test.go:74: NewShaderEffect(echo): shader: binding contract violation: contract: fs_main takes 4 parameters, the contract prefix is at most (uv, tint, hom_w)（4 参契约 + 纹素馈送必须被接受）
+--- FAIL: TestP37MatTexelEchoOwnBindingsBitwise (0.00s)
+    p37_mat_bicubic_test.go:109: NewShaderEffect(echo): shader: binding contract violation: contract: fs_main takes 4 parameters, the contract prefix is at most (uv, tint, hom_w)（4 参契约 + 纹素馈送必须被接受）
+--- FAIL: TestP37MatTexelEchoPerspBitwise (0.00s)
+    p37_mat_bicubic_test.go:144: NewShaderEffect(echo): shader: binding contract violation: contract: fs_main takes 4 parameters, the contract prefix is at most (uv, tint, hom_w)（4 参契约 + 纹素馈送必须被接受）
+--- FAIL: TestP37MatTexelEchoSpriteAndImageBitwise (0.00s)
+    p37_mat_bicubic_test.go:182: NewShaderEffect(echo): shader: binding contract violation: contract: fs_main takes 4 parameters, the contract prefix is at most (uv, tint, hom_w)（4 参契约 + 纹素馈送必须被接受）
+FAIL
+FAIL	github.com/energye/gpui/render	0.363s
+FAIL

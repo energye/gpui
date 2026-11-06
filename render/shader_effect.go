@@ -104,9 +104,13 @@ type ShaderEffect struct {
 	// leg variants are composed and re-validated at NewShaderEffect time —
 	// any surgery drift or user/engine symbol collision is a named rejection
 	// before any backend sees the source.
-	fragParams   int    // declared fs_main input prefix length (0..3)
+	fragParams   int    // declared fs_main input prefix length (0..4)
 	fillComposed string // fill pass-1 variant (uv-only vertex stage)
 	quadComposed string // quad material variant (36B vertex stage + engine groups)
+	// quadComposedBicubic 材质×bicubic 纹素契约变体（2026-11-07）：第 4 参
+	// texel 的引擎采样段换成内嵌 16-tap Catmull-Rom 核；params<4 时与
+	// quadComposed 同文（不存在第二形状，两变体共享模块）。
+	quadComposedBicubic string
 }
 
 // ShaderInterface reports the immutable bind requirements derived from the
@@ -190,24 +194,43 @@ func NewShaderEffect(wgsl string) (*ShaderEffect, error) {
 	if err != nil {
 		return nil, err
 	}
-	fillComposed, err := composeAndValidate(wgsl, params, false)
+	texName, sampName, texelDeclaredByUser := engineTexelNames(mod)
+	texelFeed := params >= 4
+	fillComposed, err := composeAndValidate(wgsl, params, false, false, texName, sampName, texelDeclaredByUser)
 	if err != nil {
 		return nil, err
 	}
-	quadComposed, err := composeAndValidate(wgsl, params, true)
+	quadComposed, err := composeAndValidate(wgsl, params, true, false, texName, sampName, texelDeclaredByUser)
 	if err != nil {
 		return nil, err
+	}
+	quadComposedBicubic := quadComposed
+	if texelFeed {
+		// bicubic 变体仅在纹素声明时存在第二形状（引擎采样段换 16-tap 核）；
+		// 组合期同验（D-3a-1 eager 口径），后端见到的必是验过的源。
+		quadComposedBicubic, err = composeAndValidate(wgsl, params, true, true, texName, sampName, texelDeclaredByUser)
+		if err != nil {
+			return nil, err
+		}
 	}
 	texturePairs, uniformBytes := declaredBindInterface(mod)
+	if texelFeed && !texelDeclaredByUser {
+		// 引擎注入的 @group(0) binding(1)/(2) 对必须进绑定面（bgl0 与绑定组
+		// 由此派生），否则模块声明了绑定而布局没有 → 绑定组不匹配。
+		if texturePairs < 1 {
+			texturePairs = 1
+		}
+	}
 	eff := &ShaderEffect{
-		wgsl:         wgsl,
-		usesImage:    texturePairs >= 1,
-		texturePairs: texturePairs,
-		uniformBytes: uniformBytes,
-		id:           shaderEffectIDCounter.Add(1),
-		fragParams:   params,
-		fillComposed: fillComposed,
-		quadComposed: quadComposed,
+		wgsl:                wgsl,
+		usesImage:           texturePairs >= 1,
+		texturePairs:        texturePairs,
+		uniformBytes:        uniformBytes,
+		id:                  shaderEffectIDCounter.Add(1),
+		fragParams:          params,
+		fillComposed:        fillComposed,
+		quadComposed:        quadComposed,
+		quadComposedBicubic: quadComposedBicubic,
 	}
 	if texturePairs > 0 {
 		eff.images = make([]*ImageBuf, texturePairs)
@@ -231,6 +254,17 @@ func (e *ShaderEffect) ComposedFillWGSL() string {
 // ComposedQuadWGSL returns the engine-composed fragment+vertex module for the
 // quad material leg (P3.7 batch 3a): engine vertex stage, user function, and
 // the engine output section in one module.
+// ComposedQuadWGSLFor returns the composed quad module for the requested
+// engine-sample variant (材质×bicubic 纹素契约，2026-11-07)：bicubic=true 给
+// 内嵌 16-tap 核变体；纹素未声明的效果两变体同文（ok=false 永不发生——调用
+// 方无需判）。
+func (e *ShaderEffect) ComposedQuadWGSLFor(bicubic bool) string {
+	if bicubic && e.quadComposedBicubic != "" {
+		return e.quadComposedBicubic
+	}
+	return e.quadComposed
+}
+
 func (e *ShaderEffect) ComposedQuadWGSL() string {
 	if e == nil {
 		return ""

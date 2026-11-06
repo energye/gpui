@@ -106,15 +106,24 @@ func (e *materialEffectEntry) destroy() {
 // NewShaderEffect time), never from per-draw state (L2-P1-3). Closed effects
 // evict through the RegisterShaderEffectEvictor hook, same as the fill
 // pass-1 cache.
+// materialKey is the per-variant cache key (材质×bicubic 纹素契约 2026-11-07)：
+// 纹素声明的效果在 bicubic 档用内嵌 16-tap 核模块（第二形状），其余档共享
+// plain 模块——两变体各自持模块/管线/ uniform 缓冲，bgl0 同形各自建。
+type materialKey struct {
+	effect  *render.ShaderEffect
+	bicubic bool
+}
+
 type materialCache struct {
 	mu          sync.Mutex
 	initialized bool
 	device      hal.Device
-	entries     map[*render.ShaderEffect]*materialEffectEntry
+	entries     map[materialKey]*materialEffectEntry
 	// rejected 是 H23 的负面缓存：后端（naga）拒收的模块在这里记一次，之后每一帧
 	// 各口直接按「已知不可用」拒画，不再重复尝试编译（重复尝试既不改变结果，还把
-	// p95 帧间隔从 23.4ms 拖到 51.1ms，并每帧刷一整段 stderr）。
-	rejected map[*render.ShaderEffect]error
+	// p95 帧间隔从 23.4ms 拖到 51.1ms，并每帧刷一整段 stderr）。键含 bicubic 位
+	// （材质×bicubic 纹素契约 2026-11-07）：plain 模块被拒不代表核变体被拒。
+	rejected map[materialKey]error
 	// bgl1 is the engine per-draw block (shared). bgl0 lives per effect
 	// (batch 3c: declared pairs are module-derived, so the layout is no
 	// longer one of two global shapes).
@@ -136,8 +145,8 @@ func (c *materialCache) ensureLocked(device hal.Device) error {
 	}
 	c.device = device
 	c.initialized = true
-	c.entries = make(map[*render.ShaderEffect]*materialEffectEntry)
-	c.rejected = make(map[*render.ShaderEffect]error)
+	c.entries = make(map[materialKey]*materialEffectEntry)
+	c.rejected = make(map[materialKey]error)
 	return nil
 }
 
@@ -172,16 +181,19 @@ func (c *materialCache) destroyLocked() {
 	c.device = nil
 }
 
-// evictEffect drops one closed effect's state.
+// evictEffect drops one closed effect's state (both variants).
 func (c *materialCache) evictEffect(effect *render.ShaderEffect) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if e, ok := c.entries[effect]; ok {
-		delete(c.entries, effect)
-		e.destroy()
+	for _, bic := range []bool{false, true} {
+		key := materialKey{effect: effect, bicubic: bic}
+		if e, ok := c.entries[key]; ok {
+			delete(c.entries, key)
+			e.destroy()
+		}
+		// 关闭即撤判：同一个地址将来可能被另一枚 effect 复用（H23 负面缓存随生命周期走）。
+		delete(c.rejected, key)
 	}
-	// 关闭即撤判：同一个地址将来可能被另一枚 effect 复用（H23 负面缓存随生命周期走）。
-	delete(c.rejected, effect)
 }
 
 // ensureBlackLocked lazily creates the 1×1 black texture backing unbound
@@ -272,12 +284,12 @@ func (s *GPURenderSession) noteMaterialRefusal() { s.matRefusalSkips++ }
 
 // rejectMaterialEffect 登记一次后端拒收（调用者持 c.mu）：写负面缓存 + 记一次
 // ShaderBackendFails，返回要上抛的具名错。
-func (s *GPURenderSession) rejectMaterialEffect(c *materialCache, effect *render.ShaderEffect, stage string, err error) error {
+func (s *GPURenderSession) rejectMaterialEffect(c *materialCache, key materialKey, stage string, err error) error {
 	reject := fmt.Errorf("%w: material %s: %w", render.ErrShaderBackendCompile, stage, err)
-	if _, seen := c.rejected[effect]; !seen {
+	if _, seen := c.rejected[key]; !seen {
 		s.matRefusalFails++
 	}
-	c.rejected[effect] = reject
+	c.rejected[key] = reject
 	return reject
 }
 
@@ -299,13 +311,14 @@ func (s *GPURenderSession) TakeMaterialRefusals() (skips, freshFails int) {
 // layout object — the material pipeline layout references the SAME object so
 // the per-group clip bind group (noClipBindGroup / scissor-group clip) binds
 // at @group(2) unchanged.
-func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, depthClip bool) (*materialEffectEntry, error) {
+func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, bicubic, depthClip bool) (*materialEffectEntry, error) {
 	c := &s.userMaterial
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if effect == nil || effect.Closed() {
 		return nil, fmt.Errorf("%w: material ensure after Close", render.ErrShaderClosed)
 	}
+	key := materialKey{effect: effect, bicubic: bicubic}
 	if s.clipBindLayout == nil {
 		return nil, fmt.Errorf("material: clip bind layout not ready")
 	}
@@ -317,11 +330,11 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 		return nil, err
 	}
 	// H23 负面缓存：这台设备已经拒过这枚模块 ⇒ 零设备调用，直接把具名错还给调用方。
-	if err, bad := c.rejected[effect]; bad {
+	if err, bad := c.rejected[key]; bad {
 		return nil, err
 	}
 
-	entry, ok := c.entries[effect]
+	entry, ok := c.entries[key]
 	if !ok {
 		bind := effect.ShaderBinding()
 		bgl0, err := materialUserBGL0(device, bind)
@@ -334,7 +347,7 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 		}
 		s.matRejectAttempts++
 		device.PushErrorScope(hal.ErrorFilterValidation)
-		module, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{WGSL: effect.ComposedQuadWGSL()})
+		module, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{WGSL: effect.ComposedQuadWGSLFor(bicubic)})
 		// H23：wgpu-native 的 shader 校验是**排队**的——CreateShaderModule 自己返回
 		// nil，错误落在后面任意一个设备调用身上（实测先后命中过 CreateBuffer，
 		// 且换顺序也只是换个受害者）。所以模块创建必须包在验证错误域里，pop 回来
@@ -346,7 +359,7 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 		}
 		if err != nil {
 			bgl0.Destroy()
-			return nil, s.rejectMaterialEffect(c, effect, "module", err)
+			return nil, s.rejectMaterialEffect(c, key, "module", err)
 		}
 		ubuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "material_user_uniform",
@@ -370,7 +383,7 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 			entry.slotTex = make([]*materialSlotTexture, bind.TexturePairs-1)
 			entry.slotTexGen = make([]uint64, bind.TexturePairs-1)
 		}
-		c.entries[effect] = entry
+		c.entries[key] = entry
 	}
 
 	leg := 0
@@ -416,7 +429,7 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 	})
 	if err != nil {
 		layout.Destroy()
-		return nil, s.rejectMaterialEffect(c, effect, "pipeline", err)
+		return nil, s.rejectMaterialEffect(c, key, "pipeline", err)
 	}
 	entry.pipelines[leg] = pipe
 	return entry, nil

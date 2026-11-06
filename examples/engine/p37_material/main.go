@@ -942,16 +942,18 @@ func runProbes() probeReport {
 	rep.extra["quad_behind_eye_refused_err"] = fmt.Sprint(errQ)
 	rep.add("quad_behind_eye_refused", refused,
 		fmt.Sprintf("err=%v（校验期具名返回，不入队不计数）", errQ))
-	// 图像口回退路的拒绝计数：bicubic+材质 GPU 腿不接走 ⇒ skip + MaterialSkips++。
+	// 图像口回退路的拒绝计数（材质×bicubic 纹素契约 2026-11-07 迁移）：
+	// bicubic+材质已放行（echo 钉钉引擎纹素=标准采样逐位），skip 演示改
+	// blend+材质（材质腿 Normal-only 口径不变）——skip + MaterialSkips++。
 	before := dcE.RenderPathStats().MaterialSkips
 	dcE.DrawImageEx(texGray, render.DrawImageOptions{X: 520, Y: 520,
-		Interpolation: render.InterpBicubic, Material: effG})
+		BlendMode: render.BlendMultiply, Material: effG})
 	_ = dcE.FlushGPU()
 	after := dcE.RenderPathStats().MaterialSkips
 	skipDelta := after - before
 	rep.extra["material_skips_delta"] = skipDelta
-	rep.add("image_entry_material_skip_counted", skipDelta == 1,
-		fmt.Sprintf("skips=%d（GPU 腿不接走 ⇒ skip，不记 CPUFallback）", skipDelta))
+	rep.add("image_entry_material_blend_skip_counted", skipDelta == 1,
+		fmt.Sprintf("skips=%d（blend+材质 GPU 腿不接走 ⇒ skip，不记 CPUFallback）", skipDelta))
 	// 非法组合不留下任何笔画：拒绝区应保持底色。
 	br, bg2, bb2, _ := pixelAt(dcE, 610, 560)
 	kept := abs(int(br)-int(math.Round(backdropRGB*255))) <= int(blendTol) && abs(int(bg2)-int(math.Round(backdropRGB*255))) <= int(blendTol)

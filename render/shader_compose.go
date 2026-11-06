@@ -42,8 +42,11 @@ var (
 )
 
 // fragmentParams validates fs_main's declared input prefix and returns its
-// length (0..3). Positions and types are fixed by the contract; names are
-// free. 0 = fs_main()（零参，只上填充路）; 1 = uv; 2 = uv,tint; 3 = uv,tint,hom_w.
+// length (0..4). Positions and types are fixed by the contract; names are
+// free. 0 = fs_main()（零参，只上填充路）; 1 = uv; 2 = uv,tint; 3 =
+// uv,tint,hom_w; 4 = uv,tint,hom_w,texel（材质×透视/bicubic 专项 2026-11-07：
+// 第 4 参=引擎按本笔采样档采好的纹素——对齐 Godot「TEXTURE 按 item 档位采样」，
+// 采样质量归引擎，用户只管上色）。
 func fragmentParams(mod *ir.Module) (int, error) {
 	entry := -1
 	for i := range mod.EntryPoints {
@@ -56,8 +59,8 @@ func fragmentParams(mod *ir.Module) (int, error) {
 		return 0, fmt.Errorf("shader: contract: missing @fragment entry point fs_main")
 	}
 	args := mod.EntryPoints[entry].Function.Arguments
-	if len(args) > 3 {
-		return 0, fmt.Errorf("%w: contract: fs_main takes %d parameters, the contract prefix is at most (uv, tint, hom_w)", ErrShaderSlotConflict, len(args))
+	if len(args) > 4 {
+		return 0, fmt.Errorf("%w: contract: fs_main takes %d parameters, the contract prefix is at most (uv, tint, hom_w, texel)", ErrShaderSlotConflict, len(args))
 	}
 	for i := range args {
 		arg := &args[i]
@@ -71,13 +74,13 @@ func fragmentParams(mod *ir.Module) (int, error) {
 		}
 		inner := typeInnerOf(mod, arg.Type)
 		wantSize := ir.Vec2
-		if i == 1 {
+		if i == 1 || i == 3 {
 			wantSize = ir.Vec4
 		}
-		if i < 2 {
+		if i != 2 {
 			vec, ok := inner.(ir.VectorType)
 			if !ok || vec.Size != wantSize || vec.Scalar.Kind != ir.ScalarFloat {
-				return 0, fmt.Errorf("%w: contract: fs_main parameter %d must be a f32 vector (position %d of the uv/tint/hom_w prefix)", ErrShaderSlotConflict, i, i)
+				return 0, fmt.Errorf("%w: contract: fs_main parameter %d must be a f32 vector (position %d of the uv/tint/hom_w/texel prefix)", ErrShaderSlotConflict, i, i)
 			}
 			continue
 		}
@@ -240,9 +243,97 @@ fn fs_main(in: GpuiEngFSIn) -> @location(0) vec4<f32> {
 }
 `
 
+// engineTexelNames resolves the sprite-texture binding pair for the texel
+// feed: if the user declared group(0) binding(1)=texture_2d<f32> and
+// binding(2)=sampler, the engine section references THOSE variables (one
+// declaration per binding — duplicates are invalid WGSL); otherwise the
+// engine injects its own reserved-name declarations (declared=false) and the
+// effect's binding face must count the pair (shader_effect.go).
+func engineTexelNames(mod *ir.Module) (texName, sampName string, declared bool) {
+	for i := range mod.GlobalVariables {
+		gv := &mod.GlobalVariables[i]
+		if gv.Binding == nil || gv.Binding.Group != 0 {
+			continue
+		}
+		switch gv.Binding.Binding {
+		case 1:
+			texName = gv.Name
+		case 2:
+			sampName = gv.Name
+		}
+	}
+	if texName != "" && sampName != "" {
+		return texName, sampName, true
+	}
+	return "gpui_eng_tex", "gpui_eng_samp", false
+}
+
+// gpuiEngTexelSection renders the engine texel-feed section for the composed
+// quad module. bicubic selects the embedded 16-tap Catmull-Rom kernel (same
+// constants as textured_quad_bicubic.wgsl / CPU SampleBicubic); plain
+// variants use a single textureSample through the bound sampler (nearest /
+// linear state comes from the per-draw sampler binding). Params < 4 never
+// reach this (no section → existing modules stay byte-identical).
+func gpuiEngTexelSection(texName, sampName string, declaredByUser, bicubic bool) string {
+	decls := ""
+	if !declaredByUser {
+		decls = "@group(0) @binding(1) var " + texName + ": texture_2d<f32>;\n" +
+			"@group(0) @binding(2) var " + sampName + ": sampler;\n\n"
+	}
+	if !bicubic {
+		return decls + "fn gpui_eng_texel(uv: vec2<f32>) -> vec4<f32> {\n" +
+			"    return textureSample(" + texName + ", " + sampName + ", uv);\n" +
+			"}\n"
+	}
+	// bicubic 变体：16-tap Catmull-Rom（与 textured_quad_bicubic.wgsl / CPU
+	// SampleBicubic 同常数同形；采样用命令绑定的 nearest 档 sampler——核内
+	// 自算权重，硬件不得再插值）。engine 符号全 gpui_eng 前缀防碰撞。
+	return decls + `fn gpui_eng_cubic_weight(t_in: f32, B: f32, C: f32) -> f32 {
+    let t = sqrt(t_in * t_in);
+    if t < 1.0 {
+        let a = (12.0 - 9.0 * B - 6.0 * C) / 6.0;
+        let b = (-18.0 + 12.0 * B + 6.0 * C) / 6.0;
+        let c = (6.0 - 2.0 * B) / 6.0;
+        return a * t * t * t + b * t * t + c;
+    }
+    if t < 2.0 {
+        let a = (-B - 6.0 * C) / 6.0;
+        let b = (6.0 * B + 30.0 * C) / 6.0;
+        let c = (-12.0 * B - 48.0 * C) / 6.0;
+        let d = (8.0 * B + 24.0 * C) / 6.0;
+        return a * t * t * t + b * t * t + c * t + d;
+    }
+    return 0.0;
+}
+
+fn gpui_eng_texel(uv: vec2<f32>) -> vec4<f32> {
+    let B = 0.0;
+    let C = 0.5;
+    let dims = vec2<f32>(textureDimensions(` + texName + `));
+    let texel_pos = uv * dims - vec2<f32>(0.5, 0.5);
+    let base = floor(texel_pos);
+    let frac = texel_pos - base;
+    var acc = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    for (var j = 0; j < 4; j = j + 1) {
+        let wy = gpui_eng_cubic_weight(frac.y - f32(j - 1), B, C);
+        let iy = base.y + f32(j - 1);
+        for (var i = 0; i < 4; i = i + 1) {
+            let wx = gpui_eng_cubic_weight(frac.x - f32(i - 1), B, C);
+            let ix = base.x + f32(i - 1);
+            let tuv = vec2<f32>(ix + 0.5, iy + 0.5) / dims;
+            let w = wx * wy;
+            let sample_color = textureSampleLevel(` + texName + `, ` + sampName + `, tuv, 0.0);
+            acc = acc + sample_color * w;
+        }
+    }
+    return acc;
+}
+`
+}
+
 // composeUserFragment builds the pipeline fragment module for one leg.
-// params is the validated declared-prefix length of fs_main (0..3).
-func composeUserFragment(userWGSL string, params int, quad bool) (string, string, error) {
+// params is the validated declared-prefix length of fs_main (0..4).
+func composeUserFragment(userWGSL string, params int, quad bool, bicubic bool, texName, sampName string, texelDeclaredByUser bool) (string, string, error) {
 	user, err := rewriteUserFragment(userWGSL)
 	if err != nil {
 		return "", "", err
@@ -258,6 +349,9 @@ func composeUserFragment(userWGSL string, params int, quad bool) (string, string
 		if params >= 3 {
 			args = append(args, "in.hom_w")
 		}
+		if params >= 4 {
+			args = append(args, "gpui_eng_texel(in.tex_coord)")
+		}
 	} else {
 		if params >= 1 {
 			args = append(args, "in.uv")
@@ -268,11 +362,22 @@ func composeUserFragment(userWGSL string, params int, quad bool) (string, string
 		if params >= 3 {
 			args = append(args, "1.0")
 		}
+		if params >= 4 {
+			// 填充路（pass-1 全屏三角）无纹理绑定可采：纹素默认零值（语义如实
+			// 写进契约注释——texel 声明是材质腿意图，填充路吃到零）。
+			args = append(args, "vec4<f32>(0.0, 0.0, 0.0, 0.0)")
+		}
 	}
 	call := composedUserEntry + "(" + strings.Join(args, ", ") + ")"
 	segment := engineFillSegment
 	if quad {
 		segment = engineQuadSegment
+		// 材质×bicubic 纹素契约（2026-11-07）：params>=4 时引擎段前挂纹素馈送
+		// （绑定声明按需注入 + gpui_eng_texel：plain 单采样 / bicubic 内嵌
+		// 16-tap 核）。params<4 不拼——存量模块字节不变。
+		if params >= 4 {
+			segment = gpuiEngTexelSection(texName, sampName, texelDeclaredByUser, bicubic) + segment
+		}
 	}
 	seg := strings.Replace(segment, "{{ARGS}}", call[len(composedUserEntry):], 1)
 	seg = strings.Replace(seg, "{{TINT}}", tintTail(params), 1)
@@ -289,8 +394,8 @@ func tintTail(params int) string {
 // composeAndValidate runs the full front end over a composed module — any
 // surgery drift or user/engine collision is rejected here, eagerly, before
 // any backend sees the source.
-func composeAndValidate(userWGSL string, params int, quad bool) (string, error) {
-	composed, _, err := composeUserFragment(userWGSL, params, quad)
+func composeAndValidate(userWGSL string, params int, quad, bicubic bool, texName, sampName string, texelDeclaredByUser bool) (string, error) {
+	composed, _, err := composeUserFragment(userWGSL, params, quad, bicubic, texName, sampName, texelDeclaredByUser)
 	if err != nil {
 		return "", err
 	}

@@ -8,7 +8,6 @@ package render_test
 // P3 实证）；区分钉用 uv-gradient 材质（防纯色假绿）。
 
 import (
-	"errors"
 	"image"
 	"testing"
 
@@ -299,11 +298,9 @@ func TestP37BMaterialRejections(t *testing.T) {
 	// 材质×透视专项（2026-11-07）：材质+Perspective 放行（权重透传 36B 材质
 	// 缓冲），组合正确性由 TestP37MatPersp* 五钉承管（identity≡plain 逐位、
 	// 解析分界、投影层、精灵路），此处不再断言拒绝。
-	errB := dc.DrawImageQuad(img, [4]render.Point{{X: 4, Y: 4}, {X: 12, Y: 4}, {X: 12, Y: 12}, {X: 4, Y: 12}},
-		render.QuadDrawOptions{Material: e, Interpolation: render.InterpBicubic})
-	if !errors.Is(errB, render.ErrQuadMaterialUnsupported) {
-		t.Fatalf("material+bicubic err=%v want ErrQuadMaterialUnsupported", errB)
-	}
+	// 材质+bicubic 纹素契约（2026-11-07）已放行——引擎喂纹素（echo≡标准采样
+	// 逐位由 TestP37MatTexelEcho* 钉住），此处不再断言拒绝。
+	_ = img
 	// blend≠Normal 在 blend 校验处先行拒绝（与材质无关的既有口径）。
 	errBl := dc.DrawImageQuad(img, [4]render.Point{{X: 4, Y: 4}, {X: 12, Y: 4}, {X: 12, Y: 12}, {X: 4, Y: 12}},
 		render.QuadDrawOptions{Material: e, BlendMode: render.BlendMultiply})

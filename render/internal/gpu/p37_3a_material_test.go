@@ -301,14 +301,14 @@ func TestP37AMaterialLeg(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.ensureMaterialPipeline(effect, false); err != nil {
+		if _, err := s.ensureMaterialPipeline(effect, false, false); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.ensureMaterialPipeline(effect, true); err != nil {
+		if _, err := s.ensureMaterialPipeline(effect, false, true); err != nil {
 			t.Fatal(err)
 		}
 		s.userMaterial.mu.Lock()
-		_, alive := s.userMaterial.entries[effect]
+		_, alive := s.userMaterial.entries[materialKey{effect: effect, bicubic: false}]
 		s.userMaterial.mu.Unlock()
 		if !alive {
 			t.Fatal("effect entry missing after ensure")
@@ -317,12 +317,12 @@ func TestP37AMaterialLeg(t *testing.T) {
 			t.Fatal(err)
 		}
 		s.userMaterial.mu.Lock()
-		_, alive = s.userMaterial.entries[effect]
+		_, alive = s.userMaterial.entries[materialKey{effect: effect, bicubic: false}]
 		s.userMaterial.mu.Unlock()
 		if alive {
 			t.Fatal("closed effect still cached — 驱逐钩子失效（L2-P0-1 同族）")
 		}
-		if _, err := s.ensureMaterialPipeline(effect, false); err == nil {
+		if _, err := s.ensureMaterialPipeline(effect, false, false); err == nil {
 			t.Fatal("ensure after Close must refuse")
 		}
 	})
