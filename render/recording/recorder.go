@@ -272,6 +272,10 @@ func (r *Recording) Playback(backend Backend) error {
 			backend.Concat(c.Matrix)
 		case ProjectionCommand:
 			backend.Projection(c.Mode, c.Proj)
+		case SceneReplayCommand:
+			if err := backend.RenderScene(c.Payload); err != nil {
+				return err
+			}
 		case SetClipCommand:
 			path := r.resources.GetPath(c.Path)
 			backend.SetClip(path, c.Rule)

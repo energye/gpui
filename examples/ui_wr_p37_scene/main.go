@@ -731,15 +731,7 @@ func paintAll(pc *rendering.PaintContext, size rendering.Size) {
 	dc.DrawRectangle(0, 0, w, h)
 	_ = dc.Fill()
 
-	live, ok := pc.RequireLiveContext()
-	if !ok {
-		// 录制腿走查没有设备句柄：scene GPU 回放是 live-only，拒画留数
-		// （LiveOnlySkips）。呈现画面以 warm-up live 全量绘制为准，
-		// scene 内容确在呈现帧由语义像素锚扛（ui_render_base_scene 同款
-		// 既有口径：本窗生产帧每帧录制腿各计一枚 skips，计数≈presents，
-		// 只报数不判绿——判 0 是把 shadermask 窗口径误用到 scene 窗上）。
-		return
-	}
+	c := dc
 	type panel struct {
 		x, y, w, hh float64
 		title       string
@@ -754,15 +746,17 @@ func paintAll(pc *rendering.PaintContext, size rendering.Size) {
 		{pDx, pDy, pW3, pH2, "D 透视quad挂材质=拒不画", scRefusal},
 	}
 	for _, p := range panels {
-		live.Push()
-		live.Translate(p.x, p.y)
-		live.SetRGB(cardRGB, cardRGB, cardRGB+0.04)
-		live.DrawRectangle(0, 0, p.w, p.hh)
-		_ = live.Fill()
-		if err := scene.NewGPUSceneRenderer(live).RenderScene(p.s); err != nil {
-			fmt.Fprintf(os.Stderr, "p37_scene: RenderScene %s: %v\n", p.title, err)
+		c.Push()
+		c.Translate(p.x, p.y)
+		c.SetRGB(cardRGB, cardRGB, cardRGB+0.04)
+		c.DrawRectangle(0, 0, p.w, p.hh)
+		_ = c.Fill()
+		// H21 修复后场景回放是可录制动词：录制腿进显示表、回放腿在
+		// CanvasBackend 执行；live 腿直画。两条路呈现同一画面。
+		if err := scene.RenderSceneTo(c, p.s); err != nil {
+			fmt.Fprintf(os.Stderr, "p37_scene: RenderSceneTo %s: %v\n", p.title, err)
 		}
-		live.Pop()
+		c.Pop()
 	}
 }
 
@@ -1001,6 +995,10 @@ func main() {
 		}
 		if !goldenOK {
 			fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% over %d px seeded=%v err=%v\n", goldenDiff, goldenPx, seeded, goldenErr)
+			os.Exit(1)
+		}
+		if liveSkips != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: live_only_skips=%d（FullPaint 下每帧应 live 走查，非 0=scene 回放被跳过）\n", liveSkips)
 			os.Exit(1)
 		}
 		fmt.Fprintf(os.Stderr, "p37_scene: OK backend=%s presents=%d probes=%d/%d golden=%.4f%% (%d px) skips=%d\n",

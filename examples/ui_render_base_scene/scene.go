@@ -770,10 +770,11 @@ func paintSceneA(pc *rendering.PaintContext, _ rendering.Size) {
 	paintSceneCardBG(pc)
 	dc.Push()
 	dc.Translate(ox+sceneImgX, oy+sceneImgY)
-	// The GPU scene renderer talks to the device directly, so it can only run on
-	// the live context; a recording walk refuses and counts the refusal.
-	if live, ok := pc.RequireLiveContext(); ok {
-		_ = scene.NewGPUSceneRenderer(live).RenderScene(slay.ab)
+	// H21 修复（批 6 收官）：场景回放是可录制动词——录制腿进显示表、
+	// 回放腿在 CanvasBackend 执行、live 腿直画；不再依赖 RequireLiveContext
+	// （旧写法在呈现帧里丢画面，人工肉眼暴露）。
+	if err := scene.RenderSceneTo(dc, slay.ab); err != nil {
+		fmt.Fprintf(os.Stderr, "ui_render_base_scene: RenderSceneTo A: %v\n", err)
 	}
 	dc.Pop()
 	paintSceneFrame(pc, sceneImgX, sceneImgY, sceneW, sceneH)

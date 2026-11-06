@@ -501,6 +501,12 @@ func (s *recordingSpyBackend) Projection(_ render.ProjectionMode, _ render.Matri
 	s.hit("Projection")
 }
 
+// RenderScene 记下嵌套场景回放命令（H21 修复的示例侧观察面）。
+func (s *recordingSpyBackend) RenderScene(_ recording.ScenePayload) error {
+	s.hit("SceneReplay")
+	return nil
+}
+
 func (s *recordingSpyBackend) Concat(_ recording.Matrix) {
 	s.hit("Concat")
 }
@@ -532,7 +538,7 @@ func (s *recordingSpyBackend) DrawText(_ string, _, _ float64, face text.Face, _
 // command stream reaches a backend, not that it rasterizes correctly (the card
 // pixels and the golden PNG do that).
 func (s *recordingSpyBackend) ClipRoundRect(_, _, _, _, _ float64) { s.hit("ClipRoundRect") }
-func (s *recordingSpyBackend) ClipRect(_ recording.Rect)            { s.hit("ClipRect") }
+func (s *recordingSpyBackend) ClipRect(_ recording.Rect)           { s.hit("ClipRect") }
 func (s *recordingSpyBackend) ClipRectOp(_ recording.Rect, _ render.ClipOp) {
 	s.hit("ClipRectOp")
 }

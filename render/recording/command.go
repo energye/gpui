@@ -116,6 +116,11 @@ const (
 	CmdInvertMask    // Invert the current mask in place
 	CmdApplyMask     // DestinationIn post-process over the current surface
 	CmdPushMaskLayer // Masked save-layer composited at PopLayer
+
+	// Nested scene replay (P3.7 批 6 收官, H21): a display-list entry that
+	// replays a device-direct scene recording — the Skia drawPicture /
+	// Flutter drawDisplayList shape.
+	CmdSceneReplay // Replay a scene payload onto the playback target context
 )
 
 // commandTypeNames maps CommandType values to their string representation.
@@ -174,6 +179,7 @@ var commandTypeNames = [...]string{
 	CmdSetMask:       "SetMask",
 	CmdClearMask:     "ClearMask",
 	CmdInvertMask:    "InvertMask",
+	CmdSceneReplay:   "SceneReplay",
 	CmdApplyMask:     "ApplyMask",
 	CmdPushMaskLayer: "PushMaskLayer",
 }

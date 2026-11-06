@@ -87,6 +87,11 @@ type Backend interface {
 	// the 4×4 map the target canvas applies before its CTM on image/quad chains.
 	Projection(mode render.ProjectionMode, m render.Matrix4)
 
+	// RenderScene replays a nested scene payload (P3.7 批 6 收官, H21).
+	// Backends that cannot run a device-direct replay return an error
+	// (recording.ErrUnsupportedSceneTarget family) — never a silent no-op.
+	RenderScene(p ScenePayload) error
+
 	// Clipping methods
 
 	// SetClip sets the clipping region to the given path.
