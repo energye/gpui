@@ -205,12 +205,23 @@ func sceneMaterial(w, h float64, img *scene.Image) *scene.Scene {
 
 // sceneRefusal：透视 quad + 粘滞材质 —— quad 腿校验期具名拒（③ 口径：
 // 不入队、不计数、该笔不画）。
+// sceneRefusal：拒绝态要「看得见拒」——上下两枚无材质对照 quad 必画，
+// 中段透视 quad 挂粘滞材质被校验期具名拒（不入队、不画、画面保持卡底），
+// 清除材质后再一枚对照必画（拒不污染后续）。纯一格空是截图不出拒绝，
+// 2026-11-06 用户肉眼指出后补的结构。
 func sceneRefusal(img *scene.Image, corners [4]render.Point, weights [4]float64) *scene.Scene {
 	s := scene.NewScene()
+	s.DrawImageQuad(img, [4]render.Point{
+		{X: 8, Y: 150}, {X: 88, Y: 150}, {X: 88, Y: 195}, {X: 8, Y: 195},
+	}, render.QuadDrawOptions{Interpolation: render.InterpNearest, Opacity: 1})
 	s.SetMaterial(gradEffect)
 	s.DrawImageQuad(img, corners, render.QuadDrawOptions{
 		Perspective: true, Weights: weights, Interpolation: render.InterpNearest, Opacity: 1,
 	})
+	s.SetMaterial(nil)
+	s.DrawImageQuad(img, [4]render.Point{
+		{X: 110, Y: 150}, {X: 192, Y: 150}, {X: 192, Y: 195}, {X: 110, Y: 195},
+	}, render.QuadDrawOptions{Interpolation: render.InterpNearest, Opacity: 1})
 	return s
 }
 
@@ -743,7 +754,7 @@ func paintAll(pc *rendering.PaintContext, size rendering.Size) {
 		{pA3x, pA3y, pW3, pH3, "A3 Push/Pop 栈", scStack},
 		{pBx, pBy, pW2, pH2, "B quad+权重", scQuadS},
 		{pCx, pCy, pW2, pH2, "C 材质粘滞+清除", scMatS},
-		{pDx, pDy, pW3, pH2, "D 透视quad挂材质=拒不画", scRefusal},
+		{pDx, pDy, pW3, pH2, "D 对照-拒-对照", scRefusal},
 	}
 	for _, p := range panels {
 		c.Push()
@@ -783,6 +794,21 @@ func semanticProbes() []wrkit.PixelProbe {
 	probes = append(probes, wrkit.PixelProbe{Name: "material_cleared_plain",
 		X: pCx + 80, Y: pCy + 190,
 		R: colGreen.R, G: colGreen.G, B: colGreen.B, Tol: 3})
+	// D 面板对照①（无材质 affine quad，必画）：u=(40-8)/80=0.4、v=(168-150)/45=0.4
+	// → 纹素 (51,51)，(51/32+51/32)%2=0 → 红 (224,64,64)。
+	probes = append(probes, wrkit.PixelProbe{Name: "refusal_contrast_left_drawn",
+		X: pDx + 40, Y: pDy + 168,
+		R: 224.0 / 255, G: 64.0 / 255, B: 64.0 / 255, Tol: 3})
+	// D 面板对照②（清除材质后必画）：u=(150.5-110)/82≈0.494、v=(180.5-150)/45≈0.678
+	// → 纹素 (63,86)，(1+2)%2=1 → 蓝 (64,124,224)。
+	probes = append(probes, wrkit.PixelProbe{Name: "refusal_contrast_right_drawn",
+		X: pDx + 150, Y: pDy + 180,
+		R: 64.0 / 255, G: 124.0 / 255, B: 224.0 / 255, Tol: 3})
+	// D 面板中段：透视 quad+粘滞材质=校验期具名拒不画 ⇒ 该点保持卡片底
+	// (cardRGB,cardRGB,cardRGB+0.04)——拒绝态可见（对照两角必画）。
+	probes = append(probes, wrkit.PixelProbe{Name: "refusal_region_stays_card",
+		X: pDx + 70, Y: pDy + 60,
+		R: cardRGB, G: cardRGB, B: cardRGB + 0.04, Tol: 6})
 	return probes
 }
 
@@ -849,7 +875,7 @@ func main() {
 	metric := wrkit.Label("presents=0", 13, 0.92, 0.94, 0.98)
 	root.Place(metric, 8, 8)
 	titles := []string{"A1 scene 投影层（homography）", "A2 恒等对照", "A3 Push/Pop 栈",
-		"B quad+权重（算好再喂）", "C 材质粘滞+清除", "D 透视quad挂材质=具名拒不画"}
+		"B quad+权重（算好再喂）", "C 材质粘滞+清除", "D 对照(必画)·拒(不画)·对照(必画)"}
 	tx := []float64{pA1x, 408, pA3x, pBx, pCx, pDx}
 	for i := range titles {
 		row := i / 3

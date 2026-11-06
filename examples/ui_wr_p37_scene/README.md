@@ -23,14 +23,19 @@ GPUSceneRenderer.RenderScene 回放到 Context**，JSON 带 `enc_bytes/enc_tags`
 - **C 材质粘滞+清除**：`SetMaterial(渐变)` 粘滞到后续 fill 与 image（item 级
   语义：图像臂吃 opts.Material），`SetMaterial(nil)` 发清除载荷，之后 fill
   回刷色。
-- **D 拒绝态**：透视 quad 挂材质 ⇒ 校验期具名拒、不入队、不计数、该笔不画
-  （③ 窗口径的 scene 流版）。
+- **D 拒绝态三件套**（2026-11-06 勘误补强：原版格内只有一笔被拒的画，肉眼
+  等同空白面板）：左下/右下两枚**无材质对照 quad 必画**（棋盘纹素精确色，
+  语义锚 `refusal_contrast_left_drawn`/`refusal_contrast_right_drawn`），
+  中段透视 quad 挂粘滞材质 ⇒ 校验期具名拒、不入队、不计数、该笔不画——
+  该区保持卡片底（语义锚 `refusal_region_stays_card`），清除材质后再一枚
+  对照必画证明拒不污染后续（③ 窗 quad 口号义的 scene 流版）。
 
 三证据合证：15 枚探针（载荷回环逐值：投影 mode+16 元素、quad float32 折算
 角点+权重、材质 [索引,0xFFFFFFFF 清除]；回放 ≡ 手写**逐位 diff=0** 三路各自
 + 反向鉴别 + 非空转；CPU 脏区腿两态：材质拒画计数 MaterialSkips、清除后投影
 下 image 拒画计数 ProjectionDegrades——批 3 收尾登记的「脏区腿材质表态」
-在此核掉）+ 4 枚语义像素（材质中点按 premul 直出公式、余为不透明精确色）+
+在此核掉）+ 7 枚语义像素（材质中点按 premul 直出公式、恒等/投影面板为不透明
+精确色、D 三锚=对照必画×2+拒区保持卡底）+
 双后端金图逐位 0（两基线相同）。零发射纪律：不调三动词/装恒等投影 ⇒ tag 流
 与 Hash 逐位不变；Hash 吞投影/材质进场景身份。
 
