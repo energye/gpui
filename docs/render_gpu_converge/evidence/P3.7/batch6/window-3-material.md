@@ -106,3 +106,12 @@ go **0.8464%**；还原后 native/go 复绿。
 （底色 vs 解析色=被测分歧）+ 底带 8 枚色片边缘 **992 px**（每行 32 px×18 行、
 1 级 AA 取整差；8 枚色片中心色两端逐一相同 (70,200,120) ⇒ 状态无差，纯取整）。
 指标带 y<32 不进比对。
+
+
+勘误（2026-11-07，材质×透视/bicubic 专项连带）：本行所记「透视+材质
+ErrQuadMaterialUnsupported 校验期拒」「图像口 bicubic+材质 MaterialSkips++」
+两态已随专项放行迁移——透视+材质画出（A 批权重透传）、bicubic+材质画出
+（B 批纹素契约）；现场拒迁投影层眼后（ErrQuadBehindEye），skip 演示改
+blend+材质（Normal-only 不变）。探针名相应更替
+（quad_behind_eye_refused / image_entry_material_blend_skip_counted），
+历史账留痕不改。账 `matpersp-fix.md`。
