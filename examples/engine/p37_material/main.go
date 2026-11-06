@@ -19,6 +19,17 @@
 //	   边界与右半增益——同几何、同纹理、同着色器，只换 uniform 字节，边界必须跟着走；
 //	   全零载荷必须把边界读成 0（证明值真从载荷里来，不是着色器写死的）。
 //	   补的是审计缺口 2：此前本扇 uniform 只出现在「校验」里，没有一帧画面由它决定。
+//	G) 后端拒收的「看得见拒绝」三格：故意一枚**前端放行、后端 naga 必拒**的模块
+//	   （uniform 地址空间数组 stride 非 16 倍数），挂填充腿 ⇒ 区内必须保持底色
+//	   （环境实心红不许冒充回退）+ `ShaderBackendFails++` + `CPUFallbackOps++`；
+//	   左右两格是「这块地方本来就画得出东西」的对照（无材质红 / 合法材质绿）。
+//	   门禁相另有**终帧硬门**（两端各自钉死）：那格要么「底色 + 呈现帧计数 ≥1」
+//	   （本机后端真拒这枚模块），要么「shader 自己的解析色 + 计数 0」（本机后端
+//	   接受它），两者都不许是环境实心红、也不许拒而不计数。实测：Vulkan/wgpu-native
+//	   走前一支，纯 Go GL 走后一支（它的 WGSL 前端不查 uniform stride 规则）。
+//	   缺口 3 的设计子项由此在填充腿上兑现；同一模块在**图像口/quad 口**不走具名链、
+//	   直接打断 flush——那是已登记的 **H23**（`batch6/gap3-backend-reject-probe.txt`），
+//	   本窗不替它遮（臂只声明填充腿）。
 //
 // 满窗即内容：指标行浮在画面左上（金图 mask 掉 y<32 带）；画面相位只随已完成
 // 帧数走、过 settling 帧后定格（H15）。金图按后端分文件
@@ -41,6 +52,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"image/png"
 	"math"
 	"os"
 	"path/filepath"
@@ -99,6 +111,14 @@ const (
 	// 载荷，着色器就会把边界读成 0（整块变暗蓝），锚立刻报警。
 	uniformOldBudget  = 256
 	uniformSplitBytes = 272 // = 256B 占位 + split + gain + 两个保留 f32
+
+	// 臂 G 后端拒收三格对照（y 600 起，避开臂 e 的 (610,560) 拒绝区锚）。
+	gY  = 600.0
+	gW  = 130.0
+	gH  = 60.0
+	gX0 = 110.0 // 格 1：无材质环境实心红（证明这块地方本来画得出东西）
+	gX1 = 260.0 // 格 2：同一环境色 + 后端必拒模块 ⇒ 整笔拒画，保持底色
+	gX2 = 410.0 // 格 3：同几何 + 合法材质 ⇒ 画出 shader 绿（尺子没坏）
 
 	// 拒绝态底带。
 	refusalY = 712.0
@@ -179,6 +199,32 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
 }`
 
 var testdataDir = filepath.Join("examples", "engine", "p37_material", "testdata")
+
+// effBadArrayStrideWGSL：臂 G 的**故意**触发子——uniform 地址空间要求数组 stride
+// 是 16 的倍数，`array<f32,64>` 的 stride=4 ⇒ 前端 `NewShaderEffect` 放行、后端
+// naga 在 `CreateShaderModule` 拒（本机 native 与 go 两后端实测同形，
+// 证据 `batch6/gap3-backend-reject-probe.txt`）。填充腿对此的既定语义=**整笔拒画**
+// （区内保持底色，环境实心色不得冒充回退）+ `ShaderBackendFails++` + `CPUFallbackOps++`。
+const effBadArrayStrideWGSL = `
+struct BadAlign {
+    vals: array<f32, 64>,
+}
+@group(0) @binding(0) var<uniform> u: BadAlign;
+
+@fragment
+fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
+    let v = u.vals[0];
+    return vec4<f32>(uv.x, uv.y, 0.5, 1.0) + vec4<f32>(v, v, v, 0.0);
+}`
+
+// effFlatGreenWGSL：臂 G 的合法对照材质（同尺子必须画得出色：0.2/0.9/0.4 → (51,229,102)）。
+const effFlatGreenWGSL = `@fragment
+fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.2, 0.9, 0.4, 1.0);
+}`
+
+// 臂 G 的着色器底色期望（与上面那份 WGSL 常数同源）。
+var flatGreenRGB = [3]uint8{51, 229, 102}
 
 // effUniformSplitWGSL：臂 f 的着色器——分屏边界与右半增益**只**来自 uniform。
 // struct 前 256B 是占位（uniform 地址空间要求数组 stride 是 16 的倍数，故用
@@ -269,6 +315,14 @@ var (
 // 臂 f 的窗体实例：uniform 与第二张纹理都在 init 里一次性设好，绝不进每帧路径。
 var effUniformSplit = mustEffect(effUniformSplitWGSL)
 
+// 臂 G 的实例：故意模块的前端放行与否是要量的事实，不能用 mustEffect 直接 panic
+// （别的后端可能前端就拒——探针会把它打成红，而不是让窗起不来）。
+var (
+	effBad         *render.ShaderEffect
+	effBadFrontErr error
+	effFlatGreen   = mustEffect(effFlatGreenWGSL)
+)
+
 func init() {
 	if err := effSplit.SetImageAt(1, texBlue); err != nil {
 		panic(err)
@@ -279,6 +333,7 @@ func init() {
 	if err := effUniformSplit.SetUniformBytes(uniformSplitPayload(fSplit, fGain)); err != nil {
 		panic(err)
 	}
+	effBad, effBadFrontErr = render.NewShaderEffect(effBadArrayStrideWGSL)
 }
 
 func paintBackdrop(dc render.Canvas, w, h float64) {
@@ -343,6 +398,90 @@ func paintArmA(dc render.Canvas, eff *render.ShaderEffect) error {
 	return nil
 }
 
+// paintArmG 臂 G「后端拒收看得见」三格：格 1 无材质（证明这块地方画得出东西）、
+// 格 2 同环境色挂后端必拒模块（整笔拒画 ⇒ 底色留在原位）、格 3 同几何挂合法材质
+// （尺子没坏，必须出 shader 绿）。
+func paintArmG(dc render.Canvas) {
+	dc.SetRGB(1, 0, 0)
+	fillRect(dc, gX0, gY, gW, gH)
+	if effBad != nil {
+		resetBad := setShader(dc, effBad)
+		dc.SetRGB(1, 0, 0)
+		fillRect(dc, gX1, gY, gW, gH)
+		resetBad()
+	}
+	resetGood := setShader(dc, effFlatGreen)
+	dc.SetRGB(1, 0, 0)
+	fillRect(dc, gX2, gY, gW, gH)
+	resetGood()
+}
+
+// armGBadShaderColorAt = effBadArrayStrideWGSL 在格 2 内 (px,py) 的**解析**输出
+// （vec4(uv.x, uv.y, 0.5, 1)，uv 取填充矩形归一化位置）——后端接受这枚模块时
+// 该格必须是这个颜色，不接受时必须是底色，两个分支都提前写死，不做事后拟合。
+func armGBadShaderColorAt(px, py float64) [3]uint8 {
+	ux := (px - gX1 + 0.5) / gW
+	uy := (py - gY + 0.5) / gH
+	return [3]uint8{uint8(ux*255 + 0.5), uint8(uy*255 + 0.5), 128}
+}
+
+// armGBackdropColor = paintBackdrop 那份常数的 8-bit 期望。
+func armGBackdropColor() [3]uint8 {
+	return [3]uint8{
+		uint8(math.Round(backdropRGB * 255)), uint8(math.Round(backdropRGB * 255)),
+		uint8(math.Round((backdropRGB + 0.02) * 255)),
+	}
+}
+
+func armGNear(a, b [3]uint8) bool {
+	return abs(int(a[0])-int(b[0])) <= int(blendTol) &&
+		abs(int(a[1])-int(b[1])) <= int(blendTol) &&
+		abs(int(a[2])-int(b[2])) <= int(blendTol)
+}
+
+// armGFrameCheck 读终帧格 2，与呈现帧的活计数对同一件事。
+func armGFrameCheck(path string, fails int) (bool, string) {
+	cell, err := snapshotPixel(path, gX1+gW/2, gY+gH/2)
+	if err != nil {
+		return false, err.Error()
+	}
+	backdrop, accepted := armGBackdropColor(), armGBadShaderColorAt(gX1+gW/2, gY+gH/2)
+	got := fmt.Sprintf("格2=(%d,%d,%d) 底色=(%d,%d,%d) shader解析=(%d,%d,%d) window_shader_backend_fails=%d",
+		cell[0], cell[1], cell[2], backdrop[0], backdrop[1], backdrop[2],
+		accepted[0], accepted[1], accepted[2], fails)
+	switch {
+	case armGNear(cell, backdrop) && fails >= 1:
+		return true, "拒收端同形（底色 + 计数≥1）" + got
+	case armGNear(cell, accepted) && fails == 0:
+		return true, "接受端同形（shader 自己的色 + 计数 0）" + got
+	case armGNear(cell, backdrop):
+		return false, "画成底色却零计数=拒而不计数（静默消失)" + got
+	default:
+		return false, "既不是底色也不是 shader 解析色（环境色冒充回退或别处漏墨)" + got
+	}
+}
+
+// snapshotPixel 按逻辑坐标取终帧像素（与 wrkit.CheckPixelProbes 同一套 dpr 折算）。
+func snapshotPixel(path string, x, y float64) ([3]uint8, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return [3]uint8{}, err
+	}
+	defer func() { _ = f.Close() }()
+	img, err := png.Decode(f)
+	if err != nil {
+		return [3]uint8{}, err
+	}
+	b := img.Bounds()
+	dpr := float64(b.Dx()) / winW
+	px, py := b.Min.X+int(x*dpr+0.5), b.Min.Y+int(y*dpr+0.5)
+	if px < b.Min.X || px >= b.Max.X || py < b.Min.Y || py >= b.Max.Y {
+		return [3]uint8{}, fmt.Errorf("p37_material: 臂 G 探针点越界 %v", b)
+	}
+	r, g, bl, _ := img.At(px, py).RGBA()
+	return [3]uint8{uint8(r >> 8), uint8(g >> 8), uint8(bl >> 8)}, nil
+}
+
 func paintAll(dc render.Canvas, w, h float64) error {
 	paintBackdrop(dc, w, h)
 	if err := paintArmA(dc, effGrad); err != nil {
@@ -383,6 +522,8 @@ func paintAll(dc render.Canvas, w, h float64) error {
 	}, render.QuadDrawOptions{Material: effUniformSplit}); err != nil {
 		return err
 	}
+	// 臂 G：后端拒收三格（无材质红 | 拒收模块保底色 | 合法材质绿）。
+	paintArmG(dc)
 	// 臂 e：拒绝态底带（离屏探针同一份事实）。
 	paintRefusalBand(dc)
 	return nil
@@ -714,6 +855,46 @@ func runProbes() probeReport {
 	_ = dcF2.Close()
 	_ = dcF3.Close()
 
+	// 臂 G：后端拒收三格（离屏同一份几何与期望色，与窗内 paintArmG 同源）。
+	dcG := newCtx(w, h)
+	gBefore := dcG.RenderPathStats()
+	if err := flushErr(dcG, func() error {
+		paintBackdrop(dcG, float64(w), float64(h))
+		paintArmG(dcG)
+		return nil
+	}); err != nil {
+		failJoin(&rep, "arm G flush", err)
+	}
+	gAfter := dcG.RenderPathStats()
+	rep.extra["backend_fails_delta_offscreen"] = gAfter.ShaderBackendFails - gBefore.ShaderBackendFails
+	rep.extra["cpu_fb_delta_offscreen"] = gAfter.CPUFallbackOps - gBefore.CPUFallbackOps
+	rep.add("standalone_leg_reject_front_end_accepted", effBadFrontErr == nil && effBad != nil,
+		fmt.Sprintf("故意模块前端 err=%v（前端就拒=这条腿无从量起，不许静默当过）", effBadFrontErr))
+	bdOK := gAfter.ShaderBackendFails-gBefore.ShaderBackendFails >= 1 && gAfter.CPUFallbackOps-gBefore.CPUFallbackOps >= 1
+	rep.add("standalone_leg_reject_counted", bdOK, fmt.Sprintf(
+		"ShaderBackendFails %d→%d 且 CPUFallbackOps %d→%d（两条都要涨，只涨一条=语义漂移）",
+		gBefore.ShaderBackendFails, gAfter.ShaderBackendFails, gBefore.CPUFallbackOps, gAfter.CPUFallbackOps))
+	// 三格像素：格 1 红（这块地方本来画得出东西）、格 2 底色（拒画=既不是环境红
+	// 也不是 shader 绿，环境色不许冒充回退）、格 3 shader 绿（同尺子没坏）。
+	wantBackdropColor := armGBackdropColor()
+	wantAmbientRed := [3]uint8{255, 0, 0}
+	gcy := int(gY + gH/2)
+	mRed, gotRed := matches(dcG, int(gX0+gW/2), gcy, wantAmbientRed)
+	mGreen, gotGreen := matches(dcG, int(gX2+gW/2), gcy, flatGreenRGB)
+	rep.add("arm_g_controls_paint", mRed && mGreen, fmt.Sprintf(
+		"格1 无材质=(%d,%d,%d) want(255,0,0)，格3 合法材质=(%d,%d,%d) want(%d,%d,%d)",
+		gotRed[0], gotRed[1], gotRed[2], gotGreen[0], gotGreen[1], gotGreen[2],
+		flatGreenRGB[0], flatGreenRGB[1], flatGreenRGB[2]))
+	mBack, gotBack := matches(dcG, int(gX1+gW/2), gcy, wantBackdropColor)
+	rejectNotAmbient := func() bool {
+		r, g, b, _ := pixelAt(dcG, int(gX1+gW/2), gcy)
+		return abs(int(r)-int(wantAmbientRed[0])) > int(blendTol) || abs(int(g)-int(wantAmbientRed[1])) > int(blendTol) || abs(int(b)-int(wantAmbientRed[2])) > int(blendTol)
+	}()
+	rep.add("standalone_leg_reject_region_keeps_backdrop", mBack && rejectNotAmbient, fmt.Sprintf(
+		"格2=(%d,%d,%d) 必须等于底色 (%d,%d,%d) 且不等于环境实心红（拒画≠回退成实心色）",
+		gotBack[0], gotBack[1], gotBack[2], wantBackdropColor[0], wantBackdropColor[1], wantBackdropColor[2]))
+	_ = dcG.Close()
+
 	// 臂 d：描边吃 shader（渐变而非环境实心）。
 	dcD := newCtx(w, h)
 	effStroke := mustEffect(effStrokeWGSL)
@@ -834,6 +1015,14 @@ func semanticProbes() []wrkit.PixelProbe {
 		float64(texRedColor[0])/255, float64(texRedColor[1])/255, float64(texRedColor[2])/255, blendTol)
 	add("uniform_split_rest_dim", fImgX+0.875*fImgW, fImgY+fImgH/2,
 		float64(texBlueColor[0])*fGain/255, float64(texBlueColor[1])*fGain/255, float64(texBlueColor[2])*fGain/255, blendTol)
+	// 臂 G：后端拒收三格（终帧同一份几何；格 2 与探针同一判据=底色且非环境红）。
+	add("arm_g_ambient_control_red", gX0+gW/2, gY+gH/2, 1.0, 0.0, 0.0, blendTol)
+	add("arm_g_legal_shader_green", gX2+gW/2, gY+gH/2,
+		float64(flatGreenRGB[0])/255, float64(flatGreenRGB[1])/255, float64(flatGreenRGB[2])/255, blendTol)
+	// 臂 G 中间那格**不进固定色锚**：故意模块在 Vulkan 上必拒（该格留底色）、在
+	// 纯 Go GL 上被接受（该格出 shader 自己的颜色），写死任一端都会把另一端判假。
+	// 它的判据是「画面与计数必须说的是同一件事」，在门禁相按终帧实测（见
+	// armGFrameCheck），两端各自钉死，见 README 与本窗账 §四。
 	// 臂 e：拒绝区保持底色
 	add("refused_region_backdrop", 610, 560, backdropRGB, backdropRGB, backdropRGB+0.02, blendTol)
 	return probes
@@ -992,6 +1181,17 @@ func main() {
 			app.PresentCount(), gateMaxFrames)
 		probesOK = false
 	}
+	// 臂 G 的终帧硬门（两端各自钉死，写死任一端都会把另一端判假）：中间那格
+	// 要么**底色 + 计数 ≥1**（本机后端真拒），要么**shader 解析色 + 计数 0**
+	//（本机后端接受这枚模块），两种都不许是环境实心红、也不许「拒而不计数」。
+	// 为什么不能只看离屏：离屏 Context 走独立设备，而独立设备按设计不吃
+	// GPUI_BACKEND（`render/device_open.go` 的 OpenStandaloneDevice 注记：纯 Go GL
+	// 没有 surfaceless 独立设备）⇒「窗内这条腿拒没拒」只能从终帧 + 活计数上量。
+	armGOK, armGDetail := armGFrameCheck(snapPath, liveStats.ShaderBackendFails)
+	if gateMode && !armGOK {
+		fmt.Fprintf(os.Stderr, "p37_material: FAIL 臂 G 终帧与计数不同形：%s\n", armGDetail)
+		probesOK = false
+	}
 
 	tag := backendTag()
 	basePath := filepath.Join(testdataDir, "goldens", fmt.Sprintf("p37_material_final_%s.png", tag))
@@ -1026,6 +1226,9 @@ func main() {
 		"golden_seeded": seeded, "golden_backend_tag": tag,
 		"window_material_skips":       liveStats.MaterialSkips,
 		"window_shader_backend_fails": liveStats.ShaderBackendFails,
+		"arm_g_frame_check":           armGDetail,
+		"arm_g_backend_rejects":       liveStats.ShaderBackendFails >= 1,
+		"arm_g_frame_ok":              armGOK,
 		"gate_frames":                 gateFrames, "gate_freeze_at": gateFreezeAt,
 		"golden_tolerance_pct": 0,
 	}
