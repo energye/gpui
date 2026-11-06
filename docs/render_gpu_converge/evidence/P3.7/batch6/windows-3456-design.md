@@ -32,6 +32,18 @@ gles 承载承诺兑现）。
 H16 变异：① 摘材质挂载（画面回无材质态）；② 三入口材质全部摘除 → MaterialSkips
 清零报警；③ 透视+bicubic+材质臂换合法组合 → 拒绝计数清零报警。
 
+> **2026-11-06 两条如实更正（审计缺口 2/3，见 `capability-window-audit.md`）**：
+> ① **已补臂 f**——272B uniform（`split`@256B 旧预算之外 + `gain`@260B）决定分屏边界与
+> 右半增益，同几何同纹理只换字节 ⇒ 画面跟着走；H16 追加第四变异 `fSplit` 0.25→0.60
+> （双探针红 + 金图 0.875%）。
+> ② **本扇臂 e 里「`ErrShaderBackendCompile` 的 gles 腿真触发 + fallback 画面正确」这一子项
+> 当初没按设计兑现**：交付的是「64KB 顶格 uniform 模块」尝试，本机两后端都编译通过，
+> 于是记成「不可复现于此设备」。补臂 f 时第一次撞上真的触发子（uniform 数组 stride
+> 非 16 倍数：前端 `NewShaderEffect` 放行、naga 在 `CreateShaderModule` 拒），实测它
+> **不走**具名拒/回退那条路（`ErrShaderBackendCompile` 命中 0、`ShaderBackendFails` 不涨、
+> 直接打断 flush 且错误文本归属漂到 `CreateBuffer`）——原样摘录
+> `gap3-backend-reject-probe.txt`，登记 **H23 候选**，按修复门槛补齐三条量后再定方案。
+
 三、④ mip 出口窗（收 756 行，批 4 主跳）
 ---------------------------------------
 臂 a：三档 `sprite.AtlasSprite.Mipmap`（None/Nearest/Linear）× 重缩小并排——引擎出口

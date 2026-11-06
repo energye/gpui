@@ -1,0 +1,29 @@
+# 缺口 3 · 本机真触发候选（2026-11-06 臂 F 首跑撞上，原样摘录）
+# 命令：RUN_SECONDS=8 go run ./examples/engine/p37_material -auto-only（臂 F 初版 uniform 用 array<f32,64>）
+
+TXFLUSHERR id=2 w=1202 h=802 err=build image resources: material: uniform buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+
+Caused by:
+  In wgpuDeviceCreateShaderModule
+    
+Shader validation error: Global variable [0] 'u' is invalid
+  ┌─ :9:23
+  │
+9 │ @group(0) @binding(0) var<uniform> u: USplit;
+  │                       ^^^^^^^^^^^^^^^^^^^^^^^ naga::ir::GlobalVariable [0]
+  │
+  = Alignment requirements for address space Uniform are not met by [1]
+  = The array stride 4 is not a multiple of the required alignment 16
+
+
+      Alignment requirements for address space Uniform are not met by [1]
+        The array stride 4 is not a multiple of the required alignment 16
+
+snapshot: examples/engine/p37_material/testdata/p37_material_final.png
+
+同一跑 JSON 关键字段：
+"gpu_fallbacks": 0
+"paint_err": ""
+"shader_backend_fails_probe": 0
+"window_shader_backend_fails": 0
+ErrShaderBackendCompile / 'backend compilation failed' 命中数：0

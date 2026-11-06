@@ -6,7 +6,7 @@
 台账 747（3a premul）、748（3b 三入口）、749（3c 多纹理）、750（3d 描边洞+哨兵）
 四行 ☑→✅。3e-3（751）归 ⑥ scene 流窗（归属修正见 `batch6-window-plan.md` §5）。
 
-二、五臂判据与实测差值（13 枚探针全绿；容差显式：premul 混合 6 档 / 逐位段 0）
+二、六臂判据与实测差值（16 枚探针全绿；容差显式：premul 混合 6 档 / 逐位段 0）
 ----------------------------------------------------------------
 | 臂 | 断言 | 实测 |
 |---|---|---|
@@ -17,22 +17,29 @@
 | D 描边吃 shader | AA 描边两端渐变 Δ>30 且非环境实心红（批 3d isGPUSolidPaint 修复的画面） | `stroke_paints_shader_gradient` ✓ |
 | E 拒绝态 | 六枚前端哨兵 errors.Is（BadWGSL/NoEntry/BadReturn/SlotConflict/UniformTooLarge/Closed）全命中；透视+材质 quad 口 `ErrQuadMaterialUnsupported` **校验期具名返回**（不入队不计数）、拒绝区保持底色；图像口 bicubic+材质回退路 `MaterialSkips++`（skip ≠ fallback，不记 CPUFallbackOps） | `sentinels_named_six` / `quad_material_unsupported_refused` / `image_entry_material_skip_counted`（skips=1） / `refused_region_stays_backdrop` 全 ✓，底带八色片全绿 |
 | gles 承载 | 64KB 顶格 uniform 模块（`ShaderUniformBudgetMax=65536` 前端放行）在后端可否编译 | **本机 native 与 gles 均编译通过**——真触发不可复现于此设备，如实记（`gles_budget_outcome=backend-accepted-on-this-device`）；哨兵链路由批 3d 双 %w 包装钉覆盖；`ShaderBackendFails` 计数与 stderr 接线已验证存在 |
+| F uniform 出图（2026-11-06 补，缺口 2） | 272B uniform：`split`@256B（旧预算之外）+ `gain`@260B 决定分屏边界与右半增益；**同几何同纹理同着色器只换字节** | `uniform_payload_paints_split`（左 (220,60,60) / 中 (30,45,110)）、`uniform_boundary_follows_payload`（同一像素 split 0.25→0.75 由暗蓝翻成红）、`uniform_boundary_can_be_zero_from_payload`（split 写 0 ⇒ 左端也暗蓝，值确从载荷读；**不用全零载荷**——那会把增益一起归零成纯黑，与「什么都没画」不可分辨）三枚 ✓ |
 
 三、三证据合证
 --------------
-1. 逻辑探针 13 枚（`probes=13/13`），extra 键含 `identity_diff_px=0`、
+1. 逻辑探针 16 枚（补证前 13 枚，`probes=16/16`），extra 键含 `identity_diff_px=0`、
    `material_skips_delta=1`、`gles_budget_outcome`、`nonfinite_rejects` 等。
-2. 语义像素 8 枚（终帧快照；期望色 premul src-over 公式同源）。
+2. 语义像素 10 枚（补证前 8 枚；终帧快照；期望色 premul src-over 公式同源）。
 3. Golden 逐位 0（fail-closed、mask 指标带、容差 0；native/go 两基线逐位相同）。
 
 四、H15/H16
 -----------
 - H15：native 门禁相六轮（含播种后复核）金图恒 0.0000%；③ 为静态内容窗，
   常驻相（-manual-seconds 6，305 presents）金图同 0——如实记（无动画相位）。
-- H16 三变异三重报警（改码→跑→取值→还原，还原后终验复绿）：
+  **2026-11-06 臂 F 落地后重录并复跑**：`seed_*` 播种跑仍判红（播种即非过），
+  native/go 复核 + 两轮稳定轮四连 `probes=16/16 golden=0.0000%`（presents=241），
+  两基线 `cmp` 逐位相同；原始行 `/tmp/w3_batch.log`。
+- H16 四变异多重报警（改码→跑→取值→还原，还原后终验复绿）：
   1. 摘三入口材质挂载：渐变段回无材质色 + **金图 3.2227%**；
   2. `SetImageAt(1, nil)` 摘第二张：右半回空槽色 + `set_image_at_second_texture_paints` 红 + **金图 1.25%**；
-  3. 拒绝臂换合法组合（摘 Perspective）：err=nil + 拒绝区被画出 + **金图 0.0347%**。
+  3. 拒绝臂换合法组合（摘 Perspective）：err=nil + 拒绝区被画出 + **金图 0.0347%**；
+  4. **（补）`fSplit` 0.25→0.60**：`uniform_payload_paints_split` +
+     `uniform_boundary_follows_payload` 双红（中锚 (30,45,110)→(220,60,60)）+
+     **金图 0.875%**；还原后 native/go 双后端各一轮 `16/16 0.0000%`（`/tmp/w3_final*.log`）。
 
 五、门禁账
 ----------
