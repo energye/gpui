@@ -42,7 +42,7 @@ H16 变异：① 摘材质挂载（画面回无材质态）；② 三入口材�
 > 非 16 倍数：前端 `NewShaderEffect` 放行、naga 在 `CreateShaderModule` 拒），实测它
 > **不走**具名拒/回退那条路（`ErrShaderBackendCompile` 命中 0、`ShaderBackendFails` 不涨、
 > 直接打断 flush 且错误文本归属漂到 `CreateBuffer`）——原样摘录
-> `gap3-backend-reject-probe.txt`，登记 **H23 候选**，按修复门槛补齐三条量后再定方案。
+> `gap3-backend-reject-probe.txt`，登记 **H23**。同日已按完整流程修复（错误域归位 + 构建期整笔摘除 + 按设备负面缓存，5 枚钉先红后修 + 3 条变异 + 四窗双后端复验），账见 `h23-fix.md`；GL 端图像/quad 腿的拒收仍无 surfaceless 可量路径，作为遗留写在彼账 §七。
 
 三、④ mip 出口窗（收 756 行，批 4 主跳）
 ---------------------------------------

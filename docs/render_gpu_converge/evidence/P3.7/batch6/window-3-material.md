@@ -92,8 +92,10 @@ fallback 画面正确」，交付时用「64KB 顶格 uniform 模块」试，本
 **门禁实测**：`RUN_SECONDS=20`（8 秒只跑到 ~193 presents，被 H15 定帧门判红——代价来自
 下条），native 三轮 + go 一轮全 `probes=20/20 golden=0.0000% presents=241`
 （`/tmp/w3_g3.log`、`/tmp/w3_g4.log`、`/tmp/w3_fin_n{1,2}.log`、`/tmp/w3_fin_g.log`）。
-**每帧挂一枚必拒模块 ⇒ 后端每帧重新尝试编译（无负面缓存）+ 每帧一整段 stderr**，
-实测 p95 帧间隔 23.4ms → 51.1ms——这条计入 H23 的修复范围。
+每帧挂一枚必拒模块的代价（**H23 修后已实测改口，见 `h23-fix.md` §五**）：设备模块创建
+原本是每帧一次，现为整窗一次（`window_shader_backend_fails` 239→1、stderr `pass1 err`
+243→2 行），但 p95 帧间隔 51.13→50.48ms 基本没动——真正的大头是**每帧走 CPU 回退腿画那一格**
+（同窗 go 后端无拒收时 p95=27.87ms）。本窗门禁相因此仍需 `RUN_SECONDS=20`。
 
 **H16 第五变异**（把格 2 的拒收模块换成合法模块）：`standalone_leg_reject_counted`
 （0→0）+ `standalone_leg_reject_region_keeps_backdrop`（(51,229,102)≠底色）+

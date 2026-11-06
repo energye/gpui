@@ -64,3 +64,8 @@ hal 错误域可用：gpu/webgpu/device_convert.go:106-129、gpu/rwgpu/errors.go
 拒收模块：区内=[25 25 25 255] 区外=[25 25 25 255] ShaderBackendFails=1 CPUFallbackOps=1
 合法模块对照：区内=[51 229 102 255] 区外=[25 25 25 255] ShaderBackendFails=0 CPUFallbackOps=0
 ⇒ 语义=整笔拒画（区内保持底、环境实心色不冒充回退）+ 计数 +1 + 走 CPU 回退腿（无 WGSL 求值器故不落墨）
+
+=== 后续（同日 H23 修复）===
+A 档（换顺序）实测证伪：诊断跑打印「pipeline 步：<nil>」+「buffer 步：CreateBuffer: Validation Error」⇒ 排队错误与调用顺序无关，换顺序只是换个受害者调用背锅。
+B 档（hal 验证错误域）实测成立：「模块步 err=<nil> 域内=GPU Validation error: Validation Error」，pop 之后「缓冲步 err=<nil>」⇒ 错误域既同步归位又就地吃掉，不再污染下一次调用。
+修复账：h23-fix.md

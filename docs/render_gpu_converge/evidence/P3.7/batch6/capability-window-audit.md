@@ -56,7 +56,7 @@ P3.7 批 6 收官后 · 能力×真窗完备性审计（2026-11-06）
   明细 `window-3-material.md` §二 F 行、§四 四.4。
   **写这枚臂时撞上一条新的真实现场 ⇒ 直接推进缺口 3**（见下）。
 
-### 缺口 3 · 后端真触发 —— ✅ 填充腿已兑现（③ 臂 G，2026-11-06）；图像口/quad 口 = H23 立项待修
+### 缺口 3 · 后端真触发 —— ✅ 已收（③ 臂 G 窗内证据 + H23 修复，2026-11-06）
 
 - **现象**：后端具名拒（`ErrShaderBackendCompile` / `ShaderBackendFails` 计数）这条腿，本机没能
   真复现一次「前端放行、后端拒」。
@@ -83,14 +83,15 @@ P3.7 批 6 收官后 · 能力×真窗完备性审计（2026-11-06）
   那一轮其实仍跑在 Vulkan 上——离屏 `render.NewContext` 走 `OpenStandaloneDevice`，
   而它**按设计不吃 `GPUI_BACKEND`**（`render/device_open.go` 注记）。GL 端的真值只能
   从窗内设备量，已改由臂 G 的终帧门承担；三枚离屏探针改名 `standalone_leg_*` 只声明独立腿。
-- **仍欠（= H23，已立项待修）**：同一枚模块挂在**图像口/quad 口**上不走具名链——
-  `ErrShaderBackendCompile` 命中 0、`ShaderBackendFails` 不涨、直接打断 flush，
-  错误文本还归属漂到 `CreateBuffer`（GL 端这两条腿的行为尚未在窗内量过，修 H23 时补测）。
-  修复方向：用 hal 错误域（`gpu/webgpu/device_convert.go:106-129`、`gpu/rwgpu/errors.go:36/124`
-  真实现，`gwgpu/gles`、`metal` 是 stub）把模块校验错误同步归位到 `CreateShaderModule`，
-  让既有双 `%w` 具名链接住；图像/quad 腿语义=具名拒 + 计数 + 整笔拒画（不做 CPU 回退，
-  免得把无材质像素当回退画出来）。附带计入：**拒收模块无负面缓存**（每帧重试编译，
-  p95 帧间隔 23.4→51.1ms）。
+- **H23 已修（同日，账见 `h23-fix.md`）**：同一枚模块挂在**图像口/quad 口**上原本不走具名链——
+  不计数、直接打断 flush、错误文本还归属漂到 `CreateBuffer`。修法=模块创建包进 hal 验证错误域
+  （**A 档「换顺序」被实测证伪**：wgpu 的校验是排队的，换谁下一个调用谁背锅；B 档错误域实测
+  既同步归位又就地吃掉）+ 构建期把那笔**整笔摘掉**（不是 CPU 回退，批 3b 契约：拒过的材质
+  绝不裸画无材质像素）+ **按设备负面缓存**（首次才 `ShaderBackendFails++`、才打一次 stderr）。
+  验收：新增 5 枚钉（先红后修）+ 3 条变异（N2 如实记为部分有效）；③ 双后端 `20/20 0.0000%`、
+  ⑥ `15/15 0.0000% skips=0`、① `15/15 0.0000%`；`internal/gpu` 逐文件全绿 + `-race` DATA RACE=0。
+  遗留（不在本修）：GL 端图像/quad 腿的拒收行为仍只在离屏 Vulkan 量过——GL 无 surfaceless
+  独立设备（`render/device_open.go`），要真验得先给窗内腿造拒收用例。
 
 ### 缺口 4 · `engine/tex` 的采样档位到不了渲染层 —— ⏸ 待拍板（用户）
 
