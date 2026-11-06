@@ -122,9 +122,9 @@ H23 修复账（2026-11-06 · 后端拒收的模块：具名链 + 帧存活 + �
 1. **nogpu 测试面断口**：`go vet -tags nogpu ./render/...` 在
    `render/internal/gpu/shared_layouts_test.go:36` 报 `undefined: createClipBindGroupLayout`
    —— 该文件缺 `//go:build !nogpu`（HEAD 同样复现，非本修带入；本修的新测试文件已带标签）。
-   属批 6 收官时修掉的那类「nogpu 断口」漏网，待补一行标签。
+   属批 6 收官时修掉的那类「nogpu 断口」漏网。**✅ 已收口（2026-11-07，提交 `ee514b42`）**：实修时顺藤盘出同族共 **5 枚**（shared_layouts/3b/3c/3d/h23_backend_reject），各补一行 `//go:build !nogpu`，vet -tags nogpu ./render/... rc=1→0。
 2. **自重写基线的计时门**：`render/s6_9_heavy_budget_test.go` 一个文件里既有测量者
    （`TestS69_HeavyBudget_TierGates` 写 `tmp/s6_9_heavy_budget.json`）又有契约校验者
    （`TestS69_Contract_FromJSON` 读它当门）⇒ 任何整包跑都会让 Contract 用「本次机器状态」
    判红。与台账在册的 `TestCullBudgetLarge` 同族（浮动计时门不作收口证据），
-   建议要么把基线文件钉成 `testdata/` 里的受版本控正本，要么把 Contract 判据降为只报数。
+   建议要么把基线文件钉成 `testdata/` 里的受版本控正本，要么把 Contract 判据降为只报数。**✅ 已收口·结构修（2026-11-07，提交 `4b33185c`，账 `pit2-s69-contract-fix.md`）**：writer→TempDir + reader→testdata 冻结正本（暂缺具名 Skip）；四轮实测证明 all-PASS 冻结对在现有门限下取不到（U05 相邻两轮抖 11% vs 门容 +0.3ms），正本待性能门重定标另线落定后 cp 即转真。
