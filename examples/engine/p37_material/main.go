@@ -15,6 +15,10 @@
 //	e) 拒绝态底带：七哨兵六枚前端具名（errors.Is）+ 透视/bicubic+材质的
 //	   ErrQuadMaterialUnsupported 现场拒绝（MaterialSkips++）+ ShaderBackendFails
 //	   计数（gles 腿实测；预算顶格 shader 是本扇的 gles 承载尝试，结果如实记）。
+//	f) uniform 载荷参与出图：272B uniform（边界字段落在旧 256B 预算之外）决定分屏
+//	   边界与右半增益——同几何、同纹理、同着色器，只换 uniform 字节，边界必须跟着走；
+//	   全零载荷必须把边界读成 0（证明值真从载荷里来，不是着色器写死的）。
+//	   补的是审计缺口 2：此前本扇 uniform 只出现在「校验」里，没有一帧画面由它决定。
 //
 // 满窗即内容：指标行浮在画面左上（金图 mask 掉 y<32 带）；画面相位只随已完成
 // 帧数走、过 settling 帧后定格（H15）。金图按后端分文件
@@ -32,6 +36,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -82,6 +87,18 @@ const (
 	dY       = 430.0
 	dX0, dX1 = 130.0, 430.0
 	dWidth   = 12.0
+
+	// 臂 f uniform 载荷决定画面（272B：边界字段落在旧 256B 预算之外）。
+	// 落点避开臂 e 的「拒绝区应保持底色」锚 (610,560) 与底带 y≥712。
+	fImgX, fImgY = 700.0, 430.0
+	fImgW, fImgH = 240.0, 96.0
+	// 写进 uniform 的两个值（画面与探针共用同一份常数）。
+	fSplit = 0.25 // uv.x 空间的分屏边界
+	fGain  = 0.5  // 右半亮度增益
+	// uniformOldBudget = 批 3c 抬预算之前的上限；split 落在它之外，谁在半路截断
+	// 载荷，着色器就会把边界读成 0（整块变暗蓝），锚立刻报警。
+	uniformOldBudget  = 256
+	uniformSplitBytes = 272 // = 256B 占位 + split + gain + 两个保留 f32
 
 	// 拒绝态底带。
 	refusalY = 712.0
@@ -163,6 +180,44 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
 
 var testdataDir = filepath.Join("examples", "engine", "p37_material", "testdata")
 
+// effUniformSplitWGSL：臂 f 的着色器——分屏边界与右半增益**只**来自 uniform。
+// struct 前 256B 是占位（uniform 地址空间要求数组 stride 是 16 的倍数，故用
+// 16×vec4 而不是 64×f32——写成后者 naga 直接拒整个模块），`split` 落在偏移
+// 256B（旧预算之外）、`gain` 落在 260B ⇒ 载荷若被半路截断，边界读成 0、
+// 画面整块变暗蓝，锚立刻对不上。
+const effUniformSplitWGSL = `
+struct USplit {
+    pad: array<vec4<f32>, 16>,
+    split: f32,
+    gain: f32,
+    rsv2: f32,
+    rsv3: f32,
+}
+@group(0) @binding(0) var<uniform> u: USplit;
+@group(0) @binding(1) var m_tex0: texture_2d<f32>;
+@group(0) @binding(2) var m_samp0: sampler;
+@group(0) @binding(3) var m_tex1: texture_2d<f32>;
+@group(0) @binding(4) var m_samp1: sampler;
+
+@fragment
+fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
+    let a = textureSample(m_tex0, m_samp0, uv);
+    let b = textureSample(m_tex1, m_samp1, uv);
+    if uv.x < u.split {
+        return a;
+    }
+    return vec4<f32>(b.r * u.gain, b.g * u.gain, b.b * u.gain, b.a);
+}`
+
+// uniformSplitPayload 拼臂 f 的 272B uniform（GPU uniform 缓冲按小端原样 memcpy，
+// 平台即 x86/ARM 小端；偏移 256/260 处放两个 f32，其余留零）。
+func uniformSplitPayload(split, gain float32) []byte {
+	b := make([]byte, uniformSplitBytes)
+	binary.LittleEndian.PutUint32(b[uniformOldBudget:], math.Float32bits(split))
+	binary.LittleEndian.PutUint32(b[uniformOldBudget+4:], math.Float32bits(gain))
+	return b
+}
+
 // texSolid 生成纯色 ImageBuf（探针期望色 = 同一份常数）。
 func texSolid(w, h int, c [3]uint8) *render.ImageBuf {
 	buf, err := render.NewImageBuf(w, h, render.FormatRGBA8)
@@ -180,10 +235,18 @@ func texSolid(w, h int, c [3]uint8) *render.ImageBuf {
 }
 
 var (
-	texGray  = texSolid(110, 90, [3]uint8{170, 170, 175}) // 无材质对照
-	texRed   = texSolid(240, 96, [3]uint8{220, 60, 60})   // slot0 主图
-	texBlue  = texSolid(240, 96, [3]uint8{60, 90, 220})   // slot1 第二张
-	texIdent = texSolid(120, 96, [3]uint8{90, 180, 120})  // 恒等对照段
+	texGray  = texSolid(110, 90, texGrayColor)  // 无材质对照
+	texRed   = texSolid(240, 96, texRedColor)   // slot0 主图
+	texBlue  = texSolid(240, 96, texBlueColor)  // slot1 第二张
+	texIdent = texSolid(120, 96, texIdentColor) // 恒等对照段
+)
+
+// 纹理底色（探针期望色与 texSolid 的入参是同一份常数，改一处两边同步）。
+var (
+	texGrayColor  = [3]uint8{170, 170, 175}
+	texRedColor   = [3]uint8{220, 60, 60}
+	texBlueColor  = [3]uint8{60, 90, 220}
+	texIdentColor = [3]uint8{90, 180, 120}
 )
 
 func mustEffect(wgsl string) *render.ShaderEffect {
@@ -203,8 +266,17 @@ var (
 	effStroke   = mustEffect(effStrokeWGSL)
 )
 
+// 臂 f 的窗体实例：uniform 与第二张纹理都在 init 里一次性设好，绝不进每帧路径。
+var effUniformSplit = mustEffect(effUniformSplitWGSL)
+
 func init() {
 	if err := effSplit.SetImageAt(1, texBlue); err != nil {
+		panic(err)
+	}
+	if err := effUniformSplit.SetImageAt(1, texBlue); err != nil {
+		panic(err)
+	}
+	if err := effUniformSplit.SetUniformBytes(uniformSplitPayload(fSplit, fGain)); err != nil {
 		panic(err)
 	}
 }
@@ -304,6 +376,13 @@ func paintAll(dc render.Canvas, w, h float64) error {
 		return err
 	}
 	resetD()
+	// 臂 f：uniform 载荷决定画面（左 1/4 主图红、其余暗蓝；边界与增益全在 uniform 里）。
+	if err := dc.DrawImageQuad(texRed, [4]render.Point{
+		{X: fImgX, Y: fImgY}, {X: fImgX + fImgW, Y: fImgY},
+		{X: fImgX + fImgW, Y: fImgY + fImgH}, {X: fImgX, Y: fImgY + fImgH},
+	}, render.QuadDrawOptions{Material: effUniformSplit}); err != nil {
+		return err
+	}
 	// 臂 e：拒绝态底带（离屏探针同一份事实）。
 	paintRefusalBand(dc)
 	return nil
@@ -583,6 +662,58 @@ func runProbes() probeReport {
 		fmt.Sprintf("left=(%d,%d,%d) right=(%d,%d,%d)", lr, lg, lb, rr2, rg2, rb2))
 	_ = dcC.Close()
 
+	// 臂 f：uniform 载荷决定画面——同几何、同纹理、同着色器，只换 uniform 字节。
+	// 锚点全在固定像素上，期望色写死（`0.125 < fSplit(0.25) < 0.5 < 0.75`），
+	// 不随 fSplit 自算——否则 fSplit 被人改也照样「自洽绿」，就成循环断言了。
+	paintPayload := func(tag string, payload []byte) *render.Context {
+		dcF := newCtx(w, h)
+		effF := mustEffect(effUniformSplitWGSL)
+		if err := effF.SetImageAt(1, texBlue); err != nil {
+			failJoin(&rep, tag+" SetImageAt", err)
+		}
+		if err := effF.SetUniformBytes(payload); err != nil {
+			failJoin(&rep, tag+" SetUniformBytes", err)
+		}
+		if err := flushErr(dcF, func() error {
+			paintBackdrop(dcF, float64(w), float64(h))
+			return dcF.DrawImageQuad(texRed, [4]render.Point{
+				{X: fImgX, Y: fImgY}, {X: fImgX + fImgW, Y: fImgY},
+				{X: fImgX + fImgW, Y: fImgY + fImgH}, {X: fImgX, Y: fImgY + fImgH},
+			}, render.QuadDrawOptions{Material: effF})
+		}); err != nil {
+			failJoin(&rep, tag+" flush", err)
+		}
+		return dcF
+	}
+	dcF1 := paintPayload("arm f split=0.25", uniformSplitPayload(fSplit, fGain))
+	dcF2 := paintPayload("arm f split=0.75", uniformSplitPayload(0.75, fGain))
+	dcF3 := paintPayload("arm f split=0", uniformSplitPayload(0, fGain)) // 增益照旧，只把边界压到 0
+	fLeft, fMid, fRight, fY := int(fImgX+0.125*fImgW), int(fImgX+0.5*fImgW), int(fImgX+0.875*fImgW), int(fImgY+fImgH/2)
+	wantRed := texRedColor
+	wantDim := [3]uint8{uint8(float64(texBlueColor[0]) * fGain), uint8(float64(texBlueColor[1]) * fGain), uint8(float64(texBlueColor[2]) * fGain)}
+	matches := func(dc *render.Context, x, y int, want [3]uint8) (bool, [3]uint8) {
+		r, g, b, _ := pixelAt(dc, x, y)
+		return abs(int(r)-int(want[0])) <= int(blendTol) && abs(int(g)-int(want[1])) <= int(blendTol) && abs(int(b)-int(want[2])) <= int(blendTol),
+			[3]uint8{r, g, b}
+	}
+	m1a, got1a := matches(dcF1, fLeft, fY, wantRed)
+	m1b, got1b := matches(dcF1, fMid, fY, wantDim)
+	rep.add("uniform_payload_paints_split", m1a && m1b, fmt.Sprintf(
+		"split=%.2f 左=(%d,%d,%d) want红 中=(%d,%d,%d) want暗蓝", fSplit, got1a[0], got1a[1], got1a[2], got1b[0], got1b[1], got1b[2]))
+	m2a, got2a := matches(dcF2, fMid, fY, wantRed)
+	m2b, got2b := matches(dcF2, fRight, fY, wantDim)
+	midMoved, _ := matches(dcF1, fMid, fY, wantRed)
+	rep.add("uniform_boundary_follows_payload", m2a && m2b && !midMoved, fmt.Sprintf(
+		"同一像素 split 0.25→0.75：中=(%d,%d,%d)→(%d,%d,%d) 必须翻成红，右=(%d,%d,%d) 仍暗蓝",
+		got1b[0], got1b[1], got1b[2], got2a[0], got2a[1], got2a[2], got2b[0], got2b[1], got2b[2]))
+	m3a, got3a := matches(dcF3, fLeft, fY, wantDim)
+	rep.add("uniform_boundary_can_be_zero_from_payload", m3a, fmt.Sprintf(
+		"边界写 0（增益不变）左=(%d,%d,%d) 必须是暗蓝——仍是红就说明 split 不是从载荷 256B 处读的（黑=什么都没画，故不用全零载荷）",
+		got3a[0], got3a[1], got3a[2]))
+	_ = dcF1.Close()
+	_ = dcF2.Close()
+	_ = dcF3.Close()
+
 	// 臂 d：描边吃 shader（渐变而非环境实心）。
 	dcD := newCtx(w, h)
 	effStroke := mustEffect(effStrokeWGSL)
@@ -697,6 +828,12 @@ func semanticProbes() []wrkit.PixelProbe {
 	// 臂 c：左红右蓝
 	add("set_image_at_left_red", cImgX+40, cImgY+48, 220.0/255, 60.0/255, 60.0/255, blendTol)
 	add("set_image_at_right_blue", cImgX+cImgW-40, cImgY+48, 60.0/255, 90.0/255, 220.0/255, blendTol)
+	// 臂 f：uniform 的 split=0.25 把左 1/4 留成主图红，其余按 uniform 的 gain 变暗蓝
+	//（锚点在边界两侧固定不动，期望色 = 纹理底色 × gain 同一份常数）。
+	add("uniform_split_left_red", fImgX+0.125*fImgW, fImgY+fImgH/2,
+		float64(texRedColor[0])/255, float64(texRedColor[1])/255, float64(texRedColor[2])/255, blendTol)
+	add("uniform_split_rest_dim", fImgX+0.875*fImgW, fImgY+fImgH/2,
+		float64(texBlueColor[0])*fGain/255, float64(texBlueColor[1])*fGain/255, float64(texBlueColor[2])*fGain/255, blendTol)
 	// 臂 e：拒绝区保持底色
 	add("refused_region_backdrop", 610, 560, backdropRGB, backdropRGB, backdropRGB+0.02, blendTol)
 	return probes
