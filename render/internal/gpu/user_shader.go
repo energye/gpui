@@ -65,6 +65,9 @@ type userShaderCache struct {
 	// entry's pipeline record below.
 	vsModule hal.ShaderModule
 	entries  map[*render.ShaderEffect]*userShaderPipeline
+	// rejected = H23 负面缓存（填充腿）：这台设备拒过的模块记一次，之后每帧直接
+	// 当「不可用」回退 CPU，不再重打设备、不再每帧刷一整段 stderr。
+	rejected map[*render.ShaderEffect]error
 	// black 1x1 texture+sampler stands in for an unbound declared image slot
 	// (placeholder-binding pattern, as in Skia/Impeller and Dawn's default
 	// bindings): the bind group always matches the layout derived from the
@@ -102,6 +105,7 @@ func (c *userShaderCache) ensureLocked(device hal.Device) error {
 	c.device = device
 	c.initialized = true
 	c.entries = make(map[*render.ShaderEffect]*userShaderPipeline)
+	c.rejected = make(map[*render.ShaderEffect]error)
 	return nil
 }
 
@@ -126,6 +130,7 @@ func (c *userShaderCache) destroyLocked() {
 		p.destroy()
 	}
 	c.entries = nil
+	c.rejected = nil
 	c.initialized = false
 	c.device = nil
 }
@@ -170,6 +175,7 @@ func (c *userShaderCache) evictEffect(effect *render.ShaderEffect) {
 	defer c.mu.Unlock()
 	if p, ok := c.entries[effect]; ok {
 		delete(c.entries, effect)
+		delete(c.rejected, effect)
 		p.destroy()
 	}
 }
@@ -208,6 +214,11 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 	if p, ok := c.entries[effect]; ok {
 		return p, nil
 	}
+	// H23 负面缓存：这台设备拒过这枚模块 ⇒ 零设备调用，直接把具名错还给调用方
+	// （调用方据此走普通 CPU 回退，不再每帧重打设备、不再每帧刷 stderr）。
+	if err, bad := c.rejected[effect]; bad {
+		return nil, err
+	}
 
 	uniforms := effect.Uniforms()
 	// L2-P1-3: the bind layout is derived from the shader module's declared
@@ -245,11 +256,19 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 		bgl.Destroy()
 		return nil, fmt.Errorf("user shader: layout: %w", err)
 	}
+	// 与材质腿同款：wgpu 的 shader 校验是排队的，模块创建必须包在验证错误域里，
+	// pop 回来才算它自己的账（H23）。
+	device.PushErrorScope(hal.ErrorFilterValidation)
 	fs, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{WGSL: effect.ComposedFillWGSL()})
+	if scoped := device.PopErrorScope(); scoped != nil && err == nil {
+		err = scoped
+	}
 	if err != nil {
+		reject := fmt.Errorf("%w: user shader fs module: %w", render.ErrShaderBackendCompile, err)
 		layout.Destroy()
 		bgl.Destroy()
-		return nil, fmt.Errorf("%w: user shader fs module: %w", render.ErrShaderBackendCompile, err)
+		c.rejected[effect] = reject
+		return nil, reject
 	}
 	sl := uint32(dualTexUniformSlotStride)
 	layoutSize := maxInt(maxInt(int(sl), bind.UniformBytes), (len(uniforms)+int(sl)-1)/int(sl)*int(sl))
@@ -284,11 +303,13 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 		},
 	})
 	if err != nil {
+		reject := fmt.Errorf("%w: user shader pipeline: %w", render.ErrShaderBackendCompile, err)
 		ubuf.Destroy()
 		fs.Destroy()
 		layout.Destroy()
 		bgl.Destroy()
-		return nil, fmt.Errorf("%w: user shader pipeline: %w", render.ErrShaderBackendCompile, err)
+		c.rejected[effect] = reject
+		return nil, reject
 	}
 	p := &userShaderPipeline{module: fs, uniform: ubuf, uniformSize: layoutSize, bgl: bgl, layout: layout, pipeline: pipe, hasTex: hasTex, texturePairs: bind.TexturePairs}
 	c.entries[effect] = p

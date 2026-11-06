@@ -320,6 +320,9 @@ type gpuContextOps interface {
 	HasPendingStash() bool
 	// TakeBrushBootstrapReason returns G.04 ColorAt→GPU blit diagnostic, if any.
 	TakeBrushBootstrapReason() string
+	// TakeMaterialRefusals 取走并清零构建期的材质拒收计数（H23：后端拒收的模块
+	// ⇒ 那一笔整笔不画，帧不掀；skips 每笔都记，freshFails 只在首次发现时记）。
+	TakeMaterialRefusals() (skips, freshFails int)
 	// StagedWriteOverlaps reports the backend's same-drain overlapping upload
 	// guard (see hal.Queue). 0 = healthy; non-zero = an upload window reused a
 	// buffer region, which makes earlier command buffers read later bytes.

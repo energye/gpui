@@ -21,6 +21,13 @@ import (
 // accumulator). Reading stats must not create a GPU context, so this reads the
 // field instead of gpuCtxOps()'s lazy ensureGPUCtx.
 func (c *Context) RenderPathStats() RenderPathStats {
+	// H23：后端拒收 ⇒ 构建期已把那笔摘掉，两个计数在这里折算进本上下文
+	// （取走即清，重复读不会累加）。
+	if c.gpuCtx != nil {
+		skips, fresh := c.gpuCtx.TakeMaterialRefusals()
+		c.pathStats.MaterialSkips += skips
+		c.pathStats.ShaderBackendFails += fresh
+	}
 	s := c.pathStats
 	if c.gpuCtx != nil {
 		s.StagedWriteOverlaps = c.gpuCtx.StagedWriteOverlaps()

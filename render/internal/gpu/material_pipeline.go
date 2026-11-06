@@ -111,6 +111,10 @@ type materialCache struct {
 	initialized bool
 	device      hal.Device
 	entries     map[*render.ShaderEffect]*materialEffectEntry
+	// rejected 是 H23 的负面缓存：后端（naga）拒收的模块在这里记一次，之后每一帧
+	// 各口直接按「已知不可用」拒画，不再重复尝试编译（重复尝试既不改变结果，还把
+	// p95 帧间隔从 23.4ms 拖到 51.1ms，并每帧刷一整段 stderr）。
+	rejected map[*render.ShaderEffect]error
 	// bgl1 is the engine per-draw block (shared). bgl0 lives per effect
 	// (batch 3c: declared pairs are module-derived, so the layout is no
 	// longer one of two global shapes).
@@ -133,6 +137,7 @@ func (c *materialCache) ensureLocked(device hal.Device) error {
 	c.device = device
 	c.initialized = true
 	c.entries = make(map[*render.ShaderEffect]*materialEffectEntry)
+	c.rejected = make(map[*render.ShaderEffect]error)
 	return nil
 }
 
@@ -141,6 +146,7 @@ func (c *materialCache) destroyLocked() {
 		e.destroy()
 	}
 	c.entries = nil
+	c.rejected = nil
 	if c.bgl1 != nil {
 		c.bgl1.Destroy()
 		c.bgl1 = nil
@@ -174,6 +180,8 @@ func (c *materialCache) evictEffect(effect *render.ShaderEffect) {
 		delete(c.entries, effect)
 		e.destroy()
 	}
+	// 关闭即撤判：同一个地址将来可能被另一枚 effect 复用（H23 负面缓存随生命周期走）。
+	delete(c.rejected, effect)
 }
 
 // ensureBlackLocked lazily creates the 1×1 black texture backing unbound
@@ -257,6 +265,34 @@ func materialUserBGL0(device hal.Device, bind render.ShaderInterface) (hal.BindG
 }
 
 // ensureMaterialPipeline builds (or reuses) one effect's material state and
+// noteMaterialRefusal 记一笔「这笔被后端拒收 ⇒ 整笔不画」（每笔一次 skips）。
+// ShaderBackendFails 不在这里加——它由 rejectMaterialEffect 在**首次**登记时记，
+// 重复帧走缓存只加 skips。
+func (s *GPURenderSession) noteMaterialRefusal() { s.matRefusalSkips++ }
+
+// rejectMaterialEffect 登记一次后端拒收（调用者持 c.mu）：写负面缓存 + 记一次
+// ShaderBackendFails，返回要上抛的具名错。
+func (s *GPURenderSession) rejectMaterialEffect(c *materialCache, effect *render.ShaderEffect, stage string, err error) error {
+	reject := fmt.Errorf("%w: material %s: %w", render.ErrShaderBackendCompile, stage, err)
+	if _, seen := c.rejected[effect]; !seen {
+		s.matRefusalFails++
+	}
+	c.rejected[effect] = reject
+	return reject
+}
+
+// MaterialRejectAttempts 返回本会话真正打到设备的材质模块创建次数（含成功）。
+// 负面缓存的验收面：同一枚被拒的模块，N 帧之后这里必须还是 1。
+func (s *GPURenderSession) MaterialRejectAttempts() int { return s.matRejectAttempts }
+
+// TakeMaterialRefusals 取走并清零两个计数（Context 在 RenderPathStats 处折算进
+// 自己的 pathStats）。
+func (s *GPURenderSession) TakeMaterialRefusals() (skips, freshFails int) {
+	skips, freshFails = s.matRefusalSkips, s.matRefusalFails
+	s.matRefusalSkips, s.matRefusalFails = 0, 0
+	return skips, freshFails
+}
+
 // returns it; the pipeline for the requested leg is created on first use.
 // The cache is session-owned (like imageCache): standalone sessions (tests)
 // never touch a GPUShared. clipBindLayout is the session's standard clip
@@ -280,6 +316,10 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 	if err := c.ensureLayoutsLocked(device); err != nil {
 		return nil, err
 	}
+	// H23 负面缓存：这台设备已经拒过这枚模块 ⇒ 零设备调用，直接把具名错还给调用方。
+	if err, bad := c.rejected[effect]; bad {
+		return nil, err
+	}
 
 	entry, ok := c.entries[effect]
 	if !ok {
@@ -292,10 +332,21 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 		if bind.UniformBytes > uniSize {
 			uniSize = bind.UniformBytes
 		}
+		s.matRejectAttempts++
+		device.PushErrorScope(hal.ErrorFilterValidation)
 		module, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{WGSL: effect.ComposedQuadWGSL()})
+		// H23：wgpu-native 的 shader 校验是**排队**的——CreateShaderModule 自己返回
+		// nil，错误落在后面任意一个设备调用身上（实测先后命中过 CreateBuffer，
+		// 且换顺序也只是换个受害者）。所以模块创建必须包在验证错误域里，pop 回来
+		// 才算它自己的账；域同时把错误就地吃掉，不再污染下一次调用（实测 pop 之后
+		// 建缓冲返回 nil）。gles/metal 的域是 stub（拿不到也算拒不了：它们的前端
+		// 根本不收这种模块，见 ③ 臂 G 的两端实测）。
+		if scoped := device.PopErrorScope(); scoped != nil && err == nil {
+			err = scoped
+		}
 		if err != nil {
 			bgl0.Destroy()
-			return nil, fmt.Errorf("%w: material module: %w", render.ErrShaderBackendCompile, err)
+			return nil, s.rejectMaterialEffect(c, effect, "module", err)
 		}
 		ubuf, err := device.CreateBuffer(&hal.BufferDescriptor{
 			Label: "material_user_uniform",
@@ -365,7 +416,7 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, d
 	})
 	if err != nil {
 		layout.Destroy()
-		return nil, fmt.Errorf("%w: material pipeline: %w", render.ErrShaderBackendCompile, err)
+		return nil, s.rejectMaterialEffect(c, effect, "pipeline", err)
 	}
 	entry.pipelines[leg] = pipe
 	return entry, nil

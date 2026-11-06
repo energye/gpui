@@ -81,8 +81,15 @@ func (rc *GPURenderContext) fillShaderAsImage(target render.GPURenderTarget, pat
 	// downstream premul interpretation, leaving u8 rounding plus a uint8
 	// overflow wrap in the layer composite (probe P3, 2026-11-05:
 	// uint8(c_s+255-a_s) reproduced 576/576 px; d9's 126 was 382 mod 256).
+	knownRejected := rc.userShaderKnownRejected(effect)
 	srcRegion, err := rc.runUserShaderPass(device, queue, effect, bw, bh)
 	if err != nil {
+		if knownRejected {
+			// H23 重复帧：这台设备早就拒过这枚模块 ⇒ 设备一次没碰，按普通 CPU 回退
+			// 走（不重复升具名错=不重复计 ShaderBackendFails，也不再刷一遍整段
+			// stderr）。CPUFallbackOps 照每帧记——这一帧的像素确实来自 CPU 腿。
+			return render.ErrFallbackToCPU
+		}
 		fmt.Fprintln(os.Stderr, "[user_shader] pass1 err:", err)
 		// P3.7 批 3d：后端编译/执行失败升具名错误，同时保持 ErrFallbackToCPU
 		// 链（调用方的 CPU 兜底判定不变）——双 %w 同链。

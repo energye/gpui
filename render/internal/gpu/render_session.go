@@ -13,6 +13,7 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"os"
@@ -420,15 +421,24 @@ type GPURenderSession struct {
 	// their own 36-byte buffer (same vertex layout as perspective); the
 	// engine per-draw block (transform + opacity, ImageUniforms bytes) rides
 	// its own 256B-stride slab; per-slot bind groups mirror the image caches.
-	materialVertBuf       hal.Buffer
-	materialVertBufCap    uint64
-	materialEngineSlab    hal.Buffer
-	materialEngineSlabCap uint64
-	materialBindGroups    []hal.BindGroup // user @group(0) per material slot
-	materialBGViews       []hal.TextureView
-	materialBGSampler     []ImageSamplerKey
-	materialBGSlotGens    []uint64        // batch 3c: SetImageAt slot generations cache key
-	materialEngineBGs     []hal.BindGroup // @group(1) per material slot
+	materialVertBuf    hal.Buffer
+	materialVertBufCap uint64
+	// H23：后端拒收的模块 ⇒ 那一笔整笔不画（帧照活），两个计数由 Context 在
+	// RenderPathStats 处取走折算成 MaterialSkips / ShaderBackendFails。
+	matRefusalSkips int
+	matRefusalFails int
+	// matRejectAttempts = 真正打到设备的材质模块创建次数（含成功）。负面缓存失效时
+	// 它会随帧数一起涨，是「不再每帧重试编译」唯一的可观察面。
+	matRejectAttempts int
+	// materialRefusedScratch 是 refused 的复用底（grow-only，与 scratchImageSeal 同款）。
+	materialRefusedScratch []bool
+	materialEngineSlab     hal.Buffer
+	materialEngineSlabCap  uint64
+	materialBindGroups     []hal.BindGroup // user @group(0) per material slot
+	materialBGViews        []hal.TextureView
+	materialBGSampler      []ImageSamplerKey
+	materialBGSlotGens     []uint64        // batch 3c: SetImageAt slot generations cache key
+	materialEngineBGs      []hal.BindGroup // @group(1) per material slot
 	// Session-owned material pipeline cache (P3.7 batch 3a): per-effect state
 	// from the composed modules; standalone sessions never touch a GPUShared.
 	userMaterial         materialCache
@@ -4384,8 +4394,19 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		}
 	}
 	var materialBuf hal.Buffer
+	// refused[i]=第 i 笔的材质模块被后端拒收（H23）⇒ 这一笔整笔不画，槽位仍占位
+	// 以保持 firstVertex 与预排索引对齐。只在真有材质笔时才铺：S6.9 计时门实测——
+	// 无条件 make([]bool, len(cmds)) 每帧多一次堆分配，连不含材质的路一起拖慢。
+	var refused []bool
 	materialEntries := make(map[*render.ShaderEffect]*materialEffectEntry, 4)
 	if matCount > 0 {
+		if cap(s.materialRefusedScratch) < len(cmds) {
+			s.materialRefusedScratch = make([]bool, len(cmds))
+		} else {
+			s.materialRefusedScratch = s.materialRefusedScratch[:len(cmds)]
+		}
+		refused = s.materialRefusedScratch
+		clear(refused)
 		needMat := uint64(matCount) * 6 * imagePerspVertexStride //nolint:gosec // bounded by command count
 		if s.materialVertBuf == nil || s.materialVertBufCap < needMat {
 			if s.materialVertBuf != nil {
@@ -4410,7 +4431,15 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			}
 			entry, err := s.ensureMaterialPipeline(cmds[i].Material, false)
 			if err != nil {
-				return nil, err
+				if !errors.Is(err, render.ErrShaderBackendCompile) {
+					return nil, err
+				}
+				// H23：后端拒收这枚模块 ⇒ 这一笔整笔不画（下面按 i=j 跳过整段材质
+				// run，与 image cache 上传失败同款形态），其余画面照常，帧不再被掀。
+				refused[i] = true
+				s.noteMaterialRefusal()
+				matIdx++
+				continue
 			}
 			if _, ok := materialEntries[cmds[i].Material]; !ok {
 				materialEntries[cmds[i].Material] = entry
@@ -4419,7 +4448,13 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				}
 			}
 			if _, err := s.ensureMaterialPipeline(cmds[i].Material, true); err != nil {
-				return nil, err
+				if !errors.Is(err, render.ErrShaderBackendCompile) {
+					return nil, err
+				}
+				refused[i] = true
+				s.noteMaterialRefusal()
+				matIdx++
+				continue
 			}
 			// Affine emission (batch 3a): corners with hom_w = 1 per corner.
 			cmd := cmds[i]
@@ -4542,6 +4577,12 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			continue
 		}
 		if cmd.Material != nil {
+			if refused[i] {
+				// H23：这枚材质被后端拒收 ⇒ 这一段（同一 effect 才会成段，见
+				// canMergeImageDraw）一画不交。
+				i = j
+				continue
+			}
 			// Material run (P3.7 batch 3a): one composed pipeline per effect,
 			// sprite texture rides the user's declared binding(1)/(2), engine
 			// transform/opacity per slot, clip group at @group(2) from the

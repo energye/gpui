@@ -561,6 +561,28 @@ func (rc *GPURenderContext) noteBrushBootstrap(reason string) {
 	rc.brushBootstrapReason = reason
 }
 
+// userShaderKnownRejected 问「这枚模块是不是早就被这台设备拒过了」（H23 填充腿）。
+// 调用方据此分清首次发现（具名 + 打一次日志）与重复拒画（普通 CPU 回退，零计数零日志）。
+func (rc *GPURenderContext) userShaderKnownRejected(effect *render.ShaderEffect) bool {
+	if rc == nil || effect == nil {
+		return false
+	}
+	c := &rc.shared.userShader
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, bad := c.rejected[effect]
+	return bad
+}
+
+// TakeMaterialRefusals 取走并清零本会话的 H23 拒收计数：skips=被整笔摘掉的材质绘制数，
+// freshFails=**首次**发现某模块被后端拒收的次数（重复拒画不再碰设备，也不再计数）。
+func (rc *GPURenderContext) TakeMaterialRefusals() (skips, freshFails int) {
+	if rc == nil || rc.session == nil {
+		return 0, 0
+	}
+	return rc.session.TakeMaterialRefusals()
+}
+
 // TakeBrushBootstrapReason returns and clears the last brush bootstrap reason.
 func (rc *GPURenderContext) TakeBrushBootstrapReason() string {
 	if rc == nil {
