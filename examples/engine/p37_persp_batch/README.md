@@ -17,7 +17,7 @@ go run ./examples/engine/p37_persp_batch                                        
 ```
 
 - `-auto-only`：门禁相。定帧 `gateFrames=240` 停机 + 相位过 `gateFreezeAt=120` 定格
-  （H15：末帧与墙钟无关）；三证据（14 枚逻辑探针 + 语义像素 + 逐位金图）不过直接 `exit 1`。
+  （H15：末帧与墙钟无关）；三证据（15 枚逻辑探针 + 语义像素 + 逐位金图）不过直接 `exit 1`。
   停机没跑满 240 帧也算失败，不静默放行。
 - `-manual-seconds N` / 不带旗：常驻相，不限帧，收真事件即打日志并用 `SetTitle` 显示累计数，
   结束出汇总 JSON。**常驻相的金图行只报数不判绿**（末帧未定格），它的作用是人工核验与收真事件。
@@ -38,14 +38,17 @@ go run ./examples/engine/p37_persp_batch                                        
 - 图集带 **批绘腿**：`camera.NewProjector` + `ProjectSpriteQuad` 产四角与权重 → `DrawAtlasEx`
   （老口按批 1c 的 D-4 契约不读精灵自带透视）。
 - 右上 **投影层**：`PushProjection(Matrix4)` + `ClipRoundRect` 画远处告示牌，`Pop` 后 `Projection()` 回恒等。
+  同段多两笔文字做 fail-closed 对照：投影态那一笔必须**整笔缺席**（`TextSkips++`、条带零墨差），
+  `Pop` 后恒等段同一串字必须**正常在场**（条带墨差 >40）。
 
 ## 三证据
 
-- 逻辑探针 14 枚（`merged_run_one_draw` / `interleaved_path_breaks_run` /
+- 逻辑探针 15 枚（`merged_run_one_draw` / `interleaved_path_breaks_run` /
   `merge_keeps_picture_bitwise` / `tint_lights_projective_leg` / `equal_weights_equal_affine` /
   `honest_perspective_differs` / `perspective_bicubic_refused` / `bad_weights_refused` /
   `behind_eye_refused` / `behind_eye_painted_nothing` / `affine_bicubic_still_draws` /
-  `atlas_engine_leg_merges` / `projection_stack_push_restore` / `engine_export_rejects_nonfinite`）。
+  `atlas_engine_leg_merges` / `projection_stack_push_restore` / `engine_export_rejects_nonfinite` /
+  `text_under_projection_failclosed`）。
 - 语义像素：从画面所用同一份投影输出反推落点，容差显式写死（`tintSlackSteps=6` 档；
   合批≠改画面那条用 `mergeBitExact=0` 零容差）。
 - Golden 逐位零容差，按后端分文件：`testdata/goldens/p37_persp_batch_final_native.png` /

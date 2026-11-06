@@ -32,6 +32,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"image"
 	"math"
 	"os"
 	"path/filepath"
@@ -42,6 +43,7 @@ import (
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
@@ -98,6 +100,20 @@ const (
 )
 
 var testdataDir = filepath.Join("examples", "engine", "p37_persp_batch", "testdata")
+
+// perspFace：臂 e「投影下文字 fail-closed」臂用字（ui_render_base_text 同族
+// LoadMultiFace，退系统默认；缺字则臂探针判红，不静默跳——AGENTS 禁假绿）。
+var perspFace text.Face
+
+func initFace() {
+	if f, _, err := text.LoadMultiFace(16); err == nil {
+		perspFace = f
+		return
+	}
+	if f, _, err := rendering.TryLoadDefaultFace(16); err == nil {
+		perspFace = f
+	}
+}
 
 type quad struct {
 	corners [4]render.Point
@@ -329,8 +345,10 @@ func paintRefusalBand(dc render.Canvas, tex *render.ImageBuf) refusalFacts {
 }
 
 // paintProjectionLayer：臂 e —— Push/Pop 投影层 + 圆角裁剪下的远处告示牌，
-// 复位后投影必须回到恒等。
-func paintProjectionLayer(dc render.Canvas, tex *render.ImageBuf) (pushedOK, restoredOK bool) {
+// 复位后投影必须回到恒等。drawText=true 时多两笔文字（fail-closed 证据臂）：
+// 投影段那一笔应被引擎整笔拒画（TextSkips++、像素零落墨），Pop 后恒等段
+// 同一串字必须正常在场。
+func paintProjectionLayer(dc render.Canvas, tex *render.ImageBuf, drawText bool) (pushedOK, restoredOK bool) {
 	m, ok := render.ProjectorMatrix4(focal*1.4, render.Pt(990, billboardY), render.Point{})
 	if !ok {
 		return false, false
@@ -345,8 +363,18 @@ func paintProjectionLayer(dc render.Canvas, tex *render.ImageBuf) (pushedOK, res
 		opts.Weights = q.weights
 		_ = drawQuad(dc, tex, q, opts)
 	}
+	if drawText && perspFace != nil {
+		dc.SetFont(perspFace)
+		dc.SetRGB(0.95, 0.95, 0.98)
+		dc.DrawString("投影下文字应整笔缺席", 916, billboardY+58)
+	}
 	dc.Pop()
 	restoredOK = dc.Projection() == before
+	if drawText && perspFace != nil {
+		dc.SetFont(perspFace)
+		dc.SetRGB(0.95, 0.95, 0.98)
+		dc.DrawString("恒等段文字在场", 916, billboardY+80)
+	}
 	return pushedOK, restoredOK
 }
 
@@ -377,7 +405,7 @@ func paintAll(dc render.Canvas, tex, sheet *render.ImageBuf, w, h, pan float64) 
 		_, _ = dc.DrawAtlasEx(sheet, sprites, render.AtlasDrawOptions{})
 	}
 	facts := paintRefusalBand(dc, tex)
-	paintProjectionLayer(dc, tex)
+	paintProjectionLayer(dc, tex, true)
 	return facts
 }
 
@@ -564,11 +592,12 @@ func runProbes(tex, sheet *render.ImageBuf) probeReport {
 	rep.extra["atlas_reason"] = atlasFacts.Reason
 	atl.Close()
 
-	// 臂 e：投影层四动词 + 复位恒等 + 计数。
+	// 臂 e：投影层四动词 + 复位恒等 + 计数 + 「投影下文字 fail-closed」双跑对拍
+	// （带字 vs 不带字两个离屏 ctx：投影段必须零差=拒画彻底，恒等段必须见墨）。
 	proj := newCtx(w, h)
 	proj.ResetProjectionStats()
 	paintBackdrop(proj, w, h)
-	pushed, restored := paintProjectionLayer(proj, tex)
+	pushed, restored := paintProjectionLayer(proj, tex, true)
 	_ = proj.FlushGPU()
 	ps := proj.ProjectionStats()
 	rep.add("projection_stack_push_restore", pushed && restored, fmt.Sprintf("pushed=%v restored=%v", pushed, restored))
@@ -576,7 +605,18 @@ func runProbes(tex, sheet *render.ImageBuf) probeReport {
 		"clip_degrades": ps.ClipDegrades, "path_expansions": ps.PathExpansions,
 		"text_skips": ps.TextSkips, "interp_downgrades": ps.InterpDowngrades,
 	}
+	ctrl := newCtx(w, h)
+	paintBackdrop(ctrl, w, h)
+	paintProjectionLayer(ctrl, tex, false)
+	_ = ctrl.FlushGPU()
+	projInk := regionInk(ctrl.Image(), proj.Image(), 916, int(billboardY+42), 210, 22)
+	identInk := regionInk(ctrl.Image(), proj.Image(), 916, int(billboardY+68), 210, 22)
+	textFC := perspFace != nil && ps.TextSkips >= 1 && projInk == 0 && identInk > 40
+	rep.add("text_under_projection_failclosed", textFC, fmt.Sprintf(
+		"text_skips=%d 投影段墨差=%d want0 恒等段墨差=%d want>40 face=%v", ps.TextSkips, projInk, identInk, perspFace != nil))
+	rep.extra["text_failclosed_ink"] = map[string]int{"proj_strip": projInk, "identity_strip": identInk}
 	proj.Close()
+	ctrl.Close()
 
 	// 引擎出口 fail-closed：非有限深度必须整块拒绝，不画也不炸。
 	badProj, errb := camera.NewProjector(focal, core.V2(600, 400), core.Vec2{})
@@ -607,8 +647,27 @@ func paintAllQuiet(dc *render.Context, tex, sheet *render.ImageBuf, w, h, pan fl
 		_, _ = dc.DrawAtlasEx(sheet, sprites, render.AtlasDrawOptions{})
 	}
 	paintRefusalBand(dc, tex)
-	paintProjectionLayer(dc, tex)
+	paintProjectionLayer(dc, tex, true)
 	_ = dc.FlushGPU()
+}
+
+// regionInk 数 a、b 两张回读图在矩形带内的差异像素数——文字 fail-closed 臂的
+// 墨量对照（带字跑 vs 不带字跑）：投影段应 0（整笔被拒），恒等段应见墨。
+func regionInk(a, b image.Image, x0, y0, wd, ht int) int {
+	n := 0
+	for y := y0; y < y0+ht; y++ {
+		for x := x0; x < x0+wd; x++ {
+			if x < 0 || y < 0 || x >= a.Bounds().Dx() || y >= a.Bounds().Dy() {
+				continue
+			}
+			ar, ag, ab, aa := a.At(x, y).RGBA()
+			br, bg, bb, ba := b.At(x, y).RGBA()
+			if ar != br || ag != bg || ab != bb || aa != ba {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // countDiff 只在某一行带的板面落点区比像素（合并段 vs 拆开段必须逐位相同）。
@@ -681,6 +740,7 @@ func main() {
 	}
 	gateMode := *autoOnly
 	wrkit.EnsureUIFace()
+	initFace()
 
 	tex := newPlateTexture(64, 64, 250, 250, 252)
 	sheet := newSheetTexture()
@@ -749,7 +809,7 @@ func main() {
 			_, _ = dc.DrawAtlasEx(sheet, sprites, render.AtlasDrawOptions{})
 		}
 		paintRefusalBand(dc, tex)
-		paintProjectionLayer(dc, tex)
+		paintProjectionLayer(dc, tex, true)
 		frameNo++
 	}
 	root.Place(content, 0, 0)
