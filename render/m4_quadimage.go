@@ -45,12 +45,12 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 			return ErrQuadPerspectiveBicubic
 		}
 	}
-	// P3.7 批 3b：材质腿本批只接仿射 + Normal + 非 bicubic（组合顶点机已就绪，
-	// 权重透传与钉归批 6）。组合无变体即具名拒绝（ErrQuadPerspectiveBicubic 同风格）。
-	if opts.Material != nil {
-		if opts.Perspective || interp == InterpBicubic {
-			return ErrQuadMaterialUnsupported
-		}
+	// P3.7 材质×透视专项（2026-11-07，mat-persp-assessment.md 拍板）：材质+透视
+	// 放行——组合顶点机的引擎顶点段本就携带 hom_w（真 clip-space w），权重透传
+	// 到 36B 材质缓冲即可；画布投影层组合同放行（perspLeg 权重来自投影映射）。
+	// 材质+bicubic 仍具名拒（纹素契约腿随 B 批开启后摘除）。
+	if opts.Material != nil && interp == InterpBicubic {
+		return ErrQuadMaterialUnsupported
 	}
 	opacity := normalizeQuadOpacity(opts.Opacity)
 	if !quadTintFinite(opts.Tint) {
@@ -119,12 +119,10 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 			tr, tg, tb, ta := atlasTintFactors(opts.Tint)
 			// 与图集腿同一式：顶点染色按 premul（tr*ta）下发，合成链才与 CPU 一致。
 			ptR, ptG, ptB := tr*ta, tg*ta, tb*ta
-			// P3.7 批 3b：材质腿（组合模块管线；tint 走 36B 顶点通道）。画布投影层
-			// 把 perspLeg 置真 ⇒ 材质+投影组合在此具名拒绝（校验期拦不住投影层状态）。
+			// P3.7 批 3b：材质腿（组合模块管线；tint 走 36B 顶点通道）。材质×透视
+			// 专项（2026-11-07）：自持权重/画布投影层的权重随命令透传到 36B 材质
+			// 缓冲（组合模块引擎顶点段 hom_w→真 clip-space w，透视正确插值）。
 			if opts.Material != nil {
-				if perspLeg {
-					return ErrQuadMaterialUnsupported
-				}
 				rc.QueueImageDrawMaterial(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 					float32(dev[0].X), float32(dev[0].Y),
 					float32(dev[1].X), float32(dev[1].Y),
@@ -133,6 +131,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 					float32(opacity), vpW, vpH,
 					0, 0, 1, 1,
 					float32(ptR), float32(ptG), float32(ptB), float32(ta),
+					perspLeg, [4]float32{float32(wFinal[0]), float32(wFinal[1]), float32(wFinal[2]), float32(wFinal[3])},
 					opts.Material, nearest)
 				c.recordGPUOp()
 				return nil

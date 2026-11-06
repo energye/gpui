@@ -1,0 +1,17 @@
+=== RUN   TestP37MatPerspQuadIdentityBitwise
+    p37_mat_persp_test.go:80: material+persp err=render: material leg does not support this combination yet (perspective/bicubic/projection), want nil（组合放行）
+--- FAIL: TestP37MatPerspQuadIdentityBitwise (0.29s)
+=== RUN   TestP37MatPerspGradientBandAnalytic
+    p37_mat_persp_test.go:114: material+persp band quad: render: material leg does not support this combination yet (perspective/bicubic/projection)
+--- FAIL: TestP37MatPerspGradientBandAnalytic (0.01s)
+=== RUN   TestP37MatPerspProjectionLayerIdentityBitwise
+    p37_mat_persp_test.go:174: material+projection-layer err=render: material leg does not support this combination yet (perspective/bicubic/projection), want nil（组合放行）
+--- FAIL: TestP37MatPerspProjectionLayerIdentityBitwise (0.02s)
+=== RUN   TestP37MatPerspSpriteRoadDrawn
+    p37_mat_persp_test.go:225: material+persp sprite MaterialSkips +1, want 0（不再跳过）
+--- FAIL: TestP37MatPerspSpriteRoadDrawn (0.02s)
+=== RUN   TestP37MatPerspRefusalsRemain
+--- PASS: TestP37MatPerspRefusalsRemain (0.01s)
+FAIL
+FAIL	github.com/energye/gpui/render	0.375s
+FAIL

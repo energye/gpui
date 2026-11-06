@@ -4279,17 +4279,17 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		return nil, nil //nolint:nilnil // no images
 	}
 
-	// Material-command guards (P3.7 batch 3a): the composed leg rides the
-	// affine 36B emission with Normal blending only. The combinations below
-	// are named rejections (never silent re-interpretation); the public
-	// entries in 3b enforce the same contract at queue time.
+	// Material-command guards (P3.7 batch 3a; 材质×透视专项 2026-11-07 放行透视):
+	// the composed leg rides the 36B emission with Normal blending only. The
+	// combinations below are named rejections (never silent
+	// re-interpretation); the public entries enforce the same contract at
+	// queue time. Perspective material draws are now legal — their per-corner
+	// weights ride the command into the 36B material buffer (the composed
+	// module's engine vertex section already emits true clip-space w).
 	for i := range cmds {
 		cmd := &cmds[i]
 		if cmd.Material == nil {
 			continue
-		}
-		if cmd.Perspective {
-			return nil, fmt.Errorf("material: perspective + material combination is not supported yet (batch 3b)")
 		}
 		if cmd.BlendMode != render.BlendNormal {
 			return nil, fmt.Errorf("material: non-Normal blend is not supported on the material leg yet (batch 3b)")
@@ -4456,9 +4456,15 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				matIdx++
 				continue
 			}
-			// Affine emission (batch 3a): corners with hom_w = 1 per corner.
+			// 材质×透视专项（2026-11-07）：发射透传命令真权重——批 3a 此处把
+			// Weights 强拍成 1（affine-only 口径），权重透传缺的本体就在这一行。
+			// 仿射材质在发射单点归一恒等权重：Weights 是零值结构体字段，直构
+			// 命令（测试/内部）与队列口两条来路都在这里归 1（hom_w=1 即恒等，
+			// 缺了它 buildPerspVerticesInto 会把 0 打进缓冲、整 quad 塌缩）。
 			cmd := cmds[i]
-			cmd.Weights = [4]float32{1, 1, 1, 1}
+			if !cmd.Perspective {
+				cmd.Weights = [4]float32{1, 1, 1, 1}
+			}
 			off := matIdx * 6 * imagePerspVertexStride
 			buildPerspVerticesInto(matStaging[off:off+6*imagePerspVertexStride], &cmd)
 			matIdx++
@@ -4551,6 +4557,38 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				cmd.BlendMode = render.BlendNormal
 			}
 		}
+		// 材质分支必须在 Perspective 分支之前（材质×透视专项 2026-11-07）：
+		// 材质+透视命令骑组合模块管线与 36B 材质缓冲，若先落 Perspective 分支
+		// 会被标准透视腿接管、材质静默丢失（perspIdx 也不含材质命令）。
+		if cmd.Material != nil {
+			if refused[i] {
+				// H23：这枚材质被后端拒收 ⇒ 这一段（同一 effect 才会成段，见
+				// canMergeImageDraw）一画不交。
+				i = j
+				continue
+			}
+			// Material run (P3.7 batch 3a): one composed pipeline per effect,
+			// sprite texture rides the user's declared binding(1)/(2), engine
+			// transform/opacity per slot, clip group at @group(2) from the
+			// caller. firstVertex counts material quads only (36B buffer).
+			// 材质×透视专项：canMergeImageDraw 按 Perspective 分槽（同材质
+			// persp/affine 各自成段），两态喂同一条组合管线（affine 顶点
+			// hom_w=1 恒等）。
+			slots = append(slots, imageSlot{
+				opacity:     cmd.Opacity,
+				texView:     texView,
+				nearest:     cmd.Nearest,
+				sampler:     cmd.FilterKey(),
+				material:    cmd.Material,
+				vertBuf:     materialBuf,
+				firstVertex: uint32(matIdxs[i] * 6), //nolint:gosec
+				vertCnt:     uint32((j - i) * 6),    //nolint:gosec
+				cmdStart:    uint32(i),              //nolint:gosec
+				cmdCount:    uint32(j - i),          //nolint:gosec
+			})
+			i = j
+			continue
+		}
 		if cmd.Perspective {
 			pIdx := perspIdx[i]
 			if pIdx < 0 {
@@ -4572,32 +4610,6 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				vertCnt:     uint32((j - i) * 6), //nolint:gosec
 				cmdStart:    uint32(i),           //nolint:gosec
 				cmdCount:    uint32(j - i),       //nolint:gosec
-			})
-			i = j
-			continue
-		}
-		if cmd.Material != nil {
-			if refused[i] {
-				// H23：这枚材质被后端拒收 ⇒ 这一段（同一 effect 才会成段，见
-				// canMergeImageDraw）一画不交。
-				i = j
-				continue
-			}
-			// Material run (P3.7 batch 3a): one composed pipeline per effect,
-			// sprite texture rides the user's declared binding(1)/(2), engine
-			// transform/opacity per slot, clip group at @group(2) from the
-			// caller. firstVertex counts material quads only (36B buffer).
-			slots = append(slots, imageSlot{
-				opacity:     cmd.Opacity,
-				texView:     texView,
-				nearest:     cmd.Nearest,
-				sampler:     cmd.FilterKey(),
-				material:    cmd.Material,
-				vertBuf:     materialBuf,
-				firstVertex: uint32(matIdxs[i] * 6), //nolint:gosec
-				vertCnt:     uint32((j - i) * 6),    //nolint:gosec
-				cmdStart:    uint32(i),              //nolint:gosec
-				cmdCount:    uint32(j - i),          //nolint:gosec
 			})
 			i = j
 			continue
@@ -4914,7 +4926,10 @@ func perspRunEnd(cmds []ImageDrawCommand, perspIdx []int32, i, j int) int {
 func (s *GPURenderSession) degradePerspectiveCmds(cmds []ImageDrawCommand, perspIdx []int32) error {
 	count := 0
 	for i := range cmds {
-		if cmds[i].Perspective {
+		// 材质×透视专项（2026-11-07）：材质命令不走标准透视腿——它们骑组合模块
+		// 管线与 36B 材质缓冲，透视管线不可用时的仿射降级语义（丢 w 保形状）不
+		// 适用于材质（材质无 CPU 求值器，降级即丢材质=裸画）。
+		if cmds[i].Perspective && cmds[i].Material == nil {
 			count++
 		}
 	}
@@ -4924,7 +4939,7 @@ func (s *GPURenderSession) degradePerspectiveCmds(cmds []ImageDrawCommand, persp
 	if err := s.imagePipeline.ensurePerspectivePipelines(); err != nil {
 		slogger().Warn("perspective image pipeline unavailable, drawing affine", "err", err, "quads", count)
 		for i := range cmds {
-			if cmds[i].Perspective {
+			if cmds[i].Perspective && cmds[i].Material == nil {
 				cmds[i].Perspective = false
 			}
 		}
@@ -4935,7 +4950,9 @@ func (s *GPURenderSession) degradePerspectiveCmds(cmds []ImageDrawCommand, persp
 func (s *GPURenderSession) packPerspectiveQuads(cmds []ImageDrawCommand, perspIdx []int32) (hal.Buffer, error) {
 	count := 0
 	for i := range cmds {
-		if cmds[i].Perspective {
+		// 材质命令排除：材质+透视打包进下方 36B 材质缓冲（同 buildPerspVerticesInto
+		// 打包器、不同管线与缓冲），不进标准透视缓冲。
+		if cmds[i].Perspective && cmds[i].Material == nil {
 			count++
 		}
 	}
@@ -4950,7 +4967,7 @@ func (s *GPURenderSession) packPerspectiveQuads(cmds []ImageDrawCommand, perspId
 	}
 	p := 0
 	for i := range cmds {
-		if !cmds[i].Perspective {
+		if !cmds[i].Perspective || cmds[i].Material != nil {
 			continue
 		}
 		off := p * 6 * imagePerspVertexStride

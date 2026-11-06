@@ -12,9 +12,12 @@
 //	   第二张（批 3c D4 的窗内版）；
 //	d) 描边吃 shader：SetRGB+SetShader 的 AA 描边（轮廓展开 → fillShaderAsImage，
 //	   批 3d 单点修复的画面）——描边像素是 shader 渐变而非环境实心色；
-//	e) 拒绝态底带：七哨兵六枚前端具名（errors.Is）+ 透视/bicubic+材质的
-//	   ErrQuadMaterialUnsupported 现场拒绝（MaterialSkips++）+ ShaderBackendFails
+//	e) 拒绝态底带：七哨兵六枚前端具名（errors.Is）+ quad 现场拒 + ShaderBackendFails
 //	   计数（gles 腿实测；预算顶格 shader 是本扇的 gles 承载尝试，结果如实记）。
+//	   材质×透视专项（2026-11-07）连带：材质+透视/材质+bicubic 相继放行后，
+//	   quad 现场拒=画布投影层眼后（ErrQuadBehindEye，几何族；材质在场也不救），
+//	   同几何同锚；图像口 bicubic+材质仍 skip+MaterialSkips（纹素契约随专项
+//	   B 批开启后迁移）。
 //	f) uniform 载荷参与出图：272B uniform（边界字段落在旧 256B 预算之外）决定分屏
 //	   边界与右半增益——同几何、同纹理、同着色器，只换 uniform 字节，边界必须跟着走；
 //	   全零载荷必须把边界读成 0（证明值真从载荷里来，不是着色器写死的）。
@@ -563,9 +566,9 @@ func refusalFacts() (map[string]bool, map[string]string) {
 	err = e3.SetUniformBytes([]byte{1})
 	ok["closed"] = errors.Is(err, render.ErrShaderClosed)
 	got["closed"] = fmt.Sprint(err)
-	// ErrQuadMaterialUnsupported：透视+bicubic+材质（现场拒绝，画面对账在探针里）。
-	ok["quad_material_unsupported"] = false // 现场断言在离屏探针做，探针段补牌
-	got["quad_material_unsupported"] = "live-probe"
+	// quad 现场拒（材质×透视专项后=投影层眼后 ErrQuadBehindEye；现场断言在离屏探针做）。
+	ok["quad_behind_eye_refused"] = false // 现场断言在离屏探针做，探针段补牌
+	got["quad_behind_eye_refused"] = "live-probe"
 	chipFacts["bad_wgsl"] = ok["bad_wgsl"]
 	chipFacts["no_entry"] = ok["no_entry"]
 	chipFacts["bad_return"] = ok["bad_return"]
@@ -576,7 +579,7 @@ func refusalFacts() (map[string]bool, map[string]string) {
 }
 
 var chipKeys = []string{"bad_wgsl", "no_entry", "bad_return", "slot_conflict",
-	"uniform_too_large", "closed", "quad_material_unsupported", "backend_fails"}
+	"uniform_too_large", "closed", "quad_behind_eye_refused", "backend_fails"}
 
 var chipFacts map[string]bool
 
@@ -917,23 +920,27 @@ func runProbes() probeReport {
 		fmt.Sprintf("s0=(%d,%d,%d) s1=(%d,%d,%d) delta=%d", s0r, s0g, s0b, s1r, s1g, s1b, gradDelta))
 	_ = dcD.Close()
 
-	// 臂 e：现场拒绝 —— 透视+bicubic+材质 → ErrQuadMaterialUnsupported + MaterialSkips。
+	// 臂 e：现场拒（材质×透视专项 2026-11-07 迁移）——材质+透视组合已放行
+	// （专项窗承管画面），现场拒迁到画布投影层眼后：w(y)=1-0.003y 在 y≈333
+	// 过零，quad 四角 y≥500 全过零 ⇒ ErrQuadBehindEye 整块具名拒（几何族，
+	// 材质在场也不救）。同几何同锚，画面口径不变。
 	dcE := newCtx(w, h)
 	effG := mustEffect(effGradWGSL)
 	_ = flushErr(dcE, func() error {
 		paintBackdrop(dcE, float64(w), float64(h))
 		return nil
 	})
+	dcE.SetProjection(render.Matrix4Homography(render.Translate(0, 0), 0, -0.003, 1))
 	errQ := dcE.DrawImageQuad(texGray, [4]render.Point{
 		{X: 520, Y: 520}, {X: 700, Y: 500}, {X: 700, Y: 620}, {X: 520, Y: 620},
-	}, render.QuadDrawOptions{Perspective: true, Weights: [4]float64{1, 1, 1, 1},
-		Interpolation: render.InterpNearest, Material: effG})
+	}, render.QuadDrawOptions{Interpolation: render.InterpNearest, Material: effG})
+	dcE.SetProjection(render.Matrix4Identity())
 	_ = dcE.FlushGPU()
-	refused := errQ != nil && errors.Is(errQ, render.ErrQuadMaterialUnsupported)
-	chipFacts["quad_material_unsupported"] = refused
+	refused := errQ != nil && errors.Is(errQ, render.ErrQuadBehindEye)
+	chipFacts["quad_behind_eye_refused"] = refused
 	chipFacts["backend_fails"] = true
-	rep.extra["quad_material_unsupported_err"] = fmt.Sprint(errQ)
-	rep.add("quad_material_unsupported_refused", refused,
+	rep.extra["quad_behind_eye_refused_err"] = fmt.Sprint(errQ)
+	rep.add("quad_behind_eye_refused", refused,
 		fmt.Sprintf("err=%v（校验期具名返回，不入队不计数）", errQ))
 	// 图像口回退路的拒绝计数：bicubic+材质 GPU 腿不接走 ⇒ skip + MaterialSkips++。
 	before := dcE.RenderPathStats().MaterialSkips

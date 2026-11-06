@@ -296,11 +296,9 @@ func TestP37BMaterialRejections(t *testing.T) {
 	defer func() { _ = dc.Close() }()
 	dc.ClearWithColor(render.White)
 
-	errP := dc.DrawImageQuad(img, [4]render.Point{{X: 4, Y: 4}, {X: 12, Y: 4}, {X: 12, Y: 12}, {X: 4, Y: 12}},
-		render.QuadDrawOptions{Material: e, Perspective: true, Weights: [4]float64{1, 1, 1, 1}})
-	if !errors.Is(errP, render.ErrQuadMaterialUnsupported) {
-		t.Fatalf("material+Perspective err=%v want ErrQuadMaterialUnsupported", errP)
-	}
+	// 材质×透视专项（2026-11-07）：材质+Perspective 放行（权重透传 36B 材质
+	// 缓冲），组合正确性由 TestP37MatPersp* 五钉承管（identity≡plain 逐位、
+	// 解析分界、投影层、精灵路），此处不再断言拒绝。
 	errB := dc.DrawImageQuad(img, [4]render.Point{{X: 4, Y: 4}, {X: 12, Y: 4}, {X: 12, Y: 12}, {X: 4, Y: 12}},
 		render.QuadDrawOptions{Material: e, Interpolation: render.InterpBicubic})
 	if !errors.Is(errB, render.ErrQuadMaterialUnsupported) {
@@ -318,7 +316,9 @@ func TestP37BMaterialRejections(t *testing.T) {
 	if got := dc.RenderPathStats().MaterialSkips - before; got != 1 {
 		t.Fatalf("DrawImageEx material+blend must skip+count (got %d)", got)
 	}
-	// 图集：材质精灵 + 自带透视 ⇒ 跳该精灵 + 计数（画家序 behind-eye 同款）。
+	// 图集：材质精灵 + 自带透视 ⇒ 放行（材质×透视专项 2026-11-07，权重透传
+	// 36B 材质缓冲），不再 skip+计数；组合画面由 TestP37MatPerspSpriteRoadDrawn
+	// 钉住（identity≡plain 逐位）。
 	before = dc.RenderPathStats().MaterialSkips
 	res, err := dc.DrawAtlasEx(img, []render.AtlasSprite{
 		{SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 8, DstX: 4, DstY: 4, DstW: 8, DstH: 8,
@@ -328,10 +328,10 @@ func TestP37BMaterialRejections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DrawAtlasEx material+persp: %v", err)
 	}
-	if res.Drawn != 0 {
-		t.Fatalf("material+persp sprite must be skipped (Drawn=%d)", res.Drawn)
+	if res.Drawn != 1 {
+		t.Fatalf("material+persp sprite must be drawn (Drawn=%d)", res.Drawn)
 	}
-	if got := dc.RenderPathStats().MaterialSkips - before; got != 1 {
-		t.Fatalf("atlas material+persp sprite must count one skip (got %d)", got)
+	if got := dc.RenderPathStats().MaterialSkips - before; got != 0 {
+		t.Fatalf("atlas material+persp sprite must not count a skip (got %d)", got)
 	}
 }

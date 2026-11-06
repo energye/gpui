@@ -207,21 +207,24 @@ func sceneMaterial(w, h float64, img *scene.Image) *scene.Scene {
 	return s
 }
 
-// sceneRefusal：透视 quad + 粘滞材质 —— quad 腿校验期具名拒（③ 口径：
-// 不入队、不计数、该笔不画）。
 // sceneRefusal：拒绝态要「看得见拒」——上下两枚无材质对照 quad 必画，
-// 中段透视 quad 挂粘滞材质被校验期具名拒（不入队、不画、画面保持卡底），
-// 清除材质后再一枚对照必画（拒不污染后续）。纯一格空是截图不出拒绝，
-// 2026-11-06 用户肉眼指出后补的结构。
-func sceneRefusal(img *scene.Image, corners [4]render.Point, weights [4]float64) *scene.Scene {
+// 中段挂粘滞材质的 quad 被具名拒（不入队、不画、画面保持卡底），清除材质后
+// 再一枚对照必画（拒不污染后续）。纯一格空是截图不出拒绝，2026-11-06 用户
+// 肉眼指出后补的结构。
+// 材质×透视专项（2026-11-07）连带迁移：材质+透视组合放行后，中段「看得见拒」
+// 迁到画布投影层眼后——w(y)=1-0.003y 在 y≈333 过零，quad 跨眼平面（y 0..400）
+// ⇒ ErrQuadBehindEye 整块具名拒（几何族；材质在场也不救）。拒-画-对照结构不变。
+func sceneRefusal(img *scene.Image) *scene.Scene {
 	s := scene.NewScene()
 	s.DrawImageQuad(img, [4]render.Point{
 		{X: 8, Y: 150}, {X: 88, Y: 150}, {X: 88, Y: 195}, {X: 8, Y: 195},
 	}, render.QuadDrawOptions{Interpolation: render.InterpNearest, Opacity: 1})
 	s.SetMaterial(gradEffect)
-	s.DrawImageQuad(img, corners, render.QuadDrawOptions{
-		Perspective: true, Weights: weights, Interpolation: render.InterpNearest, Opacity: 1,
-	})
+	s.PushProjection(render.Matrix4Homography(render.Translate(0, 0), 0, -0.003, 1))
+	s.DrawImageQuad(img, [4]render.Point{
+		{X: 10, Y: 0}, {X: 110, Y: 0}, {X: 110, Y: 400}, {X: 10, Y: 400},
+	}, render.QuadDrawOptions{Interpolation: render.InterpNearest, Opacity: 1})
+	s.PopProjection()
 	s.SetMaterial(nil)
 	s.DrawImageQuad(img, [4]render.Point{
 		{X: 110, Y: 150}, {X: 192, Y: 150}, {X: 192, Y: 195}, {X: 110, Y: 195},
@@ -289,7 +292,7 @@ func buildScenes() {
 	scStack = sceneStack(200, 200)
 	scQuadS = sceneQuad(200, 200, checkerImg, quadCorn, quadW)
 	scMatS = sceneMaterial(200, 200, checkerImg)
-	scRefusal = sceneRefusal(checkerImg, quadCorn, quadW)
+	scRefusal = sceneRefusal(checkerImg)
 }
 
 // ---- 走查（载荷宽度全消费，纪律承接 materialPayloadFromStream 钉） ----
@@ -716,9 +719,10 @@ func runProbes() probeReport {
 	rep.add("replay_material_equals_handwritten", n8a == 0, fmt.Sprintf("逐位 diff=%d；vs 无材质 %d 像素（粘滞可见性）", n8a, n8b))
 	rep.add("material_sticky_visible_not_shell", n8b >= 100, fmt.Sprintf("材质块 vs 无材质 = %d 像素差", n8b))
 
-	// 探针 9：透视 quad + 材质 —— ③ 口径复现：校验期具名拒、不入队不计数，
-	// 该笔不画（落点=同底色 control），RenderPathStats.MaterialSkips 不动。
-	refused := sceneRefusal(checkerImg, cornersP, weightsP)
+	// 探针 9：中段拒笔（材质×透视专项后拒面=投影层眼后，ErrQuadBehindEye）——
+	// 校验期具名拒、不入队不计数，该笔不画（落点=同底色 control），
+	// RenderPathStats.MaterialSkips 不动。
+	refused := sceneRefusal(checkerImg)
 	onlyMat := scene.NewScene()
 	onlyMat.SetMaterial(gradEffect)
 	var rr9 *scene.GPUSceneRenderer
@@ -738,16 +742,17 @@ func runProbes() probeReport {
 	r0, g0, b0, _ := ctrlImg.GetRGBA(xp, yp)
 	refusedOK := skipAfter == 0 && r1 == r0 && g1 == g0 && b1 == b0 &&
 		absInt(int(r1)-int(r0))+absInt(int(g1)-int(g0))+absInt(int(b1)-int(b0)) == 0
-	rep.add("quad_perspective_material_refused", refusedOK,
-		fmt.Sprintf("MaterialSkips=%d 落点(%d,%d)=(%d,%d,%d) control=(%d,%d,%d)（不画且逐位同底）",
+	rep.add("quad_projection_behind_eye_refused", refusedOK,
+		fmt.Sprintf("眼后拒 MaterialSkips=%d 落点(%d,%d)=(%d,%d,%d) control=(%d,%d,%d)（不画且逐位同底）",
 			skipAfter, xp, yp, r1, g1, b1, r0, g0, b0))
 	refImg.Dispose()
 	ctrlImg.Dispose()
 
 	// 探针 15（H22，2026-11-07）：回放腿拒绝账——同一幕拒景回放后，拒绝必须
-	// 可查（计数=1、错误具名 ErrQuadMaterialUnsupported），不再 `_ =` 吞掉；
-	// 画面语义不变（拒笔照旧不画，探针 9 的像素断言继续管）。
-	h22OK := rr9 != nil && rr9.Refusals() == 1 && errors.Is(rr9.LastRefusal(), render.ErrQuadMaterialUnsupported)
+	// 可查（计数=1、错误具名 ErrQuadBehindEye——材质×透视专项开启后拒面收敛
+	// 到几何族），不再 `_ =` 吞掉；画面语义不变（拒笔照旧不画，探针 9 的像素
+	// 断言继续管）。
+	h22OK := rr9 != nil && rr9.Refusals() == 1 && errors.Is(rr9.LastRefusal(), render.ErrQuadBehindEye)
 	rep.add("h22_replay_quad_refusal_accounted", h22OK,
 		fmt.Sprintf("refusals=%d last=%v（回放腿拒绝账具名可查）", rr9.Refusals(), rr9.LastRefusal()))
 

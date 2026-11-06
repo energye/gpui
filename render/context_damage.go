@@ -255,10 +255,13 @@ type gpuContextOps interface {
 	// (Tint/Blend/QuadW 同族：所有后端必须实现，旧桩随接口一起补). material
 	// must be non-nil and Normal-blended here; unsupported combinations are
 	// refused at the public entries (skip + MaterialSkips), never repainted
-	// unmaterial'd.
+	// unmaterial'd. 材质×透视专项（2026-11-07）：perspLeg+weights 把自持透视/
+	// 画布投影层的逐角齐次权重透传到 36B 材质缓冲（affine 材质 perspLeg=false、
+	// 权重全 1 逐位不变）。
 	QueueImageDrawMaterial(target GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip intImage.MipmapMode, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
-		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, material *ShaderEffect, nearest bool)
+		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32,
+		perspLeg bool, weights [4]float32, material *ShaderEffect, nearest bool)
 	// QueueImageDrawBlend is QueueImageDrawTint plus a fixed-function Porter-Duff
 	// blend mode (B.02): the quad composites with the mode's blend factors
 	// instead of premultiplied SourceOver (DestinationIn mask draws and other

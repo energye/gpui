@@ -268,11 +268,14 @@ func TestP37AMaterialLeg(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// 材质×透视专项（2026-11-07）：材质+透视放行（权重透传 36B 材质缓冲），
+		// 不再是 buildImageResources 的具名拒；画面组合由 render 包
+		// TestP37MatPersp* 五钉承管。
 		persp := p37AQuadCmd(img, 0, 0, effect)
 		persp.Perspective = true
 		persp.Weights = [4]float32{1, 1, 1, 1}
-		if _, err := s.buildImageResources([]ImageDrawCommand{*persp}, 16, 16, []bool{false}); err == nil {
-			t.Fatal("material + perspective must be a named rejection in batch 3a")
+		if _, err := s.buildImageResources([]ImageDrawCommand{*persp}, 16, 16, []bool{false}); err != nil {
+			t.Fatalf("material + perspective must be accepted now: %v", err)
 		}
 		blended := p37AQuadCmd(img, 0, 0, effect)
 		blended.BlendMode = render.BlendMultiply

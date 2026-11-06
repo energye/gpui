@@ -1490,12 +1490,24 @@ func (rc *GPURenderContext) newImageDrawCmd(target render.GPURenderTarget, pixel
 // engine transform/opacity block per draw. Tint always rides the 36-byte
 // vertex channel (zero struct = white); material must be non-nil and
 // Normal-blended (the queue guards reject other combinations by name).
+// QueueImageDrawMaterial queues a quad-material draw (P3.7 batch 3a) on the
+// composed-module pipeline. 材质×透视专项（2026-11-07）：perspLeg+weights 把
+// 自持透视/画布投影层的逐角齐次权重透传到 36B 材质缓冲（组合模块引擎顶点段
+// hom_w→真 clip-space w，透视正确插值）；affine 材质 perspLeg=false、权重全 1
+// 逐位不变。材质+bicubic 仍由公开入口具名拒（纹素契约腿另批）。
 func (rc *GPURenderContext) QueueImageDrawMaterial(target render.GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip render.MipmapMode, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
-	u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, material *render.ShaderEffect, nearest bool) {
+	u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32,
+	perspLeg bool, weights [4]float32, material *render.ShaderEffect, nearest bool) {
 	cmd := rc.newImageDrawCmd(target, pixelData, genID, src, mip, imgWidth, imgHeight, imgStride,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity, viewportW, viewportH,
 		u0, v0, u1, v1, tintR, tintG, tintB, tintA, render.BlendNormal, nearest, false)
+	if perspLeg {
+		cmd.Perspective = true
+		cmd.Weights = weights
+	}
+	// 仿射材质的权重归一在发射单点做（render_session 材质发射段）：命令的
+	// Weights 是零值结构体字段，直构命令与队列口两条来路都在发射处归 1。
 	cmd.Material = material
 	rc.queueImageCmd(target, cmd)
 }

@@ -78,18 +78,31 @@ func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
 			// 传已经过 CTM 的设备角会把 CTM 再乘一遍。
 			// P3.7 批 3b：材质精灵路由（老口 D-4 契约扩展一行：Material 在两口都
 			// 生效——nil 恒等保证老调用方逐位不变；忽略已设 Material=静默裸画，
-			// 违反非静默纪律）。材质 + 投影层/自带透视 ⇒ 跳该精灵+计数（画家序
-			// behind-eye 同款，不炸整批）；材质+仿射 ⇒ QueueImageDrawMaterial。
+			// 违反非静默纪律）。材质×透视专项（2026-11-07）：材质+投影层/自带透视
+			// 放行——权重透传到 36B 材质缓冲（组合模块引擎顶点段 hom_w→真
+			// clip-space w）；behind-eye 仍整精灵拒（画家序，不炸整批）。
 			if sp.Material != nil {
-				if c.projActive() || sp.Perspective {
-					c.pathStats.MaterialSkips++
-					continue
-				}
-				dev := [4]Point{
-					ctm.TransformPoint(usr[0]),
-					ctm.TransformPoint(usr[1]),
-					ctm.TransformPoint(usr[2]),
-					ctm.TransformPoint(usr[3]),
+				var dev [4]Point
+				var wFinal [4]float64
+				perspLeg := sp.Perspective || c.projActive()
+				if c.projActive() {
+					wOwn := [4]float64{1, 1, 1, 1}
+					if sp.Perspective {
+						copy(wOwn[:], sp.Weights[:])
+					}
+					pdev, pw, ok := c.atlasProjectSpriteCorners(sp, wOwn)
+					if !ok {
+						continue // behind-eye sprite: refused whole
+					}
+					copy(dev[:], pdev[:])
+					copy(wFinal[:], pw[:])
+				} else {
+					if sp.Perspective {
+						copy(wFinal[:], sp.Weights[:])
+					}
+					for k := 0; k < 4; k++ {
+						dev[k] = ctm.TransformPoint(usr[k])
+					}
 				}
 				tr, tg, tb, ta := atlasTintFactors(sp.Tint)
 				rc.QueueImageDrawMaterial(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
@@ -99,6 +112,7 @@ func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
 					float32(dev[3].X), float32(dev[3].Y),
 					float32(op), vpW, vpH, u0, v0, u1, v1,
 					float32(tr*ta), float32(tg*ta), float32(tb*ta), float32(ta),
+					perspLeg, [4]float32{float32(wFinal[0]), float32(wFinal[1]), float32(wFinal[2]), float32(wFinal[3])},
 					sp.Material, false)
 				queued++
 				continue
@@ -454,11 +468,12 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 			// CPU does srcRGB = tex*tr*srcA with srcA = baseA*ta*op,
 			// so the vertex tint must carry tr*ta (not straight tr).
 			tintR, tintG, tintB = tintR*tintA, tintG*tintA, tintB*tintA
-			// P3.7 批 3b：材质精灵（图集子矩形 UV 即 Godot TEXTURE/UV）。材质 +
-			// 透视槽（自带透视或投影层）⇒ 跳该精灵+计数；材质+仿射 ⇒
-			// QueueImageDrawMaterial（tint 走 36B 顶点通道）。
+			// P3.7 批 3b：材质精灵（图集子矩形 UV 即 Godot TEXTURE/UV）。材质×
+			// 透视专项（2026-11-07）：材质+透视槽放行——dev/wFinal 已由上方公共段
+			// 按自带透视/投影层算好，权重透传到 36B 材质缓冲；材质+bicubic 的
+			// 纹素契约随 B 批开启，透视槽下暂仍 skip+计数（不静默换核）。
 			if sp.Material != nil {
-				if perspSlot {
+				if perspSlot && bicubic {
 					c.pathStats.MaterialSkips++
 					continue
 				}
@@ -469,6 +484,7 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 					float32(dev[3].X), float32(dev[3].Y),
 					float32(op), vpW, vpH, u0, v0, u1, v1,
 					float32(tintR), float32(tintG), float32(tintB), float32(tintA),
+					perspSlot, [4]float32{float32(wFinal[0]), float32(wFinal[1]), float32(wFinal[2]), float32(wFinal[3])},
 					sp.Material, nearest)
 				queued++
 				continue

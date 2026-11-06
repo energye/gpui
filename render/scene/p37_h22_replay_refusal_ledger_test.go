@@ -21,8 +21,11 @@ package scene_test
 // ③/⑥ 冻结语义——单笔拒不升级为整场景错误，否则 recorder Playback 会掀帧）。
 // 画面证据：⑥ ui_wr_p37_scene probe（h22_replay_quad_refusal_accounted）。
 // 腿路口径：离屏单测无 GPU 加速器注册（`_ "render/gpu"` 只在真窗进程），
-// 干净 quad 走静默 CPU 分裂腿、材质+透视在校验期具名拒——「画出了」一律用
-// 像素断言（contextPaint+paintDiff，3e quad 先例），不假设计数腿路。
+// 干净 quad 走静默 CPU 分裂腿——「画出了」一律用像素断言
+// （contextPaint+paintDiff，3e quad 先例），不假设计数腿路。
+// 材质×透视专项（2026-11-07）连带：材质+透视组合放行后，回放腿的可拒面
+// 收敛到几何/眼后族——本文件拒绝场景从「材质+透视」迁到「画布投影层眼后
+// （ErrQuadBehindEye）」，拒绝账语义不变（几何拒同样记账）。
 
 import (
 	"errors"
@@ -32,14 +35,17 @@ import (
 	"github.com/energye/gpui/render/scene"
 )
 
-// h22RefusalScene 透视 quad + 粘滞材质 = quad 口校验期具名拒
-// （ErrQuadMaterialUnsupported，m4_quadimage.go 材质腿组合边界）。
+// h22RefusalScene 画布投影层把四角之一投到眼后（w(y)=1-0.003y 在 y≈333 过零，
+// 四角跨眼平面）⇒ 整 quad 具名拒（ErrQuadBehindEye）——材质×透视专项开启后
+// 「材质+透视」已放行，可拒面收敛到几何族；账语义不变（几何拒同样记账）。
 func h22RefusalScene(t *testing.T) *scene.Scene {
 	s := scene.NewScene()
 	s.SetMaterial(p37E3Effect(t))
-	s.DrawImageQuad(quadImage(), trapezoidCorners(10, 10), render.QuadDrawOptions{
-		Perspective: true, Weights: quadWeights(), Opacity: 1,
-	})
+	s.PushProjection(render.Matrix4Homography(render.Translate(0, 0), 0, -0.003, 1))
+	s.DrawImageQuad(quadImage(), [4]render.Point{
+		{X: 10, Y: 0}, {X: 110, Y: 0}, {X: 110, Y: 400}, {X: 10, Y: 400},
+	}, render.QuadDrawOptions{Interpolation: render.InterpNearest, Opacity: 1})
+	s.PopProjection()
 	return s
 }
 
@@ -55,8 +61,8 @@ func TestH22ReplayQuadRefusalAccounted(t *testing.T) {
 	if got := rr.Refusals(); got != 1 {
 		t.Fatalf("Refusals = %d, want 1（拒绝必须可查，不许 _ = 吞掉）", got)
 	}
-	if last := rr.LastRefusal(); !errors.Is(last, render.ErrQuadMaterialUnsupported) {
-		t.Fatalf("LastRefusal = %v, want ErrQuadMaterialUnsupported（具名）", last)
+	if last := rr.LastRefusal(); !errors.Is(last, render.ErrQuadBehindEye) {
+		t.Fatalf("LastRefusal = %v, want ErrQuadBehindEye（具名）", last)
 	}
 }
 
@@ -95,9 +101,11 @@ func TestH22RefusalDoesNotPoisonFollowingDraws(t *testing.T) {
 	img := quadImage()
 	mixed := scene.NewScene()
 	mixed.SetMaterial(p37E3Effect(t))
-	mixed.DrawImageQuad(img, trapezoidCorners(10, 10), render.QuadDrawOptions{
-		Perspective: true, Weights: quadWeights(), Opacity: 1,
-	})
+	mixed.PushProjection(render.Matrix4Homography(render.Translate(0, 0), 0, -0.003, 1))
+	mixed.DrawImageQuad(img, [4]render.Point{
+		{X: 10, Y: 0}, {X: 110, Y: 0}, {X: 110, Y: 400}, {X: 10, Y: 400},
+	}, render.QuadDrawOptions{Interpolation: render.InterpNearest, Opacity: 1})
+	mixed.PopProjection()
 	mixed.SetMaterial(nil)
 	mixed.DrawImageQuad(img, parallelogramCorners(10, 10), render.QuadDrawOptions{Opacity: 1})
 
@@ -122,7 +130,7 @@ func TestH22RefusalDoesNotPoisonFollowingDraws(t *testing.T) {
 	if got := rr.Refusals(); got != 1 {
 		t.Fatalf("Refusals = %d, want 1（只记被拒那一笔）", got)
 	}
-	if last := rr.LastRefusal(); !errors.Is(last, render.ErrQuadMaterialUnsupported) {
-		t.Fatalf("LastRefusal = %v, want ErrQuadMaterialUnsupported", last)
+	if last := rr.LastRefusal(); !errors.Is(last, render.ErrQuadBehindEye) {
+		t.Fatalf("LastRefusal = %v, want ErrQuadBehindEye", last)
 	}
 }

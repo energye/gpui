@@ -152,13 +152,28 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 		c.recordGPUOp()
 		return true
 	}
-	// P3.7 批 3b：材质腿路由。材质 + 画布投影层 / blend≠Normal / bicubic 三种
-	// 组合本批无变体 ⇒ 返 false 交调用方 CPU skip（绝不裸画）；material +
-	// Normal 仿射走 QueueImageDrawMaterial（组合模块管线，图像自身纹理 rides
-	// 声明纹理槽）。DrawImageOptions 无 tint ⇒ 零结构体（顶点通道白）。
+	// P3.7 批 3b：材质腿路由。材质×透视专项（2026-11-07）：材质+投影层放行
+	// （projW 权重透传 36B 材质缓冲）——顺修批 3b 的静默丢材质洞（projActive
+	// 块此前先于材质分支 return true，文档声明的「材质+投影 ⇒ 返 false」实际
+	// 不可达，组合被静默画成无材质）。材质+blend≠Normal / 材质+bicubic 仍
+	// 返 false 交调用方 CPU skip（绝不裸画；bicubic 纹素契约随 B 批开启）。
+	// DrawImageOptions 无 tint ⇒ 零结构体（顶点通道白）。
 	if opts.Material != nil {
-		if projActive || opts.BlendMode != BlendNormal || bicubic {
+		if opts.BlendMode != BlendNormal || bicubic {
 			return false
+		}
+		if projActive {
+			rc.QueueImageDrawMaterial(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
+				float32(tl.X), float32(tl.Y),
+				float32(tr.X), float32(tr.Y),
+				float32(br.X), float32(br.Y),
+				float32(bl.X), float32(bl.Y),
+				float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1,
+				0, 0, 0, 0, true,
+				[4]float32{float32(projW[0]), float32(projW[1]), float32(projW[2]), float32(projW[3])},
+				opts.Material, nearest)
+			c.recordGPUOp()
+			return true
 		}
 		rc.QueueImageDrawMaterial(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 			float32(tl.X), float32(tl.Y),
@@ -166,7 +181,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 			float32(br.X), float32(br.Y),
 			float32(bl.X), float32(bl.Y),
 			float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1,
-			0, 0, 0, 0, opts.Material, nearest)
+			0, 0, 0, 0, false, [4]float32{1, 1, 1, 1}, opts.Material, nearest)
 		c.recordGPUOp()
 		return true
 	}
