@@ -1,0 +1,14 @@
+# github.com/energye/gpui/engine/renderconv [github.com/energye/gpui/engine/renderconv.test]
+engine/renderconv/filter_test.go:51:22: undefined: FilterToRender
+engine/renderconv/filter_test.go:71:4: undefined: ErrFilterMixedAxes
+engine/renderconv/filter_test.go:74:4: undefined: ErrFilterMixedAxes
+engine/renderconv/filter_test.go:77:4: undefined: ErrFilterUnknownKind
+engine/renderconv/filter_test.go:80:4: undefined: ErrFilterUnknownKind
+engine/renderconv/filter_test.go:81:60: undefined: ErrFilterUnknownKind
+engine/renderconv/filter_test.go:82:68: undefined: ErrFilterAnisoUnsupported
+engine/renderconv/filter_test.go:85:4: undefined: ErrFilterAnisoUnsupported
+engine/renderconv/filter_test.go:88:22: undefined: FilterToRender
+engine/renderconv/filter_test.go:104:18: undefined: FilterToRender
+engine/renderconv/filter_test.go:104:18: too many errors
+FAIL	github.com/energye/gpui/engine/renderconv [build failed]
+FAIL
