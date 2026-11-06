@@ -64,7 +64,7 @@ H8 已随本轮扩容解决（engine/video 进门禁）；剩余待拍板：**�
 
 ## 5 交付进展与一处归属修正（2026-11-05）
 
-**① 透视批绘窗已交付**：`examples/engine/p37_persp_batch`（14 枚逻辑探针 + 语义像素 + 双后端
+**① 透视批绘窗已交付**：`examples/engine/p37_persp_batch`（15 枚逻辑探针 + 语义像素 + 双后端
 `_native`/`_go` 金图逐位 0.0000%，H15/H16 各有实测正反面），证据
 `batch6/window-1-persp-batch.md`。§2 反查表里 739/740/741/742 四行（批 1a/1b/1c/1d）
 因此从 ☑ 改回 ✅。为拿窗内证据另加一枚渲染层观测口 `Context.ImageBatchStats`（见目录 §3.17），
