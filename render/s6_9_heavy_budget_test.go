@@ -8,7 +8,11 @@ package render_test
 //   S6_PERF_WARMUP default 3
 //   S6_PERF_ITERS default 6
 //   S6_MAIN_PATH_BUDGET default 16.7
-//   S6_9_JSON default <repo>/tmp/s6_9_heavy_budget.json
+//   S6_9_JSON optional override for the TierGates measurement dump (default
+//     t.TempDir() — pit 2 fix 2026-11-07: whole-package runs no longer rewrite
+//     a repo tmp file that another test then reads as a "contract")
+//   S6_9_CONTRACT_JSON optional override for the frozen contract fixture
+//     (default render/testdata/s6_9_heavy_budget_contract.json)
 //   S6_9_REGRESS_ONLY=1 skip absolute "must improve" relative gates (still cap)
 
 import (
@@ -85,25 +89,33 @@ type s69BudgetFile struct {
 	Rows               []s69BudgetRow `json:"rows"`
 }
 
-func s69JSONPath() string {
+// s69DumpPath is where TierGates writes THIS run's measurement for human
+// inspection. Pit 2 fix (2026-11-07): default is t.TempDir(), not a repo tmp
+// file — the same package must never both write the numbers and read them
+// back as a gate ("整包跑必自造假红", registered h23-fix.md §七.2). Env
+// S6_9_JSON keeps explicit inspection runs possible.
+func s69DumpPath(t *testing.T) string {
 	if p := os.Getenv("S6_9_JSON"); p != "" {
 		return p
 	}
-	dir, err := os.Getwd()
-	if err != nil {
-		return filepath.Join("tmp", "s6_9_heavy_budget.json")
+	return filepath.Join(t.TempDir(), "s6_9_heavy_budget.json")
+}
+
+// s69ContractPath is the frozen contract fixture: one stable all-PASS
+// measurement captured under version control, against which
+// TestS69_Contract_FromJSON re-validates GATE SEMANTICS (a logic change in
+// s69ScenePass flips the fixture's verdicts — that is the contract). It is
+// deliberately NOT this machine's current numbers: run-to-run jitter on
+// sub-10ms scenes exceeds the relative bands (4-round evidence
+// 2026-11-07: 7/3/1~3 non-PASS rows rotating, U05 ±11% between adjacent
+// runs), so a live file would stay a self-fake-red machine-state gate. The
+// fixture lands when the 性能门重定标 line settles stable bands; until then
+// the contract test skips with a named reason (never silent, never fake red).
+func s69ContractPath() string {
+	if p := os.Getenv("S6_9_CONTRACT_JSON"); p != "" {
+		return p
 	}
-	for i := 0; i < 6; i++ {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return filepath.Join(dir, "tmp", "s6_9_heavy_budget.json")
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return filepath.Join("tmp", "s6_9_heavy_budget.json")
+	return filepath.Join("testdata", "s6_9_heavy_budget_contract.json")
 }
 
 func s69LoadS60Baseline(t *testing.T) (s6BaselineFile, string) {
@@ -365,7 +377,7 @@ func TestS69_HeavyBudget_TierGates(t *testing.T) {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
 	out.Rows = rows
 
-	path := s69JSONPath()
+	path := s69DumpPath(t)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -395,10 +407,12 @@ func joinLines(xs []string) string {
 }
 
 func TestS69_Contract_FromJSON(t *testing.T) {
-	path := s69JSONPath()
+	path := s69ContractPath()
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		t.Skipf("no S6.9 JSON yet (%v); run TestS69_HeavyBudget_TierGates", err)
+		// 正本后补（性能门重定标另线出稳定门限后冻结一份 all-PASS 测量入库）。
+		// 缺数据具名跳过，不静默假绿、也不再拿本次机器状态自造假红。
+		t.Skipf("no frozen S6.9 contract fixture at %s (%v); capture after the perf-gate recalibration line", path, err)
 	}
 	var doc s69BudgetFile
 	if err := json.Unmarshal(raw, &doc); err != nil {
