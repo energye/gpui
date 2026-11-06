@@ -56,7 +56,7 @@ P3.7 批 6 收官后 · 能力×真窗完备性审计（2026-11-06）
   明细 `window-3-material.md` §二 F 行、§四 四.4。
   **写这枚臂时撞上一条新的真实现场 ⇒ 直接推进缺口 3**（见下）。
 
-### 缺口 3 · `ErrShaderBackendCompile` 在本机未真触发 —— 🟡 找到真触发候选（2026-11-06），待按完整流程定性
+### 缺口 3 · 后端真触发 —— ✅ 填充腿已兑现（③ 臂 G，2026-11-06）；图像口/quad 口 = H23 立项待修
 
 - **现象**：后端具名拒（`ErrShaderBackendCompile` / `ShaderBackendFails` 计数）这条腿，本机没能
   真复现一次「前端放行、后端拒」。
@@ -74,12 +74,23 @@ P3.7 批 6 收官后 · 能力×真窗完备性审计（2026-11-06）
   `ErrShaderBackendCompile` 命中 **0** 次、`window_shader_backend_fails=0`、
   `shader_backend_fails_probe=0`、`gpu_fallbacks=0`，且错误文本挂在 `CreateBuffer` 名下
   （naga 的报错串进了下一次调用的错误里）——整帧因此停机（`presents=190 < 240`）。
-- **待办（按修复流程纪律走，不在窗里绕）**：一枚**故意**的触发子（misaligned array stride
-  即可，本机已证可复现）+ 三条量：① 前端是否真放行；② `errors.Is(err,
-  render.ErrShaderBackendCompile)`；③ `ShaderBackendFails` 是否 +1 且画面走 CPU 回退。
-  两条分岔：若 ②③ 成立 ⇒ ③ 直接加「看得见拒绝」臂（画面上留痕 + 计数）；
-  若像首跑这样把 flush 打断、计数为 0 ⇒ 这是新洞（暂记 **H23**：后端拒收的模块没进
-  双 `%w` 具名链，错误还发生归属漂移），按「两样东西齐了才动手」的门槛立完项再修。
+- **兑现（填充腿，2026-11-06 ③ 臂 G）**：故意模块挂填充腿画进窗里 ⇒ 区内保持底色 +
+  `ShaderBackendFails++` + `CPUFallbackOps++`，左右两格是「画得出」的对照；终帧硬门
+  `arm_g_frame_check` 把**两端各自钉死**（native：底色+计数 239；纯 Go GL：该模块被
+  它自己的 WGSL 前端接受 ⇒ 出 shader 解析色 (128,130,128)+计数 0，二选一都不许是环境
+  实心红）。实测数字、变异与逐点分歧见 `window-3-material.md` §七。
+- **本轮自查出一条判据作废**：先前那份「三条量在两后端同形」的探针，`GPUI_BACKEND=go`
+  那一轮其实仍跑在 Vulkan 上——离屏 `render.NewContext` 走 `OpenStandaloneDevice`，
+  而它**按设计不吃 `GPUI_BACKEND`**（`render/device_open.go` 注记）。GL 端的真值只能
+  从窗内设备量，已改由臂 G 的终帧门承担；三枚离屏探针改名 `standalone_leg_*` 只声明独立腿。
+- **仍欠（= H23，已立项待修）**：同一枚模块挂在**图像口/quad 口**上不走具名链——
+  `ErrShaderBackendCompile` 命中 0、`ShaderBackendFails` 不涨、直接打断 flush，
+  错误文本还归属漂到 `CreateBuffer`（GL 端这两条腿的行为尚未在窗内量过，修 H23 时补测）。
+  修复方向：用 hal 错误域（`gpu/webgpu/device_convert.go:106-129`、`gpu/rwgpu/errors.go:36/124`
+  真实现，`gwgpu/gles`、`metal` 是 stub）把模块校验错误同步归位到 `CreateShaderModule`，
+  让既有双 `%w` 具名链接住；图像/quad 腿语义=具名拒 + 计数 + 整笔拒画（不做 CPU 回退，
+  免得把无材质像素当回退画出来）。附带计入：**拒收模块无负面缓存**（每帧重试编译，
+  p95 帧间隔 23.4→51.1ms）。
 
 ### 缺口 4 · `engine/tex` 的采样档位到不了渲染层 —— ⏸ 待拍板（用户）
 

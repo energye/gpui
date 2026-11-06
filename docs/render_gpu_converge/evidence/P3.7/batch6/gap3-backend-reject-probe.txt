@@ -27,3 +27,40 @@ snapshot: examples/engine/p37_material/testdata/p37_material_final.png
 "shader_backend_fails_probe": 0
 "window_shader_backend_fails": 0
 ErrShaderBackendCompile / 'backend compilation failed' 命中数：0
+
+=== 三条量探针（render/zz_tmp_h23_probe_test.go，跑完已删）===
+=== GPUI_BACKEND=native（/tmp/h23_native.txt）===
+Q1 前端 NewShaderEffect: err=<nil> effect==nil?false
+Q2 [image口(DrawImageEx 自带提交，void)] paint err=nil
+Q2 [image口(DrawImageEx 自带提交，void)] flush err=build image resources: material: uniform buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+Q3 [image口(DrawImageEx 自带提交，void)] ShaderBackendFails 0→0 | GPUOps 0→2 | CPUFallbackOps 0→0 | MaterialSkips 0→0 | last_fb=""
+Q2 [quad口(DrawImageQuad 返回 err)] paint err=nil
+Q2 [quad口(DrawImageQuad 返回 err)] flush err=build image resources: material: uniform buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+Q3 [quad口(DrawImageQuad 返回 err)] ShaderBackendFails 0→0 | GPUOps 0→2 | CPUFallbackOps 0→0 | MaterialSkips 0→0 | last_fb=""
+Q2 [填充口(SetShader+矩形)] paint err=nil
+Q2 [填充口(SetShader+矩形)] flush err=nil
+Q3 [填充口(SetShader+矩形)] ShaderBackendFails 0→1 | GPUOps 0→1 | CPUFallbackOps 0→1 | MaterialSkips 0→0 | last_fb="fill:shader: backend compilation failed (gg: falling back to CPU rendering)"
+
+=== GPUI_BACKEND=go（/tmp/h23_go.txt）===
+Q1 前端 NewShaderEffect: err=<nil> effect==nil?false
+Q2 [image口(DrawImageEx 自带提交，void)] paint err=nil
+Q2 [image口(DrawImageEx 自带提交，void)] flush err=build image resources: material: uniform buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+Q3 [image口(DrawImageEx 自带提交，void)] ShaderBackendFails 0→0 | GPUOps 0→2 | CPUFallbackOps 0→0 | MaterialSkips 0→0 | last_fb=""
+Q2 [quad口(DrawImageQuad 返回 err)] paint err=nil
+Q2 [quad口(DrawImageQuad 返回 err)] flush err=build image resources: material: uniform buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+Q3 [quad口(DrawImageQuad 返回 err)] ShaderBackendFails 0→0 | GPUOps 0→2 | CPUFallbackOps 0→0 | MaterialSkips 0→0 | last_fb=""
+Q2 [填充口(SetShader+矩形)] paint err=nil
+Q2 [填充口(SetShader+矩形)] flush err=nil
+Q3 [填充口(SetShader+矩形)] ShaderBackendFails 0→1 | GPUOps 0→1 | CPUFallbackOps 0→1 | MaterialSkips 0→0 | last_fb="fill:shader: backend compilation failed (gg: falling back to CPU rendering)"
+
+=== 定位 ===
+render/internal/gpu/material_pipeline.go:296 CreateShaderModule（同步报错才包 ErrShaderBackendCompile）
+render/internal/gpu/material_pipeline.go:301-309 CreateBuffer（模块校验错误在这里冒出，只包成 "material: uniform buffer: %w"，无具名无计数）
+render/internal/gpu/render_session.go:1866 build image resources: %w（图像/quad 腿原样上抛，打断 flush）
+render/context_gpu.go:640-645 noteShaderBackend（填充腿的计数守卫，只在拿到已具名错误时 +1）
+hal 错误域可用：gpu/webgpu/device_convert.go:106-129、gpu/rwgpu/errors.go:36/124（gwgpu/gles、metal 为 stub）
+
+=== 填充腿像素实测（zz_tmp_h23_pixels_test.go，跑完已删；GPUI_BACKEND=native）===
+拒收模块：区内=[25 25 25 255] 区外=[25 25 25 255] ShaderBackendFails=1 CPUFallbackOps=1
+合法模块对照：区内=[51 229 102 255] 区外=[25 25 25 255] ShaderBackendFails=0 CPUFallbackOps=0
+⇒ 语义=整笔拒画（区内保持底、环境实心色不冒充回退）+ 计数 +1 + 走 CPU 回退腿（无 WGSL 求值器故不落墨）
