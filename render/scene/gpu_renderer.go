@@ -12,6 +12,7 @@ package scene
 
 import (
 	"image"
+	"log"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -39,13 +40,50 @@ type GPUSceneRenderer struct {
 	// (batch 3e-3, TagMaterial sticky state); nil = unmaterial'd.
 	currentMaterial *render.ShaderEffect
 	dc              *render.Context
+	// H22 拒绝账（2026-11-07）：回放腿的 draw 动词具名拒不再被 `_ =` 吞掉——
+	// 计数、最近一笔具名可查、每 reason 一次 stderr 日志。拒笔照旧不画、
+	// 别笔照旧画、RenderScene 保持 nil（单笔拒不升级为整场景错误，否则
+	// recorder Playback 会掀呈现帧）。计数按 RenderScene 重置（与 item
+	// material 同一份按场景显式复位纪律）；日志去重跨场景保留。
+	refusals      int
+	lastRefusal   error
+	loggedRefusal map[string]bool
 }
 
 // NewGPUSceneRenderer creates a GPU scene renderer that renders through
 // the given render.Context. The context's GPU accelerator (if registered)
 // will handle shape rendering; CPU fallback is automatic.
 func NewGPUSceneRenderer(dc *render.Context) *GPUSceneRenderer {
-	return &GPUSceneRenderer{dc: dc}
+	return &GPUSceneRenderer{dc: dc, loggedRefusal: map[string]bool{}}
+}
+
+// Refusals reports how many draws the most recent RenderScene run refused
+// by name (H22): the replay leg accounts every draw-verb error (quad 口具名拒
+// 与同文件材质门 fill/stroke 具名错四处一并) instead of discarding it in
+// `_ =`. Per-scene reset, same discipline as the item material reset; the
+// refused draw stays undrawn and the scene stays alive.
+func (r *GPUSceneRenderer) Refusals() int { return r.refusals }
+
+// LastRefusal returns the most recent named refusal from the replay leg
+// (nil if none) — errors.Is it against the render 口 sentinels
+// (ErrQuadMaterialUnsupported family) to identify the reason.
+func (r *GPUSceneRenderer) LastRefusal() error { return r.lastRefusal }
+
+// recordRefusal is the replay leg's explicit stance on a draw-verb refusal
+// (H22): count it, keep the named error queryable, log each distinct reason
+// once per renderer (negative-cache style, H23). Callers check the counters;
+// the picture contract is untouched — a refused draw paints nothing.
+func (r *GPUSceneRenderer) recordRefusal(err error) {
+	if err == nil {
+		return
+	}
+	r.refusals++
+	r.lastRefusal = err
+	reason := err.Error()
+	if !r.loggedRefusal[reason] {
+		r.loggedRefusal[reason] = true
+		log.Printf("scene replay: draw refused by render leg (%d this scene): %v", r.refusals, err)
+	}
 }
 
 // RenderScene decodes scene commands and renders them through the render.Context.
@@ -90,6 +128,10 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 	// reused across scenes cannot carry one scene's material into the next
 	// (same explicit-reset discipline as the matrix and projection above).
 	r.currentMaterial = nil
+	// H22 拒绝账同纪律：计数按场景归零（lastRefusal 一并），日志去重跨场景
+	// 保留——同一 reason 不因反复回放刷屏。
+	r.refusals = 0
+	r.lastRefusal = nil
 
 	for dec.Next() {
 		switch dec.Tag() {
@@ -148,7 +190,7 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 			} else {
 				dc.SetFillRule(render.FillRuleNonZero)
 			}
-			_ = dc.FillPath(path)
+			r.recordRefusal(dc.FillPath(path))
 			path.Clear()
 			r.endMaterial(dc, scoped)
 
@@ -170,7 +212,7 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 				float64(rect.MaxX-rect.MinX), float64(rect.MaxY-rect.MinY),
 				radius,
 			)
-			_ = dc.Fill()
+			r.recordRefusal(dc.Fill())
 			r.endMaterial(dc, scoped)
 
 		case TagStroke:
@@ -187,7 +229,7 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 					dc.SetMiterLimit(float64(style.MiterLimit))
 				}
 			}
-			_ = dc.StrokePath(path)
+			r.recordRefusal(dc.StrokePath(path))
 			path.Clear()
 			r.endMaterial(dc, scoped)
 
@@ -264,13 +306,15 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 			if buf == nil {
 				continue
 			}
-			_ = r.dc.DrawImageQuad(buf, corners, render.QuadDrawOptions{
+			// H22：quad 口具名拒（ErrQuadMaterialUnsupported 全家）走拒绝账，
+			// 不再 `_ =` 吞掉——拒笔照旧不画，账面可查。
+			r.recordRefusal(r.dc.DrawImageQuad(buf, corners, render.QuadDrawOptions{
 				Interpolation: interp,
 				Opacity:       opacity,
 				Perspective:   perspective,
 				Weights:       weights,
 				Material:      r.currentMaterial,
-			})
+			}))
 
 		default:
 			// Unknown tags are skipped by the decoder advancing tagIdx.

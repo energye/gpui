@@ -721,9 +721,11 @@ func runProbes() probeReport {
 	refused := sceneRefusal(checkerImg, cornersP, weightsP)
 	onlyMat := scene.NewScene()
 	onlyMat.SetMaterial(gradEffect)
+	var rr9 *scene.GPUSceneRenderer
 	refImg := replayInto(probeSize, func(dc *render.Context) {
 		dc.ResetRenderPathStats()
-		if e := scene.NewGPUSceneRenderer(dc).RenderScene(refused); e != nil {
+		rr9 = scene.NewGPUSceneRenderer(dc)
+		if e := rr9.RenderScene(refused); e != nil {
 			panic(e)
 		}
 	})
@@ -741,6 +743,13 @@ func runProbes() probeReport {
 			skipAfter, xp, yp, r1, g1, b1, r0, g0, b0))
 	refImg.Dispose()
 	ctrlImg.Dispose()
+
+	// 探针 15（H22，2026-11-07）：回放腿拒绝账——同一幕拒景回放后，拒绝必须
+	// 可查（计数=1、错误具名 ErrQuadMaterialUnsupported），不再 `_ =` 吞掉；
+	// 画面语义不变（拒笔照旧不画，探针 9 的像素断言继续管）。
+	h22OK := rr9 != nil && rr9.Refusals() == 1 && errors.Is(rr9.LastRefusal(), render.ErrQuadMaterialUnsupported)
+	rep.add("h22_replay_quad_refusal_accounted", h22OK,
+		fmt.Sprintf("refusals=%d last=%v（回放腿拒绝账具名可查）", rr9.Refusals(), rr9.LastRefusal()))
 
 	// 探针 10：CPU 脏区腿两态——材质 fill 整笔拒画并计数（批 3 收尾登记的
 	// 「脏区腿材质表态」在此核掉）；投影下的 image 走的是另一条拒画计数

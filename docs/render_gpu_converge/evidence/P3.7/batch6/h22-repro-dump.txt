@@ -1,0 +1,6 @@
+=== RUN   TestH22ReproReplaySwallowsQuadRefusal
+H22 repro: 直调口 err=render: material leg does not support this combination yet (perspective/bicubic/projection)
+H22 repro: 回放腿 err=<nil> MaterialSkips=0 ShaderBackendFails=0 GPUOps=0
+--- PASS: TestH22ReproReplaySwallowsQuadRefusal (0.01s)
+PASS
+ok  	github.com/energye/gpui/render/scene	0.025s

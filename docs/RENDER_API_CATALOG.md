@@ -387,7 +387,7 @@
 
 > 完整 259 项请以 `go doc -all ./render/text` 为准（本表为族级归纳，改动文本 API 时在对应族补行；收敛项：`ui/rendering` 布局单入口 `BuildTextLayoutEx→WithSpacing(0,0)`、`effectiveFace→DeriveFace` 单派生，`BoundaryCache.Store/StorePicture→storeEntryLocked` 单写盘，`ui/scene` 回放经 `setOpFill/setOpStroke/drawRoundRectShape` 单设态；字距数学委托第三方 `shaping.AddSpacing`）。
 
-### 6.2 render/scene（顶层 143→**146**，2026-11-04 P3.7 批 3e +1 常量 `TagProjection`、批 3e-2 +1 常量 `TagImageQuad`；`Scene` 导出方法 34→**41**（投影四动词 + `DrawImageQuad`）、`Renderer` +2（`ProjectionDegrades`/`ResetProjectionDegrades`）、`Encoding` +2（`EncodeProjection`/`EncodeImageQuad`）、`Decoder` +2（`Projection`/`ImageQuad`）；2026-11-05 P3.7 **批 3e-3** +1 常量 `TagMaterial`（0x04，payload=注册表索引、0xFFFFFFFF=清除、跨层粘滞）、`Scene` 39→**41**（`SetMaterial`/`Materials`）、`Renderer` +2（`MaterialSkips`/`ResetMaterialSkips`）、`Encoding` +1（`EncodeMaterial`）、`Decoder` +1（`Material`）；**批 3 收尾**（2026-11-05，已提交 `17128ec5`、未推送）`RenderStats` +4 字段 `GPULegTaken`/`GPUOps`/`CPUFallbackOps`/`LastCPUFallback`（离屏渲染的腿身份与 Context 真计数上报，方法数不变）；**2026-11-06 批 6 收官（H21 场景回放进显示表）**：+1 顶层函数 `RenderSceneTo`（live Context 直画 / Recorder 录制具名分发，不支持的 Canvas 走 `ErrSceneReplayUnsupported` 具名拒）、+1 变量 `ErrSceneReplayUnsupported`、`Scene` 方法 41→**42**（+`RenderSceneInto`，满足 `recording.ScenePayload` 协议——载荷即 Scene 本体，无第二实现））
+### 6.2 render/scene（顶层 143→**146**，2026-11-04 P3.7 批 3e +1 常量 `TagProjection`、批 3e-2 +1 常量 `TagImageQuad`；`Scene` 导出方法 34→**41**（投影四动词 + `DrawImageQuad`）、`Renderer` +2（`ProjectionDegrades`/`ResetProjectionDegrades`）、`Encoding` +2（`EncodeProjection`/`EncodeImageQuad`）、`Decoder` +2（`Projection`/`ImageQuad`）；2026-11-05 P3.7 **批 3e-3** +1 常量 `TagMaterial`（0x04，payload=注册表索引、0xFFFFFFFF=清除、跨层粘滞）、`Scene` 39→**41**（`SetMaterial`/`Materials`）、`Renderer` +2（`MaterialSkips`/`ResetMaterialSkips`）、`Encoding` +1（`EncodeMaterial`）、`Decoder` +1（`Material`）；**批 3 收尾**（2026-11-05，已提交 `17128ec5`、未推送）`RenderStats` +4 字段 `GPULegTaken`/`GPUOps`/`CPUFallbackOps`/`LastCPUFallback`（离屏渲染的腿身份与 Context 真计数上报，方法数不变）；**2026-11-06 批 6 收官（H21 场景回放进显示表）**：+1 顶层函数 `RenderSceneTo`（live Context 直画 / Recorder 录制具名分发，不支持的 Canvas 走 `ErrSceneReplayUnsupported` 具名拒）、+1 变量 `ErrSceneReplayUnsupported`、`Scene` 方法 41→**42**（+`RenderSceneInto`，满足 `recording.ScenePayload` 协议——载荷即 Scene 本体，无第二实现）；**2026-11-07 H22**：`GPUSceneRenderer` 导出方法 +2（`Refusals`/`LastRefusal`——回放腿拒绝账：draw 动词具名拒计数+具名可查+每 reason 一次 stderr 日志，quad 口与同文件材质门 fill/stroke 四处 `_ =` 全部记账表态，拒笔照旧不画、RenderScene 保持 nil））
 
 > 状态口径：`render/internal/gpu`、`render/filters` 是生产消费；2026-10-21 新增直调真窗 `ui_render_base_scene` 把形状/场景/编码/渲染/构建/层裁剪/编码类型全族走一遍（GPU 场景渲染器 vs CPU 分块 A/B、`LayerCache`、`DamageTracker`），属**原子验证**，不算组件/2.5D/视频接线。
 
@@ -687,6 +687,8 @@ scene      type FilterType uint8
 scene          const FilterNone FilterType = iota ...
 scene      type GPUSceneRenderer struct{ ... }
 scene          func NewGPUSceneRenderer(dc *render.Context) *GPUSceneRenderer
+scene          func (r *GPUSceneRenderer) Refusals() int
+scene          func (r *GPUSceneRenderer) LastRefusal() error
 scene      type GlyphEntry struct{ ... }
 scene      type GlyphRunData struct{ ... }
 scene      type Image struct{ ... }

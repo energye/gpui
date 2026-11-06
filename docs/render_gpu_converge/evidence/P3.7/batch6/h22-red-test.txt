@@ -1,0 +1,8 @@
+# github.com/energye/gpui/render/scene_test [github.com/energye/gpui/render/scene.test]
+render/scene/p37_h22_replay_refusal_ledger_test.go:53:15: rr.Refusals undefined (type *scene.GPUSceneRenderer has no field or method Refusals)
+render/scene/p37_h22_replay_refusal_ledger_test.go:56:13: rr.LastRefusal undefined (type *scene.GPUSceneRenderer has no field or method LastRefusal)
+render/scene/p37_h22_replay_refusal_ledger_test.go:77:15: rr.Refusals undefined (type *scene.GPUSceneRenderer has no field or method Refusals)
+render/scene/p37_h22_replay_refusal_ledger_test.go:80:15: rr.LastRefusal undefined (type *scene.GPUSceneRenderer has no field or method LastRefusal)
+render/scene/p37_h22_replay_refusal_ledger_test.go:104:15: rr.Refusals undefined (type *scene.GPUSceneRenderer has no field or method Refusals)
+FAIL	github.com/energye/gpui/render/scene [build failed]
+FAIL

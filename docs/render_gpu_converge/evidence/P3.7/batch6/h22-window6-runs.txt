@@ -1,0 +1,4 @@
+== H22 ⑥ ui_wr_p37_scene 复验轮（2026-11-07，金图不重播种——画面零变化）==
+[native] p37_scene: OK backend=native presents=241 probes=19/19 golden=0.0000% (921600 px) skips=0
+[go] p37_scene: OK backend=go presents=240 probes=19/19 golden=0.0000% (921600 px) skips=0
+[画面] 探针 14→15（+h22_replay_quad_refusal_accounted），金图未动直接过 = 画面零变化的真窗证明

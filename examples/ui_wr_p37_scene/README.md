@@ -79,3 +79,10 @@ GPUI_BACKEND=go RUN_SECONDS=8 go run ./examples/ui_wr_p37_scene -auto-only      
 三证据合证（E 面板追加，2026-11-07）：探针 13 tex 路↔枚举路**逐位 diff=0**
 （单图路，同几何同源图）+ 三档两两互异 + 探针 14 拒绝三态（errors.Is 具名）；
 画面证据走金图（E 面板在呈现帧里，缺格即金图红）。
+
+H22 拒绝账（2026-11-07）：探针 15 `h22_replay_quad_refusal_accounted`——回放
+腿把 quad 口/材质门 fill/stroke 的具名拒从 `_ =` 改成真金可查账
+（`GPUSceneRenderer.Refusals()/LastRefusal()` + 每 reason 一次 stderr 日志），
+拒笔照旧不画、`RenderScene` 保持 nil（帧不死）；画面零变化 ⇒ 金图未重播种
+直接双后端复验 19/19 0.0000%（native 241 presents / go 240 presents，skips=0）。
+账 `evidence/P3.7/batch6/h22-fix.md`。
