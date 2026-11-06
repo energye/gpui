@@ -102,6 +102,34 @@ H15 六轮恒 0 + H16 四变异三重报警（0.25%/0.31%/0.96%/1.11%），证�
 
 **⑤ 泛光窗已交付**（2026-11-06，交付枚见 §7 批 6 ⑤ 行）：`examples/engine/p37_bloom`
 扫参五面板（恒等/基准 T0.60σ8I0.60/阈值组 0.15/半径组 σ16 域顶/强度组 1.6，ROI 亮度关系
+≥+5/+8 + 两两互异 10 对）+ 恒等逐位 diff=0 + LDR 三处声明全落且 ②③ 升级为窗内实测
+（TextureView 恒 nil、fx clamp01）+ 参数域四拒 + 非空转。生产腿实测 `gpu_ops=5/cpu_fb=0`
+双端同值（离屏 Context 真调 ApplyBloom，1:1 整数位贴回进金图——Canvas/Recorder 口未接
+是批 5 余账登记，非绕洞）。11 枚探针 + 4 枚语义像素 + 双后端金图逐位 0.0000%（两基线
+逐位相同、pairwise 数字两端逐键全同）+ H15 六轮恒 0 + H16 两变异（强度归零 8.4939%
+五探针红、阈值 0.05 8.1050%）。fps/p95 只报数（§3-5）。证据 `batch6/window-5-bloom.md`。
+台账批 5 步骤 1/步骤 2 两行 ☑→✅。零新增公开 API。
+
+**⑥ scene 流收口窗已交付**（2026-11-06，交付枚见 §7 批 6 ⑥ 行）：`examples/ui_wr_p37_scene`
+（顶层 ui_wr_ 族，本表 §5 归属修正的落地窗；不进 engine/ 是批 3e-2 结构约束）。全链
+「Scene 录制 → Encoding → Decoder 走查（载荷宽度全消费、未登记 tag 判失败）→
+GPUSceneRenderer.RenderScene 回放」，JSON 带 enc_bytes（proj=205/stack=342/quad=130/
+material=175）与 tag 计数证链路真实。六面板覆盖 3e-1 投影三动词（回放≡手写逐位 0、
+鉴别 14351px）/ 3e-2 quad+权重（float32 存储口径逐值往返）/ 3e-3 材质粘滞+0xFFFFFFFF
+清除+透视 quad 具名拒不入队不计数不裸画。15 枚探针 + 4 枚语义像素（渐变中点按引擎
+premul 直出 src+dst·(1−a) 公式，③ d9 同口径）+ 双后端金图逐位 0.0000%——两基线 cmp
+字节差异全在 mask 掉的 HUD 行（presents 尾数），裁到比对区像素差=0（「两后端各锁各」
+既有口径族）。H15 六轮恒 0；H16 摘 SetProjection 2.0477% / 摘 SetMaterial 3.3924%
+（后者带语义像素双咬）。批 3 收尾欠账「脏区腿材质表态」同窗核掉（CPU 腿
+MaterialSkips/ProjectionDegrades 两态各开各门）。链序实测注：经 Translate 的
+deviceMatrix 下投影在设备域生效，语义锚从同形回放输出反推（P3.5 教训落地）。
+live_only_skips≈presents 只报数（`ui_render_base_scene` 同款口径，首版误判红一轮已收回）。
+证据 `batch6/window-6-scene.md`。台账 745/746/751（3e-1/2/3）三行 ☑→✅。
+**批 6 六扇全收**，余批级门禁收官（五目标 10 段、64 包 sweep、conformance、整包
+`-race ./render` 回填）。
+
+**⑤ 泛光窗已交付**（2026-11-06，交付枚见 §7 批 6 ⑤ 行）：`examples/engine/p37_bloom`
+扫参五面板（恒等/基准 T0.60σ8I0.60/阈值组 0.15/半径组 σ16 域顶/强度组 1.6，ROI 亮度关系
 ≥+5/+8 + 两两互异 10 对）+ 恒等逐位 diff=0 + **LDR 三处声明全落且 ②③ 升级为窗内实测**
 （TextureView 恒 nil、fx clamp01）+ 参数域四拒 + 非空转。生产腿实测 `gpu_ops=5/cpu_fb=0`
 双端同值（离屏 Context 真调 ApplyBloom，1:1 整数位贴回进金图——Canvas/Recorder 口未接
