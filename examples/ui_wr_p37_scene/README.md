@@ -41,10 +41,12 @@ H16 两变异（窗体场景各删一行发射，跑完还原核对净）：① 
 重跑取数，如实记）；② 摘 SetMaterial ⇒ 四枚探针红 + 语义像素红（渐变块回
 实心）+ 金图 **3.3924%**。
 
-live-only 口径：scene GPU 回放经 `RequireLiveContext`——生产帧每帧是 Recorder
-走查，回放合法跳过并计数（`live_only_skips≈presents`，只报数不判绿，
-`ui_render_base_scene` 同款既有口径）；呈现画面以 warm-up live 全量绘制为准，
-**scene 内容确在呈现帧由语义像素锚扛**（恒等/投影/材质/清除四锚全在 scene 画面里）。
+呈现路径（H21 修复后口径，2026-11-06 勘误）：场景回放是**可录制动词**——
+`scene.RenderSceneTo(pc.DC, s)` 录制腿进显示表、回放腿在 CanvasBackend 执行，
+live 腿直画；`live_only_skips` 恒 0 且门禁判红。修复前旧口径（"每帧 Recorder
+跳过、只报数不判绿"）**作废留痕**：那是显示表没有场景命令时的真实现状，
+当时快照金图走「回读重画」live 路照不出呈现空白，全靠人工肉眼抓到——
+账见 `evidence/P3.7/batch6/h21-scene-record-fix.md`。
 
 ## 跑法
 
