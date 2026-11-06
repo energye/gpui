@@ -93,7 +93,7 @@ P3.7 批 6 收官后 · 能力×真窗完备性审计（2026-11-06）
   遗留（不在本修）：GL 端图像/quad 腿的拒收行为仍只在离屏 Vulkan 量过——GL 无 surfaceless
   独立设备（`render/device_open.go`），要真验得先给窗内腿造拒收用例。
 
-### 缺口 4 · `engine/tex` 的采样档位到不了渲染层 —— ⏸ 待拍板（用户）
+### 缺口 4 · `engine/tex` 的采样档位到不了渲染层 —— ✅ 已收口（2026-11-07，档 A）
 
 - **现象**：`engine/tex` 有一套完整的采样开关（`Filter{Near,Far,Mip,MaxAniso}`），但仓里没有
   任何一条路把它带进渲染命令；批 4 当年登记的理由是「`engine/tex` 无持档位对象」，**与实测不符**。
@@ -103,10 +103,14 @@ P3.7 批 6 收官后 · 能力×真窗完备性审计（2026-11-06）
   ——持档位对象就是 `tex.Filter`，"无持档位对象"这句登记作废。
   `engine/sprite/atlas.go:22-45` 走的是另一条：精灵自己直接持 `render.InterpolationMode` /
   `render.MipmapMode` 两个渲染层枚举（批 4 主跳交付），所以 sprite 路是通的。
-- **归属**：非批 6 主线（能力归属＝批 4 采样档位的引擎侧接线）。按 AGENTS 不晾着：等用户拍板
-  「档位挂在引擎哪个对象上」。**推荐 A**：`tex.Filter` 为真源 + 提交期加
-  `renderconv.FilterToRender`，拍板后走完整流程（评估→设计→红测→实现），并在 ④/⑥ 各加一枚
-  tex 驱动面板做真窗证据。
+- **归属**：非批 6 主线（能力归属＝批 4 采样档位的引擎侧接线）。**2026-11-06 用户拍档 A 开工，
+  2026-11-07 收口**：`renderconv.FilterToRender`（混合轴/Unknown/aniso>1 具名拒绝三哨兵、
+  Mip 原样透传不归一；红测先行先编译红后绿）+ ④ 臂 F（跨臂逐位 f0≡b0/f1≡a1/f2≡a2 diff=0 +
+  拒绝红牌）+ ⑥ 面板 E（单图路 tex≡枚举逐位 + mip 三档互异）；双窗双后端金图 0.0000% 基线逐位
+  同；变异有牙齿（linear 腿改投 nearest ⇒ ④ 双探针红+像素差 23110/23131，还原复绿）。
+  正本：`gap4-tex-filter-assessment.md` / `gap4-window4-runs.txt` / `gap4-window6-runs.txt` /
+  `gap4-mutation.txt` / `gap4-red-test.txt`。生产接线口径：消费者=两真窗面板（原子验证），
+  引擎内部提交路查 `tex.Table` 属后续批。
 
 ---
 

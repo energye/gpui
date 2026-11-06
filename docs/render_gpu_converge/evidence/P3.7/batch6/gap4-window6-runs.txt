@@ -1,0 +1,8 @@
+== ⑥ ui_wr_p37_scene 面板 E 轮次（2026-11-07）==
+[seed native] p37_scene: golden 已播种（examples/ui_wr_p37_scene/testdata/goldens/p37_scene_final_native.png），这一跑不算 PASS —— 复核后提交基线再复跑
+[verify native] p37_scene: OK backend=native presents=240 probes=18/18 golden=0.0000% (921600 px) skips=0
+[seed go] p37_scene: golden 已播种（examples/ui_wr_p37_scene/testdata/goldens/p37_scene_final_go.png），这一跑不算 PASS —— 复核后提交基线再复跑
+[verify go] p37_scene: OK backend=go presents=241 probes=18/18 golden=0.0000% (921600 px) skips=0
+[stable native] p37_scene: OK backend=native presents=241 probes=18/18 golden=0.0000% (921600 px) skips=0
+[cmp] 两后端金图逐位相同
+[tex probes] tex_mip_pair_diffs: {'nearest_vs_linear': 12288, 'none_vs_linear': 12243, 'none_vs_nearest': 12222}

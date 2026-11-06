@@ -3,7 +3,7 @@
 P3.7 批 6 第 ⑥ 扇真窗（收台账 745/746/751：批 3e-1 scene 投影口、3e-2
 quad+权重通道、3e-3 item 级材质编码）。放 `examples/` 顶层 `ui_wr_` 族、
 **不进 engine/**——「engine/、ui/ 对 render/scene 零引用」是批 3e-2 钉下的
-结构约束，本窗就是 scene 侧的像素收口载体。满窗即内容（六面板），指标行浮
+结构约束，本窗就是 scene 侧的像素收口载体。满窗即内容（七面板，E 为缺口 4 档 A 的 tex 档位面板），指标行浮
 左上（金图 mask `y<32`）。
 
 链路全程：**Scene 录制 → Encoding（tag 流+载荷流）→ Decoder 走查 →
@@ -29,6 +29,15 @@ GPUSceneRenderer.RenderScene 回放到 Context**，JSON 带 `enc_bytes/enc_tags`
   中段透视 quad 挂粘滞材质 ⇒ 校验期具名拒、不入队、不计数、该笔不画——
   该区保持卡片底（语义锚 `refusal_region_stays_card`），清除材质后再一枚
   对照必画证明拒不污染后续（③ 窗 quad 口号义的 scene 流版）。
+- **E tex 档位面板（缺口 4 档 A，2026-11-07）**：真源 `tex.Filter` 经
+  `renderconv.FilterToRender` 折出 `(Interpolation, Mipmap)` 走**单图路
+  DrawImageEx** 窗上直画三格——e0 零值 Mip 透传（未选→MipmapNone 历史单层
+  路）、e1 历史默认、e2 trilinear；LCG 噪声 128→64 整数 2x（LOD=1.0：None
+  取 0 层、Nearest 取 1 层、Linear 0.5/0.5 跨层），离屏探针钉「tex 路 ≡
+  枚举路逐位 diff=0」+「三档两两互异 ≥200 字节」+ 拒绝三态（混合轴/未选轴/
+  aniso>1 具名拒绝）。**口径如实**：scene 流不编码 mip（quad 口只带 interp，
+  批 3e-2 明确），mip 轴证据只能在单图路上出；scene quad 口的 interp 档位
+  由 B/D 面板既有 quad 臂承载。
 
 三证据合证：15 枚探针（载荷回环逐值：投影 mode+16 元素、quad float32 折算
 角点+权重、材质 [索引,0xFFFFFFFF 清除]；回放 ≡ 手写**逐位 diff=0** 三路各自
@@ -63,4 +72,10 @@ go run ./examples/ui_wr_p37_scene -manual-seconds 6                             
 GPUI_BACKEND=go RUN_SECONDS=8 go run ./examples/ui_wr_p37_scene -auto-only       # 第二后端一轮
 ```
 
-零新增公开 API。
+零渲染层公开 API 新增；E 面板消费 `engine/renderconv.FilterToRender`（缺口 4
+档 A 新增的引擎层转换口，三哨兵拒绝语义见
+`docs/render_gpu_converge/evidence/P3.7/batch6/gap4-tex-filter-assessment.md`）。
+
+三证据合证（E 面板追加，2026-11-07）：探针 13 tex 路↔枚举路**逐位 diff=0**
+（单图路，同几何同源图）+ 三档两两互异 + 探针 14 拒绝三态（errors.Is 具名）；
+画面证据走金图（E 面板在呈现帧里，缺格即金图红）。

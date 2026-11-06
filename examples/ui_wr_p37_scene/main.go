@@ -37,12 +37,15 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/energye/gpui/engine/renderconv"
+	"github.com/energye/gpui/engine/tex"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
@@ -67,7 +70,7 @@ const (
 	cardRGB     = 0.10
 )
 
-// 面板几何（满窗即内容，六格）。
+// 面板几何（满窗即内容，七格；E 为缺口 4 档 A 的 tex 档位面板）。
 const (
 	pA1x, pA1y, pW1, pH1 = 12.0, 40.0, 372.0, 272.0  // 投影层（真投影 homography）
 	pA2y                 = 40.0                      // 恒等对照
@@ -75,6 +78,7 @@ const (
 	pBx, pBy, pW2, pH2   = 12.0, 328.0, 372.0, 256.0 // quad+权重腿
 	pCx, pCy             = 408.0, 328.0              // 材质粘滞+清除
 	pDx, pDy             = 804.0, 328.0              // 拒绝态+CPU 腿表态芯片
+	pEx, pEy, pWE, pHE   = 12.0, 600.0, 372.0, 184.0 // tex 档位（单图路 DrawImageEx）
 )
 
 var (
@@ -238,6 +242,44 @@ var (
 	scRefusal *scene.Scene
 )
 
+// texPanelNoise：E 面板源图——128×128 LCG 确定性噪声（配方承接
+// p37_mip_exit，种子 12345）。高频噪声让 2x 整数缩小的三档 mip 也必分叉
+// （规则棋盘配整数倍缩小会采样点恒落同格、三档数学等图——④ 窗首版教训）。
+var texPanelNoise = func() *render.ImageBuf {
+	buf, err := render.NewImageBuf(128, 128, render.FormatRGBA8)
+	if err != nil {
+		panic(err)
+	}
+	data := buf.Data()
+	x := uint32(12345)
+	for i := 0; i < 128*128; i++ {
+		x = x*1664525 + 1013904223
+		g := uint8(x >> 24)
+		off := i * 4
+		data[off], data[off+1], data[off+2], data[off+3] = g, g, g, 255
+	}
+	buf.NotifyPixelsChanged()
+	return buf
+}()
+
+// texPanelFilters：E 面板三格的真源档位（与 ④ 臂 f 同口径）：e0 零值 Mip
+// 透传（未选→MipmapNone 历史单层路）、e1 历史默认（bilinear+mip nearest）、
+// e2 trilinear；aniso 全 ≤1（渲染路无承载字段）。
+var texPanelFilters = []tex.Filter{
+	{Near: tex.KindNearest, Far: tex.KindNearest},
+	tex.DefaultFilter(),
+	{Near: tex.KindLinear, Far: tex.KindLinear, Mip: tex.MipLinear, MaxAniso: tex.DefaultAniso},
+}
+
+// E 面板三格几何（面板内坐标）：128→64 整数 2x 缩小，LOD=1.0——None 取 0 层、
+// Nearest 取 1 层、Linear 按 0.5/0.5 跨层混合，三格必互异。
+const (
+	texCellW   = 64.0
+	texCellX0  = 24.0
+	texCellGap = 112.0
+	texCellY   = 72.0
+)
+
 // 窗内六场景与离屏探针同一份 200×200 几何：语义锚的落点直接从「画面所用
 // 同一份回放输出」反推（redMaskBBox），不从公式反推结论（P3.5 教训）。
 func buildScenes() {
@@ -345,6 +387,33 @@ func replayScene(size int, s *scene.Scene) *render.ImageBuf {
 			panic(err)
 		}
 	})
+}
+
+// drawTexTrio 按 route 画 E 面板三格（缺口 4 档 A）：route="tex" 走真源
+// tex.Filter→renderconv.FilterToRender 的引擎路；route="enum" 直写等价枚举对
+// （鉴别臂）。两路同几何同源图，逐位 diff=0 才算携带忠实。E 面板走单图路
+// DrawImageEx——scene 流不编码 mip（quad 口只带 interp，批 3e-2 口径），
+// mip 轴证据只能在单图路上出，口径如实。
+func drawTexTrio(dc render.Canvas, route string) {
+	enumPairs := [3]struct {
+		f render.InterpolationMode
+		m render.MipmapMode
+	}{{render.InterpNearest, render.MipmapNone}, {render.InterpBilinear, render.MipmapNearest}, {render.InterpBilinear, render.MipmapLinear}}
+	for i, tf := range texPanelFilters {
+		interp, mip := enumPairs[i].f, enumPairs[i].m
+		if route == "tex" {
+			var err error
+			interp, mip, err = renderconv.FilterToRender(tf)
+			if err != nil {
+				panic(err)
+			}
+		}
+		dc.DrawImageEx(texPanelNoise, render.DrawImageOptions{
+			X: texCellX0 + float64(i)*texCellGap, Y: texCellY,
+			DstWidth: texCellW, DstHeight: texCellW,
+			Interpolation: interp, Mipmap: mip, Opacity: 1,
+		})
+	}
 }
 
 func diffBuf(a, b *render.ImageBuf) (n int, worst int) {
@@ -720,6 +789,57 @@ func runProbes() probeReport {
 		sMatP.Encoding().Hash() != plainRef.Encoding().Hash()
 	rep.add("hash_swallows_projection_and_material", hashOK, "投影/材质进入 Encoding.Hash（与不装必不同）")
 
+	// 探针 13：tex 档位面板（缺口 4 档 A）——单图路 DrawImageEx 携带三件套：
+	// tex 路 ≡ 枚举路逐位（转换忠实携带）、三档两两互异（mip 真进画面）。
+	// 128→64 整数 2x：None 取 0 层、Nearest 取 1 层、Linear 0.5/0.5 跨层混合。
+	texTrio := replayInto(probeSize, func(dc *render.Context) { drawTexTrio(dc, "tex") })
+	enumTrio := replayInto(probeSize, func(dc *render.Context) { drawTexTrio(dc, "enum") })
+	nEq, _ := diffBuf(texTrio, enumTrio)
+	rep.add("tex_road_bitwise_matches_enum_road", nEq == 0,
+		fmt.Sprintf("tex路↔枚举路逐位 diff=%d（同几何同源图，转换忠实）", nEq))
+	texRegion := func(buf *render.ImageBuf, i int) []byte {
+		out := make([]byte, 0, int(texCellW)*int(texCellW)*3)
+		x0 := int(texCellX0 + float64(i)*texCellGap)
+		for y := int(texCellY); y < int(texCellY+texCellW); y++ {
+			for x := x0; x < x0+int(texCellW); x++ {
+				r, g, b, _ := buf.GetRGBA(x, y)
+				out = append(out, r, g, b)
+			}
+		}
+		return out
+	}
+	byteDiff := func(a, b []byte) int {
+		n := 0
+		for i := range a {
+			if a[i] != b[i] {
+				n++
+			}
+		}
+		return n
+	}
+	d01 := byteDiff(texRegion(texTrio, 0), texRegion(texTrio, 1))
+	d02 := byteDiff(texRegion(texTrio, 0), texRegion(texTrio, 2))
+	d12 := byteDiff(texRegion(texTrio, 1), texRegion(texTrio, 2))
+	rep.extra["tex_mip_pair_diffs"] = map[string]int{"none_vs_nearest": d01, "none_vs_linear": d02, "nearest_vs_linear": d12}
+	rep.add("tex_road_mip_three_levels_differ", d01 > 200 && d02 > 200 && d12 > 200,
+		fmt.Sprintf("none↔nearest %d none↔linear %d nearest↔linear %d 字节", d01, d02, d12))
+	texTrio.Dispose()
+	enumTrio.Dispose()
+
+	// 探针 14：FilterToRender 拒绝三态（混合轴/未选轴/aniso>1 具名拒绝；
+	// 不许借采样折叠的屏蔽放行——nearest 组合的 aniso>1 同样拒）。
+	mixedF := tex.Filter{Near: tex.KindNearest, Far: tex.KindLinear, Mip: tex.MipNearest, MaxAniso: tex.DefaultAniso}
+	unsetF := tex.Filter{Near: tex.KindLinear, Far: tex.KindLinear, Mip: tex.MipNearest, MaxAniso: tex.DefaultAniso}
+	unsetF.Near = tex.KindUnknown
+	_, _, errMixed := renderconv.FilterToRender(mixedF)
+	_, _, errUnset := renderconv.FilterToRender(unsetF)
+	_, _, errAniso := renderconv.FilterToRender(tex.RealisticFilter())
+	refuseOK := errors.Is(errMixed, renderconv.ErrFilterMixedAxes) &&
+		errors.Is(errUnset, renderconv.ErrFilterUnknownKind) &&
+		errors.Is(errAniso, renderconv.ErrFilterAnisoUnsupported)
+	rep.add("filtertorender_refuses_uncarryable", refuseOK,
+		fmt.Sprintf("mixed=%v unset=%v aniso4=%v", errMixed, errUnset, errAniso))
+
 	return rep
 }
 
@@ -769,6 +889,18 @@ func paintAll(pc *rendering.PaintContext, size rendering.Size) {
 		}
 		c.Pop()
 	}
+
+	// E tex 档位面板（缺口 4 档 A，2026-11-06）：scene 流不编码 mip（quad 口
+	// 只带 interp，批 3e-2 明确），mip 轴证据在单图路 DrawImageEx——真源
+	// tex.Filter 经 renderconv.FilterToRender 折出 (Interpolation, Mipmap)
+	// 窗上直画；跨路逐位等价与三档互异由探针 13/14 离屏核对。
+	c.Push()
+	c.Translate(pEx, pEy)
+	c.SetRGB(cardRGB, cardRGB, cardRGB+0.04)
+	c.DrawRectangle(0, 0, pWE, pHE)
+	_ = c.Fill()
+	drawTexTrio(c, "tex")
+	c.Pop()
 }
 
 func semanticProbes() []wrkit.PixelProbe {
@@ -875,13 +1007,17 @@ func main() {
 	metric := wrkit.Label("presents=0", 13, 0.92, 0.94, 0.98)
 	root.Place(metric, 8, 8)
 	titles := []string{"A1 scene 投影层（homography）", "A2 恒等对照", "A3 Push/Pop 栈",
-		"B quad+权重（算好再喂）", "C 材质粘滞+清除", "D 对照(必画)·拒(不画)·对照(必画)"}
-	tx := []float64{pA1x, 408, pA3x, pBx, pCx, pDx}
+		"B quad+权重（算好再喂）", "C 材质粘滞+清除", "D 对照(必画)·拒(不画)·对照(必画)",
+		"E tex 档位（单图路 · 缺口4档A）"}
+	tx := []float64{pA1x, 408, pA3x, pBx, pCx, pDx, pEx}
 	for i := range titles {
 		row := i / 3
 		y := 26.0
 		if row == 1 {
 			y = pBy - 14
+		}
+		if row == 2 {
+			y = pEy - 14
 		}
 		root.Place(wrkit.Label(titles[i], 11, 0.90, 0.92, 0.96), tx[i]+4, y)
 	}
@@ -935,7 +1071,7 @@ func main() {
 	var proc scheduler.ProcessTracker
 	proc.Start()
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) bool {
-		metric.SetText(fmt.Sprintf("presents=%d scenes=6 live_skips=%d", app.PresentCount(), rendering.LiveOnlySkips()))
+		metric.SetText(fmt.Sprintf("presents=%d scenes=6 tex=1 live_skips=%d", app.PresentCount(), rendering.LiveOnlySkips()))
 		metric.MarkNeedsPaint()
 		setTitle()
 		content.MarkNeedsPaint()
