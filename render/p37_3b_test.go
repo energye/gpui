@@ -1,3 +1,5 @@
+//go:build !nogpu
+
 package render_test
 
 // P3.7 批 3b 钉：三公开入口挂材质（DrawImageEx / DrawImageQuad / DrawAtlasEx）

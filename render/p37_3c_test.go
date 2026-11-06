@@ -1,3 +1,5 @@
+//go:build !nogpu
+
 package render_test
 
 // P3.7 批 3c 钉：绑定与预算契约扩展（D4 加重档）。判据源：batch3c-design.md

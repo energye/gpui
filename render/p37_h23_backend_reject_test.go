@@ -8,6 +8,8 @@
 //
 //----------------------------------------
 
+//go:build !nogpu
+
 // H23（P3.7 批 6 立）：一枚「前端放行、后端 naga 拒收」的用户材质模块，挂在
 // 图像口/quad 口上时必须与填充腿同形——具名 + 计数 + 整笔拒画，绝不掀掉整帧。
 // 判据与方案 docs/render_gpu_converge/evidence/P3.7/batch6/h23-assessment.md。

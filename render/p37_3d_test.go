@@ -1,3 +1,5 @@
+//go:build !nogpu
+
 package render_test
 
 // P3.7 批 3d 钉：描边/形状吃 shader（引擎洞修复）+ 七枚哨兵 errors.Is 面。
@@ -48,7 +50,7 @@ func TestP37DStrokeWithShaderGradient(t *testing.T) {
 	dc := render.NewContext(48, 48)
 	defer func() { _ = dc.Close() }()
 	dc.ClearWithColor(render.RGBA{R: 0.1, G: 0.1, B: 0.4, A: 1}) // 蓝底：环境红当场露馅
-	dc.SetRGB(1, 0, 0)                                          // 环境红（修复前描边画它）
+	dc.SetRGB(1, 0, 0)                                           // 环境红（修复前描边画它）
 	dc.SetShader(e)
 	dc.SetLineWidth(4)
 	dc.DrawRectangle(8, 8, 32, 32)
@@ -85,7 +87,7 @@ func TestP37DStrokeWithShaderGradient(t *testing.T) {
 // TestP37DFillShapeWithShaderGradient 形状+shader 路由钉：DrawCircle 经
 // tryGPUOpRC 的 shader 直达拦截（context_gpu.go:553，深审已装）进 FillPath
 // shader 腿——渐变圆盘上/下半 R 差显著。负向 N2 实测：FillShape 分支是死代码
-//（tryGPUOpRC 先拦截，FillShape 从不接 shader 画刷），审计判断已如实收回。
+// （tryGPUOpRC 先拦截，FillShape 从不接 shader 画刷），审计判断已如实收回。
 func TestP37DFillShapeWithShaderGradient(t *testing.T) {
 	requireFilterOpsGPU(t)
 	e, err := render.NewShaderEffect(p37DGradWGSL)
