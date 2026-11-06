@@ -17,6 +17,10 @@
 //	   （批 4「零值即历史路」的窗内版）；
 //	e) 档位映射面板：4 档 Filter × 3 档 Mipmap 的合法组合经 ToRender 全部逐字段
 //	   带到（12 枚绿牌）；ParseMipmap/ParseFilter 非法输入具名拒绝。
+//	f) tex 驱动面板（缺口 4 档 A）：真源 tex.Filter 经 renderconv.FilterToRender
+//	   带到精灵字段再 ToRender——f0 零值 Mip 透传（≡MipmapNone 历史单层路）、
+//	   f1 DefaultFilter、f2 trilinear；三格与枚举臂同几何同源图跨臂逐位等价
+//	   （f0≡b0、f1≡a1、f2≡a2，diff=0）。混合轴/未选轴/aniso>1 具名拒绝红牌。
 //
 // 缩小源图取 LCG 确定性噪声（承接 ui_wr_p36_mipmap 配方，种子 12345）：
 // 8px 规则棋盘配整数 4x 缩小时，bilinear 采样点恒落同一格内（样本对
@@ -24,8 +28,10 @@
 // 256→96 的 2.667x 给出非整数 LOD≈1.42，Nearest（取整到档 1）与
 // Linear（档 1/2 按 0.42 混合）才可能分叉。
 //
-// 登记口径如实：tex.Filter↔AtlasFilter→DrawImageOptions.Mipmap 的 renderconv
-// 映射（批 4 明文未做，待「档位挂引擎哪个对象」拍板）不在本窗，探针不冒充。
+// 登记口径兑现（2026-11-06 缺口 4 档 A）：tex.Filter→renderconv.FilterToRender
+// →精灵字段的映射由臂 f 承载——三格 tex 驱动与既有枚举臂同几何同源图做跨臂
+// 逐位等价（f0≡b0、f1≡a1、f2≡a2），「转换忠实携带」的最强像素证据；混合轴/
+// 未选轴/aniso>1 经 FilterToRender 具名拒绝，出红牌。
 //
 // 满窗即内容：指标行浮左上（金图 mask 掉 y<32 带）；画面相位只随已完成帧数走、
 // 过 settling 帧后定格（H15）。金图按后端分文件
@@ -45,6 +51,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -52,7 +59,9 @@ import (
 	"time"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
 	"github.com/energye/gpui/engine/sprite"
+	"github.com/energye/gpui/engine/tex"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
@@ -94,6 +103,10 @@ const (
 	dX1   = 980.0
 	dW    = 160.0
 	dH    = 128.0
+
+	// 臂 f：tex 驱动面板（tex.Filter → FilterToRender → 精灵字段；列与等价
+	// 对手臂对齐：f0↔b0 列 0、f1↔a1 列 1、f2↔a2 列 2）。
+	fTopY = 540.0
 
 	// 档位映射面板底带。
 	chipsY   = 712.0
@@ -206,6 +219,24 @@ func directSprite(dstX, dstY, dstW, dstH float64) render.AtlasSprite {
 	}
 }
 
+// texSprite 臂 f 入口：真源 tex.Filter 经 renderconv.FilterToRender 折成精灵
+// 两枚档位字段（缺口 4 档 A 的引擎路：转换不改精灵构造，只喂字段）。
+func texSprite(img *render.ImageBuf, dstX, dstY, dstW, dstH float64, f tex.Filter) (sprite.AtlasSprite, error) {
+	interp, mip, err := renderconv.FilterToRender(f)
+	if err != nil {
+		return sprite.AtlasSprite{}, err
+	}
+	return engineSprite(img, dstX, dstY, dstW, dstH, interp, mip), nil
+}
+
+// texArmFilters 臂 f 三格的真源档位：f0 零值 Mip 透传（未选→MipmapNone 历史
+// 单层路），f1 历史默认，f2 trilinear；aniso 全部 ≤1（精灵路无承载字段）。
+var texArmFilters = []tex.Filter{
+	{Near: tex.KindNearest, Far: tex.KindNearest},
+	tex.DefaultFilter(),
+	{Near: tex.KindLinear, Far: tex.KindLinear, Mip: tex.MipLinear, MaxAniso: tex.DefaultAniso},
+}
+
 func drawEngine(dc render.Canvas, img *render.ImageBuf, s sprite.AtlasSprite) error {
 	mapped, err := s.ToRender()
 	if err != nil {
@@ -258,10 +289,29 @@ func paintAll(dc render.Canvas, w, h float64) error {
 	if _, err := dc.DrawAtlasEx(checker, []render.AtlasSprite{directSprite(dX1, dTopY, dW, dH)}, render.AtlasDrawOptions{}); err != nil {
 		return err
 	}
-	// 档位映射面板（12 枚绿牌 = 4 Filter × 3 Mipmap 全组合经 ToRender 逐字段带到）。
+	// 臂 f：tex 驱动面板（真源 tex.Filter → FilterToRender → 精灵字段 →
+	// ToRender；跨臂逐位等价 f0≡b0、f1≡a1、f2≡a2 由探针核对）。
+	for i, tf := range texArmFilters {
+		s, err := texSprite(noise, aX0+float64(i)*aStepX, fTopY, aDstW, aDstH, tf)
+		if err != nil {
+			return err
+		}
+		if err := drawEngine(dc, noise, s); err != nil {
+			return err
+		}
+	}
+	// 档位映射面板（12 枚绿牌 = 4 Filter × 3 Mipmap 全组合经 ToRender 逐字段带到）
+	// + tex 路拒绝牌两枚红牌（混合轴 / aniso>1 经 FilterToRender 具名拒绝，
+	// fail-closed 可见；拒绝真实性由 filtertorender_refuses 探针核对）。
 	for i := 0; i < 12; i++ {
 		x := 130.0 + float64(i)*chipStep
 		dc.SetRGB(70.0/255, 200.0/255, 120.0/255)
+		dc.DrawRectangle(x, chipsY, chipW, chipW)
+		_ = dc.Fill()
+	}
+	for i := 0; i < 2; i++ {
+		x := 130.0 + float64(12+i)*chipStep
+		dc.SetRGB(200.0/255, 60.0/255, 60.0/255)
 		dc.DrawRectangle(x, chipsY, chipW, chipW)
 		_ = dc.Fill()
 	}
@@ -432,9 +482,71 @@ func runProbes() probeReport {
 	dn, dw := diffBytes(dA, dB)
 	rep.extra["zero_road_diff_px"] = dn
 	rep.add("zero_value_road_bitwise", dn == 0 && dw == 0, fmt.Sprintf("diff=%d worst=%d", dn, dw))
+
+	// 6b) tex 路（缺口 4 档 A）：FilterToRender 折出的枚举对必须正是等价手臂
+	// 所用的那对——f0→(Nearest,MipmapNone)≡b0、f1→(Bilinear,MipmapNearest)≡a1、
+	// f2→(Bilinear,MipmapLinear)≡a2（零值 Mip 透传保历史单层路）。
+	wantPairs := []struct {
+		f render.InterpolationMode
+		m render.MipmapMode
+	}{{render.InterpNearest, render.MipmapNone}, {render.InterpBilinear, render.MipmapNearest}, {render.InterpBilinear, render.MipmapLinear}}
+	texCarryOK := true
+	texCarryGot := ""
+	for i, tf := range texArmFilters {
+		gotF, gotM, err := renderconv.FilterToRender(tf)
+		if err != nil {
+			texCarryOK = false
+			texCarryGot += fmt.Sprintf("f%d 拒了合法档位: %v；", i, err)
+			continue
+		}
+		if gotF != wantPairs[i].f || gotM != wantPairs[i].m {
+			texCarryOK = false
+			texCarryGot += fmt.Sprintf("f%d 折成 (%v,%v) want (%v,%v)；", i, gotF, gotM, wantPairs[i].f, wantPairs[i].m)
+		}
+	}
+	rep.extra["tex_road_filters"] = len(texArmFilters)
+	rep.add("tex_road_carries_expected_pairs", texCarryOK, texCarryGot+"三格折出对=等价手臂所用对")
+
+	// 6c) tex 路具名拒绝（混合轴 / 未选轴 / aniso>1；不许借采样折叠的屏蔽放行）。
+	mixed := tex.Filter{Near: tex.KindNearest, Far: tex.KindLinear, Mip: tex.MipNearest, MaxAniso: tex.DefaultAniso}
+	unset := tex.Filter{Near: tex.KindLinear, Far: tex.KindLinear, Mip: tex.MipNearest, MaxAniso: tex.DefaultAniso}
+	unset.Near = tex.KindUnknown
+	_, _, errMixed := renderconv.FilterToRender(mixed)
+	_, _, errUnset := renderconv.FilterToRender(unset)
+	_, _, errAniso := renderconv.FilterToRender(tex.RealisticFilter())
+	refuseOK := errors.Is(errMixed, renderconv.ErrFilterMixedAxes) &&
+		errors.Is(errUnset, renderconv.ErrFilterUnknownKind) &&
+		errors.Is(errAniso, renderconv.ErrFilterAnisoUnsupported)
+	rep.add("filtertorender_refuses_uncarryable", refuseOK,
+		fmt.Sprintf("mixed=%v unset=%v aniso4=%v", errMixed, errUnset, errAniso))
+
+	// 6d) tex 路 ≡ 枚举路跨臂逐位（同几何同源图）：转换忠实携带的最强像素证据。
+	texPairs := []struct {
+		name           string
+		fx, fy, ex, ey float64
+	}{
+		{"f0↔b0", aX0, fTopY, aX0, bTopY},
+		{"f1↔a1", aX0 + aStepX, fTopY, aX0 + aStepX, aTopY},
+		{"f2↔a2", aX0 + 2*aStepX, fTopY, aX0 + 2*aStepX, aTopY},
+	}
+	texBitOK := true
+	texBitGot := ""
+	texDiffs := map[string]int{}
+	for _, p := range texPairs {
+		fa := regionBytes(dcA, int(p.fx)+4, int(p.fy)+4, int(aDstW)-8, int(aDstH)-8)
+		en := regionBytes(dcA, int(p.ex)+4, int(p.ey)+4, int(aDstW)-8, int(aDstH)-8)
+		tdn, tdw := diffBytes(fa, en)
+		texDiffs[p.name] = tdn
+		if tdn != 0 {
+			texBitOK = false
+			texBitGot += fmt.Sprintf("%s diff=%d/%d；", p.name, tdn, tdw)
+		}
+	}
+	rep.extra["tex_road_pair_diffs"] = texDiffs
+	rep.add("tex_road_bitwise_matches_enum_road", texBitOK, texBitGot+"三对跨臂逐位等")
 	_ = dcA.Close()
 
-	// 7) GPU op 计数：档位不炸 draw（12 面板 + 零值段，单帧 op 数有限）。
+	// 7) GPU op 计数：档位不炸 draw（12 面板 + tex 臂 + 零值段，单帧 op 数有限）。
 	dcS := newCtx(w, h)
 	var st render.RenderPathStats
 	if err := flushErr(dcS, func() error {
@@ -473,6 +585,10 @@ func semanticProbes() []wrkit.PixelProbe {
 	// = (220.5,133.5,95)。两段同公式同色。
 	add("zero_road_engine_center", dX0+dW/2, dTopY+dH/2, [3]uint8{221, 134, 95})
 	add("zero_road_direct_center", dX1+dW/2, dTopY+dH/2, [3]uint8{221, 134, 95})
+	// tex 路拒绝牌（缺口 4 档 A）：混合轴 / aniso>1 具名拒绝出红牌，牌必须
+	// 真的在画面上（拒绝可见，③ 窗「空格不出拒绝」教训同源）。
+	add("tex_refusal_chip_mixed", 130+12*chipStep+chipW/2, chipsY+chipW/2, [3]uint8{200, 60, 60})
+	add("tex_refusal_chip_aniso", 130+13*chipStep+chipW/2, chipsY+chipW/2, [3]uint8{200, 60, 60})
 	return probes
 }
 
@@ -597,7 +713,7 @@ func main() {
 	var proc scheduler.ProcessTracker
 	proc.Start()
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) bool {
-		metric.SetText(fmt.Sprintf("presents=%d combos=%d", app.PresentCount(), 12))
+		metric.SetText(fmt.Sprintf("presents=%d combos=12 tex=3", app.PresentCount()))
 		metric.MarkNeedsPaint()
 		setTitle()
 		content.MarkNeedsPaint()

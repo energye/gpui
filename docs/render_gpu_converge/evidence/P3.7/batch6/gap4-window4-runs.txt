@@ -1,0 +1,8 @@
+== ④ p37_mip_exit 臂 F 轮次（2026-11-07，RUN_SECONDS=8，240 帧门）==
+[seed native] p37_mip_exit: golden 已播种（examples/engine/p37_mip_exit/testdata/goldens/p37_mip_exit_final_native.png），这一跑不算 PASS —— 复核后提交基线再复跑
+[verify native] p37_mip_exit: OK backend=native presents=241 probes=13/13 golden=0.0000% (921600 px)
+[seed go] p37_mip_exit: golden 已播种（examples/engine/p37_mip_exit/testdata/goldens/p37_mip_exit_final_go.png），这一跑不算 PASS —— 复核后提交基线再复跑
+[verify go] p37_mip_exit: OK backend=go presents=241 probes=13/13 golden=0.0000% (921600 px)
+[stable native] p37_mip_exit: OK backend=native presents=241 probes=13/13 golden=0.0000% (921600 px)
+[cmp] 两后端金图逐位相同
+[tex probes] tex_road_pair_diffs: {'f0↔b0': 0, 'f1↔a1': 0, 'f2↔a2': 0} | gpu_ops 30

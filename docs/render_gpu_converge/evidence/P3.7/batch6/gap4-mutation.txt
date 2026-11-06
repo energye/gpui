@@ -1,0 +1,8 @@
+== 缺口4 变异验牙（2026-11-07）==
+变异：engine/renderconv/filter.go FilterToRender linear 腿改投 InterpNearest（临时，跑完还原 git diff 核对净）
+[④ 变异轮] rc=1
+p37_mip_exit: 探针 FAIL tex_road_carries_expected_pairs → f1 折成 (Nearest,nearest) want (Bilinear,nearest)；f2 折成 (Nearest,linear) want (Bilinear,linear)；三格折出对=等价手臂所用对
+p37_mip_exit: 探针 FAIL tex_road_bitwise_matches_enum_road → f1↔a1 diff=23110/165；f2↔a2 diff=23131/157；三对跨臂逐位等
+FAIL: 逻辑探针未全绿
+[还原后 ④] p37_mip_exit: OK backend=native presents=241 probes=13/13 golden=0.0000% (921600 px)
+[还原后单测] ok engine/renderconv（内容哈希=先前绿态，缓存命中合法）
