@@ -1,0 +1,16 @@
+# P3.7 batch 6 build gate: darwin/amd64
+# env: CGO_ENABLED=0 GOOS=darwin GOARCH=amd64
+# date: 2026-11-06T14:29:12+08:00
+# head: 061b26a4
+# dirty: 9 paths (P3.7 批 6 收官 working tree, uncommitted)
+
+## 1. go build ./... (raw)
+# exit: 0 (expected 1: known-broken pkgs excluded below, pre-existing)
+
+## 2. go build <all buildable except known-broken>
+# pkgs: 339
+# exit: 0
+
+## 3. go build -tags nogpu <all buildable except known-broken>
+# pkgs: 335
+# exit: 0

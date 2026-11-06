@@ -159,5 +159,12 @@ apidoc rc=0；build/vet rc=0（按「先落文件再取 `$?`」复测）。
 gles 真触发）**代码侧早已交付**（`bfdd853d`，台账 750 行是 ☑），③ 窗只欠把它的画面断出来并跑 gles 腿，
 不是重新实现；目录 §13 那句「⬜ 未开工：3d 描边洞+哨兵」的陈旧措辞已随本批修正。
 
-**待跑（批 6 收尾统一补，口径按批 3 收尾登记）**：五目标交叉构建 {默认,nogpu} 10 段、
-64 包全量 sweep 对在册只减不增、conformance 双后端一轮，并回填 §7 与 H19 修复后的整包 `-race`。
+**待跑（批 6 收尾统一补，口径按批 3 收尾登记）→ 已于 2026-11-06 收官兑现 ✅**：五目标交叉构建
+{默认,nogpu} 首轮抓到 ① 起潜伏的 `image_batch_census.go` 缺 `//go:build !nogpu` 断口（补 tag
+一行修复、默认构建零变化），修复后每目标 raw+per-pkg+nogpu 三段全绿、包数每目标 +6=六扇新窗包；
+64 包全量 sweep **903 PASS/12 FAIL/24 SKIP/1 NO_TESTS** 对批 5 步骤 2 全量基线只减不增
+（s6_9↔m5_keystroke_g1 同族互摆，均在册墙钟漂移族，批 6 变更面不触排版链）；conformance 双后端
+rc=0；整包 `-race ./render`（H20 修后竞态门）跑到底 **DATA RACE=0**，19 枚红逐名对 H20 轮 18 枚
++1 枚 PresentResize race 慢速抖动（隔离复绿，同族登记）。账见 `batch6/wrapup-gates.md` +
+`batch6/gates/`。64 包清单核对：批 6 六窗所在 examples 包全部可构建（build-gate 口径），窗包无
+`_test.go`（真窗自身走窗门禁，不占 sweep 行）。
