@@ -8,6 +8,8 @@
 //
 //----------------------------------------
 
+//go:build !nogpu
+
 package gpu
 
 import "github.com/energye/gpui/render"
