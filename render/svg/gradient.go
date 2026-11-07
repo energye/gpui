@@ -49,7 +49,7 @@ func paintRefID(v string) (string, bool) {
 // units), rs the current reference space (viewport/units), color the
 // inherited color for currentColor stops. ok=false means "paint nothing"
 // (fail-closed).
-func (d *Document) resolvePaintBrush(id string, bbox render.Rect, rs RefSpace, color string) (render.Brush, bool) {
+func (d *Document) resolvePaintBrush(id string, bbox render.Rect, rs RefSpace, color string, depth int) (render.Brush, bool) {
 	tgt := d.ElementByID(id)
 	if tgt == nil {
 		return nil, false
@@ -60,7 +60,7 @@ func (d *Document) resolvePaintBrush(id string, bbox render.Rect, rs RefSpace, c
 	case *RadialGradientElement:
 		return d.buildRadialBrush(g, bbox, rs, color)
 	case *PatternElement:
-		return d.buildPatternBrush(g, bbox, rs)
+		return d.buildPatternBrushDepth(g, bbox, rs, depth)
 	}
 	return nil, false
 }
@@ -197,7 +197,10 @@ func (d *Document) buildLinearBrush(g *LinearGradientElement, bbox render.Rect, 
 	)
 	brush.Stops = stops
 	brush.Extend = e.Spread.extendOf()
-	return wrapBrushIfMapped(brush, mapping), true
+	if wrapped := wrapBrushIfMapped(brush, mapping); wrapped != nil {
+		return wrapped, true
+	}
+	return nil, false // singular mapping (e.g. matrix(0 0 0 0 0 0)): paint invalid
 }
 
 func (d *Document) buildRadialBrush(g *RadialGradientElement, bbox render.Rect, rs RefSpace, color string) (render.Brush, bool) {
@@ -272,7 +275,10 @@ func (d *Document) buildRadialBrush(g *RadialGradientElement, bbox render.Rect, 
 			brush.SetFocus(fx, fy)
 		}
 	}
-	return wrapBrushIfMapped(brush, mapping), true
+	if wrapped := wrapBrushIfMapped(brush, mapping); wrapped != nil {
+		return wrapped, true
+	}
+	return nil, false // singular mapping: paint invalid
 }
 
 // wrapBrushIfMapped returns the native brush when the mapping is identity,
@@ -325,6 +331,17 @@ func isPaintServer(e Element) bool {
 // a tiled CustomBrush. patternTransform maps tile space to user space; the
 // sampling function evaluates through its inverse (mod the tile size).
 func (d *Document) buildPatternBrush(p *PatternElement, bbox render.Rect, rs RefSpace) (render.Brush, bool) {
+	return d.buildPatternBrushDepth(p, bbox, rs, 0)
+}
+
+// buildPatternBrushDepth carries the pattern-tile recursion depth: a
+// pattern whose tile fills with another pattern (directly or transitively)
+// fails closed past the ceiling — resvg's recursive-pattern cases recurse
+// forever without this.
+func (d *Document) buildPatternBrushDepth(p *PatternElement, bbox render.Rect, rs RefSpace, depth int) (render.Brush, bool) {
+	if depth >= maxPropChainDepth {
+		return nil, false
+	}
 	// href chain: per-attribute first-set-wins (children from the first
 	// pattern that has any), same discipline as gradients.
 	e := *p
@@ -402,6 +419,7 @@ func (d *Document) buildPatternBrush(p *PatternElement, bbox render.Rect, rs Ref
 		return nil, false
 	}
 	tc := render.NewContext(tw, th)
+	defer tc.Close()
 	if e.Units == UnitsUserSpaceOnUse {
 		tc.Translate(-originX, -originY)
 	}
@@ -409,7 +427,7 @@ func (d *Document) buildPatternBrush(p *PatternElement, bbox render.Rect, rs Ref
 		tc.Transform(viewportTransform(float64(tw), float64(th), e.ViewBox, e.Par))
 	}
 	tileProps := evalProps(rootProps(), e.Attrs, d)
-	tileSt := renderState{doc: d, rs: rs}
+	tileSt := renderState{doc: d, rs: rs, paintDepth: depth + 1}
 	renderElements(tc, cur.Children, tileProps, &tileSt)
 	tileImg, ok := tc.Image().(*imageRGBA)
 	if !ok || tileImg == nil {

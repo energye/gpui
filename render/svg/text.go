@@ -389,6 +389,7 @@ func renderTextMasked(dc *render.Context, combined *render.Path, bbox render.Rec
 		return false
 	}
 	ca := render.NewContext(int(rw), int(rh))
+	defer ca.Close()
 	ca.Translate(-rx, -ry)
 	maskProps := evalProps(p, m.Attrs, st.doc)
 	maskSt := *st
@@ -399,6 +400,7 @@ func renderTextMasked(dc *render.Context, combined *render.Path, bbox render.Rec
 		return false
 	}
 	cb := render.NewContext(int(rw), int(rh))
+	defer cb.Close()
 	cb.Translate(-rx, -ry)
 	// Content leg: run the span's own paint (fill color/gradient) so the
 	// masked text keeps its fill — a bare black Fill would drop it.

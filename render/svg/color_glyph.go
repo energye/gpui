@@ -68,6 +68,7 @@ func renderTableGlyphRGBA(glyphID uint16, doc []byte, upem, ppem float64, fg col
 	cw := int(math.Ceil((svgWindowRightEm - svgWindowLeftEm) * ppem))
 	ch := int(math.Ceil((svgWindowBottomEm - svgWindowTopEm) * ppem))
 	dc := render.NewContext(cw, ch, render.WithCPUOnly())
+	defer dc.Close()
 	dc.Push()
 	dc.Translate(-svgWindowLeftEm*ppem, -svgWindowTopEm*ppem)
 	dc.Scale(s, s)

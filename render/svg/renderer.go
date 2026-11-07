@@ -22,7 +22,19 @@ type renderState struct {
 	doc           *Document
 	overrideColor color.Color // non-nil → replace all non-"none" colors
 	rs            RefSpace    // current viewport + inherited font-size
+
+	// Property-chain depths (P3.8 batch 6): mask/clip/filter content can
+	// reference elements that reference the same property again — resvg's
+	// suite has mask-on-mask reuse cases that recurse without a guard.
+	// Fail closed past the ceiling (same discipline as the use-chain guard).
+	maskDepth   int
+	clipDepth   int
+	filterDepth int
+	paintDepth  int // pattern tile recursion (pattern fill inside pattern tile)
 }
+
+// maxPropChainDepth bounds mask/clip/filter chain recursion.
+const maxPropChainDepth = 64
 
 // renderElements renders a list of elements into the given render.Context.
 func renderElements(dc *render.Context, elements []Element, p *props, st *renderState) {
@@ -92,6 +104,9 @@ func renderElement(dc *render.Context, elem Element, parent *props, st *renderSt
 
 // renderClipped wraps the element body with its clip-path (if any).
 func renderClipped(dc *render.Context, elem Element, a *Attrs, parent *props, st *renderState) {
+	if st.clipDepth >= maxPropChainDepth {
+		return // fail-closed: clip chain recursion guard
+	}
 	if a.ClipPath != "" {
 		if a.clipInvalid {
 			return // unresolved/wrong-type clip reference: not rendered
@@ -103,7 +118,9 @@ func renderClipped(dc *render.Context, elem Element, a *Attrs, parent *props, st
 					dc.SetFillRule(rule)
 					dc.DrawPath(clip)
 					dc.Clip()
-					renderElementBody(dc, elem, a, parent, st)
+					childSt := *st
+					childSt.clipDepth++
+					renderElementBody(dc, elem, a, parent, &childSt)
 					dc.Pop()
 					return
 				}
@@ -120,6 +137,9 @@ func renderClipped(dc *render.Context, elem Element, a *Attrs, parent *props, st
 // any enclosing CTM applies once at the final DrawImage (same shape as
 // Skia saveLayer / Flutter user-space masks).
 func renderMasked(dc *render.Context, elem Element, a *Attrs, id string, parent *props, st *renderState) {
+	if st.maskDepth >= maxPropChainDepth {
+		return // fail-closed: mask chain recursion guard
+	}
 	mt := st.doc.ElementByID(id)
 	m, ok := mt.(*MaskElement)
 	if !ok {
@@ -155,10 +175,12 @@ func renderMasked(dc *render.Context, elem Element, a *Attrs, id string, parent 
 
 	// Offscreen A: mask content (luminance source).
 	ca := render.NewContext(int(rw), int(rh))
+	defer ca.Close()
 	ca.Translate(-rx, -ry)
 	maskProps := evalProps(parent, m.Attrs, st.doc)
 	maskSt := *st
 	maskSt.rs.FontSize = maskProps.fontSize
+	maskSt.maskDepth++
 	renderElements(ca, m.Children, maskProps, &maskSt)
 	lm := render.NewLuminanceMask(ca.Image())
 	if lm == nil {
@@ -167,8 +189,11 @@ func renderMasked(dc *render.Context, elem Element, a *Attrs, id string, parent 
 
 	// Offscreen B: the element content (clip and its own rendering inside).
 	cb := render.NewContext(int(rw), int(rh))
+	defer cb.Close()
 	cb.Translate(-rx, -ry)
-	renderClipped(cb, elem, a, parent, st)
+	childSt := *st
+	childSt.maskDepth++
+	renderClipped(cb, elem, a, parent, &childSt)
 	cb.ApplyMask(lm)
 
 	// Composite back at the region origin (user space).
@@ -676,7 +701,12 @@ func applyFillAttrs(dc *render.Context, a *Attrs, p *props, st *renderState, bbo
 		return true
 	}
 	if id, isRef := paintRefID(p.fill); isRef {
-		brush, ok := st.doc.resolvePaintBrush(id, bbox, st.rs, p.color)
+		if st.paintDepth >= maxPropChainDepth {
+			return false // fail-closed: pattern recursion guard
+		}
+		childSt := *st
+		childSt.paintDepth++
+		brush, ok := st.doc.resolvePaintBrush(id, bbox, st.rs, p.color, childSt.paintDepth)
 		if !ok {
 			return false
 		}
@@ -732,7 +762,12 @@ func applyStrokeAttrs(dc *render.Context, p *props, st *renderState, bbox render
 		return true
 	}
 	if id, isRef := paintRefID(p.stroke); isRef {
-		brush, ok := st.doc.resolvePaintBrush(id, bbox, st.rs, p.color)
+		if st.paintDepth >= maxPropChainDepth {
+			return false // fail-closed: pattern recursion guard
+		}
+		childSt := *st
+		childSt.paintDepth++
+		brush, ok := st.doc.resolvePaintBrush(id, bbox, st.rs, p.color, childSt.paintDepth)
 		if !ok {
 			return false
 		}

@@ -214,9 +214,18 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 	if rw <= 0 || rh <= 0 {
 		return false
 	}
+	// Region size ceiling: the SVG spec bounds filter regions only by the
+	// element's percentages, and resvg's huge-radius cases hand us regions
+	// far beyond any sane surface. Above the ceiling the filter is not
+	// applied (the element paints unfiltered — the CSS error stance this
+	// package already uses), instead of allocating gigabytes offscreen.
+	if rw > maxFilterRegionSide || rh > maxFilterRegionSide || rw*rh > maxFilterRegionPixels {
+		return false
+	}
 	// SourceGraphic offscreen: content shifted so the filter region origin
 	// is the offscreen origin (blur/offset spills land inside the region).
 	src := render.NewContext(rw, rh)
+	defer src.Close()
 	src.Translate(-regX, -regY)
 	fillAndStroke(src, a, p, st, bbox, func() {
 		src.DrawPath(combined)
@@ -244,6 +253,7 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 	// returns the result as an ImageBuf (Apply* rides the GPU filter path).
 	applyTo := func(buf *render.ImageBuf, apply func(*render.Context)) *render.ImageBuf {
 		work := render.NewContext(rw, rh)
+		defer work.Close()
 		work.DrawImage(buf, 0, 0)
 		apply(work)
 		return render.ImageBufFromImage(work.Image())
@@ -259,6 +269,8 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 		}
 		inBuf, ok := images[in]
 		if !ok {
+			disposeAll(images)
+			disposeAll(images)
 			return false
 		}
 		var out *render.ImageBuf
@@ -277,6 +289,8 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 		case "feColorMatrix":
 			m, okM := colorMatrixValues(fp)
 			if !okM {
+				disposeAll(images)
+				disposeAll(images)
 				return false
 			}
 			out = applyTo(inBuf, func(w *render.Context) {
@@ -291,10 +305,12 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 		case "feOffset":
 			dx, dy := offsetDeltas(fp)
 			w := render.NewContext(rw, rh)
+			defer w.Close()
 			w.DrawImage(inBuf, dx, dy)
 			out = render.ImageBufFromImage(w.Image())
 		case "feFlood":
 			w := render.NewContext(rw, rh)
+			defer w.Close()
 			col := colorFromHexOr(fp.FloodColor, render.RGBA{R: 1, G: 1, B: 1, A: fp.FloodOpacity})
 			if fp.FloodOpacity < 1 {
 				w.SetRGBA(col.R, col.G, col.B, col.A*fp.FloodOpacity)
@@ -307,6 +323,8 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 		case "feBlend", "feComposite":
 			mode, okM := blendModeFor(fp.Kind, fp.Str1)
 			if !okM {
+				disposeAll(images)
+				disposeAll(images)
 				return false
 			}
 			in2 := fp.In2
@@ -315,15 +333,19 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			}
 			in2Buf, ok2 := images[in2]
 			if !ok2 {
+				disposeAll(images)
+				disposeAll(images)
 				return false
 			}
 			w := render.NewContext(rw, rh)
+			defer w.Close()
 			w.DrawImage(in2Buf, 0, 0) // destination
 			opts := render.DrawImageOptions{X: 0, Y: 0, BlendMode: mode}
 			w.DrawImageEx(inBuf, opts) // source with blend
 			out = render.ImageBufFromImage(w.Image())
 		case "feMerge":
 			w := render.NewContext(rw, rh)
+			defer w.Close()
 			for _, name := range fp.MergeNodes {
 				if ib, ok2 := images[name]; ok2 {
 					w.DrawImage(ib, 0, 0)
@@ -332,6 +354,8 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			out = render.ImageBufFromImage(w.Image())
 		}
 		if out == nil {
+			disposeAll(images)
+			disposeAll(images)
 			return false
 		}
 		if fp.Result != "" {
@@ -345,12 +369,35 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 		if lastBuf, ok := images[last]; ok {
 			outBuf = lastBuf
 		} else {
+			disposeAll(images)
+			disposeAll(images)
+			disposeAll(images)
 			return false
 		}
 	}
 	dc.DrawImage(outBuf, regX, regY)
+	disposeAll(images)
 	return true
 }
+
+// disposeAll releases every intermediate ImageBuf's GPU texture. The
+// evaluator builds one buf per primitive per element; without this the
+// texture registry pins them until process end (batch-6 conformance run
+// OOMed at case ~200 on exactly this).
+func disposeAll(images map[string]*render.ImageBuf) {
+	for _, buf := range images {
+		if buf != nil {
+			buf.Dispose()
+		}
+	}
+}
+
+// Filter-region ceilings: 4096 px per side / 4096×4096 total area — the
+// same guard the COLRv1 raster uses. Cases beyond it paint unfiltered.
+const (
+	maxFilterRegionSide   = 4096
+	maxFilterRegionPixels = 4096 * 4096
+)
 
 // blurSigmas extracts (stdDeviationX, stdDeviationY) from the parsed list.
 func blurSigmas(nums []float64) (float64, float64) {
