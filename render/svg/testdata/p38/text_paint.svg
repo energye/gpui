@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60" viewBox="0 0 120 60">
+  <!-- text as a paint object: gradient fill + clipPath (pipeline红利) -->
+  <rect x="0" y="0" width="120" height="60" fill="#171a20"/>
+  <defs>
+    <linearGradient id="rg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="60" y2="0">
+      <stop offset="0" stop-color="#e24a4a"/><stop offset="1" stop-color="#4a90e2"/>
+    </linearGradient>
+    <clipPath id="half" clipPathUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="30" height="60"/>
+    </clipPath>
+  </defs>
+  <text x="0" y="40" font-family="Ahem" font-size="20" fill="url(#rg)">ab</text>
+  <text x="0" y="40" font-family="Ahem" font-size="20" fill="#3ccf7a" clip-path="url(#half)">ab</text>
+</svg>

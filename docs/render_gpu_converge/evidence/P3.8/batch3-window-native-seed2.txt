@@ -1,0 +1,2 @@
+# github.com/energye/gpui/examples/ui_wr_p38_svg_text
+examples/ui_wr_p38_svg_text/probes.go:102:50: t0[0].Attrs.X undefined (type svg.Attrs has no field or method X)

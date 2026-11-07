@@ -131,6 +131,13 @@ type Attrs struct {
 	Visibility       string
 	Overflow         string // svg elements: visible disables the viewport clip
 
+	// Text layout attributes (raw; "" = inherit).
+	FontFamily    string
+	FontWeight    string
+	FontStyle     string
+	TextAnchor    string
+	LetterSpacing string
+
 	// ClipPath carries the raw clip-path="url(#id)" reference.
 	ClipPath string
 	// Mask carries the raw mask="url(#id)" reference.
@@ -143,6 +150,8 @@ type Attrs struct {
 	clipInvalid bool
 	// maskInvalid marks an unresolved mask reference: not rendered.
 	maskInvalid bool
+	// fontInvalid marks a text element whose font did not resolve: not rendered.
+	fontInvalid bool
 	// fillInvalid/strokeInvalid mark url() paints that failed reference
 	// validation: the paint is treated as "none" (fail-closed, not black).
 	fillInvalid, strokeInvalid bool
@@ -355,6 +364,32 @@ func (e *PatternElement) attrs() *Attrs { return &e.Attrs }
 func (e *PatternElement) unitsAndTransform() (Units, string) {
 	return e.Units, e.Transform
 }
+
+// TextElement represents <text>: absolutely positioned shaped text rendered
+// through the shape paint pipeline (glyph outlines → Path → fill/stroke), so
+// gradients/clip/mask apply to text exactly as to shapes.
+type TextElement struct {
+	Attrs    Attrs
+	X, Y     []Length  // multi-value: per-glyph absolute positioning (global char index)
+	DX, DY   []Length  // per-glyph relative shifts
+	Rotate   []float64 // per-glyph rotation (degrees, around the glyph origin)
+	Text     string    // direct character content before any <tspan>
+	Children []Element // TspanElement sequence
+}
+
+func (e *TextElement) attrs() *Attrs { return &e.Attrs }
+
+// TspanElement represents <tspan>: a styled/positioned sub-run of <text>.
+type TspanElement struct {
+	Attrs    Attrs
+	X, Y     []Length
+	DX, DY   []Length
+	Rotate   []float64
+	Text     string
+	Children []Element
+}
+
+func (e *TspanElement) attrs() *Attrs { return &e.Attrs }
 
 // MaskElement represents <mask>: luminance mask content with a region
 // (maskUnits on x/y/width/height; maskContentUnits for the children).

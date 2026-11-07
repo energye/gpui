@@ -1,0 +1,9 @@
+--- FAIL: TestP38TextTspan (0.00s)
+    p38_text_test.go:111: gap between a and b = {R:23 G:26 B:32 A:255}, want empty
+--- FAIL: TestP38TextPaintPipeline (0.00s)
+    p38_text_test.go:123: gradient 'a' = {R:60 G:207 B:122 A:255}, want red-ish
+    p38_text_test.go:127: gradient 'b' (clipped x<30) = {R:60 G:207 B:122 A:255}, want blue-ish
+    p38_text_test.go:130: 'b' beyond clip (35,20) = {R:159 G:121 B:183 A:255}, want bg (clipped)
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.067s
+FAIL

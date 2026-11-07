@@ -1,0 +1,5 @@
+--- FAIL: TestP38TextTspan (0.00s)
+    p38_text_test.go:111: gap between a and b = {R:23 G:26 B:32 A:255}, want empty
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.066s
+FAIL

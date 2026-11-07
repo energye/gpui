@@ -1,0 +1,8 @@
+API 目录缺失 4 个符号（docs/RENDER_API_CATALOG.md 未出现）：
+  subpkg FontResolverFunc
+  subpkg SetFontResolver
+  subpkg TextElement
+  subpkg TspanElement
+→ 请在 docs/RENDER_API_CATALOG.md 对应分类表补齐（增/改/删 API 时同步更新）。
+exit status 1
+OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg/gpu/hdr 全部公开符号

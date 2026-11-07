@@ -41,6 +41,21 @@ func renderElement(dc *render.Context, elem Element, parent *props, st *renderSt
 		return
 	}
 	a := elem.attrs()
+	if _, isText := elem.(*TextElement); isText {
+		// <text> manages its own clip/mask AFTER layout (the glyph bounding
+		// box only exists once the run is shaped) — see renderTextElement.
+		if a.Mask != "" && a.maskInvalid {
+			return
+		}
+		if a.ClipPath != "" && a.clipInvalid {
+			return
+		}
+		tp := evalProps(parent, *a, st.doc)
+		childSt := *st
+		childSt.rs.FontSize = tp.fontSize
+		renderTextElement(dc, elem.(*TextElement), a, tp, &childSt)
+		return
+	}
 	if a.Mask != "" {
 		if a.maskInvalid {
 			return // unresolved/wrong-type mask reference: not rendered
@@ -178,6 +193,10 @@ func renderElementBody(dc *render.Context, elem Element, a *Attrs, parent *props
 		renderUse(dc, e, p, &child)
 	case *ImageElement:
 		renderImageElement(dc, e, a, p, &child)
+	case *TextElement:
+		if !a.fontInvalid {
+			renderTextElement(dc, e, a, p, &child)
+		}
 	case *SVGElement:
 		renderNestedSVG(dc, e, p, &child)
 	}

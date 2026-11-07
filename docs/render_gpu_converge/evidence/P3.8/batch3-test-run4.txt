@@ -1,0 +1,21 @@
+--- FAIL: TestP38TextBasicAnchor (0.00s)
+    p38_text_test.go:76: start glyph1 (15,20) = {R:23 G:26 B:32 A:255}, want red-ish
+    p38_text_test.go:79: start glyph2 (45,25) = {R:23 G:26 B:32 A:255}, want red-ish (advance 20)
+    p38_text_test.go:86: middle glyph1 (5,50) = {R:23 G:26 B:32 A:255}, want blue-ish (clipped at left)
+--- FAIL: TestP38TextTspan (0.00s)
+    p38_text_test.go:101: 'a' = {R:23 G:26 B:32 A:255}, want red
+    p38_text_test.go:104: 'b' (dx=30) = {R:23 G:26 B:32 A:255}, want green at [60,80)
+    p38_text_test.go:108: 'c' (x=150,dy=20) = {R:23 G:26 B:32 A:255}, want blue at (150,50) baseline
+    p38_text_test.go:111: gap between a and b = {R:23 G:26 B:32 A:255}, want empty
+--- FAIL: TestP38TextPaintPipeline (0.00s)
+    p38_text_test.go:123: gradient 'a' = {R:23 G:26 B:32 A:255}, want red-ish
+    p38_text_test.go:127: gradient 'b' (clipped x<30) = {R:23 G:26 B:32 A:255}, want blue-ish
+--- FAIL: TestP38TextLetterSpacing (0.00s)
+    p38_text_test.go:204: 'a' = {R:23 G:26 B:32 A:255}, want red
+    p38_text_test.go:210: 'b' (spacing 10) = {R:23 G:26 B:32 A:255}, want red at [30,50)
+--- FAIL: TestParseUnsupportedElementsSkipped (0.00s)
+    svg_test.go:561: Elements count = 3, want 2 (defs node + circle)
+    svg_test.go:578: unsupported-element warnings = 0, want 1 (text only)
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.072s
+FAIL

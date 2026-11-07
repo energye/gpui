@@ -127,3 +127,36 @@ build/vet 触及包 rc=0 → 定向单测（新文件+存量 svg 包）逐文件
 - 2d：data URI base64 PNG 画位钉、pAR meet/slice 图像视口、外部 href 拒绝+Warning。
 - 2e：tile 平铺周期像素钉、patternTransform、href 继承。
 - 负向对照：摘 spreadMethod→三态钉红 / 摘 clip 并集→挖洞钉红 / 摘 luminance→灰阶钉红 / 摘 tile 周期→重复钉红。
+
+---
+
+## 批 3 细化：SVG 文本（2026-11-07 开工登记）
+
+### 3.0 import 环解法（设计稿第一题，定案）
+
+实测 `render/text` **不 import render 主包**（grep 全包零命中）⇒ `render/svg → render/text` 无环，批 3 直接依赖。批 5 的反向需求（SVG 表字形：text → svg）届时走**接口倒置**（text 定义渲染接口、svg 实现、高层接线），批 3 不预留代码。
+
+### 3.1 字体解析口径（fail-closed）
+
+- svg 包公开钩子 `SetFontResolver(fn)`：fn(family, weight, italic) → *text.FontSource（nil=无匹配）。
+- 无 resolver 或无匹配 → **具名 Warning + 文本不渲染**（fail-closed；SkSVGDOM 用系统默认，本仓纪律优先）。
+- 字体匹配：FontSource 的 FullName/Family 包含匹配（大小写不敏感）+ weight/italic 近似（FontFamily.pick 同款）。
+- 测试/真窗用 **AHEM 字体**（render/text/testdata/ahem.ttf → 复制入 svg testdata/p38/，22KB）：每字符=满 em 高实心方块 ⇒ 锚点/间距/逐字符定位全部精确断言。
+
+### 3.2 语义范围（对齐 SkSVGDOM 静态文本）
+
+- `<text>`：x/y（**多值=逐字符定位**）、text-anchor（start/middle/end，整行对齐）、font-family/size/weight/style、letter-spacing、word-spacing（词间隔）、dx/dy/rotate（逐字符相对偏移/旋转）、fill/stroke（走形状同一条 paint 管线——渐变/clip/mask 自动生效）。
+- `<tspan>`：绝对 x/y 或相对 dx/dy + rotate + 样式覆盖（继承 text）。
+- **不做（具名拒绝+登记）**：textPath（沿路径）、textLength 强制、writing-mode 竖排、系统字体扫描（归 ui/平台层——svg 只认 resolver 钩子）。
+- 渲染形态：**glyph 轮廓→render.Path→fillAndStroke**（与形状同管线；文字可渐变填充/描边/裁剪/遮罩；不走 GPU 文字管线——svg.Render 是一次性出图，合理）。
+
+### 3.3 布局与渲染
+
+- 逐段（text 直文本 + tspan 序列）shape（`text.Shape`）→ glyph 定位（x 多值逐字符/anchor/dx/dy/letter-spacing）→ 每 glyph outline（face.Source().Parsed().GlyphOutline）→ outlineToPath（FlipY：字体 Y 向上、屏幕 Y 向下；rotate 逐字符矩阵拼合）→ 拼进该元素的渲染 Path → fillAndStroke。
+- 公开面：`TextElement/TspanElement/SetFontResolver`（+text.FontWeight 引用）。
+
+### 3.4 验证方案
+
+- AHEM 样本四枚：text_basic（anchor 三态×字号）、text_tspan（dx/dy/rotate+样式覆盖）、text_paint（渐变填充+clipPath 裁剪文字——paint 管线红利）、text_missing_font（无匹配不画+Warning）。
+- 像素断言：AHEM 方块的角/边采样（x/y/宽度精确）；金图真窗逐位。
+- 负向：摘 anchor 换算→中点/末端钉红；摘 rotate→旋转字符钉红；摘 resolver→缺字体钉红。

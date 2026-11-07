@@ -243,6 +243,8 @@ func parseElement(pc *parseCtx, se xml.StartElement) (Element, error) {
 		return parseImageElement(pc, se)
 	case "pattern":
 		return parsePatternElement(pc, se)
+	case "text":
+		return parseTextElement(pc, se)
 	case "title", "desc", "metadata":
 		// Descriptive: no rendering, no warning.
 		if err := pc.dec.Skip(); err != nil {
@@ -313,6 +315,16 @@ func parseAttrs(pc *parseCtx, se xml.StartElement) Attrs {
 			a.ClipPath = attr.Value
 		case "mask":
 			a.Mask = attr.Value
+		case "font-family":
+			a.FontFamily = attr.Value
+		case "font-weight":
+			a.FontWeight = attr.Value
+		case "font-style":
+			a.FontStyle = attr.Value
+		case "text-anchor":
+			a.TextAnchor = attr.Value
+		case "letter-spacing":
+			a.LetterSpacing = attr.Value
 		}
 	}
 	return a
@@ -1055,6 +1067,114 @@ func parsePatternElement(pc *parseCtx, se xml.StartElement) (*PatternElement, er
 	}
 	elem.Children = children
 	return elem, nil
+}
+
+// parseTextElement parses <text> with mixed content: direct character data
+// plus <tspan> sub-runs (other elements skipped).
+func parseTextElement(pc *parseCtx, se xml.StartElement) (Element, error) {
+	return parseTextLike(pc, se, "text")
+}
+
+func parseTspanElement(pc *parseCtx, se xml.StartElement) (Element, error) {
+	return parseTextLike(pc, se, "tspan")
+}
+
+func parseTextLike(pc *parseCtx, se xml.StartElement, tag string) (Element, error) {
+	var textElem, spanElem Element
+	if tag == "text" {
+		textElem = &TextElement{Attrs: parseAttrs(pc, se)}
+	} else {
+		spanElem = &TspanElement{Attrs: parseAttrs(pc, se)}
+	}
+	// Pointer views for uniform handling.
+	var xOut, yOut, dxOut, dyOut *[]Length
+	var rotOut *[]float64
+	var textOut *string
+	var childrenOut *[]Element
+	if te, ok := textElem.(*TextElement); ok {
+		xOut, yOut, dxOut, dyOut, rotOut, textOut, childrenOut =
+			&te.X, &te.Y, &te.DX, &te.DY, &te.Rotate, &te.Text, &te.Children
+	} else {
+		tse := spanElem.(*TspanElement)
+		xOut, yOut, dxOut, dyOut, rotOut, textOut, childrenOut =
+			&tse.X, &tse.Y, &tse.DX, &tse.DY, &tse.Rotate, &tse.Text, &tse.Children
+	}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "x":
+			*xOut = parseLengthList(attr.Value)
+		case "y":
+			*yOut = parseLengthList(attr.Value)
+		case "dx":
+			*dxOut = parseLengthList(attr.Value)
+		case "dy":
+			*dyOut = parseLengthList(attr.Value)
+		case "rotate":
+			*rotOut = parseNumberList(attr.Value)
+		}
+	}
+	// Mixed content: CharData → text runs; <tspan> → children; else skip.
+	depth := 1
+	for depth > 0 {
+		tok, err := pc.dec.Token()
+		if err != nil {
+			return nil, fmt.Errorf("svg: error reading <%s>: %w", tag, err)
+		}
+		switch t := tok.(type) {
+		case xml.CharData:
+			*textOut += string(t)
+		case xml.StartElement:
+			if t.Name.Local == "tspan" {
+				sub, err := parseTspanElement(pc, t)
+				if err != nil {
+					return nil, err
+				}
+				if sub != nil {
+					*childrenOut = append(*childrenOut, sub)
+				}
+				continue
+			}
+			if err := pc.dec.Skip(); err != nil {
+				return nil, err
+			}
+		case xml.EndElement:
+			depth--
+		}
+	}
+	if tag == "text" {
+		return textElem, nil
+	}
+	return spanElem, nil
+}
+
+// parseLengthList parses a whitespace/comma separated x/y/dx/dy list.
+func parseLengthList(s string) []Length {
+	s = strings.ReplaceAll(s, ",", " ")
+	fields := strings.Fields(s)
+	out := make([]Length, 0, len(fields))
+	for _, f := range fields {
+		l, err := parseLength(f)
+		if err != nil {
+			continue
+		}
+		out = append(out, l)
+	}
+	return out
+}
+
+// parseNumberList parses a whitespace/comma separated number list.
+func parseNumberList(s string) []float64 {
+	s = strings.ReplaceAll(s, ",", " ")
+	fields := strings.Fields(s)
+	out := make([]float64, 0, len(fields))
+	for _, f := range fields {
+		v, err := strconv.ParseFloat(f, 64)
+		if err != nil {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // parsePoints parses an SVG points attribute value into alternating x/y

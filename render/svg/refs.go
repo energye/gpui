@@ -43,6 +43,25 @@ func validateReferences(pc *parseCtx) {
 	validateClips(pc)
 }
 
+// validateTextFonts resolves every text span's font at parse time: an
+// unmatched family is a named warning and marks the element not-rendered
+// (fail-closed, without mutating document state during render).
+func validateTextFonts(pc *parseCtx, te *TextElement) {
+	spans := flattenTextSpans(*te)
+	for _, sp := range spans {
+		family := familyList(sp.attrs)[0]
+		if family == "" {
+			continue
+		}
+		if _, ok := resolveFont(family, mapWeight(sp.attrs),
+			strings.Contains(strings.ToLower(sp.attrs.FontStyle), "italic")); !ok {
+			te.attrs().fontInvalid = true
+			pc.warn("text", "font-family", warnUnresolvedRef, "no resolver match for "+family)
+			return
+		}
+	}
+}
+
 // validateClips checks clip-path="url(#id)" references on the rendered
 // tree: unresolved targets mark the element not-rendered (fail-closed).
 func validateClips(pc *parseCtx) {
@@ -66,6 +85,9 @@ func validateClips(pc *parseCtx) {
 					a.clipInvalid = true
 					pc.warn(a.tag, "clip-path", warnUnsupportedRef, "#"+id)
 				}
+			}
+			if te, isText := e.(*TextElement); isText {
+				validateTextFonts(pc, te)
 			}
 			if a != nil && a.Mask != "" {
 				id := extractURLRefID(a.Mask)
