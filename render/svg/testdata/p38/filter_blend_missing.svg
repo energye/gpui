@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="140" height="60" viewBox="0 0 140 60">
+  <rect x="0" y="0" width="140" height="60" fill="#171a20"/>
+  <defs>
+    <filter id="unsupported">
+      <feTurbulence baseFrequency="0.9"/>
+    </filter>
+  </defs>
+  <rect x="10" y="10" width="50" height="40" fill="#e24a4a" filter="url(#unsupported)"/>
+  <rect x="80" y="10" width="50" height="40" fill="#4a90e2" filter="url(#no-such-filter)"/>
+</svg>

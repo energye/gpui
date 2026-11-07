@@ -160,3 +160,32 @@ build/vet 触及包 rc=0 → 定向单测（新文件+存量 svg 包）逐文件
 - AHEM 样本四枚：text_basic（anchor 三态×字号）、text_tspan（dx/dy/rotate+样式覆盖）、text_paint（渐变填充+clipPath 裁剪文字——paint 管线红利）、text_missing_font（无匹配不画+Warning）。
 - 像素断言：AHEM 方块的角/边采样（x/y/宽度精确）；金图真窗逐位。
 - 负向：摘 anchor 换算→中点/末端钉红；摘 rotate→旋转字符钉红；摘 resolver→缺字体钉红。
+
+---
+
+## 批 4 细化：SVG 滤镜（2026-11-07 开工登记）
+
+### 4.0 底座盘点（file:line，**render 层零增量**）
+
+| SVG 原语 | render 底座 | 映射 |
+|---|---|---|
+| feGaussianBlur | `Context.ApplyBlur/ApplyBlurXY`（filter_ops_cpu.go:82,100） | stdDeviation → radius（Skia 口径 radius=2×σ？——**SVG stdDeviation 直接用 σ**，blur radius 口径按底座语义对齐） |
+| feColorMatrix | `Context.ApplyColorMatrix([20]f32)`（:139）；saturate/hueRotate/luminanceToAlpha 为标准矩阵公式（SVG 规范给出） | type=matrix 直接 values；其余按规范构造 20 值 |
+| feDropShadow | `Context.ApplyDropShadow(dx,dy,blur,color)`（:118） | 直映 |
+| feBlend | BlendMode 枚举全（context_image.go:92-150）：normal/multiply/screen/darken/lighten | 离屏 B 上 DrawImage with BlendMode |
+| feComposite | Porter-Duff 全：over=Normal、in=SourceIn、out=SourceOut、xor=Xor（B.02 全套） | 同上；**arithmetic 具名拒绝**（无 k 系数接口） |
+| feOffset | 离屏图偏移贴图（DrawImage dx,dy） | 直映 |
+| feFlood / feMerge | 纯色填充 / 依序叠加 | 直映 |
+
+### 4.1 范围与架构
+
+- **解析**：`<filter>`（filterUnits/p primitiveUnits、x/y/w/h 默认 -10%~120% bbox）+ 原语 feGaussianBlur/feOffset/feFlood/feColorMatrix/feBlend/feComposite(4 运算)/feMerge/feDropShadow；in/in2/result 引用图（SourceGraphic/SourceAlpha/前序 result）。
+- **求值**：全离屏——内容腿（SourceGraphic/SourceAlpha）→ 按 DAG 逐原语在独立离屏 Context 上执行（Apply* 自动走 GPU 滤镜路）→ 末原语输出 DrawImage 回主 dc。与 mask 三离屏同族。
+- **具名拒绝（登记不做）**：feComposite arithmetic、feTile、feImage、feTurbulence、feDisplacementMap、feComponentTransfer、feConvolveMatrix、feMorphology、feSpecularLighting、feDiffuseLighting、lighting 全系、textPath 同批已拒——解析遇之 → Warning + 该 filter 具名拒绝（整个 filter 不应用 = 原样绘制，CSS Masking 口径）。
+- filter 引用悬空/无 <filter> → 原样绘制 + Warning（CSS 口径：引用失败不过滤）。
+
+### 4.2 验证方案
+
+- 样本五枚：filter_blur（高斯）、filter_offset_merge（feOffset+feMerge 投影链）、filter_colormatrix（saturate 0 → 灰）、filter_dropshadow、filter_blend（multiply 两图）+ 缺原语拒绝牌。
+- 红测：blur 后边缘模糊度（中心/边缘采样差）、colorMatrix saturate(0) 全通道相等、dropShadow 双影（原图色+影色分位采样）、blend multiply 值、悬空/不支持 filter 原样绘制+Warning。
+- 负向：摘 blur→边缘锐度钉红；摘 saturate 矩阵→彩色钉红；摘 dropShadow 影→单影钉红。

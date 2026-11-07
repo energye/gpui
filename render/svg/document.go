@@ -131,6 +131,9 @@ type Attrs struct {
 	Visibility       string
 	Overflow         string // svg elements: visible disables the viewport clip
 
+	// Filter carries the raw filter="url(#id)" reference.
+	Filter string
+
 	// Text layout attributes (raw; "" = inherit).
 	FontFamily    string
 	FontWeight    string
@@ -152,6 +155,8 @@ type Attrs struct {
 	maskInvalid bool
 	// fontInvalid marks a text element whose font did not resolve: not rendered.
 	fontInvalid bool
+	// filterInvalid marks an unresolved/wrong-type filter reference.
+	filterInvalid bool
 	// fillInvalid/strokeInvalid mark url() paints that failed reference
 	// validation: the paint is treated as "none" (fail-closed, not black).
 	fillInvalid, strokeInvalid bool

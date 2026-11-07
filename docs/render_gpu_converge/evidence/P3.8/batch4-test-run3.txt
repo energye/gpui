@@ -1,0 +1,7 @@
+--- FAIL: TestP38FilterColorMatrixSaturate (0.10s)
+    p38_filter_test.go:80: saturate(0) = (225,228,180), want R==G==B (gray)
+--- FAIL: TestP38FilterMissingAndUnsupported (0.00s)
+    p38_filter_test.go:174: feTurbulence warning missing (element=rect): [{Element:rect Attribute:filter Reason:unsupported-ref Detail:#unsupported feTurbulence Offset:439} {Element:rect Attribute:filter Reason:unresolved-ref Detail:#no-such-filter Offset:439}]
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.569s
+FAIL

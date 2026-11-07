@@ -1,0 +1,4 @@
+# github.com/energye/gpui/render/svg [github.com/energye/gpui/render/svg.test]
+render/svg/p38_filter_test.go:28:30: undefined: FilterElement
+FAIL	github.com/energye/gpui/render/svg [build failed]
+FAIL

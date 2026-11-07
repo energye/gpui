@@ -1,0 +1,9 @@
+--- FAIL: TestP38FilterBlur (0.08s)
+    p38_filter_test.go:59: blur spill (60,70) = {R:23 G:26 B:32 A:255}, want blurred red-ish (not bg)
+--- FAIL: TestP38FilterColorMatrixSaturate (0.12s)
+    p38_filter_test.go:78: saturate(0) = (226,74,74), want R==G==B (gray)
+--- FAIL: TestP38FilterMissingAndUnsupported (0.00s)
+    p38_filter_test.go:172: feTurbulence warning missing: [{Element:rect Attribute:filter Reason:unsupported-ref Detail:#unsupported feTurbulence Offset:439} {Element:rect Attribute:filter Reason:unresolved-ref Detail:#no-such-filter Offset:439}]
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.522s
+FAIL

@@ -89,6 +89,25 @@ func validateClips(pc *parseCtx) {
 			if te, isText := e.(*TextElement); isText {
 				validateTextFonts(pc, te)
 			}
+			if a != nil && a.Filter != "" {
+				id := extractURLRefID(a.Filter)
+				tgt, ok := pc.doc.byID[id]
+				if !ok || tgt == nil {
+					a.filterInvalid = true
+					pc.warn(a.tag, "filter", warnUnresolvedRef, "#"+id)
+				} else if _, isFilter := tgt.(*FilterElement); !isFilter {
+					a.filterInvalid = true
+					pc.warn(a.tag, "filter", warnUnsupportedRef, "#"+id)
+				} else {
+					for _, fp := range tgt.(*FilterElement).Primitives {
+						if !supportedFilterPrimitive(fp.Kind) {
+							a.filterInvalid = true
+							pc.warn(fp.Kind, "filter", warnUnsupportedElement, "#"+id)
+							break
+						}
+					}
+				}
+			}
 			if a != nil && a.Mask != "" {
 				id := extractURLRefID(a.Mask)
 				tgt, ok := pc.doc.byID[id]

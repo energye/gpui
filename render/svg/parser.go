@@ -245,6 +245,17 @@ func parseElement(pc *parseCtx, se xml.StartElement) (Element, error) {
 		return parsePatternElement(pc, se)
 	case "text":
 		return parseTextElement(pc, se)
+	case "filter":
+		return parseFilterElement(pc, se)
+	case "feGaussianBlur", "feOffset", "feFlood", "feColorMatrix",
+		"feBlend", "feComposite", "feMerge", "feDropShadow":
+		// fe* 只出现在 <filter> 内：由 parseFilterPrimitives 消费；
+		// 在 filter 外出现的 fe* 是具名拒绝（结构非法）。
+		if err := pc.dec.Skip(); err != nil {
+			return nil, err
+		}
+		pc.warn(se.Name.Local, "", warnUnsupportedElement, "fe* outside <filter>")
+		return nil, nil //nolint:nilnil
 	case "title", "desc", "metadata":
 		// Descriptive: no rendering, no warning.
 		if err := pc.dec.Skip(); err != nil {
@@ -325,6 +336,8 @@ func parseAttrs(pc *parseCtx, se xml.StartElement) Attrs {
 			a.TextAnchor = attr.Value
 		case "letter-spacing":
 			a.LetterSpacing = attr.Value
+		case "filter":
+			a.Filter = attr.Value
 		}
 	}
 	return a
@@ -1175,6 +1188,179 @@ func parseNumberList(s string) []float64 {
 		out = append(out, v)
 	}
 	return out
+}
+
+// xmlStartTag is a minimal alias used by parseFilterElement's signature.
+type xmlStartTag = xml.StartElement
+
+// tName extracts the local name of a start element.
+func tName(se xml.StartElement) string { return se.Name.Local }
+
+// parseFilterElement parses <filter> (region + units; primitives via children).
+func parseFilterElement(pc *parseCtx, se xml.StartElement) (Element, error) {
+	elem := &FilterElement{Attrs: parseAttrs(pc, se), Units: UnitsObjectBoundingBox}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "x":
+			elem.X = mustLength(pc, "filter", "x", attr.Value)
+		case "y":
+			elem.Y = mustLength(pc, "filter", "y", attr.Value)
+		case "width":
+			elem.W = mustLength(pc, "filter", "width", attr.Value)
+		case "height":
+			elem.H = mustLength(pc, "filter", "height", attr.Value)
+		case "filterUnits":
+			if strings.TrimSpace(attr.Value) == "userSpaceOnUse" {
+				elem.Units = UnitsUserSpaceOnUse
+			} else {
+				elem.Units = UnitsObjectBoundingBox
+			}
+		case "primitiveUnits":
+			// userSpaceOnUse is the default and the only supported form;
+			// objectBoundingBox content is a named refusal at render.
+		}
+	}
+	prims, err := parseFilterPrimitives(pc)
+	if err != nil {
+		return nil, err
+	}
+	elem.Primitives = prims
+	return elem, nil
+}
+
+// parseFilterPrimitives parses fe* children until the enclosing end.
+func parseFilterPrimitives(pc *parseCtx) ([]*FilterPrimitive, error) {
+	var out []*FilterPrimitive
+	depth := 1 // the <filter> start element is already consumed
+	for depth > 0 {
+		tok, err := pc.dec.Token()
+		if err != nil {
+			return nil, fmt.Errorf("svg: error reading <filter>: %w", err)
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			kind := t.Name.Local
+			if strings.HasPrefix(kind, "fe") {
+				fp, err := parseFilterPrimitive(pc, t, kind)
+				if err != nil {
+					return nil, err
+				}
+				if fp != nil {
+					out = append(out, fp)
+				}
+				continue
+			}
+			if err := pc.dec.Skip(); err != nil {
+				return nil, err
+			}
+		case xml.EndElement:
+			depth--
+		}
+	}
+	return out, nil
+}
+
+// parseFilterPrimitive parses one fe* primitive (generic attribute set).
+func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*FilterPrimitive, error) {
+	fp := &FilterPrimitive{Kind: kind, FloodOpacity: 1}
+	switch kind {
+	case "feGaussianBlur":
+		for _, attr := range se.Attr {
+			if attr.Name.Local == "stdDeviation" {
+				fp.Numbers = parseNumberList(attr.Value)
+			}
+		}
+	case "feOffset", "feDropShadow":
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "dx":
+				if v, err := parseLength(attr.Value); err == nil {
+					fp.Number = v.Value
+					fp.HasNumber = true
+				}
+			case "dy":
+				if v, err := parseLength(attr.Value); err == nil {
+					fp.Number = v.Value
+					fp.HasNumber = true
+					fp.Numbers = append(fp.Numbers, v.Value)
+				}
+			case "stdDeviation":
+				fp.Numbers2 = parseNumberList(attr.Value)
+			}
+		}
+	case "feColorMatrix":
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "type":
+				fp.Str1 = attr.Value
+			case "values":
+				fp.Numbers2 = parseNumberList(attr.Value)
+			}
+		}
+	case "feFlood":
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "flood-color":
+				fp.FloodColor = attr.Value
+			case "flood-opacity":
+				if v, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
+					fp.FloodOpacity = clamp01(v)
+				}
+			}
+		}
+	case "feBlend", "feComposite":
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "mode":
+				fp.Str1 = attr.Value
+			case "operator":
+				fp.Str1 = attr.Value
+			}
+		}
+	case "feMerge":
+		depth := 1
+		for depth > 0 {
+			tok, err := pc.dec.Token()
+			if err != nil {
+				return nil, fmt.Errorf("svg: error reading <feMerge>: %w", err)
+			}
+			switch t := tok.(type) {
+			case xml.StartElement:
+				if t.Name.Local == "feMergeNode" {
+					for _, attr := range t.Attr {
+						if attr.Name.Local == "in" {
+							fp.MergeNodes = append(fp.MergeNodes, attr.Value)
+						}
+					}
+				}
+				if err := pc.dec.Skip(); err != nil {
+					return nil, err
+				}
+			case xml.EndElement:
+				depth--
+			}
+		}
+		return fp, nil
+	}
+	// Common in/in2/result + generic numeric catch-alls.
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "in":
+			fp.In = attr.Value
+		case "in2":
+			fp.In2 = attr.Value
+		case "result":
+			fp.Result = attr.Value
+		case "dx", "dy":
+			if v, err := parseLength(attr.Value); err == nil {
+				fp.Numbers = append(fp.Numbers, v.Value)
+			}
+		}
+	}
+	if err := pc.dec.Skip(); err != nil {
+		return nil, fmt.Errorf("svg: error reading <%s>: %w", kind, err)
+	}
+	return fp, nil
 }
 
 // parsePoints parses an SVG points attribute value into alternating x/y

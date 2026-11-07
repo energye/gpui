@@ -65,6 +65,28 @@ func renderElement(dc *render.Context, elem Element, parent *props, st *renderSt
 			return
 		}
 	}
+	// filter 属性：布局后的元素路径（combined）过滤镜链；text 元素已在
+	// renderTextElement 内布局——此处统一在 body 之前处理形状类元素的 filter。
+	// text 的 filter 走 body 内自管（同 clip/mask）。
+	// filter="url(#f)"：形状元素走离屏滤镜链（text 在 renderTextElement 自管）。
+	// filterInvalid（悬空/不支持原语）→ 原样绘制（CSS error 口径），不 return。
+	if _, isText := elem.(*TextElement); !isText {
+		if a.Filter != "" && !a.filterInvalid {
+			if id, isRef := paintRefID(a.Filter); isRef {
+				if f, okF := st.doc.ElementByID(id).(*FilterElement); okF {
+					if bbox, hasBBox := elementBBox(elem, st); hasBBox {
+						if combined, okP := shapeRenderPath(elem, st); okP {
+							tp := evalProps(parent, *a, st.doc)
+							if st.doc.renderFilterElement(dc, combined, bbox, f, a, tp, st) {
+								return
+							}
+							// filter 未应用 → 落到原样绘制
+						}
+					}
+				}
+			}
+		}
+	}
 	renderClipped(dc, elem, a, parent, st)
 }
 
@@ -546,6 +568,47 @@ func elementBBox(elem Element, st *renderState) (render.Rect, bool) {
 		return out, ok
 	}
 	return render.Rect{}, false
+}
+
+// shapeRenderPath converts a shape element into its render path (fill/stroke
+// geometry) for the filter content leg. Returns false for non-shapes.
+func shapeRenderPath(e Element, st *renderState) (*render.Path, bool) {
+	switch t := e.(type) {
+	case *PathElement:
+		if t.D == "" {
+			return nil, false
+		}
+		p, err := render.ParseSVGPath(t.D)
+		if err != nil {
+			return nil, false
+		}
+		return p, true
+	case *RectElement:
+		x, y := t.X.Resolve(st.rs, LengthAxisX), t.Y.Resolve(st.rs, LengthAxisY)
+		w, h := t.W.Resolve(st.rs, LengthAxisX), t.H.Resolve(st.rs, LengthAxisY)
+		b := render.BuildPath().Rect(x, y, w, h)
+		if t.RX.Value > 0 || t.RY.Value > 0 {
+			r := t.RX.Resolve(st.rs, LengthAxisX)
+			if ry := t.RY.Resolve(st.rs, LengthAxisY); ry > r {
+				r = ry
+			}
+			b = render.BuildPath().RoundRect(x, y, w, h, r)
+		}
+		return b.Path(), true
+	case *CircleElement:
+		cx, cy := t.CX.Resolve(st.rs, LengthAxisX), t.CY.Resolve(st.rs, LengthAxisY)
+		r := t.R.Resolve(st.rs, LengthAxisDiagonal)
+		return render.BuildPath().Ellipse(cx, cy, r, r).Path(), true
+	case *EllipseElement:
+		return render.BuildPath().Ellipse(
+			t.CX.Resolve(st.rs, LengthAxisX), t.CY.Resolve(st.rs, LengthAxisY),
+			t.RX.Resolve(st.rs, LengthAxisX), t.RY.Resolve(st.rs, LengthAxisY)).Path(), true
+	case *PolygonElement:
+		return pointsBuilder(t.Points, st.rs, true).Path(), true
+	case *PolylineElement:
+		return pointsBuilder(t.Points, st.rs, false).Path(), true
+	}
+	return nil, false
 }
 
 // pointsBBox computes the object bounding box of a points list.
