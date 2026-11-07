@@ -21,15 +21,28 @@ P3.7 材质×透视/bicubic 立项（2026-11-07，`evidence/P3.7/batch6/mat-pers
   （`sprite_persp_pair_bitwise`）。
 - **P5 投影层组合**：对照 | 材质——材质+画布投影层（projW 权重，homography
   w=1-0.003y 不跨眼平面）逐位（`projection_combo_pair_bitwise`）。
-- **P6 拒绝牌**：两枚芯片色由探针事实驱动（红=真、琥珀=异常）——投影层眼后
-  现场拒（`ErrQuadBehindEye`：材质+透视放行后可拒面收敛到几何族，材质在场
-  也不救）+ blend+材质 skip+MaterialSkips（Normal-only 口径不变）；
-  `behind_eye_material_refused_named` / `blend_material_skip_counted` + 快照
-  芯片色像素锚。
+- **P6 能力矩阵（quad 口 × identity 材质）**：12 组合逐格真实表态——
+  2 透视（affine/persp）× 3 采样档（nearest/linear/bicubic）× 2 blend
+  （Normal/Multiply）。stance 由离屏**逐格实测**（`mpMatrixFacts`：每格真调
+  `DrawImageQuad`，验 err 与出图），不许写死：**5 画 + 7 拒**——
 
-三证据合证：8 枚离屏逻辑探针（四对逐位 + 解析锚 + 拒绝事实 + gpu_ops=16 有界）
-+ 终帧 4 枚语义像素断言 + 双后端金图逐位 0.0000%/921600px 且两基线逐位相同。
-H15 定帧 240 停机。
+  | | nearest | linear | bicubic |
+  |---|---|---|---|
+  | affine | ✅ 画 | ✅ 画 | ✅ 画 |
+  | persp | ✅ 画 | ✅ 画 | ⛔ `ErrQuadPerspectiveBicubic`（透视槽边界，先于材质） |
+  | affine+Mult | ⛔ `ErrQuadUnsupportedBlend` | ⛔ 同左 | ⛔ 同左 |
+  | persp+Mult | ⛔ 同左 | ⛔ 同左 | ⛔ 同左 |
+
+  窗内绿格每帧真画（checker）、红格拒底（芯片色由事实驱动，红=真、琥珀=异常）；
+  `matrix_stance_exact` 逐格哨兵对 + 放行格出图断言；快照锚
+  `matrix_green_cell_drawn`/`matrix_red_cell_refused`。CPU 腿 stance=skip+计数
+  （P3.2 无求值器契约，env 档不进本窗矩阵）。另有眼后现场拒芯片
+  （`ErrQuadBehindEye` 几何族——材质+透视放行后可拒面收敛）+
+  `blend_material_skip_counted`（图像口）。
+
+三证据合证：9 枚离屏逻辑探针（四对逐位 + 解析锚 + 12 格矩阵 stance + 拒绝事实
++ gpu_ops 有界）+ 终帧 5 枚语义像素断言 + 双后端金图逐位 0.0000%/921600px 且
+两基线逐位相同。H15 定帧 240 停机。
 
 ## 跑法
 

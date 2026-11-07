@@ -1,8 +1,15 @@
-== 专项窗 ui_wr_p37_mat_persp 轮次（2026-11-07，RUN_SECONDS=8，240 帧门）==
+== 专项窗 ui_wr_p37_mat_persp 轮次（2026-11-07）==
+== 第一版（P6 双芯片）==
 [seed native] golden 已播种（examples/ui_wr_p37_mat_persp/testdata/goldens/ui_wr_p37_mat_persp_final_native.png），这一跑不算 PASS —— 复核后提交基线再复跑
 [verify native] mat_persp: OK backend=native presents=241 probes=8/8 golden=0.0000% (921600 px)
+== 第二版（P6 升 12 格能力矩阵）==
+[verify native] mat_persp: OK backend=native presents=240 probes=9/9 golden=0.0000% (921600 px)
+[verify go] mat_persp: OK backend=go presents=241 probes=9/9 golden=0.0000% (921600 px)
+== 第三版（P3 改仿射 echo + P5 二修投影矩阵并板偏移 + 内容存在断言）==
+[seed native] golden 已播种（examples/ui_wr_p37_mat_persp/testdata/goldens/ui_wr_p37_mat_persp_final_native.png），这一跑不算 PASS —— 复核后提交基线再复跑
+[verify native] mat_persp: OK backend=native presents=241 probes=9/9 golden=0.0000% (921600 px)
 [seed go] golden 已播种（examples/ui_wr_p37_mat_persp/testdata/goldens/ui_wr_p37_mat_persp_final_go.png），这一跑不算 PASS —— 复核后提交基线再复跑
-[verify go] mat_persp: OK backend=go presents=240 probes=8/8 golden=0.0000% (921600 px)
-[stable native] mat_persp: OK backend=native presents=240 probes=8/8 golden=0.0000% (921600 px)
+[verify go] mat_persp: OK backend=go presents=241 probes=9/9 golden=0.0000% (921600 px)
+[stable native] mat_persp: OK backend=native presents=242 probes=9/9 golden=0.0000% (921600 px)
 [cmp] 两后端基线逐位相同
-[probes] 四对逐位 diff=0 + 带分界解析锚 + 拒绝事实双真 + gpu_ops=16
+[matrix] draw=5 refuse=7（逐格实测）；identity pair diff=0（P5 细条污染随二修消失）
