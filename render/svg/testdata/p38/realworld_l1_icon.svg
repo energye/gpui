@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="128" height="128" color="#e24a4a">
+<defs><style>.st{fill:currentColor}</style></defs>
+<rect width="1024" height="1024" fill="#171a20"/>
+<path class="st" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/>
+<path class="st" fill-rule="evenodd" d="M512 260a252 252 0 100 504 252 252 0 000-504zm96 300a48 48 0 11-96 0v-96a48 48 0 1196 0v96z"/>
+<path class="st" d="M300 300l-60-60m544 60l60-60M300 724l-60 60m544-60l60 60" stroke="currentColor" stroke-width="24" stroke-linecap="round" fill="none"/>
+<rect x="240" y="240" width="80" height="80" rx="16" class="st" opacity="0.6"/>
+<circle cx="784" cy="784" r="40" class="st" opacity="0.4"/>
+</svg>

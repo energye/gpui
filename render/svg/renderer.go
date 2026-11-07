@@ -543,6 +543,21 @@ func elementBBox(elem Element, st *renderState) (render.Rect, bool) {
 		return pointsBBox(e.Points, st.rs), true
 	case *PolylineElement:
 		return pointsBBox(e.Points, st.rs), true
+	case *UseElement:
+		if e.invalid || e.target == nil {
+			return render.Rect{}, false
+		}
+		tb, ok := elementBBox(e.target, st)
+		if !ok {
+			return render.Rect{}, false
+		}
+		dx := e.X.Resolve(st.rs, LengthAxisX)
+		dy := e.Y.Resolve(st.rs, LengthAxisY)
+		tb.Min.X += dx
+		tb.Min.Y += dy
+		tb.Max.X += dx
+		tb.Max.Y += dy
+		return tb, true
 	case *GroupElement:
 		out, ok := render.Rect{}, false
 		for _, c := range e.Children {

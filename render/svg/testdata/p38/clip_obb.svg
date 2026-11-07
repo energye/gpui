@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100">
-  <!-- objectBoundingBox clip units: same fractions on two different rects -->
+  <!-- objectBoundingBox clip units (declared explicitly): same fractions on two different rects -->
   <defs>
-    <clipPath id="half">
+    <clipPath id="half" clipPathUnits="objectBoundingBox">
       <rect x="0" y="0" width="0.5" height="1"/>
     </clipPath>
   </defs>

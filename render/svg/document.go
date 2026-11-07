@@ -306,7 +306,7 @@ func (e *SVGElement) attrs() *Attrs { return &e.Attrs }
 // winding (holes survive); multi-child regions union via the boolean base.
 type ClipPathElement struct {
 	Attrs    Attrs
-	Units    Units // clipPathUnits (default objectBoundingBox)
+	Units    Units // clipPathUnits (spec default userSpaceOnUse; stated explicitly — zero value is oBB)
 	Children []Element
 }
 

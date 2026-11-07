@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="280" viewBox="0 0 480 280">
+<defs>
+<radialGradient id="glow" cx="0.5" cy="0.4" r="0.6">
+<stop offset="0" stop-color="#fff7d6"/><stop offset="1" stop-color="#ff9a3c"/>
+</radialGradient>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#1a1a40"/><stop offset="1" stop-color="#4a1a6e"/>
+</linearGradient>
+<clipPath id="half"><rect x="0" y="140" width="480" height="140"/></clipPath>
+<mask id="fade"><rect x="0" y="0" width="480" height="280" fill="url(#glow)"/></mask>
+<g id="star"><circle r="4" fill="#fff"/></g>
+<filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4"/></filter>
+</defs>
+<rect width="480" height="280" fill="url(#sky)"/>
+<g clip-path="url(#half)">
+<circle cx="240" cy="180" r="70" fill="url(#glow)" filter="url(#soft)"/>
+</g>
+<g mask="url(#fade)">
+<use href="#star" x="60" y="60"/><use href="#star" x="120" y="90"/><use href="#star" x="380" y="50"/><use href="#star" x="420" y="110"/>
+</g>
+<path d="M0 240 L80 200 L160 230 L240 190 L320 225 L480 210 V280 H0 Z" fill="#0d0d1a"/>
+</svg>

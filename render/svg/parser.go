@@ -400,10 +400,16 @@ func parseMaskElement(pc *parseCtx, se xml.StartElement) (*MaskElement, error) {
 
 // parseClipPathElement parses <clipPath> (clipPathUnits; shapes via children).
 func parseClipPathElement(pc *parseCtx, se xml.StartElement) (*ClipPathElement, error) {
-	elem := &ClipPathElement{Attrs: parseAttrs(pc, se)}
+	// Spec default: clipPathUnits = userSpaceOnUse. The Units enum's zero
+	// value is objectBoundingBox, so the default must be stated explicitly
+	// (same trap as pattern's patternUnits, fixed in batch 2 — clipPath was
+	// missed then and silently shrank every default-units clip to nothing).
+	elem := &ClipPathElement{Attrs: parseAttrs(pc, se), Units: UnitsUserSpaceOnUse}
 	for _, attr := range se.Attr {
-		if attr.Name.Local == "clipPathUnits" && strings.TrimSpace(attr.Value) == "userSpaceOnUse" {
-			elem.Units = UnitsUserSpaceOnUse
+		if attr.Name.Local == "clipPathUnits" {
+			if strings.TrimSpace(attr.Value) == "objectBoundingBox" {
+				elem.Units = UnitsObjectBoundingBox
+			}
 		}
 	}
 	children, err := parseChildren(pc)
