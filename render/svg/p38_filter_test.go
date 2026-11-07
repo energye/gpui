@@ -9,6 +9,7 @@
 package svg
 
 import (
+	"fmt"
 	"testing"
 
 	_ "github.com/energye/gpui/render/filters"
@@ -175,5 +176,64 @@ func TestP38FilterMissingAndUnsupported(t *testing.T) {
 	}
 	if !foundD {
 		t.Errorf("dangling filter warning missing: %+v", doc.Warnings)
+	}
+}
+
+// --- filter × 元素 transform 组合：filter 内容腿烘焙元素自身 transform ---
+// spec：filter 作用于「已定位」的元素（elementBBox/shape path 均带自身 transform）。
+// 回归锚点：resvg conformance complex-transform side-by-side 实锤——修复前
+// filter+transform 组合左半全黑（内容腿按未变换 bbox 裁剪，旋转后内容整体丢失）。
+
+func TestP38FilterElementTransform(t *testing.T) {
+	const tpl = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+<filter id="f"><feGaussianBlur stdDeviation="12 0"/></filter>
+<rect width="200" height="200" fill="#000"/>
+<rect x="80" y="10" width="80" height="80" fill="seagreen" %s/></svg>`
+
+	// 四象限绿色墨量统计（阈值同诊断基线：a>0 且 g>80）。
+	greenQuads := func(t *testing.T, variant string) [4]int {
+		t.Helper()
+		doc, err := Parse([]byte(fmt.Sprintf(tpl, variant)))
+		if err != nil {
+			t.Fatalf("parse %q: %v", variant, err)
+		}
+		img := doc.Render(200, 200)
+		var q [4]int
+		for y := 0; y < 200; y++ {
+			for x := 0; x < 200; x++ {
+				_, g, _, a := img.At(x, y).RGBA()
+				if a > 0 && (g>>8) > 80 {
+					q[(y/100)*2+(x/100)]++
+				}
+			}
+		}
+		return q
+	}
+
+	n1 := greenQuads(t, `filter="url(#f)"`)                                  // filter，无 transform
+	n2 := greenQuads(t, `filter="url(#f)" transform="rotate(45 60 60)"`)     // filter + transform
+	n3 := greenQuads(t, `transform="rotate(45 60 60)"`)                      // 纯 transform
+
+	// 核心：filter+transform 与纯 transform 路径墨量分布逐位一致
+	//（实测基线 [1357 2445 946 1862]，修复前 N2 左半全黑与 N3 分叉）。
+	if n2 != n3 {
+		t.Errorf("filter+rotate quads = %v, want identical to pure rotate %v", n2, n3)
+	}
+	// 旋转生效且内容未丢：墨量跨至少 3 个象限。
+	nonzero := 0
+	for _, n := range n2 {
+		if n > 0 {
+			nonzero++
+		}
+	}
+	if nonzero < 3 {
+		t.Errorf("filter+rotate quads = %v, want ink across >=3 quadrants (rotated, not dropped)", n2)
+	}
+	// 未旋转基线：墨量主体在右半（方块 x∈[80,160]）；左半允许水平模糊溢出
+	// （实测 σ=12 时 left:right ≈ 1600:4800），但不得反超。
+	left := n1[0] + n1[2]
+	right := n1[1] + n1[3]
+	if right == 0 || left >= right {
+		t.Errorf("filter no-transform quads = %v, want ink mostly on right half", n1)
 	}
 }

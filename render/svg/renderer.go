@@ -538,6 +538,45 @@ func fillAndStroke(dc *render.Context, a *Attrs, p *props, st *renderState, bbox
 // elementBBox computes an element's object bounding box in user space
 // (objectBoundingBox paints / clip units). Groups union their children.
 func elementBBox(elem Element, st *renderState) (render.Rect, bool) {
+	bb, ok := elementBBoxRaw(elem, st)
+	if !ok {
+		return render.Rect{}, false
+	}
+	// Spec: the objectBoundingBox is the element's own transform applied.
+	if a := elem.attrs(); a != nil && a.Transform != "" {
+		if m, err := parseTransformList(a.Transform); err == nil {
+			corners := [4]render.Point{
+				{X: bb.Min.X, Y: bb.Min.Y}, {X: bb.Max.X, Y: bb.Min.Y},
+				{X: bb.Max.X, Y: bb.Max.Y}, {X: bb.Min.X, Y: bb.Max.Y},
+			}
+			out := render.Rect{}
+			for i, c := range corners {
+				p := m.TransformPoint(c)
+				if i == 0 {
+					out = render.Rect{Min: p, Max: p}
+					continue
+				}
+				if p.X < out.Min.X {
+					out.Min.X = p.X
+				}
+				if p.Y < out.Min.Y {
+					out.Min.Y = p.Y
+				}
+				if p.X > out.Max.X {
+					out.Max.X = p.X
+				}
+				if p.Y > out.Max.Y {
+					out.Max.Y = p.Y
+				}
+			}
+			bb = out
+		}
+	}
+	return bb, true
+}
+
+// elementBBoxRaw is the un-transformed per-shape bbox.
+func elementBBoxRaw(elem Element, st *renderState) (render.Rect, bool) {
 	switch e := elem.(type) {
 	case *PathElement:
 		if e.D == "" {
@@ -611,8 +650,24 @@ func elementBBox(elem Element, st *renderState) (render.Rect, bool) {
 }
 
 // shapeRenderPath converts a shape element into its render path (fill/stroke
-// geometry) for the filter content leg. Returns false for non-shapes.
+// geometry) for the filter content leg, with the element's own transform
+// baked in (spec: the filter operates on the element as positioned).
+// Returns false for non-shapes.
 func shapeRenderPath(e Element, st *renderState) (*render.Path, bool) {
+	p, ok := shapeRenderPathRaw(e, st)
+	if !ok {
+		return nil, false
+	}
+	if a := e.attrs(); a != nil && a.Transform != "" {
+		if m, err := parseTransformList(a.Transform); err == nil {
+			p = transformPath(p, m)
+		}
+	}
+	return p, true
+}
+
+// shapeRenderPathRaw builds the un-transformed shape path.
+func shapeRenderPathRaw(e Element, st *renderState) (*render.Path, bool) {
 	switch t := e.(type) {
 	case *PathElement:
 		if t.D == "" {
