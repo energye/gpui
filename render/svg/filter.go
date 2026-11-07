@@ -223,15 +223,19 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 	})
 
 	// Named images: SourceGraphic / SourceAlpha / result names.
+	// src.Image() materializes a fresh RGBA every call (FlushGPU + full
+	// copy) — hoist it once; the alpha twin is a per-row copy of the same
+	// pixels (bit-identical to the previous per-pixel loop, without the
+	// 2×rw×rh redundant materializations that dominated bake time).
+	srcImg, _ := src.Image().(*image.RGBA)
 	images := map[string]*render.ImageBuf{
-		"SourceGraphic": render.ImageBufFromImage(src.Image()),
+		"SourceGraphic": render.ImageBufFromImage(srcImg),
 	}
-	alpha := image.NewRGBA(src.Image().(*imageRGBA).Rect)
+	alpha := image.NewRGBA(srcImg.Rect)
 	for y := 0; y < rh; y++ {
-		for x := 0; x < rw; x++ {
-			c0 := src.Image().(*imageRGBA).RGBAAt(x, y)
-			alpha.SetRGBA(x, y, c0)
-		}
+		row := srcImg.Pix[y*srcImg.Stride:]
+		dstRow := alpha.Pix[y*alpha.Stride:]
+		copy(dstRow[:rw*4], row[:rw*4])
 	}
 	images["SourceAlpha"] = render.ImageBufFromImage(alpha)
 

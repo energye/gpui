@@ -39,13 +39,14 @@ var (
 )
 
 type baked struct {
-	inner  *recording.Recorder
-	mid    *recording.Recorder
-	pic    *recording.Recorder
-	self   *recording.Recorder
-	face   text.Face
-	err    string
-	closed bool
+	inner       *recording.Recorder
+	mid         *recording.Recorder
+	pic         *recording.Recorder
+	self        *recording.Recorder
+	selfRefused bool
+	face        text.Face
+	err         string
+	closed      bool
 }
 
 var (
@@ -55,7 +56,7 @@ var (
 
 var cardTitles = [4]string{
 	"1 折叠复用：一 picture 三处摆位（引用命令）",
-	"2 嵌套三层 picture（内/中/外）",
+	"2 嵌套三层 picture（绿芯/蓝环/红环）",
 	"3 环拒绝牌：自引用 → ErrPictureCycle",
 	"4 K5 穿链：中英混排 Cluster 编码往返",
 }
@@ -66,17 +67,30 @@ func ensureBaked() *baked {
 		// 内层：绿色小方块。
 		b.inner = recording.NewRecorder(60, 60)
 		b.inner.SetRGBA(colInkC.R, colInkC.G, colInkC.B, colInkC.A)
-		b.inner.DrawRectangle(10, 10, 40, 40)
+		b.inner.DrawRectangle(14, 14, 32, 32)
 		_ = b.inner.Fill()
-		// 中层：画内层 picture（嵌套一层）。
+		// 中层：蓝框 + 画内层 picture（嵌套一层）。
 		b.mid = recording.NewRecorder(60, 60)
+		b.mid.SetRGBA(colInkB.R, colInkB.G, colInkB.B, colInkB.A)
+		b.mid.DrawRectangle(6, 6, 48, 48)
+		_ = b.mid.Fill()
 		b.mid.DrawPicture(b.inner)
-		// 外层卡 2 用：画中层 picture（嵌套两层到内层，共三层）。
+		// 外层：红框 + 画中层 picture（嵌套两层到内层，共三层——三个色环）。
 		b.pic = recording.NewRecorder(60, 60)
+		b.pic.SetRGBA(colInkA.R, colInkA.G, colInkA.B, colInkA.A)
+		b.pic.DrawRectangle(0, 0, 60, 60)
+		_ = b.pic.Fill()
 		b.pic.DrawPicture(b.mid)
-		// 卡 3：自引用 picture（回放期 ErrPictureCycle 护栏）。
+		// 卡 3：自引用 picture（回放期 ErrPictureCycle 护栏）。护栏结果在
+		// bake 期用离屏 Context 预演一次——窗内 DC 可能是任意 Canvas 实现
+		// （录制/代理层），拒绝计数口只在裸 *Context 上可用，静态牌面不
+		// 依赖运行期 DC 类型。
 		b.self = recording.NewRecorder(100, 100)
 		b.self.DrawPicture(b.self)
+		probeDC := render.NewContext(100, 100, render.WithCPUOnly())
+		before := probeDC.PictureRefusals()
+		_ = b.self.FinishRecording().Playback(recording.NewCanvasBackend(probeDC))
+		b.selfRefused = probeDC.PictureRefusals() > before
 		// 卡 4：混排文本 face。
 		src, err := text.NewFontSourceFromFile("render/text/testdata/wqy-microhei.ttf")
 		if err != nil {
@@ -144,19 +158,17 @@ func buildPictureScene(shell *wrkit.ShellChrome) {
 				_ = replayInto(b.pic, dc)
 				dc.Pop()
 			case 2:
-				// 自引用回放：环护栏 fail-closed（跳过+计数），牌面显示结果。
-				if ctx, ok := dc.(*render.Context); ok {
-					before := ctx.PictureRefusals()
-					_ = replayInto(b.self, dc)
-					if ctx.PictureRefusals() > before {
-						dc.SetRGBA(colInkC.R, colInkC.G, colInkC.B, colInkC.A)
-						dc.DrawString("self-reference refused: ErrPictureCycle (counted)",
-							ox+innerX+20, oy+innerY+70)
-					} else {
-						dc.SetRGBA(0.89, 0.29, 0.29, 1)
-						dc.DrawString("self-reference NOT refused (BAD)",
-							ox+innerX+20, oy+innerY+70)
-					}
+				// 自引用拒绝牌：护栏结果 bake 期已验证（离屏 Context 计数），
+				// 这里画静态牌面——不依赖运行期 DC 的具体类型。
+				dc.SetRGBA(colTextFG.R, colTextFG.G, colTextFG.B, colTextFG.A)
+				dc.DrawString("self-reference replay →", ox+innerX+20, oy+innerY+60)
+				if b.selfRefused {
+					dc.SetRGBA(colInkC.R, colInkC.G, colInkC.B, colInkC.A)
+					dc.DrawString("REFUSED: ErrPictureCycle (fail-closed, counted)",
+						ox+innerX+20, oy+innerY+100)
+				} else {
+					dc.SetRGBA(0.89, 0.29, 0.29, 1)
+					dc.DrawString("NOT refused (BAD)", ox+innerX+20, oy+innerY+100)
 				}
 			case 3:
 				// 中英混排：cluster 穿链由 logic 探针钉值，这里渲染显示。

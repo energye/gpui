@@ -12,6 +12,7 @@ package filter
 
 import (
 	"math"
+	"runtime"
 	"sync"
 
 	"github.com/energye/gpui/render"
@@ -119,44 +120,49 @@ func blurHorizontal(src *render.Pixmap, temp []float32, minX, minY, width, heigh
 	srcWidth := src.Width()
 	srcData := src.Data()
 
-	for y := 0; y < height; y++ {
-		srcY := minY + y
-		if srcY < 0 || srcY >= src.Height() {
-			continue
-		}
-
-		for x := 0; x < width; x++ {
-			srcX := minX + x
-
-			var r, g, b, a float32
-
-			for k := 0; k < kernelSize; k++ {
-				kx := srcX + k - halfKernel
-
-				// Clamp to source bounds (edge extension)
-				if kx < 0 {
-					kx = 0
-				} else if kx >= srcWidth {
-					kx = srcWidth - 1
-				}
-
-				srcIdx := (srcY*srcWidth + kx) * 4
-				weight := kernel[k]
-
-				r += float32(srcData[srcIdx+0]) * weight
-				g += float32(srcData[srcIdx+1]) * weight
-				b += float32(srcData[srcIdx+2]) * weight
-				a += float32(srcData[srcIdx+3]) * weight
+	// Rows are independent: split them across workers. Identical arithmetic
+	// per row as the serial version, so results are bit-for-bit unchanged
+	// (Skia parallelizes its blur passes the same way).
+	parallelRows(height, func(y0, y1 int) {
+		for y := y0; y < y1; y++ {
+			srcY := minY + y
+			if srcY < 0 || srcY >= src.Height() {
+				continue
 			}
 
-			// Store in temp buffer (RGBA float32)
-			tempIdx := (y*width + x) * 4
-			temp[tempIdx+0] = r
-			temp[tempIdx+1] = g
-			temp[tempIdx+2] = b
-			temp[tempIdx+3] = a
+			for x := 0; x < width; x++ {
+				srcX := minX + x
+
+				var r, g, b, a float32
+
+				for k := 0; k < kernelSize; k++ {
+					kx := srcX + k - halfKernel
+
+					// Clamp to source bounds (edge extension)
+					if kx < 0 {
+						kx = 0
+					} else if kx >= srcWidth {
+						kx = srcWidth - 1
+					}
+
+					srcIdx := (srcY*srcWidth + kx) * 4
+					weight := kernel[k]
+
+					r += float32(srcData[srcIdx+0]) * weight
+					g += float32(srcData[srcIdx+1]) * weight
+					b += float32(srcData[srcIdx+2]) * weight
+					a += float32(srcData[srcIdx+3]) * weight
+				}
+
+				// Store in temp buffer (RGBA float32)
+				tempIdx := (y*width + x) * 4
+				temp[tempIdx+0] = r
+				temp[tempIdx+1] = g
+				temp[tempIdx+2] = b
+				temp[tempIdx+3] = a
+			}
 		}
-	}
+	})
 }
 
 // blurVertical applies 1D vertical convolution.
@@ -167,47 +173,81 @@ func blurVertical(temp []float32, dst *render.Pixmap, minX, minY, width, height 
 	dstData := dst.Data()
 	dstWidth := dst.Width()
 
-	for y := 0; y < height; y++ {
-		dstY := minY + y
-		if dstY < 0 || dstY >= dst.Height() {
-			continue
-		}
-
-		for x := 0; x < width; x++ {
-			dstX := minX + x
-			if dstX < 0 || dstX >= dstWidth {
+	// Same row-parallel split as the horizontal pass.
+	parallelRows(height, func(y0, y1 int) {
+		for y := y0; y < y1; y++ {
+			dstY := minY + y
+			if dstY < 0 || dstY >= dst.Height() {
 				continue
 			}
 
-			var r, g, b, a float32
-
-			for k := 0; k < kernelSize; k++ {
-				ky := y + k - halfKernel
-
-				// Clamp to temp buffer bounds (edge extension)
-				if ky < 0 {
-					ky = 0
-				} else if ky >= height {
-					ky = height - 1
+			for x := 0; x < width; x++ {
+				dstX := minX + x
+				if dstX < 0 || dstX >= dstWidth {
+					continue
 				}
 
-				tempIdx := (ky*width + x) * 4
-				weight := kernel[k]
+				var r, g, b, a float32
 
-				r += temp[tempIdx+0] * weight
-				g += temp[tempIdx+1] * weight
-				b += temp[tempIdx+2] * weight
-				a += temp[tempIdx+3] * weight
+				for k := 0; k < kernelSize; k++ {
+					ky := y + k - halfKernel
+
+					// Clamp to temp buffer bounds (edge extension)
+					if ky < 0 {
+						ky = 0
+					} else if ky >= height {
+						ky = height - 1
+					}
+
+					tempIdx := (ky*width + x) * 4
+					weight := kernel[k]
+
+					r += temp[tempIdx+0] * weight
+					g += temp[tempIdx+1] * weight
+					b += temp[tempIdx+2] * weight
+					a += temp[tempIdx+3] * weight
+				}
+
+				// Write to destination (convert back to uint8)
+				dstIdx := (dstY*dstWidth + dstX) * 4
+				dstData[dstIdx+0] = clampUint8(r)
+				dstData[dstIdx+1] = clampUint8(g)
+				dstData[dstIdx+2] = clampUint8(b)
+				dstData[dstIdx+3] = clampUint8(a)
 			}
-
-			// Write to destination (convert back to uint8)
-			dstIdx := (dstY*dstWidth + dstX) * 4
-			dstData[dstIdx+0] = clampUint8(r)
-			dstData[dstIdx+1] = clampUint8(g)
-			dstData[dstIdx+2] = clampUint8(b)
-			dstData[dstIdx+3] = clampUint8(a)
 		}
+	})
+}
+
+// parallelRows splits [0, height) into contiguous row ranges, one per
+// worker (bounded by GOMAXPROCS and the row count), and runs fn on each.
+func parallelRows(height int, fn func(y0, y1 int)) {
+	workers := runtime.GOMAXPROCS(0)
+	if workers > height {
+		workers = height
 	}
+	if workers <= 1 {
+		fn(0, height)
+		return
+	}
+	rowsPer := (height + workers - 1) / workers
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		y0 := w * rowsPer
+		y1 := y0 + rowsPer
+		if y1 > height {
+			y1 = height
+		}
+		if y0 >= y1 {
+			break
+		}
+		wg.Add(1)
+		go func(y0, y1 int) {
+			defer wg.Done()
+			fn(y0, y1)
+		}(y0, y1)
+	}
+	wg.Wait()
 }
 
 // copyToTemp copies pixels from src to temp buffer.
