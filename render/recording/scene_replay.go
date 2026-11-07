@@ -22,6 +22,12 @@ import (
 // is neither a live *render.Context nor a *Recorder to fold into.
 var ErrUnsupportedSceneTarget = errors.New("recording: scene replay target unsupported")
 
+// ErrUnsupportedPictureTarget reports a playback target that cannot run a
+// nested picture: the display list carries the picture command, but the
+// target is neither a live *render.Context nor a *Recorder to fold into
+// (P3.8 batch 6).
+var ErrUnsupportedPictureTarget = errors.New("recording: picture replay target unsupported")
+
 // ScenePayload is the replayable unit of a nested scene command (P3.7 batch 6
 // wrapup, H21). Standard shape: Skia SkPicture via SkCanvas::drawPicture /
 // Flutter DlDisplayList via drawDisplayList — one recording replayed as one

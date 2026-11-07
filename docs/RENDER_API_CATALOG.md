@@ -275,6 +275,11 @@
 | `DrawShaderMask(c Canvas, x,y,w,h float64, mask Brush, draw func())` | `Push` → `PushLayerIsolated(1)` → `Push` → `ClipRect(bounds)` → `draw()` → `ClearPath` → `SetFillBrush(mask)` → `SetBlendMode(DstIn)` → 强制 AA → 画满 bounds 矩形 → 还原画刷/混合 → 三层 `Pop`。`mask==nil` 直通 `draw()`；调用后 CTM/裁剪/画刷/混合/AA 全部还原。掩码只调制整层（不是每条命令各乘一次），bounds 外内容被裁掉 | 用户空间掩码 | 🔌 **已验证待接线**：`render/draw_shader_mask_test.go`（CPU 契约）+ `_gpu_test.go`（固定混合取点）+ `render/internal/gpu/brush_blend_rect_test.go` + `render/recording/shader_mask_test.go` + `ui/rendering/paint_context_shadermask_test.go`；直调真窗 `ui_wr_shadermask`（像素 18/18、retained≡direct 9/9、Golden 864000px 两连 0.0000%、抓屏 vs 快照 0 差）；生产消费者为零 |
 
 
+### 3.17 context_picture.go（1 方法+2 哨兵+计数口）· 嵌套 Picture 族（2026-11-07 P3.8 批 6）
+| API | 功能 | 精简 | 状态 |
+|-----|------|------|------|
+| `Picture` 接口（`DrawTo(dc *Context)`）+ `Canvas.DrawPicture(pic)` + `Context.DrawPicture`（Push/Pop 包夹）+ `ErrPictureCycle`/`ErrPictureDepth`/`Context.PictureRefusals()` | 嵌套 Picture（SkCanvas::drawPicture 同位物）：已完成录制按引用嵌入命令流；回放双目标（Context 直绘/Recorder 折叠引用）；环=回放期身份栈、深度 64，fail-closed 跳过+计数（Skia 不设防会栈溢出，本仓设防）；render/recording 侧 `CmdDrawPicture/DrawPictureCommand/Recorder.DrawPicture/Recorder.DrawTo/Backend.DrawPicture/ErrUnsupportedPictureTarget`（H21 CmdSceneReplay 保持不动）| 嵌套 Picture | 🔌 P3.8 批 6 单测+真窗；无生产消费者 |
+
 ### 3.16 color_glyph_render.go（2）+ options.go WithCPUOnly（1）· 彩色字形栅格族（2026-11-07 P3.8 批 5）
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|

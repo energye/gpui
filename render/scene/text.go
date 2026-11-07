@@ -506,6 +506,7 @@ func (s *Scene) encodeTextRun(str string, glyphs []text.ShapedGlyph, face text.F
 			GlyphID: g.GID,
 			X:       float32(g.X),
 			Y:       float32(g.Y),
+			Cluster: int32(g.Cluster),
 		}
 	}
 

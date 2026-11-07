@@ -406,10 +406,16 @@ type GlyphEntry struct {
 	GlyphID text.GlyphID // uint16
 	X       float32
 	Y       float32
+
+	// Cluster is the source byte index of the rune this glyph belongs to
+	// (P3.8 batch 6, K5 carrier fix: the shaped cluster travels the encoded
+	// stream so the replay legs rebuild ShapedGlyph.Cluster instead of the
+	// historical all-zero carrier state).
+	Cluster int32
 }
 
 // glyphEntrySize is the byte size of a serialized GlyphEntry.
-const glyphEntrySize = 2 + 4 + 4 // = 10 bytes
+const glyphEntrySize = 2 + 4 + 4 + 4 // = 14 bytes
 
 // Encoding holds the dual-stream encoded representation of drawing commands.
 // It uses separate streams for tags (1 byte each), path data, draw data,
@@ -866,6 +872,8 @@ func (e *Encoding) EncodeText(run GlyphRunData, glyphs []GlyphEntry, str string)
 		binary.LittleEndian.PutUint32(buf[off:], math.Float32bits(g.X))
 		off += 4
 		binary.LittleEndian.PutUint32(buf[off:], math.Float32bits(g.Y))
+		off += 4
+		binary.LittleEndian.PutUint32(buf[off:], uint32(g.Cluster))
 		off += 4
 	}
 

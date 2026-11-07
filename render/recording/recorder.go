@@ -276,6 +276,10 @@ func (r *Recording) Playback(backend Backend) error {
 			if err := backend.RenderScene(c.Payload); err != nil {
 				return err
 			}
+		case DrawPictureCommand:
+			if err := backend.DrawPicture(c.Pic); err != nil {
+				return err
+			}
 		case SetClipCommand:
 			path := r.resources.GetPath(c.Path)
 			backend.SetClip(path, c.Rule)

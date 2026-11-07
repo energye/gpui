@@ -23,6 +23,7 @@ func (stubBackend) Concat(_ Matrix)      {}
 
 func (stubBackend) Projection(_ render.ProjectionMode, _ render.Matrix4) {}
 func (stubBackend) RenderScene(ScenePayload) error                       { return nil }
+func (stubBackend) DrawPicture(render.Picture) error                  { return nil }
 func (stubBackend) SetClip(_ *render.Path, _ FillRule) {
 }
 func (stubBackend) ClearClip()                          {}

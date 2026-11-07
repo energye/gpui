@@ -121,6 +121,11 @@ const (
 	// replays a device-direct scene recording — the Skia drawPicture /
 	// Flutter drawDisplayList shape.
 	CmdSceneReplay // Replay a scene payload onto the playback target context
+
+	// Nested picture (P3.8 批 6): the Skia drawPicture shape with any
+	// completed *Recorder as payload — the general form of CmdSceneReplay,
+	// which stays untouched (H21).
+	CmdDrawPicture // Replay a nested picture onto the playback target canvas
 )
 
 // commandTypeNames maps CommandType values to their string representation.
@@ -180,6 +185,7 @@ var commandTypeNames = [...]string{
 	CmdClearMask:     "ClearMask",
 	CmdInvertMask:    "InvertMask",
 	CmdSceneReplay:   "SceneReplay",
+	CmdDrawPicture:   "DrawPicture",
 	CmdApplyMask:     "ApplyMask",
 	CmdPushMaskLayer: "PushMaskLayer",
 }

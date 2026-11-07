@@ -134,6 +134,14 @@ type Context struct {
 	// that must be bit-identical across runs and backends.
 	cpuOnly bool
 
+	// pictureStack holds the in-flight nested-picture payloads of this
+	// context (P3.8 batch 6 DrawPicture guard): cycle detection by payload
+	// identity and a depth ceiling, both fail-closed on replay.
+	pictureStack []Picture
+
+	// pictureRefusals counts refused picture entries (cycles/over-depth).
+	pictureRefusals int
+
 	// Rasterizer mode
 	rasterizerMode RasterizerMode // CPU rasterizer selection mode
 

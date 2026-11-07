@@ -188,6 +188,23 @@ type Canvas interface {
 	ApplyColorMatrix(matrix [20]float32)
 	ApplyDropShadow(offsetX, offsetY, blurRadius float64, color RGBA)
 	ApplyGrayscale()
+
+	// Nested picture (P3.8 batch 6, SkCanvas::drawPicture shape): replay a
+	// completed display list as one entry of this canvas. The payload is
+	// read-only between record and replay (reference-carried, same
+	// discipline as ScenePayload/PathEffect).
+	DrawPicture(pic Picture)
+}
+
+// Picture is a completed display list that can be replayed into a context.
+// render/recording's *Recorder is the production implementation; the
+// interface lives here because the Canvas.DrawPicture signature needs the
+// type and render must not import render/recording (it imports render).
+type Picture interface {
+	// DrawTo replays the picture into the context. Implementations compose
+	// onto the context's current CTM/clip; the CALLER wraps the replay in
+	// Push/Pop so the picture's own state changes cannot leak.
+	DrawTo(dc *Context)
 }
 
 // The contract is compile-checked on both sides: *Context here, Recorder in

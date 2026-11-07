@@ -1292,10 +1292,11 @@ func (r *Renderer) renderTextOnTile(
 	shaped := make([]text.ShapedGlyph, len(glyphs))
 	for i, g := range glyphs {
 		shaped[i] = text.ShapedGlyph{
-			GID:   g.GlyphID,
-			X:     float64(g.X),
-			Y:     float64(g.Y),
-			IsCJK: isCJK,
+			GID:     g.GlyphID,
+			X:       float64(g.X),
+			Y:       float64(g.Y),
+			Cluster: int(g.Cluster),
+			IsCJK:   isCJK,
 		}
 	}
 

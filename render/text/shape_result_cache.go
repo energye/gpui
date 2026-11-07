@@ -409,7 +409,11 @@ func layoutGlyphsUncached(face Face, s string) []ShapedGlyph {
 			GID:   glyph.GID,
 			X:     glyph.X,
 			Y:     glyph.Y,
-			IsCJK: IsCJKRune(glyph.Rune),
+			// P3.8 batch 6 (K5 carrier chain): the shaped cluster index is
+			// the glyph's byte offset — the K3 ledger's shape-side gap.
+			// Filled now that the scene encoding consumes Cluster.
+			Cluster: glyph.Index,
+			IsCJK:   IsCJKRune(glyph.Rune),
 		})
 	}
 	if shaped == nil {

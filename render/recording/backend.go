@@ -92,6 +92,7 @@ type Backend interface {
 	// (recording.ErrUnsupportedSceneTarget family) — never a silent no-op.
 	RenderScene(p ScenePayload) error
 
+	DrawPicture(pic render.Picture) error
 	// Clipping methods
 
 	// SetClip sets the clipping region to the given path.

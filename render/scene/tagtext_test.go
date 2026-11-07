@@ -341,8 +341,10 @@ func TestGlyphRunDataSize(t *testing.T) {
 }
 
 func TestGlyphEntrySize(t *testing.T) {
-	if glyphEntrySize != 10 {
-		t.Errorf("glyphEntrySize = %d, want 10", glyphEntrySize)
+	// P3.8 batch 6, K5 carrier fix: GlyphEntry carries the shaped cluster
+	// index (int32) — 2 (GID) + 4 (X) + 4 (Y) + 4 (Cluster) = 14 bytes.
+	if glyphEntrySize != 14 {
+		t.Errorf("glyphEntrySize = %d, want 14", glyphEntrySize)
 	}
 }
 
@@ -493,5 +495,43 @@ func BenchmarkDecodeText_10Glyphs(b *testing.B) {
 		dec.textIdx = 0
 		dec.Next()
 		dec.Text()
+	}
+}
+
+// TestK5_ClusterRoundTrip pins the batch-6 carrier fix: the shaped cluster
+// index travels encoding→decoding intact (GlyphEntry 10B→14B), so the
+// replay legs can rebuild ShapedGlyph.Cluster instead of the all-zero
+// carrier state the K5 ledger records.
+func TestK5_ClusterRoundTrip(t *testing.T) {
+	enc := NewEncoding()
+	run := GlyphRunData{
+		FontSourceID: 7,
+		FontSize:     16.0,
+		GlyphCount:   3,
+		TextLen:      6, // "AB中文" style multi-byte source
+	}
+	glyphs := []GlyphEntry{
+		{GlyphID: 65, X: 0, Y: 0, Cluster: 0},
+		{GlyphID: 66, X: 8, Y: 0, Cluster: 1},
+		{GlyphID: 67, X: 16, Y: 0, Cluster: 3}, // CJK rune starts at byte 3
+	}
+	enc.EncodeText(run, glyphs, "AB中")
+
+	dec := NewDecoder(enc)
+	if !dec.Next() {
+		t.Fatal("Decoder.Next() = false")
+	}
+	_, got, _, _ := dec.Text()
+	if len(got) != 3 {
+		t.Fatalf("glyphs len = %d, want 3", len(got))
+	}
+	for i, want := range []int32{0, 1, 3} {
+		if got[i].Cluster != want {
+			t.Errorf("glyph[%d].Cluster = %d, want %d", i, got[i].Cluster, want)
+		}
+	}
+	// Entry size grew exactly 4 bytes (int32 cluster).
+	if glyphEntrySize != 14 {
+		t.Errorf("glyphEntrySize = %d, want 14", glyphEntrySize)
 	}
 }

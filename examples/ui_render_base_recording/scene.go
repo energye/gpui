@@ -501,6 +501,9 @@ func (s *recordingSpyBackend) Projection(_ render.ProjectionMode, _ render.Matri
 	s.hit("Projection")
 }
 
+// DrawPicture 记下嵌套 picture 命令（批 6 的示例侧观察面，与 RenderScene 同款）。
+func (s *recordingSpyBackend) DrawPicture(_ render.Picture) error { return nil }
+
 // RenderScene 记下嵌套场景回放命令（H21 修复的示例侧观察面）。
 func (s *recordingSpyBackend) RenderScene(_ recording.ScenePayload) error {
 	s.hit("SceneReplay")

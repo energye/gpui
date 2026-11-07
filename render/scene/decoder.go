@@ -480,6 +480,8 @@ func (d *Decoder) Text() (run GlyphRunData, glyphs []GlyphEntry, str string, bru
 		off += 4
 		glyphs[i].Y = math.Float32frombits(binary.LittleEndian.Uint32(td[off:]))
 		off += 4
+		glyphs[i].Cluster = int32(binary.LittleEndian.Uint32(td[off:]))
+		off += 4
 	}
 
 	textLen := int(run.TextLen)
