@@ -1,0 +1,18 @@
+--- FAIL: TestP38UseExpandAndSymbol (0.00s)
+panic: interface conversion: svg.Element is *svg.RectElement, not *svg.UseElement [recovered, repanicked]
+
+goroutine 15 [running]:
+testing.tRunner.func1.2({0x679da0, 0xc0002a04e0})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1872 +0x237
+testing.tRunner.func1()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1875 +0x35b
+panic({0x679da0?, 0xc0002a04e0?})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/panic.go:783 +0x132
+github.com/energye/gpui/render/svg.TestP38UseExpandAndSymbol(0xc000115340)
+	/home/yanghy/app/projects/gogpu/gpui/render/svg/p38_doc_test.go:253 +0x6a5
+testing.tRunner(0xc000115340, 0x6ec058)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1934 +0xea
+created by testing.(*T).Run in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1997 +0x465
+FAIL	github.com/energye/gpui/render/svg	0.014s
+FAIL

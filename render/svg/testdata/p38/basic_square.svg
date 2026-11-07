@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- square viewBox, default pAR (xMidYMid meet): legacy stretch == meet, used as behavior-preservation guard -->
+  <rect x="0" y="0" width="16" height="16" fill="#ff0000"/>
+  <circle cx="8" cy="8" r="6" fill="#0000ff"/>
+</svg>

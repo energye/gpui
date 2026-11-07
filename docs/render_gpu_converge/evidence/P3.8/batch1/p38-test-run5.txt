@@ -1,0 +1,4 @@
+# github.com/energye/gpui/render/svg [github.com/energye/gpui/render/svg.test]
+render/svg/svg_test.go:566:14: assignment mismatch: 2 variables but doc.ElementByID returns 1 value
+FAIL	github.com/energye/gpui/render/svg [build failed]
+FAIL

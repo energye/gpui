@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="200" height="100">
+  <!-- absolute units on child geometry (CSS 96dpi): pt=96/72, pc=16, in=96, cm=96/2.54, mm=96/25.4, q=96/254 -->
+  <rect x="0pt" y="0" width="24pt" height="32pt" fill="#0000ff"/>
+  <rect x="0" y="50pc" width="1pc" height="1pc" fill="#00ff00" transform="translate(0,-50)"/>
+  <rect x="0.5in" y="0" width="0.25in" height="1mm" fill="#ff00ff"/>
+  <rect x="2cm" y="0" width="10q" height="1cm" fill="#ffff00"/>
+</svg>

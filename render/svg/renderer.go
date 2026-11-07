@@ -4,8 +4,6 @@
 //
 // Licensed under Apache License Version 2.0, January 2004
 //
-// https://www.apache.org/licenses/LICENSE-2.0
-//
 //----------------------------------------
 
 package svg
@@ -16,44 +14,68 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// renderState holds the rendering state during SVG traversal.
+// renderState carries the per-traversal render context: the document (for
+// style rules and reference lookup), the theming override color, and the
+// current reference space for length resolution.
 type renderState struct {
-	overrideColor color.Color // non-nil → replace all non-colorNone colors
-	parentFill    string      // inherited fill from parent <g>
-	parentStroke  string      // inherited stroke from parent <g>
+	doc           *Document
+	overrideColor color.Color // non-nil → replace all non-"none" colors
+	rs            RefSpace    // current viewport + inherited font-size
 }
 
 // renderElements renders a list of elements into the given render.Context.
-func renderElements(dc *render.Context, elements []Element, state *renderState) {
+func renderElements(dc *render.Context, elements []Element, p *props, st *renderState) {
 	for _, elem := range elements {
-		renderElement(dc, elem, state)
+		renderElement(dc, elem, p, st)
 	}
 }
 
-// renderElement dispatches rendering to the appropriate element-specific function.
-func renderElement(dc *render.Context, elem Element, state *renderState) {
+// renderElement dispatches rendering to the element-specific function.
+// Each element evaluates its own properties over the inherited set.
+func renderElement(dc *render.Context, elem Element, parent *props, st *renderState) {
+	if elem == nil {
+		return
+	}
+	a := elem.attrs()
+	p := evalProps(parent, *a, st.doc)
+	child := *st
+	child.rs.FontSize = p.fontSize
+
 	switch e := elem.(type) {
 	case *PathElement:
-		renderPath(dc, e, state)
+		renderPath(dc, e, a, p, &child)
 	case *CircleElement:
-		renderCircle(dc, e, state)
+		renderCircle(dc, e, a, p, &child)
 	case *RectElement:
-		renderRect(dc, e, state)
+		renderRect(dc, e, a, p, &child)
 	case *EllipseElement:
-		renderEllipse(dc, e, state)
+		renderEllipse(dc, e, a, p, &child)
 	case *LineElement:
-		renderLine(dc, e, state)
+		renderLine(dc, e, a, p, &child)
 	case *PolygonElement:
-		renderPolygon(dc, e, state)
+		renderPolygon(dc, e, a, p, &child)
 	case *PolylineElement:
-		renderPolyline(dc, e, state)
+		renderPolyline(dc, e, a, p, &child)
 	case *GroupElement:
-		renderGroup(dc, e, state)
+		dc.Push()
+		applyElementTransform(dc, a)
+		renderElements(dc, e.Children, p, &child)
+		dc.Pop()
+	case *DefsElement:
+		// Reference-only container: never rendered directly.
+	case *StyleElement:
+		// Rules are registered on the Document at parse.
+	case *SymbolElement:
+		// Only rendered through <use>.
+	case *UseElement:
+		renderUse(dc, e, p, &child)
+	case *SVGElement:
+		renderNestedSVG(dc, e, p, &child)
 	}
 }
 
 // renderPath renders an SVG <path> element.
-func renderPath(dc *render.Context, e *PathElement, state *renderState) {
+func renderPath(dc *render.Context, e *PathElement, a *Attrs, p *props, st *renderState) {
 	if e.D == "" {
 		return
 	}
@@ -63,9 +85,9 @@ func renderPath(dc *render.Context, e *PathElement, state *renderState) {
 	}
 
 	dc.Push()
-	applyElementTransform(dc, &e.Attrs)
+	applyElementTransform(dc, a)
 
-	fillAndStroke(dc, &e.Attrs, state, func() {
+	fillAndStroke(dc, a, p, st, func() {
 		dc.DrawPath(path)
 	})
 
@@ -73,32 +95,38 @@ func renderPath(dc *render.Context, e *PathElement, state *renderState) {
 }
 
 // renderCircle renders an SVG <circle> element.
-func renderCircle(dc *render.Context, e *CircleElement, state *renderState) {
+func renderCircle(dc *render.Context, e *CircleElement, a *Attrs, p *props, st *renderState) {
 	dc.Push()
-	applyElementTransform(dc, &e.Attrs)
+	applyElementTransform(dc, a)
 
-	fillAndStroke(dc, &e.Attrs, state, func() {
-		dc.DrawCircle(e.CX, e.CY, e.R)
+	fillAndStroke(dc, a, p, st, func() {
+		dc.DrawCircle(e.CX.Resolve(st.rs, LengthAxisX), e.CY.Resolve(st.rs, LengthAxisY),
+			e.R.Resolve(st.rs, LengthAxisDiagonal))
 	})
 
 	dc.Pop()
 }
 
 // renderRect renders an SVG <rect> element.
-func renderRect(dc *render.Context, e *RectElement, state *renderState) {
+func renderRect(dc *render.Context, e *RectElement, a *Attrs, p *props, st *renderState) {
 	dc.Push()
-	applyElementTransform(dc, &e.Attrs)
+	applyElementTransform(dc, a)
 
-	fillAndStroke(dc, &e.Attrs, state, func() {
-		if e.RX > 0 || e.RY > 0 {
-			// Use the larger of rx/ry for the rounded rectangle radius.
-			r := e.RX
-			if e.RY > r {
-				r = e.RY
+	fillAndStroke(dc, a, p, st, func() {
+		x := e.X.Resolve(st.rs, LengthAxisX)
+		y := e.Y.Resolve(st.rs, LengthAxisY)
+		w := e.W.Resolve(st.rs, LengthAxisX)
+		h := e.H.Resolve(st.rs, LengthAxisY)
+		if e.RX.Value > 0 || e.RY.Value > 0 {
+			// Legacy single-radius rounding (max of rx/ry); distinct-axis
+			// elliptical corners are a paint-batch item.
+			r := e.RX.Resolve(st.rs, LengthAxisX)
+			if ry := e.RY.Resolve(st.rs, LengthAxisY); ry > r {
+				r = ry
 			}
-			dc.DrawRoundedRectangle(e.X, e.Y, e.W, e.H, r)
+			dc.DrawRoundedRectangle(x, y, w, h, r)
 		} else {
-			dc.DrawRectangle(e.X, e.Y, e.W, e.H)
+			dc.DrawRectangle(x, y, w, h)
 		}
 	})
 
@@ -106,103 +134,162 @@ func renderRect(dc *render.Context, e *RectElement, state *renderState) {
 }
 
 // renderEllipse renders an SVG <ellipse> element.
-func renderEllipse(dc *render.Context, e *EllipseElement, state *renderState) {
+func renderEllipse(dc *render.Context, e *EllipseElement, a *Attrs, p *props, st *renderState) {
 	dc.Push()
-	applyElementTransform(dc, &e.Attrs)
+	applyElementTransform(dc, a)
 
-	fillAndStroke(dc, &e.Attrs, state, func() {
-		dc.DrawEllipse(e.CX, e.CY, e.RX, e.RY)
+	fillAndStroke(dc, a, p, st, func() {
+		dc.DrawEllipse(e.CX.Resolve(st.rs, LengthAxisX), e.CY.Resolve(st.rs, LengthAxisY),
+			e.RX.Resolve(st.rs, LengthAxisX), e.RY.Resolve(st.rs, LengthAxisY))
 	})
 
 	dc.Pop()
 }
 
-// renderLine renders an SVG <line> element.
-func renderLine(dc *render.Context, e *LineElement, state *renderState) {
+// renderLine renders an SVG <line> element. Stroke-only: with no effective
+// stroke the element draws nothing (SVG semantics; fill has no area).
+func renderLine(dc *render.Context, e *LineElement, a *Attrs, p *props, st *renderState) {
+	if !effectiveStroke(a, p) {
+		return
+	}
 	dc.Push()
-	applyElementTransform(dc, &e.Attrs)
+	applyElementTransform(dc, a)
 
-	// Lines are stroke-only by default.
-	applyStrokeAttrs(dc, &e.Attrs, state)
-	dc.DrawLine(e.X1, e.Y1, e.X2, e.Y2)
+	applyStrokeAttrs(dc, p, st)
+	dc.DrawLine(e.X1.Resolve(st.rs, LengthAxisX), e.Y1.Resolve(st.rs, LengthAxisY),
+		e.X2.Resolve(st.rs, LengthAxisX), e.Y2.Resolve(st.rs, LengthAxisY))
 	_ = dc.Stroke()
 
 	dc.Pop()
 }
 
 // renderPolygon renders an SVG <polygon> element.
-func renderPolygon(dc *render.Context, e *PolygonElement, state *renderState) {
+func renderPolygon(dc *render.Context, e *PolygonElement, a *Attrs, p *props, st *renderState) {
 	if len(e.Points) < 4 {
 		return // need at least 2 points
 	}
 
 	dc.Push()
-	applyElementTransform(dc, &e.Attrs)
+	applyElementTransform(dc, a)
 
-	fillAndStroke(dc, &e.Attrs, state, func() {
+	fillAndStroke(dc, a, p, st, func() {
 		dc.ClearPath()
-		drawPointsPath(dc, e.Points, true)
+		drawPointsPath(dc, e.Points, true, st.rs)
 	})
 
 	dc.Pop()
 }
 
 // renderPolyline renders an SVG <polyline> element.
-func renderPolyline(dc *render.Context, e *PolylineElement, state *renderState) {
+func renderPolyline(dc *render.Context, e *PolylineElement, a *Attrs, p *props, st *renderState) {
 	if len(e.Points) < 4 {
 		return
 	}
 
 	dc.Push()
-	applyElementTransform(dc, &e.Attrs)
+	applyElementTransform(dc, a)
 
-	fillAndStroke(dc, &e.Attrs, state, func() {
+	fillAndStroke(dc, a, p, st, func() {
 		dc.ClearPath()
-		drawPointsPath(dc, e.Points, false)
+		drawPointsPath(dc, e.Points, false, st.rs)
 	})
 
 	dc.Pop()
 }
 
-// renderGroup renders an SVG <g> element and its children.
-func renderGroup(dc *render.Context, e *GroupElement, state *renderState) {
+// renderUse instantiates a referenced element or symbol. Cycles and
+// unresolved references were refused at parse (use.invalid).
+func renderUse(dc *render.Context, e *UseElement, p *props, st *renderState) {
+	if e.invalid || e.target == nil {
+		return
+	}
 	dc.Push()
 	applyElementTransform(dc, &e.Attrs)
 
-	// Create child state with inherited attrs.
-	childState := &renderState{
-		overrideColor: state.overrideColor,
-		parentFill:    state.parentFill,
-		parentStroke:  state.parentStroke,
-	}
-	if e.Attrs.Fill != "" {
-		childState.parentFill = e.Attrs.Fill
-	}
-	if e.Attrs.Stroke != "" {
-		childState.parentStroke = e.Attrs.Stroke
+	dx := e.X.Resolve(st.rs, LengthAxisX)
+	dy := e.Y.Resolve(st.rs, LengthAxisY)
+	if dx != 0 || dy != 0 {
+		dc.Translate(dx, dy)
 	}
 
-	renderElements(dc, e.Children, childState)
+	// The use element's own attributes are inherited into the referenced
+	// content (SVG shadow-tree semantics); the target's own attrs win.
+	useProps := evalProps(p, e.Attrs, st.doc)
+	inner := *st
+	inner.rs.FontSize = useProps.fontSize
+
+	if e.kind == RefKindSymbol {
+		sym, _ := e.target.(*SymbolElement)
+		if sym == nil {
+			dc.Pop()
+			return
+		}
+		// Symbol viewport: use width/height (default 100% of the current
+		// viewport), clipped, with the symbol's own viewBox/pAR mapping.
+		vw := e.W.Resolve(st.rs, LengthAxisX)
+		vh := e.H.Resolve(st.rs, LengthAxisY)
+		if vw > 0 && vh > 0 {
+			dc.ClipRect(0, 0, vw, vh)
+		}
+		if sym.HasViewBox {
+			dc.Transform(viewportTransform(vw, vh, sym.ViewBox, sym.Par))
+		}
+		inner.rs.ViewportW, inner.rs.ViewportH = vw, vh
+		renderElements(dc, sym.Children, useProps, &inner)
+	} else {
+		// Depth is bounded: the static reference graph was validated at
+		// parse (cycles refused, depth ≤ 64).
+		renderElement(dc, e.target, useProps, &inner)
+	}
 
 	dc.Pop()
 }
 
-// fillAndStroke applies fill and/or stroke to the current path.
-// The drawShape function should set up the path on the context.
-func fillAndStroke(dc *render.Context, a *Attrs, state *renderState, drawShape func()) {
-	hasFill := shouldFill(a, state)
-	hasStroke := shouldStroke(a, state)
+// renderNestedSVG renders a nested <svg>: a new viewport with optional
+// viewBox/pAR mapping, clipped by default.
+func renderNestedSVG(dc *render.Context, e *SVGElement, p *props, st *renderState) {
+	dc.Push()
+	applyElementTransform(dc, &e.Attrs)
 
-	if !hasFill && !hasStroke {
-		// Default SVG behavior is an initial black fill, but an inherited
-		// fill="none" or stroke="none" must not be replaced by that default.
-		if resolveFill(a, state) == "" && resolveStroke(a, state) == "" {
-			hasFill = true
-		}
+	vw := e.W.Resolve(st.rs, LengthAxisX)
+	vh := e.H.Resolve(st.rs, LengthAxisY)
+	dx := e.X.Resolve(st.rs, LengthAxisX)
+	dy := e.Y.Resolve(st.rs, LengthAxisY)
+	if dx != 0 || dy != 0 {
+		dc.Translate(dx, dy)
 	}
 
+	if !e.OverflowVisible {
+		if vw > 0 && vh > 0 {
+			dc.ClipRect(0, 0, vw, vh)
+		} else {
+			dc.Pop()
+			return // zero viewport: nothing to draw
+		}
+	}
+	if e.HasViewBox {
+		dc.Transform(viewportTransform(vw, vh, e.ViewBox, e.Par))
+	}
+	inner := *st
+	inner.rs.ViewportW, inner.rs.ViewportH = vw, vh
+	renderElements(dc, e.Children, p, &inner)
+
+	dc.Pop()
+}
+
+// effectiveStroke reports whether a stroke would actually paint.
+func effectiveStroke(a *Attrs, p *props) bool {
+	return !a.strokeInvalid && p.stroke != "" && p.stroke != "none"
+}
+
+// fillAndStroke applies fill and/or stroke to the current path.
+// The drawShape function should set up the path on the context.
+func fillAndStroke(dc *render.Context, a *Attrs, p *props, st *renderState, drawShape func()) {
+	hasFill := !a.fillInvalid && p.fill != "none"
+	hasStroke := effectiveStroke(a, p)
+
 	if hasFill {
-		applyFillAttrs(dc, a, state)
+		applyFillAttrs(dc, a, p, st)
 		drawShape()
 		if hasStroke {
 			_ = dc.FillPreserve()
@@ -212,7 +299,7 @@ func fillAndStroke(dc *render.Context, a *Attrs, state *renderState, drawShape f
 	}
 
 	if hasStroke {
-		applyStrokeAttrs(dc, a, state)
+		applyStrokeAttrs(dc, p, st)
 		if !hasFill {
 			drawShape()
 		}
@@ -220,47 +307,15 @@ func fillAndStroke(dc *render.Context, a *Attrs, state *renderState, drawShape f
 	}
 }
 
-// shouldFill returns true if the element should be filled.
-func shouldFill(a *Attrs, state *renderState) bool {
-	fill := resolveFill(a, state)
-	return fill != colorNone
-}
-
-// shouldStroke returns true if the element should be stroked.
-func shouldStroke(a *Attrs, state *renderState) bool {
-	stroke := resolveStroke(a, state)
-	return stroke != "" && stroke != colorNone
-}
-
-// resolveFill returns the effective fill color string, considering inheritance.
-func resolveFill(a *Attrs, state *renderState) string {
-	if a.Fill != "" {
-		return a.Fill
-	}
-	if state.parentFill != "" {
-		return state.parentFill
-	}
-	return "" // will be treated as "black" by SVG spec default
-}
-
-// resolveStroke returns the effective stroke color string, considering inheritance.
-func resolveStroke(a *Attrs, state *renderState) string {
-	if a.Stroke != "" {
-		return a.Stroke
-	}
-	return state.parentStroke
-}
-
 // applyFillAttrs sets the fill color and fill rule on the context.
-func applyFillAttrs(dc *render.Context, a *Attrs, state *renderState) {
-	fillStr := resolveFill(a, state)
-
-	// Set fill rule.
-	fillRule := a.FillRule
-	if fillRule == "" {
-		fillRule = a.ClipRule
+func applyFillAttrs(dc *render.Context, a *Attrs, p *props, st *renderState) {
+	// Fill rule: fill-rule when explicitly set, else clip-rule (legacy
+	// fallback), else nonzero.
+	rule := p.fillRule
+	if !p.fillRuleExplicit && p.clipRule != "" {
+		rule = p.clipRule
 	}
-	switch fillRule {
+	switch rule {
 	case "evenodd":
 		dc.SetFillRule(render.FillRuleEvenOdd)
 	default:
@@ -268,28 +323,25 @@ func applyFillAttrs(dc *render.Context, a *Attrs, state *renderState) {
 	}
 
 	// Set fill color.
-	if state.overrideColor != nil && fillStr != colorNone {
-		setColorWithOpacity(dc, state.overrideColor, a.FillOpacity*a.Opacity)
+	if st.overrideColor != nil {
+		setColorWithOpacity(dc, st.overrideColor, p.fillOpacity*p.opacity)
 		return
 	}
 
-	c, err := parseColor(fillStr)
+	c, err := parseColor(p.fill)
 	if err != nil || c == nil {
 		// Default fill is black per SVG spec.
-		setColorWithOpacity(dc, color.Black, a.FillOpacity*a.Opacity)
+		setColorWithOpacity(dc, color.Black, p.fillOpacity*p.opacity)
 		return
 	}
-	setColorWithOpacity(dc, c, a.FillOpacity*a.Opacity)
+	setColorWithOpacity(dc, c, p.fillOpacity*p.opacity)
 }
 
-// applyStrokeAttrs sets stroke color, width, cap, and join on the context.
-func applyStrokeAttrs(dc *render.Context, a *Attrs, state *renderState) {
-	strokeStr := resolveStroke(a, state)
+// applyStrokeAttrs sets stroke color, width, cap, join, miter and dash.
+func applyStrokeAttrs(dc *render.Context, p *props, st *renderState) {
+	dc.SetLineWidth(p.strokeWidth)
 
-	dc.SetLineWidth(a.StrokeWidth)
-
-	// Stroke cap
-	switch a.StrokeCap {
+	switch p.strokeCap {
 	case "round":
 		dc.SetLineCap(render.LineCapRound)
 	case "square":
@@ -298,8 +350,7 @@ func applyStrokeAttrs(dc *render.Context, a *Attrs, state *renderState) {
 		dc.SetLineCap(render.LineCapButt)
 	}
 
-	// Stroke join
-	switch a.StrokeJoin {
+	switch p.strokeJoin {
 	case "round":
 		dc.SetLineJoin(render.LineJoinRound)
 	case "bevel":
@@ -307,18 +358,27 @@ func applyStrokeAttrs(dc *render.Context, a *Attrs, state *renderState) {
 	default:
 		dc.SetLineJoin(render.LineJoinMiter)
 	}
+	dc.SetMiterLimit(p.strokeMiter)
 
-	// Stroke color
-	if state.overrideColor != nil && strokeStr != colorNone {
-		setColorWithOpacity(dc, state.overrideColor, a.StrokeOpacity*a.Opacity)
+	if len(p.dash) > 0 {
+		dc.SetDash(p.dash...)
+		dc.SetDashOffset(p.dashOffset)
+	} else {
+		dc.SetDash()
+	}
+
+	// Theming override replaces every effective stroke color ("none" never
+	// reaches here — fillAndStroke gates on it).
+	if st.overrideColor != nil {
+		setColorWithOpacity(dc, st.overrideColor, p.strokeOpacity*p.opacity)
 		return
 	}
 
-	c, err := parseColor(strokeStr)
+	c, err := parseColor(p.stroke)
 	if err != nil || c == nil {
 		return
 	}
-	setColorWithOpacity(dc, c, a.StrokeOpacity*a.Opacity)
+	setColorWithOpacity(dc, c, p.strokeOpacity*p.opacity)
 }
 
 // setColorWithOpacity sets the drawing color on the context, applying
@@ -353,12 +413,14 @@ func applyElementTransform(dc *render.Context, a *Attrs) {
 
 // drawPointsPath draws a path from alternating x,y point values.
 // If closed is true, the path is closed (polygon). Otherwise it's open (polyline).
-func drawPointsPath(dc *render.Context, points []float64, closed bool) {
+func drawPointsPath(dc *render.Context, points []Length, closed bool, rs RefSpace) {
 	for i := 0; i+1 < len(points); i += 2 {
+		x := points[i].Resolve(rs, LengthAxisX)
+		y := points[i+1].Resolve(rs, LengthAxisY)
 		if i == 0 {
-			dc.MoveTo(points[i], points[i+1])
+			dc.MoveTo(x, y)
 		} else {
-			dc.LineTo(points[i], points[i+1])
+			dc.LineTo(x, y)
 		}
 	}
 	if closed {

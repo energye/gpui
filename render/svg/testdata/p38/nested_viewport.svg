@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- nested <svg> creates a new viewport with its own viewBox/pAR; xMaxYMax meet pushes
+       the 20x10 content (s=2 -> 40x20) to the far corner of the 60x20 sub-viewport -->
+  <rect x="0" y="0" width="100" height="100" fill="#f0f0f0"/>
+  <svg x="20" y="20" width="60" height="20" viewBox="0 0 20 10" preserveAspectRatio="xMaxYMax meet">
+    <rect x="0" y="0" width="20" height="10" fill="#0000cc"/>
+  </svg>
+</svg>

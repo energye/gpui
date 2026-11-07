@@ -1,0 +1,5 @@
+--- FAIL: TestParseUnsupportedElementsSkipped (0.00s)
+    svg_test.go:567: ElementByID("a") = nil, want the defs-referenced element
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.028s
+FAIL

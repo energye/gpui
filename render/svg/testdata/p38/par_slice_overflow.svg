@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="100" height="50" preserveAspectRatio="xMidYMid slice">
+  <!-- square content in a wide viewport with slice: scaled to cover, sides overflow and must be clipped -->
+  <rect x="0" y="0" width="40" height="40" fill="#ff0000"/>
+  <rect x="30" y="0" width="10" height="40" fill="#00ff00"/>
+</svg>

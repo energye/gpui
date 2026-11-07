@@ -1,0 +1,24 @@
+API 目录缺失 20 个符号（docs/RENDER_API_CATALOG.md 未出现）：
+  method ComposedQuadWGSLFor
+  subpkg LengthAxisDiagonal
+  subpkg LengthAxisY
+  subpkg LengthUnitCm
+  subpkg LengthUnitEm
+  subpkg LengthUnitEx
+  subpkg LengthUnitIn
+  subpkg LengthUnitMm
+  subpkg LengthUnitPc
+  subpkg LengthUnitPercent
+  subpkg LengthUnitPt
+  subpkg LengthUnitQ
+  subpkg ParAlignXMaxYMax
+  subpkg ParAlignXMaxYMid
+  subpkg ParAlignXMaxYMin
+  subpkg ParAlignXMidYMax
+  subpkg ParAlignXMidYMin
+  subpkg ParAlignXMinYMax
+  subpkg ParAlignXMinYMid
+  subpkg ParAlignXMinYMin
+→ 请在 docs/RENDER_API_CATALOG.md 对应分类表补齐（增/改/删 API 时同步更新）。
+exit status 1
+OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg/gpu/hdr 全部公开符号

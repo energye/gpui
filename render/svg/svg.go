@@ -69,7 +69,8 @@ func (d *Document) RenderToWithColor(dc *render.Context, x, y, width, height flo
 
 // renderInternal is the shared rendering implementation.
 func (d *Document) renderInternal(dc *render.Context, x, y, width, height float64, overrideColor color.Color) {
-	if d.ViewBox.Width <= 0 || d.ViewBox.Height <= 0 {
+	if d.hasViewBox && (d.ViewBox.Width <= 0 || d.ViewBox.Height <= 0) {
+		// Declared but degenerate viewBox: nothing sensible to map.
 		return
 	}
 
@@ -80,22 +81,27 @@ func (d *Document) renderInternal(dc *render.Context, x, y, width, height float6
 		dc.Translate(x, y)
 	}
 
-	// Scale from viewBox to target size.
-	sx := width / d.ViewBox.Width
-	sy := height / d.ViewBox.Height
-	dc.Scale(sx, sy)
-
-	// Apply viewBox minX/minY offset.
-	if d.ViewBox.MinX != 0 || d.ViewBox.MinY != 0 {
-		dc.Translate(-d.ViewBox.MinX, -d.ViewBox.MinY)
+	// Root viewport clip (overflow:hidden default); slice content outside
+	// the viewport must not leak.
+	if !d.OverflowVisible {
+		dc.ClipRect(0, 0, width, height)
 	}
 
+	// Map the viewBox into the viewport with preserveAspectRatio semantics
+	// (uniform scale + alignment). Without a viewBox, user units are px and
+	// no mapping applies (SVG spec).
+	if d.hasViewBox {
+		dc.Transform(viewportTransform(width, height, d.ViewBox, d.Par))
+	}
+
+	rootP := evalProps(rootProps(), d.rootAttrs, d)
 	state := &renderState{
+		doc:           d,
 		overrideColor: overrideColor,
-		parentFill:    d.RootFill,
+		rs:            RefSpace{ViewportW: width, ViewportH: height, FontSize: rootP.fontSize},
 	}
 
-	renderElements(dc, d.Elements, state)
+	renderElements(dc, d.Elements, rootP, state)
 
 	dc.Pop()
 }

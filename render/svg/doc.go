@@ -4,19 +4,22 @@
 //
 // Licensed under Apache License Version 2.0, January 2004
 //
-// https://www.apache.org/licenses/LICENSE-2.0
-//
 //----------------------------------------
 
-// Package svg provides an SVG renderer built on top of the gg 2D graphics library.
+// Package svg renders static SVG documents on top of
+// [github.com/energye/gpui/render.Context].
 //
-// It parses a subset of SVG XML sufficient for rendering icon-style SVGs
-// (as used by JetBrains IntelliJ, Material Design, etc.) and renders them
-// to RGBA images using [github.com/energye/gpui/render.Context].
+// The semantic anchor is Skia's SVG module (SkSVGDOM): behavior questions
+// (preserveAspectRatio, units, inheritance, reference resolution) follow
+// its answers, with the resvg support matrix used as a coverage checklist.
+// P3.8 batch 1 (evidence/P3.8/) upgraded the former icon subset to the
+// document-semantics base; paint servers (gradients/patterns), clipPath,
+// mask, text and filters land in the following batches.
 //
 // # Supported SVG Elements
 //
-//   - <svg> with viewBox, width, height
+//   - <svg> (root and nested: new viewport with viewBox,
+//     preserveAspectRatio, overflow) with width, height
 //   - <path> with d attribute (full SVG path command set)
 //   - <circle> cx, cy, r
 //   - <rect> x, y, width, height, rx, ry
@@ -24,29 +27,46 @@
 //   - <line> x1, y1, x2, y2
 //   - <polygon> points
 //   - <polyline> points
-//   - <g> grouping with inherited attributes and transform
+//   - <g> grouping with inherited properties and transform
+//   - <defs> reference container (collected, never rendered directly)
+//   - <symbol> template instantiated by <use> (own viewBox viewport)
+//   - <use> href/xlink:href instantiation (x, y, width, height)
+//   - <style> minimal selector set (tag and single-class rules)
 //
 // # Supported Attributes
 //
-//   - fill, fill-rule, fill-opacity
-//   - stroke, stroke-width, stroke-linecap, stroke-linejoin, stroke-opacity
-//   - transform (translate, rotate, scale, matrix)
-//   - opacity
+//   - Paint: fill, stroke (color | none | currentColor), color;
+//     url(#id) references are validated — an unresolved or not-yet-supported
+//     target paints nothing and warns (never falls back to black)
+//   - Opacity: opacity (element-level), fill-opacity, stroke-opacity
+//   - Fill rule: fill-rule (clip-rule carried until clipPath lands)
+//   - Stroke: stroke-width, stroke-linecap, stroke-linejoin,
+//     stroke-miterlimit, stroke-dasharray (odd lists repeated), stroke-dashoffset
+//   - Geometry units: px/pt/pc/in/cm/mm/q, em/ex (inherited font-size),
+//     % (viewport axis: x/width→width, y/height→height, radii→normalized
+//     diagonal) — see [Length]
+//   - Text/units state: font-size (relative units resolve against the
+//     inherited value)
+//   - transform (translate, rotate, scale, matrix, skewX, skewY)
+//   - class + style attributes and <style> rules, cascaded presentation
+//     attribute < tag rule < class rule < inline style
+//   - preserveAspectRatio (nine alignments × meet/slice, default
+//     xMidYMid meet) and overflow (visible disables the viewport clip)
 //
-// # Dimensions and limits
+// # Dimensions
 //
-// Root width/height percentages resolve against the viewBox (for example,
-// width="50%" on a viewBox width of 16 yields 8). Percentage lengths on child
-// geometry are not supported by this icon subset and return a parse error
-// instead of silently becoming zero. Invalid numeric geometry also returns an
-// error naming the element and attribute.
+// Root width/height percentages resolve against the viewBox (legacy root
+// convention). Child geometry lengths are full [Length] values resolved
+// against the referencing viewport.
 //
-// An inherited fill="none" is preserved: a child with no fill or stroke draws
-// nothing rather than falling back to the SVG initial black fill.
+// # Not supported (named refusal)
 //
-// This is intentionally an icon subset. <defs>, <use>, gradients, <clipPath>,
-// <text>, and preserveAspectRatio are not implemented; unsupported elements
-// are skipped. A url(...) paint is not resolved and falls back to black.
+// Animation (SMIL), script, foreignObject, cross-file use references, and
+// elements whose batches have not landed (text, filters, gradients,
+// clipPath, mask, image, pattern) are skipped with a warning in
+// [Document.Warnings]; the affected paints render nothing (fail-closed).
+// Parse still succeeds — fault-tolerant rendering, resvg alike; strict
+// callers inspect [Document.Warnings].
 //
 // # Usage
 //

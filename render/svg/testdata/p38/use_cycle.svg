@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="10" height="10">
+  <!-- self-referential use: parse ok, render must not hang, named warning -->
+  <g id="self"><use href="#self"/></g>
+</svg>

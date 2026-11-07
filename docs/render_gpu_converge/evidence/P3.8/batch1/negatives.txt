@@ -1,0 +1,14 @@
+N-1-pAR-退回独立拉伸: RED after mutation ✅
+N-1-pAR-退回独立拉伸: restored GREEN ✅
+N-2-摘根视口裁剪: STILL GREEN (mutation ineffective) ❌
+N-2-摘根视口裁剪: restored GREEN ✅
+N-3-摘继承求值: RED after mutation ✅
+N-3-摘继承求值: restored GREEN ✅
+N-4-摘use展开: RED after mutation ✅
+N-4-摘use展开: restored GREEN ✅
+N-5-摘Warning收集: RED after mutation ✅
+N-5-摘Warning收集: restored GREEN ✅
+N-2b-RenderTo大画布: RED after mutation ✅
+N-2b: restore still RED ❌❌
+N-2b-RenderTo大画布: RED after mutation ✅
+N-2b: restored GREEN ✅

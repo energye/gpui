@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- <style> with single-class and tag selectors (minimal set) -->
+  <style>
+    .warm { fill: #ff6600; }
+    rect { stroke: #cc00cc; stroke-width: 2; }
+  </style>
+  <rect class="warm" x="10" y="10" width="30" height="30"/>
+  <circle cx="70" cy="70" r="15" fill="#0066ff"/>
+</svg>

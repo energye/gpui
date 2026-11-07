@@ -81,8 +81,8 @@ func TestParsePathElement(t *testing.T) {
 	if path.Attrs.FillRule != "evenodd" {
 		t.Errorf("FillRule = %q, want evenodd", path.Attrs.FillRule)
 	}
-	if path.Attrs.FillOpacity != 0.5 {
-		t.Errorf("FillOpacity = %v, want 0.5", path.Attrs.FillOpacity)
+	if path.Attrs.FillOpacity != ".5" {
+		t.Errorf("FillOpacity = %q, want \".5\" (raw string, batch 1 keeps the source form)", path.Attrs.FillOpacity)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestParseCircleElement(t *testing.T) {
 	if !ok {
 		t.Fatalf("Elements[0] type = %T, want *CircleElement", doc.Elements[0])
 	}
-	if circle.CX != 8 || circle.CY != 8 || circle.R != 6.5 {
+	if circle.CX.Value != 8 || circle.CY.Value != 8 || circle.R.Value != 6.5 {
 		t.Errorf("Circle = cx=%v cy=%v r=%v, want 8 8 6.5", circle.CX, circle.CY, circle.R)
 	}
 	if circle.Attrs.Stroke != "#6C707E" {
@@ -125,7 +125,7 @@ func TestParseRectElement(t *testing.T) {
 	if !ok {
 		t.Fatalf("Group.Children[0] type = %T, want *RectElement", group.Children[0])
 	}
-	if rect.W != 12 || rect.H != 2 {
+	if rect.W.Value != 12 || rect.H.Value != 2 {
 		t.Errorf("Rect size = %vx%v, want 12x2", rect.W, rect.H)
 	}
 }
@@ -517,10 +517,19 @@ func TestParseInvalidRootDimensionRejected(t *testing.T) {
 	}
 }
 
-func TestParseChildPercentLengthRejected(t *testing.T) {
-	_, err := Parse([]byte(`<svg viewBox="0 0 16 16"><rect width="50%" height="10"/></svg>`))
-	if err == nil {
-		t.Fatal("Parse accepted child percentage length; want explicit error")
+func TestParseChildPercentLengthResolves(t *testing.T) {
+	// P3.8 批 1（design F2）：子元素几何 % 合法，相对引用轴解析
+	// （x/width→视口宽、y/height→视口高），替代旧的「% 拒绝」策略。
+	doc, err := Parse([]byte(`<svg viewBox="0 0 16 16" width="16" height="16"><rect width="50%" height="10"/></svg>`))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	rect := doc.Elements[0].(*RectElement)
+	if rect.W.Unit != LengthUnitPercent || rect.W.Value != 50 {
+		t.Errorf("rect.W = %+v, want 50%%", rect.W)
+	}
+	if got := rect.W.Resolve(RefSpace{ViewportW: 16, ViewportH: 16, FontSize: 16}, LengthAxisX); got != 8 {
+		t.Errorf("50%% of 16 = %v, want 8", got)
 	}
 }
 
@@ -546,9 +555,26 @@ func TestParseUnsupportedElementsSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	// Only the circle should be parsed; defs and text are skipped.
-	if len(doc.Elements) != 1 {
-		t.Errorf("Elements count = %d, want 1 (circle only)", len(doc.Elements))
+	// P3.8 批 1：defs 入树为 DefsElement（引用可查、不渲染）；text/clipPath
+	// 仍跳过但现在带具名 Warning（fail-visible）。
+	if len(doc.Elements) != 2 {
+		t.Errorf("Elements count = %d, want 2 (defs node + circle)", len(doc.Elements))
+	}
+	if _, ok := doc.Elements[0].(*DefsElement); !ok {
+		t.Errorf("Elements[0] = %T, want *DefsElement", doc.Elements[0])
+	}
+	// id="a" 挂在被跳过的 clipPath 上：不进引用表（未支持元素整体跳过）。
+	if doc.ElementByID("a") != nil {
+		t.Errorf("ElementByID(\"a\") = %+v, want nil (clipPath is skipped whole)", doc.ElementByID("a"))
+	}
+	warned := 0
+	for _, w := range doc.Warnings {
+		if w.Reason == warnUnsupportedElement {
+			warned++
+		}
+	}
+	if warned < 2 {
+		t.Errorf("unsupported-element warnings = %d, want >=2 (clipPath, text)", warned)
 	}
 }
 
@@ -566,7 +592,7 @@ func TestParseEllipseElement(t *testing.T) {
 	if !ok {
 		t.Fatalf("Elements[0] type = %T, want *EllipseElement", doc.Elements[0])
 	}
-	if e.CX != 8 || e.CY != 8 || e.RX != 6 || e.RY != 4 {
+	if e.CX.Value != 8 || e.CY.Value != 8 || e.RX.Value != 6 || e.RY.Value != 4 {
 		t.Errorf("Ellipse = cx=%v cy=%v rx=%v ry=%v", e.CX, e.CY, e.RX, e.RY)
 	}
 }
@@ -583,7 +609,7 @@ func TestParseLineElement(t *testing.T) {
 	if !ok {
 		t.Fatalf("Elements[0] type = %T, want *LineElement", doc.Elements[0])
 	}
-	if line.X1 != 0 || line.Y1 != 0 || line.X2 != 16 || line.Y2 != 16 {
+	if line.X1.Value != 0 || line.Y1.Value != 0 || line.X2.Value != 16 || line.Y2.Value != 16 {
 		t.Errorf("Line = (%v,%v)-(%v,%v)", line.X1, line.Y1, line.X2, line.Y2)
 	}
 }

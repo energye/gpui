@@ -1,0 +1,40 @@
+=== RUN   TestP38ViewportTransformGrid
+    p38_doc_test.go:56: pAR 2 slice: viewportTransform = {A:2.5 B:0 C:0 D:0 E:2.5 F:0}, want {A:2.5 B:0 C:0 D:0 E:2.5 F:-25}
+    p38_doc_test.go:56: pAR 6 slice: viewportTransform = {A:2.5 B:0 C:0 D:0 E:2.5 F:-50}, want {A:2.5 B:0 C:0 D:0 E:2.5 F:50}
+    p38_doc_test.go:56: pAR 7 slice: viewportTransform = {A:2.5 B:0 C:0 D:0 E:2.5 F:-50}, want {A:2.5 B:0 C:0 D:0 E:2.5 F:50}
+    p38_doc_test.go:56: pAR 8 slice: viewportTransform = {A:2.5 B:0 C:0 D:0 E:2.5 F:-50}, want {A:2.5 B:0 C:0 D:0 E:2.5 F:50}
+--- FAIL: TestP38ViewportTransformGrid (0.00s)
+=== RUN   TestP38ViewportTransformNonZeroOrigin
+--- PASS: TestP38ViewportTransformNonZeroOrigin (0.00s)
+=== RUN   TestP38PreserveAspectRatioParse
+--- PASS: TestP38PreserveAspectRatioParse (0.00s)
+=== RUN   TestP38RootViewportClips
+--- PASS: TestP38RootViewportClips (0.00s)
+=== RUN   TestP38UnitsAbsolute
+    p38_doc_test.go:128: 1mm resolve = 3.7795275590551185, want 3.779527559055118
+    p38_doc_test.go:134: 10q resolve = 3.779527559055118, want 3
+--- FAIL: TestP38UnitsAbsolute (0.00s)
+=== RUN   TestP38UnitsFontRelativeAndPercent
+    p38_doc_test.go:164: 10% diagonal = 15.811388300841898, want 111.80339887498948
+--- FAIL: TestP38UnitsFontRelativeAndPercent (0.00s)
+=== RUN   TestP38InheritanceTree
+--- PASS: TestP38InheritanceTree (0.00s)
+=== RUN   TestP38StyleElementSelectors
+--- FAIL: TestP38StyleElementSelectors (0.00s)
+panic: interface conversion: svg.Element is *svg.StyleElement, not *svg.RectElement [recovered, repanicked]
+
+goroutine 14 [running]:
+testing.tRunner.func1.2({0x679da0, 0xc0002a8510})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1872 +0x237
+testing.tRunner.func1()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1875 +0x35b
+panic({0x679da0?, 0xc0002a8510?})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/panic.go:783 +0x132
+github.com/energye/gpui/render/svg.TestP38StyleElementSelectors(0xc000115180)
+	/home/yanghy/app/projects/gogpu/gpui/render/svg/p38_doc_test.go:216 +0x6cf
+testing.tRunner(0xc000115180, 0x6ec038)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1934 +0xea
+created by testing.(*T).Run in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1997 +0x465
+FAIL	github.com/energye/gpui/render/svg	0.012s
+FAIL

@@ -1,0 +1,14 @@
+--- FAIL: TestP38DanglingRefFailClosed (0.00s)
+    p38_doc_test.go:299: missing warnings: paint=false use=false ([{Element:use Attribute:href Reason:unresolved-ref #no-such-element Offset:374} {Element:rect Attribute:fill Reason:unresolved-paint #missing-paint Offset:374}])
+--- FAIL: TestP38NestedSVGViewport (0.00s)
+    p38_doc_test.go:320: nested svg = x 20px w 60px vb {MinX:0 MinY:0 Width:20 Height:10}
+    p38_doc_test.go:331: xMaxYMax should push content to far corner, (21,21) = {R:240 G:240 B:240 A:255}
+--- FAIL: TestParsePathElement (0.00s)
+    svg_test.go:85: FillOpacity = ".5", want "0.5"
+--- FAIL: TestParseChildPercentLengthRejected (0.00s)
+    svg_test.go:523: Parse accepted child percentage length; want explicit error
+--- FAIL: TestParseUnsupportedElementsSkipped (0.00s)
+    svg_test.go:551: Elements count = 2, want 1 (circle only)
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.022s
+FAIL
