@@ -45,8 +45,15 @@ type COLRGlyph struct {
 	// GlyphID is the original glyph ID for this color glyph.
 	GlyphID uint16
 
-	// Layers contains the color layers, bottom to top.
+	// Layers contains the color layers, bottom to top (COLRv0).
 	Layers []ColorLayer
+
+	// Paint is the COLRv1 paint graph root (nil for v0 glyphs). When set,
+	// Layers is empty and rendering goes through the paint graph.
+	Paint *PaintNode
+
+	// Clip is the optional COLRv1 clip box (font design units, y-up).
+	Clip *ClipBox
 
 	// Bounds is the bounding box in font units.
 	Bounds Rect
@@ -122,6 +129,15 @@ type COLRParser struct {
 	baseGlyphs []baseGlyphRecord
 	layers     []layerRecord
 
+	// COLRv1 offsets (0 = absent). varIndexMap/itemVariationStore are
+	// recorded but not evaluated: static evaluation renders the default
+	// axis instance (deltas = 0, variation belongs to P4.4).
+	baseGlyphListOffset      uint32
+	layerListOffset          uint32
+	clipListOffset           uint32
+	varIndexMapOffset        uint32
+	itemVariationStoreOffset uint32
+
 	// Parsed CPAL palette
 	palettes [][]Color
 }
@@ -174,7 +190,8 @@ func (p *COLRParser) parseCOLRHeader() error {
 
 	p.version = binary.BigEndian.Uint16(data[0:2])
 
-	// We support COLRv0 and basic COLRv1
+	// We support COLRv0 fully and COLRv1 statically (paint graph at the
+	// default axis instance; variation deltas belong to P4.4).
 	if p.version > 1 {
 		return ErrUnsupportedCOLRVersion
 	}
@@ -183,6 +200,20 @@ func (p *COLRParser) parseCOLRHeader() error {
 	baseGlyphOffset := binary.BigEndian.Uint32(data[4:8])
 	layerRecordOffset := binary.BigEndian.Uint32(data[8:12])
 	numLayers := binary.BigEndian.Uint16(data[12:14])
+
+	if p.version == 1 {
+		// COLRv1 extends the 14-byte v0 header with five Offset32 fields
+		// (OT 1.9.1): baseGlyphList @14, layerList @18, clipList @22,
+		// varIndexMap @26, itemVariationStore @30 → 34 bytes total.
+		if len(data) < 34 {
+			return ErrInvalidCOLRData
+		}
+		p.baseGlyphListOffset = binary.BigEndian.Uint32(data[14:18])
+		p.layerListOffset = binary.BigEndian.Uint32(data[18:22])
+		p.clipListOffset = binary.BigEndian.Uint32(data[22:26])
+		p.varIndexMapOffset = binary.BigEndian.Uint32(data[26:30])
+		p.itemVariationStoreOffset = binary.BigEndian.Uint32(data[30:34])
+	}
 
 	// Parse base glyph records
 	if err := p.parseBaseGlyphs(baseGlyphOffset); err != nil {
@@ -238,9 +269,23 @@ func (p *COLRParser) parseLayers(offset uint32, numLayers uint16) error {
 
 // parseCPAL parses the CPAL (Color Palette) table.
 func (p *COLRParser) parseCPAL() error {
-	data := p.cpalData
+	palettes, err := ParseCPALTable(p.cpalData)
+	if err != nil {
+		return err
+	}
+	p.palettes = palettes
+	return nil
+}
+
+// ParseCPALTable parses a CPAL (Color Palette) table into its palettes of
+// BGRA colors. CPAL v0 and v1 share the color-record layout the static
+// color paths consume; v1's extra metadata (palette labels, palette entry
+// labels) is not needed for static palette 0 evaluation. Standalone use
+// (e.g. the SVG table's var(--colorN) references) needs no COLR table.
+func ParseCPALTable(cpalData []byte) ([][]Color, error) {
+	data := cpalData
 	if len(data) < 12 {
-		return ErrInvalidCPALData
+		return nil, ErrInvalidCPALData
 	}
 
 	version := binary.BigEndian.Uint16(data[0:2])
@@ -256,7 +301,7 @@ func (p *COLRParser) parseCPAL() error {
 
 	// Parse palette offsets
 	if 12+int(numPalettes)*2 > len(data) {
-		return ErrInvalidCPALData
+		return nil, ErrInvalidCPALData
 	}
 
 	paletteOffsets := make([]uint16, numPalettes)
@@ -266,14 +311,14 @@ func (p *COLRParser) parseCPAL() error {
 	}
 
 	// Parse color records for each palette
-	p.palettes = make([][]Color, numPalettes)
+	palettes := make([][]Color, numPalettes)
 	for i := uint16(0); i < numPalettes; i++ {
 		palette := make([]Color, numEntries)
 		for j := uint16(0); j < numEntries; j++ {
 			colorIndex := paletteOffsets[i] + j
 			pos := int(colorRecordsOffset) + int(colorIndex)*4
 			if pos+4 > len(data) {
-				return ErrInvalidCPALData
+				return nil, ErrInvalidCPALData
 			}
 
 			// CPAL stores colors as BGRA
@@ -284,21 +329,44 @@ func (p *COLRParser) parseCPAL() error {
 				A: data[pos+3],
 			}
 		}
-		p.palettes[i] = palette
+		palettes[i] = palette
 	}
 
-	return nil
+	return palettes, nil
 }
 
-// HasGlyph returns true if the glyph ID is a color glyph.
+// HasGlyph returns true if the glyph ID is a color glyph (v1 BaseGlyphList
+// first, then v0 records — the spec's preference order).
 func (p *COLRParser) HasGlyph(glyphID uint16) bool {
+	if _, ok := p.findBaseGlyphPaint(glyphID); ok {
+		return true
+	}
 	_, found := p.findBaseGlyph(glyphID)
 	return found
 }
 
 // GetGlyph returns the COLRGlyph for the given glyph ID.
 // Returns ErrGlyphNotInCOLR if the glyph is not a color glyph.
+// v1 glyphs carry the paint graph root (Layers empty); v0 glyphs carry
+// layer records (Paint nil).
 func (p *COLRParser) GetGlyph(glyphID uint16, paletteIndex int) (*COLRGlyph, error) {
+	if _, ok := p.findBaseGlyphPaint(glyphID); ok {
+		root, err := p.PaintRoot(glyphID)
+		if err != nil {
+			// Malformed v1 graph: the glyph is not renderable as color;
+			// fall through to any v0 records per the ignore-and-continue
+			// reading of the spec, otherwise report not-a-color-glyph.
+			root = nil
+		}
+		if root != nil {
+			g := &COLRGlyph{GlyphID: glyphID, Version: p.version, Paint: root}
+			if cb, ok := p.ClipBoxFor(glyphID); ok {
+				g.Clip = &cb
+			}
+			return g, nil
+		}
+	}
+
 	record, found := p.findBaseGlyph(glyphID)
 	if !found {
 		return nil, ErrGlyphNotInCOLR

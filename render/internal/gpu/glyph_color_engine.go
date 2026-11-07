@@ -104,7 +104,10 @@ func (e *ColorGlyphEngine) LayoutColorGlyphs(face text.Face, glyphs []text.Shape
 		// BITMAP. CBDT/sbix bitmaps are self-colored — fg never touches the
 		// pixels, so keying on it fragmented the atlas by text color and
 		// accelerated the full-atlas stall. COLR keeps fg (currentColor
-		// bakes into the raster below).
+		// bakes into the raster below); SVG-table docs keep fg when the
+		// document may reference currentColor (conservative: the doc is not
+		// scanned per lookup, so var-free docs cost one atlas slot per
+		// text color).
 		img, err := e.raster.Image(parsed, uint16(glyph.GID), ppem, 0, fg)
 		if err != nil {
 			slogger().Warn("color glyph rasterize failed", "gid", uint16(glyph.GID), "err", err)
@@ -113,8 +116,9 @@ func (e *ColorGlyphEngine) LayoutColorGlyphs(face text.Face, glyphs []text.Shape
 		if img.Pix == nil || img.Pix.Bounds().Dx() <= 0 || img.Pix.Bounds().Dy() <= 0 {
 			continue
 		}
+		gt := cf.GlyphType(uint16(glyph.GID))
 		atlasFG := struct{ R, G, B, A uint8 }{}
-		if cf.GlyphType(uint16(glyph.GID)) == text.GlyphTypeCOLR {
+		if gt == text.GlyphTypeCOLR || gt == text.GlyphTypeSVG {
 			atlasFG = fg
 		}
 		key := ColorGlyphKey{FontID: fontID, GlyphID: uint16(glyph.GID), PPEM: ppem, Palette: 0, FG: atlasFG}

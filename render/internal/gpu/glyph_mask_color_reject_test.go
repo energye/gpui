@@ -73,6 +73,13 @@ func (c *colorStubParsed) COLRGlyph(uint16, int) (*emoji.COLRGlyph, error) {
 	return nil, emoji.ErrNoCOLRTable
 }
 
+// P3.8 batch 5 extended ColorFont with SVGGlyph/Palette (full-switch; the
+// stub tracks the interface).
+func (c *colorStubParsed) SVGGlyph(uint16) (*emoji.SVGGlyph, error) {
+	return nil, emoji.ErrNoSVGTable
+}
+func (c *colorStubParsed) Palette(int) []emoji.Color { return nil }
+
 func colorStubFace(t *testing.T, size float64) text.Face {
 	t.Helper()
 	text.RegisterParser("colorstub", colorStubParser{})

@@ -28,6 +28,7 @@ type contextOptions struct {
 	pixmap       *Pixmap
 	pipelineMode PipelineMode
 	deviceScale  float64
+	cpuOnly      bool
 }
 
 // defaultOptions returns the default context options.
@@ -67,6 +68,17 @@ func WithRenderer(r Renderer) ContextOption {
 func WithPixmap(pm *Pixmap) ContextOption {
 	return func(o *contextOptions) {
 		o.pixmap = pm
+	}
+}
+
+// WithCPUOnly forces this context onto the software rasterizer even when a
+// global GPU accelerator is registered. Offscreen rasters whose output must
+// be bit-identical across processes and backends (color-glyph flattening,
+// golden-image probes) use this: GPU rasterization of anti-aliased edges
+// and steep gradients is not deterministic run-to-run.
+func WithCPUOnly() ContextOption {
+	return func(o *contextOptions) {
+		o.cpuOnly = true
 	}
 }
 

@@ -129,6 +129,11 @@ type Context struct {
 	// Pipeline mode
 	pipelineMode PipelineMode // GPU pipeline selection mode
 
+	// cpuOnly pins this context to the software rasterizer even when a
+	// global GPU accelerator exists (render.WithCPUOnly): offscreen rasters
+	// that must be bit-identical across runs and backends.
+	cpuOnly bool
+
 	// Rasterizer mode
 	rasterizerMode RasterizerMode // CPU rasterizer selection mode
 

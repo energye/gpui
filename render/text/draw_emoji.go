@@ -14,6 +14,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"sync"
 
 	xdraw "golang.org/x/image/draw"
 
@@ -67,18 +68,52 @@ func drawWithColorSupport(dst draw.Image, text string, face Face, x, y float64, 
 		case GlyphTypeBitmap:
 			drawBitmapGlyph(dst, colorFont, glyphID, ppem, currentX, y)
 
-		case GlyphTypeCOLR:
-			// TODO: Implement COLR rendering in Phase 2.
-			// For now, fall back to outline.
-			drawSingleOutlineGlyph(dst, text, face, glyphID, currentX, y, col)
+		case GlyphTypeCOLR, GlyphTypeSVG:
+			// COLR (v0 layers / v1 paint graph) and SVG-table glyphs flatten
+			// through the shared ColorRasterCache — the same RGBA the GPU
+			// color engine uploads, drawn here at natural size.
+			drawColorRasterGlyph(dst, parsed, glyphID, ppem, currentX, y, col)
 
 		default:
-			// GlyphTypeOutline, GlyphTypeSVG (not yet supported), and unknown types.
 			drawSingleOutlineGlyph(dst, text, face, glyphID, currentX, y, col)
 		}
 
 		currentX += advance
 	}
+}
+
+// colrRasterOnce guards the CPU-leg shared color raster cache (the GPU
+// color engine keeps its own instance).
+var (
+	colrRasterOnce sync.Once
+	colrRaster     *ColorRasterCache
+)
+
+func sharedColorRasterCache() *ColorRasterCache {
+	colrRasterOnce.Do(func() { colrRaster = NewColorRasterCache(256) })
+	return colrRaster
+}
+
+// drawColorRasterGlyph draws one flattened color glyph (COLR v0/v1 or
+// SVG-table) at the baseline origin. Failures skip the glyph, matching the
+// bitmap path's behavior.
+func drawColorRasterGlyph(dst draw.Image, parsed ParsedFont, glyphID uint16, ppem uint16, x, y float64, col color.Color) {
+	fg := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	if c, ok := color.RGBAModel.Convert(col).(color.RGBA); ok {
+		fg = c
+	}
+	img, err := sharedColorRasterCache().Image(parsed, glyphID, ppem, 0, fg)
+	if err != nil || img.Pix == nil {
+		return
+	}
+	// The raster is produced at the requested ppem (scale 1); OriginX/Y is
+	// the baseline pen position inside the image (bitmap left = pen+ox,
+	// bitmap top = baseline−oy).
+	destX := int(x + float64(img.OriginX))
+	destY := int(y - float64(img.OriginY))
+	b := img.Pix.Bounds()
+	destRect := image.Rect(destX, destY, destX+b.Dx(), destY+b.Dy())
+	draw.Draw(dst, destRect, img.Pix, b.Min, draw.Over)
 }
 
 // drawBitmapGlyph renders a bitmap glyph (CBDT or sbix).

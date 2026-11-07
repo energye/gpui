@@ -219,16 +219,16 @@ func evalProps(parent *props, a Attrs, doc *Document) *props {
 		}
 	}
 	for _, d := range pres {
-		applyDecl(p, d, parent)
+		applyDecl(p, d, parent, doc)
 	}
 	for _, d := range tagDecls {
-		applyDecl(p, d, parent)
+		applyDecl(p, d, parent, doc)
 	}
 	for _, d := range classDecls {
-		applyDecl(p, d, parent)
+		applyDecl(p, d, parent, doc)
 	}
 	for _, d := range inline {
-		applyDecl(p, d, parent)
+		applyDecl(p, d, parent, doc)
 	}
 	return p
 }
@@ -263,15 +263,16 @@ func presentationDecls(a Attrs) []CSSDecl {
 // applyDecl applies one declaration to p. Length values resolve against the
 // inherited font-size only (viewport-relative % on stroke widths/dashes is
 // out of the batch-1 scope and treated as user units — documented limit).
-func applyDecl(p *props, d CSSDecl, parent *props) {
+// Color values resolve var() references first (SVG color-table palette).
+func applyDecl(p *props, d CSSDecl, parent *props, doc *Document) {
 	fs := RefSpace{FontSize: parent.fontSize}
 	switch d.Name {
 	case "fill":
-		p.fill = resolveColorToken(d.Value, parent)
+		p.fill = resolveColorToken(resolveVarTokens(doc, d.Value), parent)
 	case "stroke":
-		p.stroke = resolveColorToken(d.Value, parent)
+		p.stroke = resolveColorToken(resolveVarTokens(doc, d.Value), parent)
 	case "color":
-		p.color = resolveColorToken(d.Value, parent)
+		p.color = resolveColorToken(resolveVarTokens(doc, d.Value), parent)
 	case "fill-opacity":
 		if v, ok := parseUnitFloat(d.Value); ok {
 			p.fillOpacity = clamp01(v)

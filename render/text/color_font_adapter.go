@@ -11,12 +11,17 @@
 package text
 
 import (
+	"bytes"
+
 	"github.com/energye/gpui/render/text/emoji"
 )
 
 type colorBackends struct {
 	cbdt *emoji.CBDTExtractor
+	sbix *emoji.SBIXParser
 	colr *emoji.COLRParser
+	svg  *emoji.SVGTableParser
+	pal  [][]emoji.Color // CPAL palettes (standalone: SVG var() source)
 }
 
 func (f *ownParsedFont) loadColor() *colorBackends {
@@ -30,12 +35,27 @@ func (f *ownParsedFont) loadColor() *colorBackends {
 				out.cbdt = ext
 			}
 		}
+		if sbix := f.tables["sbix"]; len(sbix) > 0 && f.numGlyphs > 0 {
+			if parser, err := emoji.NewSBIXParser(sbix, uint16(f.numGlyphs)); err == nil {
+				out.sbix = parser
+			}
+		}
 		if colr, cpal := f.tables["COLR"], f.tables["CPAL"]; len(colr) > 0 && len(cpal) > 0 {
 			if parser, err := emoji.NewCOLRParser(colr, cpal); err == nil {
 				out.colr = parser
 			}
 		}
-		if out.cbdt == nil && out.colr == nil {
+		if svg := f.tables["SVG "]; len(svg) > 0 {
+			if parser, err := emoji.NewSVGTableParser(svg); err == nil {
+				out.svg = parser
+			}
+		}
+		if cpal := f.tables["CPAL"]; len(cpal) > 0 {
+			if palettes, err := emoji.ParseCPALTable(cpal); err == nil {
+				out.pal = palettes
+			}
+		}
+		if out.cbdt == nil && out.sbix == nil && out.colr == nil && out.svg == nil {
 			return nil, nil
 		}
 		return out, nil
@@ -47,32 +67,89 @@ func (f *ownParsedFont) HasColorTables() bool {
 	return f.loadColor() != nil
 }
 
+// hasSbixGlyph reports whether any sbix strike carries a bitmap for glyphID.
+func (b *colorBackends) hasSbixGlyph(glyphID uint16) bool {
+	if b.sbix == nil {
+		return false
+	}
+	for s := range b.sbix.NumStrikes() {
+		if b.sbix.HasGlyph(int(glyphID), s) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasCBDTGlyph reports whether the CBLC index covers glyphID.
+func (b *colorBackends) hasCBDTGlyph(glyphID uint16) bool {
+	return b.cbdt != nil && b.cbdt.HasGlyph(glyphID)
+}
+
 func (f *ownParsedFont) GlyphType(glyphID uint16) GlyphType {
 	backends := f.loadColor()
 	if backends == nil {
 		return GlyphTypeOutline
 	}
-	if backends.cbdt != nil && backends.cbdt.HasGlyph(glyphID) {
+	if backends.hasCBDTGlyph(glyphID) || backends.hasSbixGlyph(glyphID) {
 		return GlyphTypeBitmap
 	}
 	if backends.colr != nil && backends.colr.HasGlyph(glyphID) {
 		return GlyphTypeCOLR
 	}
+	if backends.svg != nil && backends.svg.HasGlyph(glyphID) {
+		return GlyphTypeSVG
+	}
 	return GlyphTypeOutline
 }
 
+// BitmapGlyph extracts an embedded bitmap glyph (CBDT first, then sbix).
 func (f *ownParsedFont) BitmapGlyph(glyphID uint16, ppem uint16) (*emoji.BitmapGlyph, error) {
 	backends := f.loadColor()
-	if backends == nil || backends.cbdt == nil {
-		return nil, emoji.ErrNoCBDTTable
+	if backends == nil {
+		return nil, emoji.ErrGlyphNotInBitmap
 	}
-	return backends.cbdt.GetGlyph(glyphID, ppem)
+	if backends.hasCBDTGlyph(glyphID) {
+		return backends.cbdt.GetGlyph(glyphID, ppem)
+	}
+	if backends.sbix != nil {
+		strike := backends.sbix.BestStrikeForPPEM(ppem)
+		if strike >= 0 && backends.sbix.HasGlyph(int(glyphID), strike) {
+			return backends.sbix.GetGlyph(int(glyphID), strike)
+		}
+	}
+	return nil, emoji.ErrGlyphNotInBitmap
 }
 
+// COLRGlyph returns the COLR glyph data for layered rendering.
 func (f *ownParsedFont) COLRGlyph(glyphID uint16, paletteIndex int) (*emoji.COLRGlyph, error) {
 	backends := f.loadColor()
 	if backends == nil || backends.colr == nil {
 		return nil, emoji.ErrNoCOLRTable
 	}
 	return backends.colr.GetGlyph(glyphID, paletteIndex)
+}
+
+// SVGGlyph returns the decoded SVG document for an SVG-table glyph.
+func (f *ownParsedFont) SVGGlyph(glyphID uint16) (*emoji.SVGGlyph, error) {
+	backends := f.loadColor()
+	if backends == nil || backends.svg == nil {
+		return nil, emoji.ErrNoSVGTable
+	}
+	doc, err := backends.svg.GlyphDocument(glyphID)
+	if err != nil {
+		return nil, err
+	}
+	g := &emoji.SVGGlyph{GlyphID: glyphID, Doc: doc}
+	g.UsesCurrentColor = bytes.Contains(doc, []byte("currentColor"))
+	g.UsesPalette = bytes.Contains(doc, []byte("var(--color"))
+	return g, nil
+}
+
+// Palette returns CPAL palette paletteIndex (palette 0 is the static default).
+func (f *ownParsedFont) Palette(paletteIndex int) []emoji.Color {
+	backends := f.loadColor()
+	if backends == nil || paletteIndex < 0 || paletteIndex >= len(backends.pal) {
+		return nil
+	}
+	return backends.pal[paletteIndex]
 }

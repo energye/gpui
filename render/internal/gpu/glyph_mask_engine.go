@@ -1315,6 +1315,9 @@ func computeGlyphMaskFontID(source *text.FontSource) uint64 {
 		fullName = source.Name()
 	}
 	// Avoid fmt.Fprintf on the hot path: Write name + ':' + decimal digits.
+	// The raw-bytes digest disambiguates sibling builds of the same family
+	// (same FullName + NumGlyphs — e.g. goregular vs its color-table-spliced
+	// derivatives), whose color rasters must never share an atlas key.
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(fullName))
 	_, _ = h.Write([]byte{':'})
@@ -1330,6 +1333,13 @@ func computeGlyphMaskFontID(source *text.FontSource) uint64 {
 			n /= 10
 		}
 		_, _ = h.Write(dec[i:])
+	}
+	// Raw font bytes when available (ownParsedFont implements the
+	// provider): content-disambiguates same-name fonts. Runs once per
+	// FontSource (fontIDCache memoizes the result).
+	if p, ok := parsed.(text.RawFontDataProvider); ok {
+		_, _ = h.Write([]byte{':'})
+		_, _ = h.Write(p.RawFontData())
 	}
 	return h.Sum64()
 }

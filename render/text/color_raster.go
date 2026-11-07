@@ -114,9 +114,34 @@ func (c *ColorRasterCache) rasterize(cf ColorFont, font ParsedFont, glyphID uint
 		return rasterizeColorBitmap(cf, font, glyphID, ppem)
 	case GlyphTypeCOLR:
 		return c.rasterizeCOLR(cf, font, glyphID, ppem, palette, fg)
+	case GlyphTypeSVG:
+		return c.rasterizeSVG(cf, font, glyphID, ppem, palette, fg)
 	default:
 		return nil, fmt.Errorf("%w: gid %d", ErrNotColorGlyph, glyphID)
 	}
+}
+
+// rasterizeSVG renders an SVG-table glyph through the installed
+// SVGTableRenderer hook (pixel production lives in the render layer).
+func (c *ColorRasterCache) rasterizeSVG(cf ColorFont, font ParsedFont, glyphID uint16, ppem uint16, palette int, fg color.RGBA) (*ColorRasterImage, error) {
+	g, err := cf.SVGGlyph(glyphID)
+	if err != nil {
+		return nil, err
+	}
+	fn := currentSVGTableRenderer()
+	if fn == nil {
+		return nil, fmt.Errorf("%w: gid %d (no SVGTableRenderer wired)", ErrNotColorGlyph, glyphID)
+	}
+	pix, ox, oy, err := fn(glyphID, g.Doc, float64(font.UnitsPerEm()), float64(ppem), fg, cf.Palette(palette))
+	if err != nil {
+		return nil, err
+	}
+	return &ColorRasterImage{
+		Pix:     pix,
+		OriginX: ox,
+		OriginY: oy,
+		Advance: font.GlyphAdvance(glyphID, float64(ppem)),
+	}, nil
 }
 
 func rasterizeColorBitmap(cf ColorFont, font ParsedFont, glyphID uint16, ppem uint16) (*ColorRasterImage, error) {
@@ -151,6 +176,9 @@ func (c *ColorRasterCache) rasterizeCOLR(cf ColorFont, font ParsedFont, glyphID 
 	cg, err := cf.COLRGlyph(glyphID, palette)
 	if err != nil {
 		return nil, err
+	}
+	if cg.Paint != nil {
+		return c.rasterizeCOLRv1(cf, font, cg, glyphID, ppem, palette, fg)
 	}
 	if len(cg.Layers) == 0 {
 		return nil, fmt.Errorf("text: COLR glyph %d has no layers", glyphID)
@@ -207,4 +235,23 @@ func colrLayerColor(layer emoji.ColorLayer, fg color.RGBA) color.RGBA {
 		return fg
 	}
 	return layer.Color.ToRGBA()
+}
+
+// rasterizeCOLRv1 renders a COLRv1 paint graph through the installed
+// COLRv1Renderer hook (pixel production lives in the render layer).
+func (c *ColorRasterCache) rasterizeCOLRv1(cf ColorFont, font ParsedFont, cg *emoji.COLRGlyph, glyphID uint16, ppem uint16, palette int, fg color.RGBA) (*ColorRasterImage, error) {
+	fn := currentCOLRv1Renderer()
+	if fn == nil {
+		return nil, fmt.Errorf("%w: gid %d (no COLRv1Renderer wired)", ErrNotColorGlyph, glyphID)
+	}
+	pix, ox, oy, err := fn(font, cg, float64(font.UnitsPerEm()), float64(ppem), palette, fg)
+	if err != nil {
+		return nil, err
+	}
+	return &ColorRasterImage{
+		Pix:     pix,
+		OriginX: ox,
+		OriginY: oy,
+		Advance: font.GlyphAdvance(glyphID, float64(ppem)),
+	}, nil
 }

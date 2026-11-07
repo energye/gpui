@@ -356,7 +356,7 @@ func (c *Context) ensureGPUCtx() {
 	// rasterizer. Without this gate, offscreen layers, shaped glyphs and
 	// image/filter paths still create a GPU context and defer pixels until
 	// Image/Flush, so CPU contracts see an untouched pixmap.
-	if CPUOnlyMode() {
+	if CPUOnlyMode() || c.cpuOnly {
 		return
 	}
 	a := Accelerator()

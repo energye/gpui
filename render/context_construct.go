@@ -86,6 +86,7 @@ func NewContext(width, height int, opts ...ContextOption) *Context {
 		stack:                 make([]Matrix, 0, 8),
 		clipStackDepth:        make([]int, 0, 8),
 		pipelineMode:          options.pipelineMode,
+		cpuOnly:               options.cpuOnly,
 		damageTrackingEnabled: true,
 		antiAlias:             true,
 	}

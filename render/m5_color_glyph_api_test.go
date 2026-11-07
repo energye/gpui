@@ -26,6 +26,10 @@ func (s *splitStubFont) BitmapGlyph(uint16, uint16) (*emoji.BitmapGlyph, error) 
 func (s *splitStubFont) COLRGlyph(uint16, int) (*emoji.COLRGlyph, error) {
 	return nil, emoji.ErrNoCOLRTable
 }
+func (s *splitStubFont) SVGGlyph(uint16) (*emoji.SVGGlyph, error) {
+	return nil, emoji.ErrNoSVGTable
+}
+func (s *splitStubFont) Palette(int) []emoji.Color { return nil }
 
 func TestSplitColorGlyphs_Mixed(t *testing.T) {
 	cf := &splitStubFont{colorGID: 65}

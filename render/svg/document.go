@@ -58,6 +58,10 @@ type Document struct {
 	// inheritance (fill, color, font-size, ...).
 	rootAttrs Attrs
 
+	// colorVars holds the CSS custom properties var() color references
+	// resolve against (SVG color-table palette contract; nil otherwise).
+	colorVars map[string]string
+
 	// hasViewBox is true when the root declared a viewBox.
 	hasViewBox bool
 }

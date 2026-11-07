@@ -76,7 +76,7 @@ func gradientStopsToColorStops(d *Document, g stopsProvider, color string) ([]re
 	base := &props{color: color}
 	out := make([]render.ColorStop, 0, len(stops))
 	for _, s := range stops {
-		c, err := parseColor(resolveColorToken(s.Color, base))
+		c, err := parseColor(resolveColorToken(resolveVarTokens(d, s.Color), base))
 		if err != nil || c == nil {
 			// "none"/invalid stop color: skip the stop (the gradient stays
 			// renderable when other stops exist).

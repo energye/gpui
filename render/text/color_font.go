@@ -36,6 +36,15 @@ type ColorFont interface {
 	// COLRGlyph returns the COLR glyph data for layered rendering.
 	// Returns nil and error if the glyph is not a COLR glyph.
 	COLRGlyph(glyphID uint16, paletteIndex int) (*emoji.COLRGlyph, error)
+
+	// SVGGlyph returns the decoded SVG document for an SVG-table glyph.
+	// Returns nil and error if the glyph is not an SVG-table glyph.
+	SVGGlyph(glyphID uint16) (*emoji.SVGGlyph, error)
+
+	// Palette returns the CPAL palette colors at paletteIndex (nil when the
+	// font has no CPAL table or the index is out of range). Palette 0 is the
+	// static default used by COLR and SVG-table var(--colorN) references.
+	Palette(paletteIndex int) []emoji.Color
 }
 
 // ColorFontInfo provides information about a font's color capabilities.
