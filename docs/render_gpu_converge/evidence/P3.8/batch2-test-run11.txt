@@ -1,0 +1,1 @@
+ok  	github.com/energye/gpui/render/svg	0.047s

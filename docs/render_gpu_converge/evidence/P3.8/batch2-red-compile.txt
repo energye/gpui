@@ -1,0 +1,3 @@
+# github.com/energye/gpui/render/svg
+# [github.com/energye/gpui/render/svg]
+vet: render/svg/p38_paint_test.go:26:12: undefined: parseTransformList

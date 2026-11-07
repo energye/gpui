@@ -1,0 +1,11 @@
+# github.com/energye/gpui/render/svg [github.com/energye/gpui/render/svg.test]
+render/svg/document.go:316:7: e.buf undefined (type *ImageElement has no field or method buf)
+render/svg/document.go:317:12: e.buf undefined (type *ImageElement has no field or method buf)
+render/svg/document.go:319:26: e.raw undefined (type *ImageElement has no field or method raw)
+render/svg/document.go:322:48: e.raw undefined (type *ImageElement has no field or method raw)
+render/svg/document.go:326:4: e.buf undefined (type *ImageElement has no field or method buf)
+render/svg/document.go:327:11: e.buf undefined (type *ImageElement has no field or method buf)
+render/svg/parser.go:982:8: elem.raw undefined (type *ImageElement has no field or method raw)
+render/svg/parser.go:983:8: elem.rawMime undefined (type *ImageElement has no field or method rawMime)
+FAIL	github.com/energye/gpui/render/svg [build failed]
+FAIL

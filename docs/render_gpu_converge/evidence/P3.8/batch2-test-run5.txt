@@ -1,0 +1,6 @@
+--- FAIL: TestP38GradientTransformPixel (0.00s)
+    p38_paint_test.go:199: top = {R:0 G:0 B:254 A:255}, want mid-ramp (R≈168)
+    p38_paint_test.go:205: ramp must increase downward: top={R:0 G:0 B:254 A:255} bottom={R:0 G:0 B:254 A:255}
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.044s
+FAIL

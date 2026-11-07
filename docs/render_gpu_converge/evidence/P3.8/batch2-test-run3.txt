@@ -1,0 +1,14 @@
+--- FAIL: TestP38GradientSpreadAndPixels (0.00s)
+    p38_paint_test.go:125: sq0 left = {R:247 G:0 B:70 A:255}, want red-ish
+    p38_paint_test.go:131: sq1 left (repeat restart) = {R:247 G:0 B:70 A:255}, want red-ish
+--- FAIL: TestP38GradientUserSpacePixels (0.00s)
+    p38_paint_test.go:161: left = {R:252 G:0 B:43 A:255}, want red
+    p38_paint_test.go:168: mid = {R:186 G:0 B:188 A:255}, want ~128/128 ramp midpoint
+--- FAIL: TestP38GradientTransformPixel (0.00s)
+    p38_paint_test.go:195: top = {R:0 G:0 B:254 A:255}, want red-ish (rotated ramp start)
+--- FAIL: TestP38GradientStrokeAndRefusals (0.00s)
+    p38_paint_test.go:214: zero-stop fill = {R:0 G:255 B:0 A:255}, want nothing painted
+    p38_paint_test.go:226: self rect = {R:0 G:0 B:0 A:0}, want green-ish
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.044s
+FAIL

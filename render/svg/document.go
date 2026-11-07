@@ -8,6 +8,14 @@
 
 package svg
 
+import (
+	"bytes"
+	"image"
+	"strings"
+
+	"github.com/energye/gpui/render"
+)
+
 // Document represents a parsed SVG document.
 // It can be rendered multiple times at different sizes, making it suitable
 // for caching parsed SVG icons.
@@ -81,14 +89,15 @@ type ParseWarning struct {
 
 // Warning reason codes carried in ParseWarning.Reason.
 const (
-	warnUnresolvedPaint    = "unresolved-paint"    // url(#id) target does not exist
-	warnUnsupportedPaint   = "unsupported-paint"   // url(#id) target exists but is not a paint server yet
-	warnUnresolvedRef      = "unresolved-ref"      // use href target does not exist
-	warnUseCycle           = "use-cycle"           // use participates in a reference cycle
-	warnUseDepth           = "use-depth"           // use nesting exceeds the depth limit
-	warnUnsupportedElement  = "unsupported-element" // known element deliberately not rendered
+	warnUnresolvedPaint     = "unresolved-paint"     // url(#id) target does not exist
+	warnUnsupportedPaint    = "unsupported-paint"    // url(#id) target exists but is not a paint server yet
+	warnUnresolvedRef       = "unresolved-ref"       // use href target does not exist
+	warnUseCycle            = "use-cycle"            // use participates in a reference cycle
+	warnUseDepth            = "use-depth"            // use nesting exceeds the depth limit
+	warnUnsupportedElement  = "unsupported-element"  // known element deliberately not rendered
 	warnUnsupportedSelector = "unsupported-selector" // CSS selector outside the minimal set
 	warnInvalidValue        = "invalid-value"        // attribute value failed to parse
+	warnUnsupportedRef      = "unsupported-ref"      // reference target exists but wrong type
 )
 
 // ViewBox represents the SVG viewBox attribute.
@@ -100,30 +109,40 @@ type ViewBox struct {
 // strings: absent ("" = inherit per SVG), present values are resolved by the
 // inheritance evaluator.
 type Attrs struct {
-	ID     string // element id (reference target)
-	Class  string // class list for CSS class selectors
-	Style  string // inline style declarations (highest cascade priority)
-	Fill   string // color | none | currentColor | url(#ref)
-	FillRule string // evenodd | nonzero
-	FillOpacity string // number, "" = inherit
-	Stroke string
-	StrokeOpacity string
-	StrokeWidth string // length, "" = inherit
-	StrokeCap string   // round | square | butt
-	StrokeJoin string  // round | bevel | miter
+	ID               string // element id (reference target)
+	Class            string // class list for CSS class selectors
+	Style            string // inline style declarations (highest cascade priority)
+	Fill             string // color | none | currentColor | url(#ref)
+	FillRule         string // evenodd | nonzero
+	FillOpacity      string // number, "" = inherit
+	Stroke           string
+	StrokeOpacity    string
+	StrokeWidth      string // length, "" = inherit
+	StrokeCap        string // round | square | butt
+	StrokeJoin       string // round | bevel | miter
 	StrokeMiterlimit string
-	StrokeDasharray string  // length list | none
+	StrokeDasharray  string // length list | none
 	StrokeDashoffset string
-	Opacity string // element-level, not inherited
-	Transform string
-	ClipRule string
-	Color string    // currentColor source
-	FontSize string // length; font-relative units resolve against parent
-	Visibility string
-	Overflow string // svg elements: visible disables the viewport clip
+	Opacity          string // element-level, not inherited
+	Transform        string
+	ClipRule         string
+	Color            string // currentColor source
+	FontSize         string // length; font-relative units resolve against parent
+	Visibility       string
+	Overflow         string // svg elements: visible disables the viewport clip
+
+	// ClipPath carries the raw clip-path="url(#id)" reference.
+	ClipPath string
+	// Mask carries the raw mask="url(#id)" reference.
+	Mask string
 
 	// tag is the element tag name (CSS tag selectors); set by the parser.
 	tag string
+	// clipInvalid marks an unresolved clip-path reference: the element is
+	// not rendered (fail-closed).
+	clipInvalid bool
+	// maskInvalid marks an unresolved mask reference: not rendered.
+	maskInvalid bool
 	// fillInvalid/strokeInvalid mark url() paints that failed reference
 	// validation: the paint is treated as "none" (fail-closed, not black).
 	fillInvalid, strokeInvalid bool
@@ -145,9 +164,9 @@ func (e *PathElement) attrs() *Attrs { return &e.Attrs }
 
 // CircleElement represents an SVG <circle> element.
 type CircleElement struct {
-	Attrs    Attrs
-	CX, CY   Length
-	R        Length
+	Attrs  Attrs
+	CX, CY Length
+	R      Length
 }
 
 func (e *CircleElement) attrs() *Attrs { return &e.Attrs }
@@ -234,13 +253,13 @@ const (
 // UseElement represents <use>: an instance of a referenced element or
 // symbol. HRef accepts SVG2 href and SVG 1.1 xlink:href.
 type UseElement struct {
-	Attrs      Attrs
-	HRef       string
-	X, Y       Length
-	W, H       Length // width/height: symbol viewport size (default 100%)
-	target     Element // resolved at parse
-	kind       RefKind
-	invalid    bool // unresolved/cyclic/over-deep: renders nothing
+	Attrs   Attrs
+	HRef    string
+	X, Y    Length
+	W, H    Length  // width/height: symbol viewport size (default 100%)
+	target  Element // resolved at parse
+	kind    RefKind
+	invalid bool // unresolved/cyclic/over-deep: renders nothing
 }
 
 func (e *UseElement) attrs() *Attrs { return &e.Attrs }
@@ -264,6 +283,92 @@ type SVGElement struct {
 
 func (e *SVGElement) attrs() *Attrs { return &e.Attrs }
 
+// ClipPathElement represents <clipPath>: child shapes union into the clip
+// region applied through clip-path="url(#id)". A single child keeps its own
+// winding (holes survive); multi-child regions union via the boolean base.
+type ClipPathElement struct {
+	Attrs    Attrs
+	Units    Units // clipPathUnits (default objectBoundingBox)
+	Children []Element
+}
+
+func (e *ClipPathElement) attrs() *Attrs { return &e.Attrs }
+
+// ImageElement represents <image>: an embedded raster via data: URI
+// (cross-file references are a named refusal, D2). Decoding happens at
+// parse: HasImage/ImgW/ImgH carry the result for default sizing.
+type ImageElement struct {
+	Attrs      Attrs
+	X, Y       Length
+	W, H       Length // viewport (default: intrinsic image size)
+	HRef       string
+	Par        PreserveAspectRatio // preserveAspectRatio (default xMidYMid meet)
+	HasPar     bool
+	HasImage   bool
+	ImgW, ImgH int
+
+	raw     []byte // decoded data-URI payload (parse-time)
+	rawMime string
+	buf     *render.ImageBuf // lazy render-time raster
+}
+
+func (e *ImageElement) attrs() *Attrs { return &e.Attrs }
+
+// renderBuf lazily decodes the stored payload into an ImageBuf (once per
+// element; the caller owns the Dispose via the document bake lifecycle).
+func (e *ImageElement) renderBuf() *render.ImageBuf {
+	if e.buf != nil {
+		return e.buf
+	}
+	if !e.HasImage || len(e.raw) == 0 {
+		return nil
+	}
+	img, _, err := image.Decode(bytes.NewReader(e.raw))
+	if err != nil {
+		return nil
+	}
+	e.buf = render.ImageBufFromImage(img)
+	return e.buf
+}
+
+// PatternElement represents <pattern>: a tile rendered offscreen and
+// repeated through a CustomBrush (tiled sampling; the GPU has a native
+// CustomBrush route).
+type PatternElement struct {
+	Attrs        Attrs
+	X, Y         Length // tile origin (patternUnits; default x=y=0)
+	W, H         Length // tile size
+	Units        Units  // patternUnits (default userSpaceOnUse)
+	ContentUnits Units  // patternContentUnits (default userSpaceOnUse)
+	Transform    string // patternTransform raw
+	ViewBox      ViewBox
+	Par          PreserveAspectRatio
+	HasViewBox   bool
+	Children     []Element
+	HRef         string
+
+	setX, setY, setW, setH    bool
+	unitsSet, contentUnitsSet bool
+}
+
+func (e *PatternElement) attrs() *Attrs { return &e.Attrs }
+func (e *PatternElement) unitsAndTransform() (Units, string) {
+	return e.Units, e.Transform
+}
+
+// MaskElement represents <mask>: luminance mask content with a region
+// (maskUnits on x/y/width/height; maskContentUnits for the children).
+type MaskElement struct {
+	Attrs        Attrs
+	X, Y         Length // region (default -10%..120% of the referencing bbox)
+	W, H         Length
+	Units        Units // maskUnits (default objectBoundingBox)
+	ContentUnits Units // maskContentUnits (default userSpaceOnUse)
+	Children     []Element
+}
+
+func (e *MaskElement) attrs() *Attrs { return &e.Attrs }
+
 // StyleElement represents <style>; its rules are collected on the Document
 // (Document.Styles) and the element itself renders nothing.
 type StyleElement struct {
@@ -271,3 +376,145 @@ type StyleElement struct {
 }
 
 func (e *StyleElement) attrs() *Attrs { return &e.Attrs }
+
+// Units selects the coordinate space for paint-server geometry
+// (gradientUnits / clipPathUnits / patternUnits).
+type Units uint8
+
+const (
+	// UnitsObjectBoundingBox (default): coordinates are fractions of the
+	// painted element's bounding box.
+	UnitsObjectBoundingBox Units = iota
+	// UnitsUserSpaceOnUse: coordinates are in the current user space.
+	UnitsUserSpaceOnUse
+)
+
+// String renders the attribute token (diagnostics).
+func (u Units) String() string {
+	if u == UnitsUserSpaceOnUse {
+		return "userSpaceOnUse"
+	}
+	return "objectBoundingBox"
+}
+
+// SpreadMode is the SVG spreadMethod (maps to render.ExtendMode).
+type SpreadMode uint8
+
+const (
+	SpreadPad SpreadMode = iota
+	SpreadRepeat
+	SpreadReflect
+)
+
+// spreadToken parses the spreadMethod attribute value (default pad).
+func spreadToken(s string) SpreadMode {
+	switch strings.TrimSpace(s) {
+	case "repeat":
+		return SpreadRepeat
+	case "reflect":
+		return SpreadReflect
+	}
+	return SpreadPad
+}
+
+// extendOf maps a spread mode onto the render extend enum.
+func (m SpreadMode) extendOf() render.ExtendMode {
+	switch m {
+	case SpreadRepeat:
+		return render.ExtendRepeat
+	case SpreadReflect:
+		return render.ExtendReflect
+	}
+	return render.ExtendPad
+}
+
+// GradientStopElement represents <stop> inside a gradient.
+type GradientStopElement struct {
+	Attrs   Attrs
+	Offset  float64 // clamped to [0,1]; "%" resolved /100 at parse
+	Color   string  // stop-color raw (currentColor resolved at paint)
+	Opacity float64 // stop-opacity clamped [0,1]
+}
+
+func (e *GradientStopElement) attrs() *Attrs { return &e.Attrs }
+
+// stopsProvider is implemented by gradient elements for href stop chaining.
+type stopsProvider interface {
+	Element
+	stopsList() []*GradientStopElement
+	hrefTarget() string
+}
+
+// LinearGradientElement represents <linearGradient>.
+type LinearGradientElement struct {
+	Attrs     Attrs
+	X1, Y1    Length // defaults (0,0)→(1,0) in objectBoundingBox units
+	X2, Y2    Length
+	Units     Units
+	Transform string // gradientTransform raw
+	Spread    SpreadMode
+	Stops     []*GradientStopElement
+	HRef      string // href/xlink:href: unset attributes inherit from the target
+
+	// set* mark explicitly authored attributes (href inheritance is
+	// per-attribute first-set-wins).
+	setX1, setY1, setX2, setY2 bool
+	unitsSet, spreadSet        bool
+}
+
+func (e *LinearGradientElement) attrs() *Attrs { return &e.Attrs }
+func (e *LinearGradientElement) stopsList() []*GradientStopElement {
+	return e.Stops
+}
+func (e *LinearGradientElement) hrefTarget() string { return e.HRef }
+func (e *LinearGradientElement) unitsAndTransform() (Units, string) {
+	return e.Units, e.Transform
+}
+
+// RadialGradientElement represents <radialGradient>.
+type RadialGradientElement struct {
+	Attrs     Attrs
+	CX, CY, R Length // defaults cx=cy=50%, r=50% in objectBoundingBox units
+	FX, FY    Length
+	HasFocus  bool // fx/fy present (defaults to cx/cy per-axis)
+	Units     Units
+	Transform string // gradientTransform raw
+	Spread    SpreadMode
+	Stops     []*GradientStopElement
+	HRef      string
+
+	setCX, setCY, setR, setFX, setFY bool
+	unitsSet, spreadSet              bool
+}
+
+func (e *RadialGradientElement) attrs() *Attrs { return &e.Attrs }
+func (e *RadialGradientElement) stopsList() []*GradientStopElement {
+	return e.Stops
+}
+func (e *RadialGradientElement) hrefTarget() string { return e.HRef }
+func (e *RadialGradientElement) unitsAndTransform() (Units, string) {
+	return e.Units, e.Transform
+}
+
+// EffectiveStops resolves the href stop chain (same-type targets only,
+// cycle-safe). Empty result = invalid paint per SVG.
+func EffectiveStops(d *Document, g stopsProvider) []*GradientStopElement {
+	cur := g
+	seen := map[Element]bool{cur.(Element): true}
+	for len(cur.stopsList()) == 0 {
+		if cur.hrefTarget() == "" {
+			return nil
+		}
+		tgt := d.ElementByID(strings.TrimPrefix(cur.hrefTarget(), "#"))
+		if tgt == nil || seen[tgt] {
+			return nil
+		}
+		np, ok := tgt.(stopsProvider)
+		if !ok {
+			return nil
+		}
+		seen[tgt] = true
+		cur = np
+	}
+	return cur.stopsList()
+}

@@ -1,0 +1,4 @@
+# github.com/energye/gpui/render/svg [github.com/energye/gpui/render/svg.test]
+render/svg/renderer.go:396:14: e.renderBuf undefined (type *ImageElement has no field or method renderBuf)
+FAIL	github.com/energye/gpui/render/svg [build failed]
+FAIL

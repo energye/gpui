@@ -1,0 +1,11 @@
+# github.com/energye/gpui/render/svg [github.com/energye/gpui/render/svg.test]
+render/svg/document.go:12:2: "bytes" imported and not used
+render/svg/document.go:13:2: "image" imported and not used
+render/svg/document.go:21:2: render redeclared in this block
+	render/svg/document.go:15:2: other declaration of render
+render/svg/document.go:21:2: "github.com/energye/gpui/render" imported and not used
+render/svg/parser.go:982:8: elem.raw undefined (type *ImageElement has no field or method raw)
+render/svg/parser.go:983:8: elem.rawMime undefined (type *ImageElement has no field or method rawMime)
+render/svg/renderer.go:396:14: e.renderBuf undefined (type *ImageElement has no field or method renderBuf)
+FAIL	github.com/energye/gpui/render/svg [build failed]
+FAIL

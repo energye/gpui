@@ -555,26 +555,27 @@ func TestParseUnsupportedElementsSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	// P3.8 批 1：defs 入树为 DefsElement（引用可查、不渲染）；text/clipPath
-	// 仍跳过但现在带具名 Warning（fail-visible）。
+	// P3.8 批 1：defs 入树为 DefsElement（引用可查、不渲染）；text 仍跳过并带
+	// 具名 Warning。P3.8 批 2 起 clipPath 受支持（id="a" 入引用表，可被引用）。
 	if len(doc.Elements) != 2 {
 		t.Errorf("Elements count = %d, want 2 (defs node + circle)", len(doc.Elements))
 	}
 	if _, ok := doc.Elements[0].(*DefsElement); !ok {
 		t.Errorf("Elements[0] = %T, want *DefsElement", doc.Elements[0])
 	}
-	// id="a" 挂在被跳过的 clipPath 上：不进引用表（未支持元素整体跳过）。
-	if doc.ElementByID("a") != nil {
-		t.Errorf("ElementByID(\"a\") = %+v, want nil (clipPath is skipped whole)", doc.ElementByID("a"))
+	cp, ok := doc.ElementByID("a").(*ClipPathElement)
+	if !ok {
+		t.Errorf("ElementByID(\"a\") = %T, want *ClipPathElement (supported since batch 2)", doc.ElementByID("a"))
 	}
+	_ = cp
 	warned := 0
 	for _, w := range doc.Warnings {
 		if w.Reason == warnUnsupportedElement {
 			warned++
 		}
 	}
-	if warned < 2 {
-		t.Errorf("unsupported-element warnings = %d, want >=2 (clipPath, text)", warned)
+	if warned != 1 {
+		t.Errorf("unsupported-element warnings = %d, want 1 (text only)", warned)
 	}
 }
 

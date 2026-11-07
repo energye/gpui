@@ -1,0 +1,21 @@
+N-1-摘spreadMethod: STILL GREEN (mutation ineffective) ❌
+N-1-摘spreadMethod: restored GREEN ✅
+N-2-摘href继承: RED after mutation ✅
+N-2-摘href继承: restored GREEN ✅
+N-3-摘clip并集: RED after mutation ✅
+N-3-摘clip并集: restored GREEN ✅
+N-4-摘clip-rule归位: RED after mutation ✅
+N-4-摘clip-rule归位: restored GREEN ✅
+N-5-摘oBB映射: RED after mutation ✅
+N-5-摘oBB映射: restored GREEN ✅
+N-1-摘spreadMethod: STILL GREEN ❌
+N-1-摘spreadMethod: restored GREEN ✅
+N-1-摘spreadMethod: RED after mutation ✅
+N-6-摘luminance: RED after mutation ✅
+N-6-摘luminance: restored GREEN ✅
+N-7-摘tile周期: RED after mutation ✅
+N-7-摘tile周期: restored GREEN ✅
+N-8-摘patternTransform逆映射: RED after mutation ✅
+N-8-摘patternTransform逆映射: restored GREEN ✅
+N-9-摘focal换算(GPU wgsl): RED after mutation ✅
+N-9: restored GREEN ✅

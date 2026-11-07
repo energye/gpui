@@ -1,0 +1,4 @@
+# github.com/energye/gpui/render/svg [github.com/energye/gpui/render/svg.test]
+render/svg/clip.go:34:15: cannot use false (untyped bool constant) as render.FillRule value in return statement
+FAIL	github.com/energye/gpui/render/svg [build failed]
+FAIL

@@ -1,0 +1,10 @@
+--- FAIL: TestP38GradientTransformPixel (0.00s)
+    p38_paint_test.go:199: top = {R:0 G:0 B:254 A:255}, want mid-ramp (R≈168)
+    p38_paint_test.go:205: ramp must increase downward: top={R:0 G:0 B:254 A:255} bottom={R:0 G:0 B:254 A:255}
+--- FAIL: TestP38GradientStrokeAndRefusals (0.00s)
+    p38_paint_test.go:215: gradient stroke top = {R:0 G:0 B:0 A:0}, want mid-ramp (not black)
+    p38_paint_test.go:222: zero-stop fill = {R:0 G:255 B:0 A:255}, want nothing painted
+    p38_paint_test.go:234: self rect = {R:0 G:0 B:0 A:0}, want green-ish
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.042s
+FAIL

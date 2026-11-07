@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+  <!-- gradient stroke + zero-stop gradient refusal + dangling keeps failing closed -->
+  <defs>
+    <linearGradient id="ramp" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="0">
+      <stop offset="0" stop-color="#ff0000"/>
+      <stop offset="1" stop-color="#0000ff"/>
+    </linearGradient>
+    <linearGradient id="empty" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="0"/>
+  </defs>
+  <rect x="5" y="5" width="90" height="30" fill="none" stroke="url(#ramp)" stroke-width="10"/>
+  <rect x="5" y="45" width="90" height="30" fill="url(#empty)"/>
+  <rect x="40" y="55" width="20" height="10" fill="#00ff00"/>
+</svg>

@@ -1,0 +1,14 @@
+--- FAIL: TestP38PatternTilePeriod (0.00s)
+    p38_pattern_test.go:23: tile (1,1) = {R:0 G:0 B:0 A:0}, want red
+    p38_pattern_test.go:29: tile (3,3) = {R:0 G:0 B:0 A:0}, want blue
+    p38_pattern_test.go:34: tile period (41,1) = {R:0 G:0 B:0 A:0}, want red (period 4)
+    p38_pattern_test.go:34: tile period (81,1) = {R:0 G:0 B:0 A:0}, want red (period 4)
+    p38_pattern_test.go:39: tile period (37,1) = {R:0 G:0 B:0 A:0}, want red
+--- FAIL: TestP38PatternHrefPhase (0.00s)
+    p38_pattern_test.go:51: shifted (3,35) = {R:0 G:0 B:0 A:0}, want red (phase +2)
+--- FAIL: TestP38PatternObbUnits (0.00s)
+    p38_pattern_test.go:72: obb tile (15,15) = {R:0 G:0 B:0 A:0}, want green
+    p38_pattern_test.go:75: obb tile (45,45) = {R:0 G:0 B:0 A:0}, want green
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.069s
+FAIL

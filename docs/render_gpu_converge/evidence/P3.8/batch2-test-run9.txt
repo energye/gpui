@@ -1,0 +1,18 @@
+--- FAIL: TestP38ClipPathUnion (0.00s)
+    p38_clip_test.go:31: outside (95,30) = {R:226 G:74 B:74 A:255}, want transparent
+    p38_clip_test.go:31: outside (110,30) = {R:226 G:74 B:74 A:255}, want transparent
+--- FAIL: TestP38ClipPathWindingHole (0.00s)
+    p38_clip_test.go:43: ring band (20,50) = {R:0 G:0 B:0 A:0}, want blue
+--- FAIL: TestP38ClipPathObjectBoundingBox (0.00s)
+    p38_clip_test.go:57: obb inside (140,50) = {R:0 G:0 B:0 A:0}, want painted
+--- FAIL: TestP38ClipPathOnGroupAndMissing (0.00s)
+    p38_clip_test.go:76: group clip bottom = {R:192 G:93 B:240 A:255}, want transparent
+    p38_clip_test.go:80: missing clip ref = {R:192 G:93 B:240 A:255}, want unpainted
+--- FAIL: TestP38ClipRuleUsedNotFillRule (0.00s)
+    p38_clip_test.go:115: evenodd band = {R:0 G:0 B:0 A:0}, want red
+--- FAIL: TestParseUnsupportedElementsSkipped (0.00s)
+    svg_test.go:568: ElementByID("a") = &{Attrs:{ID:a Class: Style: Fill: FillRule: FillOpacity: Stroke: StrokeOpacity: StrokeWidth: StrokeCap: StrokeJoin: StrokeMiterlimit: StrokeDasharray: StrokeDashoffset: Opacity: Transform: ClipRule: Color: FontSize: Visibility: Overflow: ClipPath: tag:clipPath clipInvalid:false fillInvalid:false strokeInvalid:false} Units:objectBoundingBox Children:[0xc000487c20]}, want nil (clipPath is skipped whole)
+    svg_test.go:577: unsupported-element warnings = 1, want >=2 (clipPath, text)
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.047s
+FAIL

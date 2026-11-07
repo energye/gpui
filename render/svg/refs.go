@@ -40,6 +40,55 @@ func validateReferences(pc *parseCtx) {
 	}
 	detectUseCycles(pc, uses)
 	validatePaints(pc)
+	validateClips(pc)
+}
+
+// validateClips checks clip-path="url(#id)" references on the rendered
+// tree: unresolved targets mark the element not-rendered (fail-closed).
+func validateClips(pc *parseCtx) {
+	var walk func(elems []Element)
+	walk = func(elems []Element) {
+		for _, e := range elems {
+			if e == nil {
+				continue
+			}
+			if _, isDefs := e.(*DefsElement); isDefs {
+				continue
+			}
+			a := e.attrs()
+			if a != nil && a.ClipPath != "" {
+				id := extractURLRefID(a.ClipPath)
+				tgt, ok := pc.doc.byID[id]
+				if !ok || tgt == nil {
+					a.clipInvalid = true
+					pc.warn(a.tag, "clip-path", warnUnresolvedRef, "#"+id)
+				} else if _, isClip := tgt.(*ClipPathElement); !isClip {
+					a.clipInvalid = true
+					pc.warn(a.tag, "clip-path", warnUnsupportedRef, "#"+id)
+				}
+			}
+			if a != nil && a.Mask != "" {
+				id := extractURLRefID(a.Mask)
+				tgt, ok := pc.doc.byID[id]
+				if !ok || tgt == nil {
+					a.maskInvalid = true
+					pc.warn(a.tag, "mask", warnUnresolvedRef, "#"+id)
+				} else if _, isMask := tgt.(*MaskElement); !isMask {
+					a.maskInvalid = true
+					pc.warn(a.tag, "mask", warnUnsupportedRef, "#"+id)
+				}
+			}
+			switch t := e.(type) {
+			case *GroupElement:
+				walk(t.Children)
+			case *SymbolElement:
+				walk(t.Children)
+			case *SVGElement:
+				walk(t.Children)
+			}
+		}
+	}
+	walk(pc.doc.Elements)
 }
 
 // walkElements visits every element in the tree (including defs/symbol
@@ -222,10 +271,20 @@ func checkPaint(pc *parseCtx, e Element, a *Attrs, invalid *bool, value string) 
 		pc.warn(a.tag, paintAttrName(a, value), warnUnresolvedPaint, "#"+id)
 		return
 	}
-	// Paint servers (gradients, patterns) arrive with the paint batch;
-	// until then any existing target is a named refusal, not black.
-	*invalid = true
-	pc.warn(a.tag, paintAttrName(a, value), warnUnsupportedPaint, "#"+id+" (paint servers land with the paint batch)")
+	if !isPaintServer(tgt) {
+		*invalid = true
+		pc.warn(a.tag, paintAttrName(a, value), warnUnsupportedPaint, "#"+id)
+		return
+	}
+	// Paint server present: zero-stop gradients stay invalid (SVG treats a
+	// stopless gradient as a paint error); valid servers resolve at paint.
+	if gp, isGrad := tgt.(stopsProvider); isGrad {
+		if len(EffectiveStops(pc.doc, gp)) == 0 {
+			*invalid = true
+			pc.warn(a.tag, paintAttrName(a, value), warnUnresolvedPaint, "#"+id)
+			return
+		}
+	}
 }
 
 // extractURLRefID pulls the fragment id out of `url(#id)` (optionally quoted,

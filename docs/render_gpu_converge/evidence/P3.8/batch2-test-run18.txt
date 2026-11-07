@@ -1,0 +1,12 @@
+--- FAIL: TestP38ImageDataURLMeet (0.00s)
+    p38_image_test.go:51: above band = {R:23 G:26 B:32 A:255}, want background
+--- FAIL: TestP38ImageExternalRefused (0.00s)
+    p38_image_test.go:110: contrast rect = {R:0 G:0 B:0 A:0}, want green
+--- FAIL: TestP38ImageBadDataRefused (0.00s)
+    p38_image_test.go:123: bad data URI should not decode, but HasImage=true
+A pixel(20,10)={255 0 0 255}
+B pixel(20,10)={255 0 0 255}
+C pixel(20,10)={255 0 0 255}
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.068s
+FAIL

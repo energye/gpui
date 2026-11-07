@@ -139,15 +139,15 @@ type props struct {
 	fillRuleExplicit bool
 	clipRule         string
 	strokeWidth      float64
-	strokeCap     string
-	strokeJoin    string
-	strokeMiter   float64
-	dash          []float64
-	dashOffset    float64
-	color         string
-	fontSize      float64 // px
-	opacity       float64 // element-level, never inherited
-	visibility    string
+	strokeCap        string
+	strokeJoin       string
+	strokeMiter      float64
+	dash             []float64
+	dashOffset       float64
+	color            string
+	fontSize         float64 // px
+	opacity          float64 // element-level, never inherited
+	visibility       string
 }
 
 // rootProps returns the SVG initial property values.

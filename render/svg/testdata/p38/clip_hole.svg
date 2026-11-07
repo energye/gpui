@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <!-- single-shape clipPath with two subpaths: nonzero winding keeps the hole -->
+  <defs>
+    <clipPath id="ring" clipPathUnits="userSpaceOnUse">
+      <path d="M10,10 H90 V90 H10 Z M35,35 V65 H65 V35 Z"/>
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="100" height="100" fill="#4a90e2" clip-path="url(#ring)"/>
+</svg>

@@ -124,7 +124,17 @@ fn gradient_t(px: f32, py: f32) -> f32 {
     } else {
         t_ray = 1.0;
     }
-    return t_ray;
+    // The gradient parameter is the ratio of the focus-to-point distance over
+    // the focus-to-circle intersection distance along the same ray (matches
+    // render.RadialGradientBrush.computeTFocal and the stencil-fallback
+    // linear_ramp_mask shader). t_ray alone is the ray parameter and would
+    // invert the ramp for every point beyond the first unit span.
+    let point_dist = sqrt(a);
+    let intersect_dist = t_ray * point_dist;
+    if (intersect_dist < 1e-12) {
+        return 0.0;
+    }
+    return point_dist / intersect_dist;
 }
 
 // sweep_tile folds the raw sweep parameter into one gradient period before the

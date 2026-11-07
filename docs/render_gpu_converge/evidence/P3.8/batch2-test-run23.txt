@@ -1,0 +1,6 @@
+--- FAIL: TestP38PatternHrefPhase (0.00s)
+    p38_pattern_test.go:51: shifted (3,35) = {R:23 G:26 B:32 A:255}, want red (phase +2)
+tiny (1,1)={255 0 0 255} (3,3)={0 0 0 0}
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.058s
+FAIL

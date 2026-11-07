@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60" viewBox="0 0 120 60">
+  <!-- two overlapping clip rects: union clips the painted strip -->
+  <defs>
+    <clipPath id="two" clipPathUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="50" height="60"/>
+      <rect x="40" y="0" width="50" height="60"/>
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="120" height="60" fill="#e24a4a" clip-path="url(#two)"/>
+</svg>

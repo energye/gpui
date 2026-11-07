@@ -1,0 +1,5 @@
+--- FAIL: TestP38GradientTransformPixel (0.00s)
+    p38_paint_test.go:202: bottom = {R:133 G:0 B:226 A:255}, want pure blue (clamped t=1)
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.043s
+FAIL

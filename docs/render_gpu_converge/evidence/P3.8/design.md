@@ -91,3 +91,39 @@ build/vet 触及包 rc=0 → 定向单测（新文件+存量 svg 包）逐文件
 - 批 4 svg_filter：fe 子集映射 P3.4 滤镜家族；映射不到的原语具名登记不做；窗 `ui_wr_p38_svg_filter`。
 - 批 5 color_font：sbix 接线、SVG 表→render/svg、COLRv1 paint graph 静态求值、colr.go:177 假注释与 draw_emoji.go:70-73 双判断收口；前置=dc.Image() regionBytes 提升；窗 `ui_wr_p38_color_font`。
 - 批 6 picture：`Recorder.DrawPicture`+深度/环护栏、K5 穿链（GlyphEntry 10B→14B 全量切换+对拍基线处理）；窗 `ui_wr_p38_picture`。
+
+---
+
+## 批 2 细化：SVG paint 完整化（2026-11-07 开工登记）
+
+### 2.0 底座盘点结论（全 file:line，**render 层零增量**）
+
+| 能力 | 底座现状 | SVG 映射 |
+|---|---|---|
+| 渐变 spreadMethod | `render.ExtendMode` 三态全备：CPU `gradient.go:24-29,153`（colorAtOffset 处理 Repeat/Reflect）、GPU `brush_native.go:342 gradientExtend` + `linear_ramp_mask.go:44`（extend uniform 0/1/2） | `spreadMethod` → `SetExtend` 直映 |
+| 渐变焦点 fx/fy | `RadialGradientBrush.Focus/SetFocus` + `StartRadius/EndRadius`（`gradient_radial.go:33-39`），focal 走 ray-circle（computeTFocal） | cx/cy→Center、r→EndRadius、fx/fy→SetFocus |
+| clipPath | `Context.Clip` 路径裁剪 + P3.5 `Path.Op` 保曲线布尔（并集） | clipPath 子形状 union → Clip |
+| mask | `Mask` + `NewLuminanceMask`（`mask.go:182`，CSS Masking Level 1）+ `MaskCanvas.PushMaskLayer/SetMask` | luminance 语义直配 |
+| image | `Context.DrawImage/DrawImageEx` + render 解码器族 | data: URI → Decode → DrawImage |
+| pattern | `CustomBrush`（`brush_custom.go:34` ColorFunc）+ GPU 路径（`brush_native.go:206,538` customBrushFieldSeed） | tile 离屏渲 → ColorFunc 平铺采样 |
+
+### 2.1 拆步与语义
+
+- **2a 渐变**：`linearGradient/radialGradient`（x1/y1/x2/y2、cx/cy/r/fx/fy、`gradientUnits` userSpaceOnUse|objectBoundingBox、`gradientTransform`、`spreadMethod`、`stop` offset/stop-color/stop-opacity、渐变 `href` 继承 stops）；`fill`/`stroke="url(#g)"` 转正（validatePaints 对渐变目标不再 invalid，渲染期 resolve 成 Brush：渐变→`SetFillBrush`，颜色→`SetColor`）；objectBoundingBox = Translate(bx,by)∘Scale(bw,bh)∘gradientTransform∘渐变坐标。**前置重构**：`parseTransformList(s) (render.Matrix, error)` 纯函数（M=M1·…·Mn 右乘链），`applyTransform(dc)` 改薄壳。
+- **2b clipPath**：`clipPath`（`clipPathUnits`、子形状并集——`Path.Op` 保曲线、clip-rule 归位到 clipPath 内容求值）+ `clip-path="url(#c)"`。
+- **2c mask**：`mask`（maskUnits/maskContentUnits、x/y/w/h 默认 -10%~120% bbox、luminance）+ `mask="url(#m)"`。实现=**用户空间三离屏组合**（mask 内容离屏渲→LuminanceMask→被裁内容离屏渲→DestinationIn→组合图 DrawImage 回主 dc）——CTM 天然正确（Skia saveLayer/Flutter drawDisplayList+paint 同形），规避 MaskCanvas 设备空间 1:1 限制，双后端同路。
+- **2d image**：`<image>` href=**data: URI only**（base64/percent 两形），外部文件引用具名拒绝（D2 边界）；`preserveAspectRatio` 对图像视口（默认 xMidYMid meet，viewport=图像固有尺寸）。
+- **2e pattern**：`pattern`（patternUnits/patternContentUnits 默认 userSpaceOnUse、patternTransform、viewBox、href 继承内容）；tile=离屏 Context 渲内容→`CustomBrush` 平铺 ColorFunc。
+
+### 2.2 提交节奏
+
+子步提交（每枚提交前 question）：①2a 渐变（含 transform 纯函数化）；②2b+2c clipPath+mask；③2d+2e image+pattern；④真窗 `ui_wr_p38_svg_paint` + 批级门禁（五目标/64 包 sweep/conformance/双后端金图）收口批 2。
+
+### 2.3 验证方案（随步红测）
+
+- 2a：stops 排序/越界 offset 钉、units 两档 bbox 换算钉、gradientTransform 矩阵合成钉（对照手算）、spreadMethod 三态 ColorAt 像素钉、focal 偏移像素钉、href 继承 stops、悬空 url 回归（批 1 行为保持）。
+- 2b：clip 并集/挖洞（evenodd clip-rule）像素钉、objectBoundingBox units、clip-rule 归位（被裁元素自身 fill 不受影响）。
+- 2c：luminance（白=显/黑=隐/灰=半）、mask 区域默认 bbox 扩 10%、mask 内容继承树。
+- 2d：data URI base64 PNG 画位钉、pAR meet/slice 图像视口、外部 href 拒绝+Warning。
+- 2e：tile 平铺周期像素钉、patternTransform、href 继承。
+- 负向对照：摘 spreadMethod→三态钉红 / 摘 clip 并集→挖洞钉红 / 摘 luminance→灰阶钉红 / 摘 tile 周期→重复钉红。

@@ -1,0 +1,8 @@
+--- FAIL: TestP38MaskLuminance (0.00s)
+    p38_mask_test.go:37: gray zone = {R:18 G:36 B:56 A:128}, want dimmer than white zone {R:74 G:144 B:226 A:255}
+A pixel(20,10)={255 0 0 255}
+B pixel(20,10)={255 0 0 255}
+C pixel(20,10)={255 0 0 255}
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.060s
+FAIL

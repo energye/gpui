@@ -1,0 +1,17 @@
+--- FAIL: TestP38ClipPathUnion (0.00s)
+    p38_clip_test.go:31: outside (95,30) = {R:226 G:74 B:74 A:255}, want transparent
+    p38_clip_test.go:31: outside (110,30) = {R:226 G:74 B:74 A:255}, want transparent
+--- FAIL: TestP38ClipPathWindingHole (0.00s)
+    p38_clip_test.go:47: hole (50,50) = {R:74 G:144 B:226 A:255}, want transparent
+--- FAIL: TestP38ClipPathObjectBoundingBox (0.00s)
+    p38_clip_test.go:63: obb outside (50,50) = {R:60 G:207 B:122 A:255}, want transparent
+    p38_clip_test.go:63: obb outside (170,50) = {R:240 G:192 B:0 A:255}, want transparent
+--- FAIL: TestP38ClipPathOnGroupAndMissing (0.00s)
+    p38_clip_test.go:76: group clip bottom = {R:192 G:93 B:240 A:255}, want transparent
+    p38_clip_test.go:80: missing clip ref = {R:192 G:93 B:240 A:255}, want unpainted
+    p38_clip_test.go:89: missing clip warning missing: [{Element:clipPath Attribute: Reason:unsupported-element Detail:element not rendered (deliberate subset boundary) Offset:269} {Element:rect Attribute:fill Reason:unresolved-paint Detail:#no-such-clip Offset:555}]
+--- FAIL: TestP38ClipRuleUsedNotFillRule (0.00s)
+    p38_clip_test.go:118: evenodd hole = {R:226 G:74 B:74 A:255}, want transparent
+FAIL
+FAIL	github.com/energye/gpui/render/svg	0.013s
+FAIL

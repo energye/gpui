@@ -1,0 +1,7 @@
+# github.com/energye/gpui/render/svg [github.com/energye/gpui/render/svg.test]
+render/svg/gradient.go:355:28: cannot use cur (variable of type *PatternElement) as stopsProvider value in argument to gradientCoordsIn: *PatternElement does not implement stopsProvider (missing method hrefTarget)
+render/svg/gradient.go:356:28: cannot use cur (variable of type *PatternElement) as stopsProvider value in argument to gradientCoordsIn: *PatternElement does not implement stopsProvider (missing method hrefTarget)
+render/svg/gradient.go:357:30: cannot use cur (variable of type *PatternElement) as stopsProvider value in argument to gradientCoordsIn: *PatternElement does not implement stopsProvider (missing method hrefTarget)
+render/svg/gradient.go:358:30: cannot use cur (variable of type *PatternElement) as stopsProvider value in argument to gradientCoordsIn: *PatternElement does not implement stopsProvider (missing method hrefTarget)
+FAIL	github.com/energye/gpui/render/svg [build failed]
+FAIL

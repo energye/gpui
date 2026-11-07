@@ -4,8 +4,6 @@
 //
 // Licensed under Apache License Version 2.0, January 2004
 //
-// https://www.apache.org/licenses/LICENSE-2.0
-//
 //----------------------------------------
 
 package svg
@@ -19,144 +17,161 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// applyTransform parses an SVG transform attribute string and applies
-// the transforms to the given render.Context. Multiple transforms are
-// applied left-to-right (as specified by SVG).
+// parseTransformList parses an SVG transform attribute value into a single
+// affine matrix: "f1 f2 … fn" composes to M = M1·M2·…·Mn (points are
+// transformed by fn first). Bitwise-identical to the previous per-function
+// Context.Translate/Rotate/… chain — those build the same render.* matrices
+// through the same Matrix.Multiply (context_transform.go).
 //
-// Supported transform functions:
-//   - translate(tx [, ty])
-//   - rotate(angle [, cx, cy]) — angle in degrees
-//   - scale(sx [, sy])
-//   - matrix(a, b, c, d, e, f)
-func applyTransform(dc *render.Context, transform string) error {
-	transform = strings.TrimSpace(transform)
-	if transform == "" {
-		return nil
+// Supported functions: translate, scale, rotate, matrix, skewX, skewY.
+func parseTransformList(s string) (render.Matrix, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return render.Identity(), nil
 	}
-
-	// Parse sequence of transform functions: "translate(1 3) rotate(-45 3 3)"
+	m := render.Identity()
 	pos := 0
-	for pos < len(transform) {
+	for pos < len(s) {
 		// Skip whitespace.
-		for pos < len(transform) && isSpace(transform[pos]) {
+		for pos < len(s) && isSpace(s[pos]) {
 			pos++
 		}
-		if pos >= len(transform) {
+		if pos >= len(s) {
 			break
 		}
 
 		// Read function name.
 		nameStart := pos
-		for pos < len(transform) && transform[pos] != '(' && !isSpace(transform[pos]) {
+		for pos < len(s) && s[pos] != '(' && !isSpace(s[pos]) {
 			pos++
 		}
-		name := transform[nameStart:pos]
+		name := s[nameStart:pos]
 
 		// Skip whitespace before '('.
-		for pos < len(transform) && isSpace(transform[pos]) {
+		for pos < len(s) && isSpace(s[pos]) {
 			pos++
 		}
-		if pos >= len(transform) || transform[pos] != '(' {
-			return fmt.Errorf("svg: expected '(' after transform function %q", name)
+		if pos >= len(s) || s[pos] != '(' {
+			return m, fmt.Errorf("svg: expected '(' after transform function %q", name)
 		}
 		pos++ // skip '('
 
 		// Find closing ')'.
 		parenStart := pos
-		for pos < len(transform) && transform[pos] != ')' {
+		for pos < len(s) && s[pos] != ')' {
 			pos++
 		}
-		if pos >= len(transform) {
-			return fmt.Errorf("svg: missing ')' in transform %q", name)
+		if pos >= len(s) {
+			return m, fmt.Errorf("svg: missing ')' in transform %q", name)
 		}
-		argsStr := transform[parenStart:pos]
+		argsStr := s[parenStart:pos]
 		pos++ // skip ')'
 
-		// Parse args.
 		args, err := parseTransformArgs(argsStr)
 		if err != nil {
-			return fmt.Errorf("svg: transform %s: %w", name, err)
+			return m, fmt.Errorf("svg: transform %s: %w", name, err)
 		}
 
-		if err := applyTransformFunc(dc, name, args); err != nil {
-			return err
+		fm, err := parseTransformFunc(name, args)
+		if err != nil {
+			return m, err
 		}
+		m = m.Multiply(fm)
 	}
+	return m, nil
+}
+
+// applyTransformList parses and applies a transform list to the context.
+func applyTransformList(dc *render.Context, s string) error {
+	m, err := parseTransformList(s)
+	if err != nil {
+		return err
+	}
+	dc.Transform(m)
 	return nil
 }
 
-// applyTransformFunc applies a single transform function with parsed arguments.
-func applyTransformFunc(dc *render.Context, name string, args []float64) error {
+// parseTransformFunc builds the matrix for one transform function.
+func parseTransformFunc(name string, args []float64) (render.Matrix, error) {
 	switch name {
 	case "translate":
 		if len(args) < 1 {
-			return fmt.Errorf("svg: translate requires at least 1 arg, got %d", len(args))
+			return render.Matrix{}, fmt.Errorf("svg: translate requires at least 1 arg, got %d", len(args))
 		}
 		tx := args[0]
 		ty := 0.0
 		if len(args) >= 2 {
 			ty = args[1]
 		}
-		dc.Translate(tx, ty)
+		return render.Translate(tx, ty), nil
 
 	case "rotate":
 		switch {
 		case len(args) == 1:
 			// rotate(angle) — angle in degrees, about origin
-			dc.Rotate(args[0] * math.Pi / 180.0)
+			return render.Rotate(args[0] * math.Pi / 180.0), nil
 		case len(args) >= 3:
 			// rotate(angle, cx, cy) — rotate about (cx, cy)
-			dc.RotateAbout(args[0]*math.Pi/180.0, args[1], args[2])
+			// Identical composition to Context.RotateAbout: T·R·T⁻¹.
+			rad := args[0] * math.Pi / 180.0
+			return render.Translate(args[1], args[2]).
+				Multiply(render.Rotate(rad)).
+				Multiply(render.Translate(-args[1], -args[2])), nil
 		default:
-			return fmt.Errorf("svg: rotate requires 1 or 3 args, got %d", len(args))
+			return render.Matrix{}, fmt.Errorf("svg: rotate requires 1 or 3 args, got %d", len(args))
 		}
 
 	case "scale":
 		if len(args) < 1 {
-			return fmt.Errorf("svg: scale requires at least 1 arg, got %d", len(args))
+			return render.Matrix{}, fmt.Errorf("svg: scale requires at least 1 arg, got %d", len(args))
 		}
 		sx := args[0]
 		sy := sx
 		if len(args) >= 2 {
 			sy = args[1]
 		}
-		dc.Scale(sx, sy)
+		return render.Scale(sx, sy), nil
 
 	case "matrix":
 		if len(args) != 6 {
-			return fmt.Errorf("svg: matrix requires 6 args, got %d", len(args))
+			return render.Matrix{}, fmt.Errorf("svg: matrix requires 6 args, got %d", len(args))
 		}
 		// SVG matrix(a,b,c,d,e,f): x' = a*x + c*y + e, y' = b*x + d*y + f
 		// gg Matrix{A,B,C,D,E,F}: x' = A*x + B*y + C, y' = D*x + E*y + F
-		dc.Transform(render.Matrix{
+		return render.Matrix{
 			A: args[0], B: args[2], C: args[4],
 			D: args[1], E: args[3], F: args[5],
-		})
+		}, nil
 
 	case "skewX":
 		if len(args) != 1 {
-			return fmt.Errorf("svg: skewX requires 1 arg, got %d", len(args))
+			return render.Matrix{}, fmt.Errorf("svg: skewX requires 1 arg, got %d", len(args))
 		}
 		angle := args[0] * math.Pi / 180.0
-		dc.Transform(render.Matrix{
+		return render.Matrix{
 			A: 1, B: math.Tan(angle), C: 0,
 			D: 0, E: 1, F: 0,
-		})
+		}, nil
 
 	case "skewY":
 		if len(args) != 1 {
-			return fmt.Errorf("svg: skewY requires 1 arg, got %d", len(args))
+			return render.Matrix{}, fmt.Errorf("svg: skewY requires 1 arg, got %d", len(args))
 		}
 		angle := args[0] * math.Pi / 180.0
-		dc.Transform(render.Matrix{
+		return render.Matrix{
 			A: 1, B: 0, C: 0,
 			D: math.Tan(angle), E: 1, F: 0,
-		})
+		}, nil
 
 	default:
-		return fmt.Errorf("svg: unsupported transform function %q", name)
+		return render.Matrix{}, fmt.Errorf("svg: unsupported transform function %q", name)
 	}
-	return nil
+}
+
+// applyTransform applies the element's transform attribute to the context
+// (legacy entry, now a thin shell over parseTransformList).
+func applyTransform(dc *render.Context, transform string) error {
+	return applyTransformList(dc, transform)
 }
 
 // parseTransformArgs splits a comma/space-separated argument string into float64 values.

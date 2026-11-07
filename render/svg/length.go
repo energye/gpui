@@ -21,16 +21,16 @@ import (
 type LengthUnit uint8
 
 const (
-	LengthUnitPx LengthUnit = iota // user units / CSS px (default)
-	LengthUnitPt                   // 96/72 px
-	LengthUnitPc                   // 16 px
-	LengthUnitIn                   // 96 px
-	LengthUnitCm                   // 96/2.54 px
-	LengthUnitMm                   // 96/25.4 px
-	LengthUnitQ                    // 96/254 px
-	LengthUnitEm                   // × inherited font-size
-	LengthUnitEx                   // × inherited font-size × 0.5 (x-height approximation, Skia alike)
-	LengthUnitPercent              // × viewport axis (see LengthAxis)
+	LengthUnitPx      LengthUnit = iota // user units / CSS px (default)
+	LengthUnitPt                        // 96/72 px
+	LengthUnitPc                        // 16 px
+	LengthUnitIn                        // 96 px
+	LengthUnitCm                        // 96/2.54 px
+	LengthUnitMm                        // 96/25.4 px
+	LengthUnitQ                         // 96/254 px
+	LengthUnitEm                        // × inherited font-size
+	LengthUnitEx                        // × inherited font-size × 0.5 (x-height approximation, Skia alike)
+	LengthUnitPercent                   // × viewport axis (see LengthAxis)
 )
 
 // String returns the unit suffix as written in SVG.

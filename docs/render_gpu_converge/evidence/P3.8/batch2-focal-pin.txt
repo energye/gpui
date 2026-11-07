@@ -1,0 +1,5 @@
+=== RUN   TestP38RadialFocalGPUMatchesCPU
+    p38_radial_focal_gpu_test.go:56: radial focal GPU==CPU at 10 probes (max |diff|<=3)
+--- PASS: TestP38RadialFocalGPUMatchesCPU (0.29s)
+PASS
+ok  	github.com/energye/gpui/render	0.340s

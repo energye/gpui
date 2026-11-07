@@ -10,8 +10,13 @@ package svg
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/xml"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"strconv"
 	"strings"
 )
@@ -224,6 +229,20 @@ func parseElement(pc *parseCtx, se xml.StartElement) (Element, error) {
 		return parseSVGElement(pc, se)
 	case "style":
 		return parseStyleElement(pc, se)
+	case "linearGradient":
+		return parseLinearGradient(pc, se)
+	case "radialGradient":
+		return parseRadialGradient(pc, se)
+	case "stop":
+		return parseStopElement(pc, se)
+	case "clipPath":
+		return parseClipPathElement(pc, se)
+	case "mask":
+		return parseMaskElement(pc, se)
+	case "image":
+		return parseImageElement(pc, se)
+	case "pattern":
+		return parsePatternElement(pc, se)
 	case "title", "desc", "metadata":
 		// Descriptive: no rendering, no warning.
 		if err := pc.dec.Skip(); err != nil {
@@ -290,9 +309,84 @@ func parseAttrs(pc *parseCtx, se xml.StartElement) Attrs {
 			a.Visibility = attr.Value
 		case "overflow":
 			a.Overflow = attr.Value
+		case "clip-path":
+			a.ClipPath = attr.Value
+		case "mask":
+			a.Mask = attr.Value
 		}
 	}
 	return a
+}
+
+// parseMaskElement parses <mask> (region + content units; children).
+// maskContentUnits defaults to userSpaceOnUse (the zero value is
+// objectBoundingBox, so it is set explicitly up front).
+func parseMaskElement(pc *parseCtx, se xml.StartElement) (*MaskElement, error) {
+	elem := &MaskElement{Attrs: parseAttrs(pc, se), ContentUnits: UnitsUserSpaceOnUse}
+	set := map[string]bool{}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "x":
+			elem.X = mustLength(pc, "mask", "x", attr.Value)
+			set["x"] = true
+		case "y":
+			elem.Y = mustLength(pc, "mask", "y", attr.Value)
+			set["y"] = true
+		case "width":
+			elem.W = mustLength(pc, "mask", "width", attr.Value)
+			set["width"] = true
+		case "height":
+			elem.H = mustLength(pc, "mask", "height", attr.Value)
+			set["height"] = true
+		case "maskUnits":
+			if strings.TrimSpace(attr.Value) == "userSpaceOnUse" {
+				elem.Units = UnitsUserSpaceOnUse
+			} else {
+				elem.Units = UnitsObjectBoundingBox
+			}
+		case "maskContentUnits":
+			if strings.TrimSpace(attr.Value) == "objectBoundingBox" {
+				elem.ContentUnits = UnitsObjectBoundingBox
+			} else {
+				elem.ContentUnits = UnitsUserSpaceOnUse
+			}
+		}
+	}
+	// Default region: -10%..120% of the referencing bbox (oBB fractions).
+	if !set["x"] {
+		elem.X = Length{Value: -10, Unit: LengthUnitPercent}
+	}
+	if !set["y"] {
+		elem.Y = Length{Value: -10, Unit: LengthUnitPercent}
+	}
+	if !set["width"] {
+		elem.W = Length{Value: 120, Unit: LengthUnitPercent}
+	}
+	if !set["height"] {
+		elem.H = Length{Value: 120, Unit: LengthUnitPercent}
+	}
+	children, err := parseChildren(pc)
+	if err != nil {
+		return nil, err
+	}
+	elem.Children = children
+	return elem, nil
+}
+
+// parseClipPathElement parses <clipPath> (clipPathUnits; shapes via children).
+func parseClipPathElement(pc *parseCtx, se xml.StartElement) (*ClipPathElement, error) {
+	elem := &ClipPathElement{Attrs: parseAttrs(pc, se)}
+	for _, attr := range se.Attr {
+		if attr.Name.Local == "clipPathUnits" && strings.TrimSpace(attr.Value) == "userSpaceOnUse" {
+			elem.Units = UnitsUserSpaceOnUse
+		}
+	}
+	children, err := parseChildren(pc)
+	if err != nil {
+		return nil, err
+	}
+	elem.Children = children
+	return elem, nil
 }
 
 // parsePathElement parses a <path> element.
@@ -581,6 +675,202 @@ func parseSVGElement(pc *parseCtx, se xml.StartElement) (*SVGElement, error) {
 	return elem, nil
 }
 
+// parseGradientStops parses <stop> children (other content skipped).
+func parseGradientStops(pc *parseCtx) ([]*GradientStopElement, error) {
+	var stops []*GradientStopElement
+	for {
+		tok, err := pc.dec.Token()
+		if err != nil {
+			return nil, fmt.Errorf("svg: error reading gradient children: %w", err)
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			if t.Name.Local == "stop" {
+				st, err := parseStopElement(pc, t)
+				if err != nil {
+					return nil, err
+				}
+				if st != nil {
+					stops = append(stops, st)
+				}
+				continue
+			}
+			if err := pc.dec.Skip(); err != nil {
+				return nil, err
+			}
+		case xml.EndElement:
+			return stops, nil
+		}
+	}
+}
+
+// parseStopElement parses <stop>: offset (number or %), stop-color,
+// stop-opacity (raw strings stay on Attrs for inheritance debugging).
+func parseStopElement(pc *parseCtx, se xml.StartElement) (*GradientStopElement, error) {
+	elem := &GradientStopElement{Attrs: parseAttrs(pc, se), Opacity: 1}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "offset":
+			v := strings.TrimSpace(attr.Value)
+			if strings.HasSuffix(v, "%") {
+				raw := strings.TrimSpace(strings.TrimSuffix(v, "%"))
+				f, err := strconv.ParseFloat(raw, 64)
+				if err != nil {
+					pc.warn("stop", "offset", warnInvalidValue, err.Error())
+				} else {
+					elem.Offset = f / 100
+				}
+			} else if v != "" {
+				f, err := strconv.ParseFloat(v, 64)
+				if err != nil {
+					pc.warn("stop", "offset", warnInvalidValue, err.Error())
+				} else {
+					elem.Offset = f
+				}
+			}
+			elem.Offset = clamp01(elem.Offset)
+		case "stop-color":
+			elem.Color = attr.Value
+		case "stop-opacity":
+			if f, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
+				elem.Opacity = clamp01(f)
+			}
+		}
+	}
+	if err := pc.dec.Skip(); err != nil {
+		return nil, fmt.Errorf("svg: error reading <stop>: %w", err)
+	}
+	return elem, nil
+}
+
+// parseLinearGradient parses <linearGradient> with full geometry/units/
+// transform/spread/href semantics (stops via children).
+func parseLinearGradient(pc *parseCtx, se xml.StartElement) (*LinearGradientElement, error) {
+	g := &LinearGradientElement{Attrs: parseAttrs(pc, se)}
+	set := map[string]bool{}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "x1":
+			g.X1 = mustLength(pc, "linearGradient", "x1", attr.Value)
+			set["x1"] = true
+			g.setX1 = true
+		case "y1":
+			g.Y1 = mustLength(pc, "linearGradient", "y1", attr.Value)
+			set["y1"] = true
+			g.setY1 = true
+		case "x2":
+			g.X2 = mustLength(pc, "linearGradient", "x2", attr.Value)
+			set["x2"] = true
+			g.setX2 = true
+		case "y2":
+			g.Y2 = mustLength(pc, "linearGradient", "y2", attr.Value)
+			set["y2"] = true
+			g.setY2 = true
+		case "gradientUnits":
+			if strings.TrimSpace(attr.Value) == "userSpaceOnUse" {
+				g.Units = UnitsUserSpaceOnUse
+			} else {
+				g.Units = UnitsObjectBoundingBox
+			}
+			g.unitsSet = true
+		case "gradientTransform":
+			g.Transform = attr.Value
+		case "spreadMethod":
+			g.Spread = spreadToken(attr.Value)
+			g.spreadSet = true
+		case "href":
+			g.HRef = attr.Value
+		}
+	}
+	if !set["x1"] {
+		g.X1 = Length{}
+	}
+	if !set["y1"] {
+		g.Y1 = Length{}
+	}
+	if !set["x2"] {
+		g.X2 = Length{Value: 1}
+	}
+	if !set["y2"] {
+		g.Y2 = Length{}
+	}
+	stops, err := parseGradientStops(pc)
+	if err != nil {
+		return nil, err
+	}
+	g.Stops = stops
+	return g, nil
+}
+
+// parseRadialGradient parses <radialGradient> (cx/cy/r/fx/fy; fx/fy default
+// to cx/cy per axis when either is present).
+func parseRadialGradient(pc *parseCtx, se xml.StartElement) (*RadialGradientElement, error) {
+	g := &RadialGradientElement{Attrs: parseAttrs(pc, se)}
+	set := map[string]bool{}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "cx":
+			g.CX = mustLength(pc, "radialGradient", "cx", attr.Value)
+			set["cx"] = true
+			g.setCX = true
+		case "cy":
+			g.CY = mustLength(pc, "radialGradient", "cy", attr.Value)
+			set["cy"] = true
+			g.setCY = true
+		case "r":
+			g.R = mustLength(pc, "radialGradient", "r", attr.Value)
+			set["r"] = true
+			g.setR = true
+		case "fx":
+			g.FX = mustLength(pc, "radialGradient", "fx", attr.Value)
+			set["fx"] = true
+			g.setFX = true
+		case "fy":
+			g.FY = mustLength(pc, "radialGradient", "fy", attr.Value)
+			set["fy"] = true
+			g.setFY = true
+		case "gradientUnits":
+			if strings.TrimSpace(attr.Value) == "userSpaceOnUse" {
+				g.Units = UnitsUserSpaceOnUse
+			} else {
+				g.Units = UnitsObjectBoundingBox
+			}
+			g.unitsSet = true
+		case "gradientTransform":
+			g.Transform = attr.Value
+		case "spreadMethod":
+			g.Spread = spreadToken(attr.Value)
+			g.spreadSet = true
+		case "href":
+			g.HRef = attr.Value
+		}
+	}
+	if !set["cx"] {
+		g.CX = Length{Value: 50, Unit: LengthUnitPercent}
+	}
+	if !set["cy"] {
+		g.CY = Length{Value: 50, Unit: LengthUnitPercent}
+	}
+	if !set["r"] {
+		g.R = Length{Value: 50, Unit: LengthUnitPercent}
+	}
+	if set["fx"] || set["fy"] {
+		g.HasFocus = true
+		if !set["fx"] {
+			g.FX = g.CX
+		}
+		if !set["fy"] {
+			g.FY = g.CY
+		}
+	}
+	stops, err := parseGradientStops(pc)
+	if err != nil {
+		return nil, err
+	}
+	g.Stops = stops
+	return g, nil
+}
+
 // attrValue returns the value of an attribute by local name, if present.
 func attrValue(se xml.StartElement, local string) (string, bool) {
 	for _, attr := range se.Attr {
@@ -611,6 +901,159 @@ func parseStyleElement(pc *parseCtx, se xml.StartElement) (*StyleElement, error)
 		}
 	}
 	pc.doc.Styles = append(pc.doc.Styles, parseStyleContent(pc, text.String()))
+	return elem, nil
+}
+
+// parseImageElement parses <image> with a data: URI href (external
+// references are a named refusal, D2). Decoding runs at parse.
+func parseImageElement(pc *parseCtx, se xml.StartElement) (*ImageElement, error) {
+	elem := &ImageElement{Attrs: parseAttrs(pc, se)}
+	set := map[string]bool{}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "x":
+			elem.X = mustLength(pc, "image", "x", attr.Value)
+			set["x"] = true
+		case "y":
+			elem.Y = mustLength(pc, "image", "y", attr.Value)
+			set["y"] = true
+		case "width":
+			elem.W = mustLength(pc, "image", "width", attr.Value)
+			set["width"] = true
+		case "height":
+			elem.H = mustLength(pc, "image", "height", attr.Value)
+			set["height"] = true
+		case "href":
+			elem.HRef = attr.Value
+		case "preserveAspectRatio":
+			elem.Par = parsePreserveAspectRatio(attr.Value)
+			elem.HasPar = true
+		}
+	}
+	if !set["x"] {
+		elem.X = Length{}
+	}
+	if !set["y"] {
+		elem.Y = Length{}
+	}
+	// width/height default to the intrinsic image size at render.
+	decodeImageRef(pc, elem)
+	// <image> is a leaf: consume up to the matching end (self-closing emits
+	// its EndElement immediately — without this the enclosing parseChildren
+	// would treat it as the parent's close and drop every later sibling).
+	if err := pc.dec.Skip(); err != nil {
+		return nil, fmt.Errorf("svg: error reading <image>: %w", err)
+	}
+	return elem, nil
+}
+
+// decodeImageRef resolves the href: data: URIs decode at parse (has/size
+// recorded); anything else is a named refusal (cross-file references are
+// out of scope, D2).
+func decodeImageRef(pc *parseCtx, elem *ImageElement) {
+	href := strings.TrimSpace(elem.HRef)
+	if href == "" {
+		return
+	}
+	if !strings.HasPrefix(href, "data:") {
+		pc.warn("image", "href", warnUnsupportedRef, "external references are not supported (data: URIs only)")
+		return
+	}
+	comma := strings.Index(href, ",")
+	if comma < 0 {
+		pc.warn("image", "href", warnInvalidValue, "malformed data URI")
+		return
+	}
+	head, payload := href[:comma], href[comma+1:]
+	if !strings.Contains(head, ";base64") {
+		pc.warn("image", "href", warnUnsupportedRef, "percent-encoded data URIs are not supported (use base64)")
+		return
+	}
+	raw, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		pc.warn("image", "href", warnInvalidValue, "base64 decode: "+err.Error())
+		return
+	}
+	mime := strings.TrimPrefix(head, "data:")
+	if i := strings.Index(mime, ";"); i >= 0 {
+		mime = mime[:i]
+	}
+	switch mime {
+	case "image/png", "image/jpeg", "image/gif":
+		cfg, _, err := image.Decode(strings.NewReader(string(raw)))
+		if err != nil {
+			pc.warn("image", "href", warnInvalidValue, "decode: "+err.Error())
+			return
+		}
+		elem.HasImage = true
+		elem.ImgW, elem.ImgH = cfg.Bounds().Dx(), cfg.Bounds().Dy()
+		elem.raw = raw
+		elem.rawMime = mime
+	case "image/svg+xml", "image/webp":
+		pc.warn("image", "href", warnUnsupportedRef, "mime "+mime+" is not supported in <image>")
+	default:
+		pc.warn("image", "href", warnUnsupportedRef, "mime "+mime+" is not supported in <image>")
+	}
+}
+
+// parsePatternElement parses <pattern> (units default userSpaceOnUse for
+// both patternUnits and patternContentUnits — the zero value is
+// objectBoundingBox, so both are set explicitly up front).
+func parsePatternElement(pc *parseCtx, se xml.StartElement) (*PatternElement, error) {
+	elem := &PatternElement{
+		Attrs:        parseAttrs(pc, se),
+		Units:        UnitsUserSpaceOnUse,
+		ContentUnits: UnitsUserSpaceOnUse,
+	}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "x":
+			elem.X = mustLength(pc, "pattern", "x", attr.Value)
+			elem.setX = true
+		case "y":
+			elem.Y = mustLength(pc, "pattern", "y", attr.Value)
+			elem.setY = true
+		case "width":
+			elem.W = mustLength(pc, "pattern", "width", attr.Value)
+			elem.setW = true
+		case "height":
+			elem.H = mustLength(pc, "pattern", "height", attr.Value)
+			elem.setH = true
+		case "patternUnits":
+			if strings.TrimSpace(attr.Value) == "objectBoundingBox" {
+				elem.Units = UnitsObjectBoundingBox
+			} else {
+				elem.Units = UnitsUserSpaceOnUse
+			}
+			elem.unitsSet = true
+		case "patternContentUnits":
+			if strings.TrimSpace(attr.Value) == "objectBoundingBox" {
+				elem.ContentUnits = UnitsObjectBoundingBox
+			} else {
+				elem.ContentUnits = UnitsUserSpaceOnUse
+			}
+			elem.contentUnitsSet = true
+		case "patternTransform":
+			elem.Transform = attr.Value
+		case "viewBox":
+			vb, err := parseViewBox(attr.Value)
+			if err != nil {
+				pc.warn("pattern", "viewBox", warnInvalidValue, err.Error())
+			} else {
+				elem.ViewBox = vb
+				elem.HasViewBox = true
+			}
+		case "preserveAspectRatio":
+			elem.Par = parsePreserveAspectRatio(attr.Value)
+		case "href":
+			elem.HRef = attr.Value
+		}
+	}
+	children, err := parseChildren(pc)
+	if err != nil {
+		return nil, err
+	}
+	elem.Children = children
 	return elem, nil
 }
 

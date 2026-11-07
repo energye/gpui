@@ -1,0 +1,4 @@
+# github.com/energye/gpui/render/svg [github.com/energye/gpui/render/svg.test]
+render/svg/p38_paint_test.go:225:5: declared and not used: g
+FAIL	github.com/energye/gpui/render/svg [build failed]
+FAIL

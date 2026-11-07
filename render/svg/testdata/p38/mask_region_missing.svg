@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+  <!-- default region (-10%..120% of bbox) + dangling mask refusal + contrast -->
+  <defs>
+    <mask id="narrow" maskUnits="userSpaceOnUse" x="10" y="0" width="40" height="80">
+      <rect x="10" y="0" width="40" height="80" fill="#ffffff"/>
+    </mask>
+  </defs>
+  <rect x="0" y="0" width="100" height="30" fill="#3ccf7a" mask="url(#narrow)"/>
+  <rect x="0" y="40" width="100" height="20" fill="#3ccf7a" mask="url(#missing-mask)"/>
+  <rect x="0" y="70" width="60" height="10" fill="#00ff00"/>
+</svg>
