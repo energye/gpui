@@ -9,6 +9,7 @@ import (
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/svg"
+	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/rendering"
 )
 
@@ -66,6 +67,28 @@ const filepathOfShowcase = "examples/ui_wr_p38_svg_showcase/testdata/showcase.sv
 func ensureBaked() *baked {
 	bakeOnce.Do(func() {
 		b := &bakedRes
+		// 文字能力接线：svg 不做系统字体扫描，宿主经 SetFontResolver 提供
+		// 家族（与 ui_wr_p38_svg_text 窗同口径）。参照渲染用 --use-font-file
+		// ahem.ttf 钉死，这里同样钉 Ahem（批 4d：此前未挂 resolver，整篇
+		// 文字被 fail-closed 丢弃）。
+		ahemRaw, err := os.ReadFile("render/svg/testdata/p38/ahem.ttf")
+		if err != nil {
+			b.err = "ahem.ttf: " + err.Error()
+			return
+		}
+		ahem, err := text.NewFontSource(ahemRaw)
+		if err != nil {
+			b.err = "ahem parse: " + err.Error()
+			return
+		}
+		svg.SetFontResolver(func(family string, weight text.FontWeight, italic bool) *text.FontSource {
+			_ = weight
+			_ = italic
+			if family == "Ahem" {
+				return ahem
+			}
+			return nil
+		})
 		doc, err := parseShowcase()
 		if err != nil {
 			b.err = "parse: " + err.Error()

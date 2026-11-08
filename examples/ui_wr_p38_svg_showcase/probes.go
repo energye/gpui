@@ -66,6 +66,8 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 	keys := []string{
 		"pixel_hero_radial", "pixel_badge_green", "pixel_mask_blue",
 		"pixel_pattern_tile", "pixel_header_dark",
+		"pixel_chip_red", "pixel_chip_green", "pixel_band_top",
+		"pixel_title_grad", "pixel_body_text",
 	}
 	if img == nil {
 		for _, k := range keys {
@@ -118,6 +120,23 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 	gotH, okH := read(0.5, 0.03)
 	add("pixel_header_dark", okH && gotH[0] < 0.45 && gotH[1] < 0.45,
 		fmt.Sprintf("got=%v want dark header", gotH))
+
+	// 批 4d 人工对照归因的五个钉（文档坐标 → 面板分数）：
+	// chips：currentColor 两小方块 (769,609)/(799,609)——修复前双双黑块。
+	check("pixel_chip_red", 0.751, 0.9516, [3]float64{0.886, 0.290, 0.290})
+	check("pixel_chip_green", 0.780, 0.9516, [3]float64{0.235, 0.812, 0.478})
+	// 反射带上段 (500,570)：渐变+opacity 0.55 混底色 ≈ 263d5a——修复前无
+	// opacity（4a6983）。
+	check("pixel_band_top", 0.488, 0.8906, [3]float64{0.149, 0.239, 0.353})
+	// 标题渐变文字 (30,30)：titleGrad 蓝段起头，蓝主导且亮——修复前整篇
+	// 文字被静默丢弃。
+	gotT, okT := read(0.0293, 0.0469)
+	add("pixel_title_grad", okT && gotT[2] > 0.6 && gotT[2] > gotT[0],
+		fmt.Sprintf("got=%v want gradient title ink", gotT))
+	// 正文文字行 (436,490)：基线 500 上方墨迹 #c8d0da（避开中线镂空）。
+	gotB, okB := read(0.426, 0.7656)
+	add("pixel_body_text", okB && gotB[0] > 0.6 && gotB[1] > 0.6 && gotB[2] > 0.6,
+		fmt.Sprintf("got=%v want light body text", gotB))
 
 	return out
 }

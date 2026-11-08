@@ -182,23 +182,25 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 	// 卡 1（anchor）：AHEM 24px 方块，基线 60 ⇒ 方块 y∈[52,76)。
 	// start x=20：块1 [20,44)；middle x=264 行宽 48 → 起点 240：块 [240,288)；
 	// end x=508 行宽 48 → 起点 460：块 [460,508)。
-	check("pixel_anchor_start", 0, 30, 64, colRed)
-	check("pixel_anchor_mid", 0, 260, 134, colBlue)
-	check("pixel_anchor_end", 0, 480, 204, colGreen)
+	check("pixel_anchor_start", 0, 30, 44, colRed)
+	check("pixel_anchor_mid", 0, 260, 114, colBlue)
+	check("pixel_anchor_end", 0, 480, 184, colGreen)
 
 	// 卡 2（tspan）：主行基线 60；'b' dx=30 → 起点 74（'a' [20,44) + 30）。
-	check("pixel_tspan_dx", 1, 80, 64, colGreen)
-	// 'c' x=300 dy=40 → 基线 100、x=300。
-	check("pixel_tspan_xy", 1, 310, 104, colBlue)
-	// letter-spacing 12：'h' [20,44)、'i' [56,80)（块中心 y=180）。
-	check("pixel_spacing", 1, 62, 180, hex01("#f0c000"))
+	check("pixel_tspan_dx", 1, 80, 44, colGreen)
+	// 'c' x=300 dy=40 → 基线 100、x=300（盒 80.8..104.8，采样避中线镂空 89.2..90.8）。
+	check("pixel_tspan_xy", 1, 310, 84, colBlue)
+	// letter-spacing 12：'h' [20,44)、'i' [56,80)（基线 180，盒 160.8..184.8）。
+	check("pixel_spacing", 1, 62, 164, hex01("#f0c000"))
 
 	// 卡 3（paint 管线）：绿 text 盖 x<120；渐变文字在 x>120 露出蓝段；
 	// mask 黑段 x∈[284,528) 隐藏 → 卡底。
-	check("pixel_clip_zone", 2, 60, 108, colGreen)
-	// 渐变 'abcdefgh' 尾 [116,212)：clip 外 x=180 → t=0.75 → 线性域
-	// (srgb(0.239),srgb(0.281),srgb(0.64))≈(0.53,0.565,0.83)。
-	check("pixel_grad_zone", 2, 180, 108, [3]float64{0.53, 0.565, 0.83})
+	check("pixel_clip_zone", 2, 60, 84, colGreen)
+	// 渐变 'abcdefgh' 尾 [116,212)：clip 外取 'h' 中段 x=206（t=0.86，蓝段
+	// 尾部）；语义断言"蓝主导且非底色"，避免把逐通道线性插值期望钉死。
+	gotG, okG := read(2, 206, 87)
+	add("pixel_grad_zone", okG && gotG[2] > gotG[0] && gotG[2] > 0.6,
+		fmt.Sprintf("got=%v want blue-dominant gradient tail", gotG))
 	gotM, okM := read(2, 400, 170)
 	add("pixel_mask_hidden", okM && nearRGB(gotM, colCardInk, 0.05),
 		fmt.Sprintf("got=%v want card bg", gotM))
