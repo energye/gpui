@@ -126,11 +126,13 @@ func TestP384bMorphologyAnisotropic(t *testing.T) {
 }
 
 func TestP384bMorphologyZeroRadiusClears(t *testing.T) {
-	// radius="0"：resvg 语义输出透明（radialGradient 内容被清），黑帧仍在。
-	doc := mustParseFile(t, "filter4b/zero-radius.svg")
+	// radius="0"：4c 修正后的 resvg/usvg 真语义——零值回落 1（Chrome/Safari
+	// 口径，usvg convert_morphology 逐字），输出 erode 半径 1 而非旧实现
+	// 的透明清空；黑帧仍在。对拍+语义锚见 TestP384cMorphologyRadius*。
+	doc := mustParseFile(t, "filter4b/feMorphology-zero-radius.svg")
 	img := doc.Render(200, 200)
-	if a := img.RGBAAt(100, 100).A; a != 0 {
-		t.Errorf("zero-radius center alpha = %d, want 0 (cleared)", a)
+	if a := img.RGBAAt(100, 100).A; a == 0 {
+		t.Errorf("zero-radius center alpha = 0, want erode-1 content (radius resets to 1)")
 	}
 	maxA := uint8(0)
 	for x := 0; x < 5; x++ {

@@ -1250,6 +1250,15 @@ func parseFilterElement(pc *parseCtx, se xml.StartElement) (Element, error) {
 		case "color-interpolation-filters":
 			// Only the explicit "sRGB" leaves the linearRGB default.
 			elem.LinearRGB = strings.TrimSpace(attr.Value) != "sRGB"
+		case "flood-color", "flood-opacity":
+			// Kept raw: a feFlood child's flood-color="inherit" reads the
+			// <filter> element's own value (non-inheritable one-level
+			// inheritance, usvg resolve_inherit).
+			if attr.Name.Local == "flood-color" {
+				elem.FloodColor = attr.Value
+			} else {
+				elem.FloodOpacity = attr.Value
+			}
 		case "primitiveUnits":
 			// Spec default userSpaceOnUse; objectBoundingBox scales the
 			// primitives' numeric params and subregions by the element bbox

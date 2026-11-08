@@ -13,6 +13,7 @@ package svg
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -215,6 +216,90 @@ func parseRGBFunc(s string) (color.Color, error) {
 	}
 }
 
+// parseHSLFunc parses hsl(h, s%, l%) / hsla(h, s%, l%, a) — the CSS Color 4
+// functional notation subset usvg's svgtypes accepts: hue in degrees
+// (normalized to [0,360)), saturation/lightness as a percentage or a 0..1
+// number, alpha as a 0..1 number or percentage. Channels round like
+// svgtypes' u8 conversion.
+func parseHSLFunc(s string) (color.Color, error) {
+	idx := strings.Index(s, "(")
+	if idx < 0 || s[len(s)-1] != ')' {
+		return nil, fmt.Errorf("svg: malformed color function %q", s)
+	}
+	inner := s[idx+1 : len(s)-1]
+	parts := strings.Split(inner, ",")
+	if len(parts) != 3 && len(parts) != 4 {
+		return nil, fmt.Errorf("svg: expected 3 or 4 values in %q, got %d", s, len(parts))
+	}
+	h, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(parts[0]), "deg")), 64)
+	if err != nil {
+		return nil, fmt.Errorf("svg: invalid hsl hue %q: %w", parts[0], err)
+	}
+	sv, err := parseHSLComponent(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("svg: invalid hsl saturation in %q: %w", s, err)
+	}
+	lv, err := parseHSLComponent(parts[2])
+	if err != nil {
+		return nil, fmt.Errorf("svg: invalid hsl lightness in %q: %w", s, err)
+	}
+	alpha := 1.0
+	if len(parts) == 4 {
+		if alpha, err = parseHSLComponent(parts[3]); err != nil {
+			return nil, fmt.Errorf("svg: invalid hsl alpha in %q: %w", s, err)
+		}
+	}
+	r, g, b := hslToRGB(h, sv, lv)
+	return color.NRGBA{
+		R: uint8(math.Round(r * 255)),
+		G: uint8(math.Round(g * 255)),
+		B: uint8(math.Round(b * 255)),
+		A: uint8(math.Round(math.Min(math.Max(alpha, 0), 1) * 255)),
+	}, nil
+}
+
+// parseHSLComponent accepts a percentage or a 0..1 number.
+func parseHSLComponent(v string) (float64, error) {
+	v = strings.TrimSpace(v)
+	if p := strings.TrimSuffix(v, "%"); p != v {
+		f, err := strconv.ParseFloat(p, 64)
+		if err != nil {
+			return 0, err
+		}
+		return f / 100, nil
+	}
+	return strconv.ParseFloat(v, 64)
+}
+
+// hslToRGB is the CSS Color 4 HSL→RGB conversion (hue in degrees, s/l/a in
+// 0..1; hue wraps modulo 360).
+func hslToRGB(h, s, l float64) (float64, float64, float64) {
+	h = math.Mod(h, 360)
+	if h < 0 {
+		h += 360
+	}
+	c := (1 - math.Abs(2*l-1)) * s
+	hp := h / 60
+	x := c * (1 - math.Abs(math.Mod(hp, 2)-1))
+	var r, g, b float64
+	switch {
+	case hp < 1:
+		r, g, b = c, x, 0
+	case hp < 2:
+		r, g, b = x, c, 0
+	case hp < 3:
+		r, g, b = 0, c, x
+	case hp < 4:
+		r, g, b = 0, x, c
+	case hp < 5:
+		r, g, b = x, 0, c
+	default:
+		r, g, b = c, 0, x
+	}
+	m := l - c/2
+	return r + m, g + m, b + m
+}
+
 // clampByte clamps an integer to the 0-255 range.
 func clampByte(v int) uint8 {
 	if v < 0 {
@@ -253,6 +338,12 @@ func parseColor(s string) (color.Color, error) {
 	// rgb()/rgba()
 	if strings.HasPrefix(s, "rgb") {
 		return parseRGBFunc(s)
+	}
+
+	// hsl()/hsla() — the CSS Color 4 functional notation subset usvg's
+	// svgtypes accepts (comma-separated; hue in degrees).
+	if strings.HasPrefix(s, "hsl") {
+		return parseHSLFunc(s)
 	}
 
 	// Named colors

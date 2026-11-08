@@ -142,6 +142,11 @@ type FilterElement struct {
 	Units        Units // filterUnits (default objectBoundingBox)
 	ContentUnits Units // primitiveUnits (default userSpaceOnUse)
 	LinearRGB    bool  // color-interpolation-filters (spec default true)
+	// FloodColor/FloodOpacity carry the <filter> element's own raw values —
+	// a feFlood flood-color="inherit" reads them (non-inheritable attributes
+	// inherit from the direct parent only, usvg resolve_inherit).
+	FloodColor   string
+	FloodOpacity string
 	Primitives   []*FilterPrimitive
 }
 
@@ -462,14 +467,23 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			w.DrawImage(inBuf, dx, dy)
 			out = render.ImageBufFromImage(w.Image())
 		case "feFlood":
+			// Spec default: black. flood-color is NOT inheritable, but an
+			// explicit "inherit" keyword takes the DIRECT parent's (the
+			// <filter> element's) value — usvg parse.rs resolve_inherit
+			// non-inheritable branch, one level only, missing → black.
+			// flood-opacity="inherit" follows the same rule in usvg and
+			// stays a registered gap here (no corpus coverage).
+			colStr := fp.FloodColor
+			if strings.TrimSpace(colStr) == "inherit" {
+				colStr = f.FloodColor
+				if strings.TrimSpace(colStr) == "inherit" {
+					colStr = "" // nested inherit on <filter>: simplification → black
+				}
+			}
 			w := render.NewContext(rw, rh)
 			defer w.Close()
-			col := colorFromHexOr(fp.FloodColor, render.RGBA{R: 1, G: 1, B: 1, A: fp.FloodOpacity})
-			if fp.FloodOpacity < 1 {
-				w.SetRGBA(col.R, col.G, col.B, col.A*fp.FloodOpacity)
-			} else {
-				w.SetRGBA(col.R, col.G, col.B, col.A)
-			}
+			col := colorFromHexOr(colStr, render.RGBA{A: 1}) // opaque black
+			w.SetRGBA(col.R, col.G, col.B, col.A*fp.FloodOpacity)
 			w.DrawRectangle(0, 0, float64(rw), float64(rh))
 			_ = w.Fill()
 			out = render.ImageBufFromImage(w.Image())
@@ -524,22 +538,23 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			}
 			out = render.ImageBufFromImage(w.Image())
 		case "feMorphology":
-			rx, ry := morphologyRadii(fp.Radius)
-			if rx <= 0 || ry <= 0 {
-				// resvg: non-positive radius clears (transparent output).
-				w := render.NewContext(rw, rh)
-				defer w.Close()
-				out = render.ImageBufFromImage(w.Image())
-			} else {
-				out = applyTo(inBuf, func(w *render.Context) {
-					irx, iry := int(math.Ceil(rx)), int(math.Ceil(ry))
-					if fp.Operator == "dilate" {
-						w.ApplyDilateXY(irx, iry)
-					} else {
-						w.ApplyErodeXY(irx, iry)
-					}
-				})
+			// usvg convert_morphology: the radius resolves against the
+			// primitiveUnits scale (userSpaceOnUse = 1; oBB = element bbox —
+			// also the missing-attribute default); zeros reset to 1 and
+			// negatives keep the default, so the result is always positive.
+			defX, defY := 1.0, 1.0
+			if f.ContentUnits == UnitsObjectBoundingBox {
+				defX, defY = bw, bh
 			}
+			rx, ry := morphologyRadii(fp.Radius, defX, defY)
+			out = applyTo(inBuf, func(w *render.Context) {
+				irx, iry := int(math.Ceil(rx)), int(math.Ceil(ry))
+				if fp.Operator == "dilate" {
+					w.ApplyDilateXY(irx, iry)
+				} else {
+					w.ApplyErodeXY(irx, iry)
+				}
+			})
 		case "feTile":
 			// resvg apply_tile: the INPUT's region is the tile cell; the
 			// whole filter region is filled with repeats of it (ApplyTile
@@ -753,26 +768,35 @@ func colorFromHexOr(s string, def render.RGBA) render.RGBA {
 	return render.RGBA{R: float64(r>>8) / 255, G: float64(g>>8) / 255, B: float64(b>>8) / 255, A: float64(a>>8) / 255}
 }
 
-// morphologyRadii applies the resvg feMorphology radius-list rule: one
-// value → both axes, two → x/y, otherwise (empty / 3+ values) invalid →
-// 0/0; negatives clamp to 0 (both produce the transparent-output stance).
-func morphologyRadii(nums []float64) (float64, float64) {
-	var x, y float64
-	switch {
-	case len(nums) == 1:
-		x, y = nums[0], nums[0]
-	case len(nums) == 2:
-		x, y = nums[0], nums[1]
-	default:
-		return 0, 0
+// morphologyRadii applies the resvg usvg convert_morphology radius rules
+// (verbatim): a 1-value list → both axes, 2 values → x/y, any other count →
+// 0; zeros reset to 1 (the Chrome/Safari quirk usvg mirrors — "not
+// specified in the spec"); a negative on either axis keeps the DEFAULT on
+// both axes; the result multiplies by the primitiveUnits scale (defX/defY:
+// userSpaceOnUse = 1, objectBoundingBox = element bbox — the same value a
+// missing attribute falls back to). The evaluator therefore never sees a
+// non-positive radius.
+func morphologyRadii(nums []float64, defX, defY float64) (float64, float64) {
+	rx, ry := defX, defY
+	if len(nums) > 0 {
+		x, y := 0.0, 0.0
+		switch len(nums) {
+		case 1:
+			x, y = nums[0], nums[0]
+		case 2:
+			x, y = nums[0], nums[1]
+		}
+		if !(math.Signbit(x) || math.Signbit(y)) {
+			if x == 0 {
+				x = 1
+			}
+			if y == 0 {
+				y = 1
+			}
+			rx, ry = x*defX, y*defY
+		}
 	}
-	if x < 0 {
-		x = 0
-	}
-	if y < 0 {
-		y = 0
-	}
-	return x, y
+	return rx, ry
 }
 
 // turbulenceParams resolves feTurbulence into the public parameter set
