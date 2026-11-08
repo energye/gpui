@@ -224,12 +224,19 @@ func TestP38InheritanceTree(t *testing.T) {
 
 func TestP38StyleElementSelectors(t *testing.T) {
 	doc := mustParseFile(t, "style_element.svg")
-	if len(doc.Styles) != 1 || len(doc.Styles[0].Rules) != 2 {
-		t.Fatalf("style rules = %d blocks/%d rules, want 1/2", len(doc.Styles), len(doc.Styles[0].Rules))
+	// 批 4c-2 起 <style> 规则在 Parse 期物化进元素（css.go resolveCSS）：
+	// Styles 消费为 nil，规则声明按表序并入元素 style 属性。
+	if len(doc.Styles) != 0 {
+		t.Fatalf("styles after materialization = %d blocks, want 0 (consumed)", len(doc.Styles))
 	}
 	// <style> 节点占 Elements[0]（入树不渲染），rect/circle 顺延。
-	// rect class="warm"：class 规则优先于标签规则（fill 来自 .warm，stroke 来自 rect 标签规则）。
+	// rect class="warm"：fill 来自 .warm，stroke/stroke-width 来自 rect 标签规则（声明序级联）。
 	rect := doc.Elements[1].(*RectElement)
+	// Specificity sort (simplecss semantics, batch 4c-6): the .warm class
+	// rule (0,1,0) materializes AFTER the rect tag rule (0,0,1) and wins.
+	if rect.Attrs.Style != "stroke:#cc00cc;stroke-width:2;fill:#ff6600" {
+		t.Errorf("materialized style = %q", rect.Attrs.Style)
+	}
 	p := evalProps(rootProps(), rect.Attrs, doc)
 	if p.fill != "#ff6600" {
 		t.Errorf("class-rule fill = %q, want #ff6600", p.fill)

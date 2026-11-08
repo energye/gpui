@@ -31,7 +31,9 @@
 //   - <defs> reference container (collected, never rendered directly)
 //   - <symbol> template instantiated by <use> (own viewBox viewport)
 //   - <use> href/xlink:href instantiation (x, y, width, height)
-//   - <style> minimal selector set (tag and single-class rules)
+//   - <style> CSS: type/universal/#id/.class/[attr] (all simplecss
+//     operators)/:first-child with the four combinators, sorted by
+//     specificity (simplecss semantics); <style type> non-CSS sheets skip
 //
 // # Supported Attributes
 //
@@ -47,7 +49,12 @@
 //     diagonal) — see [Length]
 //   - Text/units state: font-size (relative units resolve against the
 //     inherited value)
-//   - transform (translate, rotate, scale, matrix, skewX, skewY)
+//   - transform (translate, rotate, scale, matrix, skewX, skewY) with the
+//     SVG2 transform-origin shift (T(o)·T·T(−o), percents against the
+//     viewBox)
+//   - Conditional processing: switch (first passing child),
+//     systemLanguage/requiredFeatures/requiredExtensions (usvg semantics;
+//     user language "en"), display="none", <a> as a container
 //   - class + style attributes and <style> rules, cascaded presentation
 //     attribute < tag rule < class rule < inline style
 //   - preserveAspectRatio (nine alignments × meet/slice, default

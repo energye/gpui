@@ -200,3 +200,58 @@ func parseTransformArgs(s string) ([]float64, error) {
 func isSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\r' || c == '\n'
 }
+
+// parseTransformOrigin parses an SVG2 transform-origin value: keywords
+// (center/left/right/top/bottom), lengths and percents, one or two
+// tokens (svgtypes TransformOrigin; a single token centers the other
+// axis). Percentages resolve against the current viewBox (usvg
+// resolve_transform converts with Units::UserSpaceOnUse → state.view_box).
+func parseTransformOrigin(s string) (Length, Length, bool) {
+	fields := strings.Fields(strings.TrimSpace(s))
+	if len(fields) == 0 || len(fields) > 2 {
+		return Length{}, Length{}, false
+	}
+	token := func(t string) (Length, bool) {
+		switch strings.ToLower(t) {
+		case "center":
+			return Length{Value: 50, Unit: LengthUnitPercent}, true
+		case "left", "top":
+			return Length{Value: 0}, true
+		case "right", "bottom":
+			return Length{Value: 100, Unit: LengthUnitPercent}, true
+		}
+		l, err := parseLength(t)
+		if err != nil {
+			return Length{}, false
+		}
+		return l, true
+	}
+	x, ok := token(fields[0])
+	if !ok {
+		return Length{}, Length{}, false
+	}
+	y := Length{Value: 50, Unit: LengthUnitPercent}
+	if len(fields) == 2 {
+		y, ok = token(fields[1])
+		if !ok {
+			return Length{}, Length{}, false
+		}
+	}
+	return x, y, true
+}
+
+// withTransformOrigin wraps one transform matrix with the SVG2
+// transform-origin shift: T(o) · m · T(−o) (usvg resolve_transform).
+// Percent/keyword origins resolve against the current viewBox space.
+func withTransformOrigin(m render.Matrix, a *Attrs, rs RefSpace) render.Matrix {
+	if a == nil || a.TransformOrigin == "" {
+		return m
+	}
+	ox, oy, ok := parseTransformOrigin(a.TransformOrigin)
+	if !ok {
+		return m
+	}
+	dx := ox.Resolve(rs, LengthAxisX)
+	dy := oy.Resolve(rs, LengthAxisY)
+	return render.Translate(dx, dy).Multiply(m).Multiply(render.Translate(-dx, -dy))
+}

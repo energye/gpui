@@ -82,7 +82,9 @@ func TestP38GradientParse(t *testing.T) {
 	if g.X1.Value != 0 || g.X2.Value != 100 || g.Y2.Value != 0 {
 		t.Errorf("line = (%v,%v)-(%v,%v)", g.X1, g.Y1, g.X2, g.Y2)
 	}
-	if len(g.Stops) != 2 || g.Stops[0].Offset != 0 || g.Stops[1].Offset != 1 {
+	// 批 4c-4：offset/opacity 归一化移到求值期（usvg convert_stops 语义），
+	// 解析面只存原始值。
+	if len(g.Stops) != 2 || g.Stops[0].OffsetRaw != "0" || g.Stops[1].OffsetRaw != "1" {
 		t.Fatalf("stops = %+v", g.Stops)
 	}
 	if g.Stops[0].Color != "#ff0000" || g.Stops[0].Opacity != 1 {
@@ -98,9 +100,10 @@ func TestP38GradientParse(t *testing.T) {
 	if g2.Spread != SpreadRepeat {
 		t.Errorf("spread = %v, want repeat", g2.Spread)
 	}
-	// oBB 默认线 (0,0)→(1,0)
-	if g2.X1.Value != 0 || g2.X2.Value != 1 {
-		t.Errorf("obb default line x = %v→%v, want 0→1", g2.X1, g2.X2)
+	// oBB 默认线 (0,0)→(1,0)：x2 缺省 100%（spec；userSpaceOnUse 下按
+	// viewBox 宽解析，oBB 下 /100 = 1，批 4c-4 起 Value=100/Percent）。
+	if g2.X1.Value != 0 || g2.X2.Value != 100 || g2.X2.Unit != LengthUnitPercent {
+		t.Errorf("obb default line x = %v→%v, want 0→100%%", g2.X1, g2.X2)
 	}
 	// href 继承 stops：tilted 自身零 stops，href=#base
 	doc3 := mustParseFile(t, "grad_transform_href.svg")
@@ -151,15 +154,22 @@ func TestP38GradientSpreadAndPixels(t *testing.T) {
 	if c := img2.RGBAAt(42, 20); c.B < 180 {
 		t.Errorf("reflect t≈1 mirrored = %+v, want blue-ish", c)
 	}
-	if c := img2.RGBAAt(60, 20); c.R < 180 {
-		t.Errorf("reflect t≈0.5 second cycle = %+v, want red-ish", c)
+	// x=60 是镜像段中点：t'=0.5，sRGB 中点紫（stop 插值空间 = sRGB——
+	// SVG color-interpolation 缺省 + resvg/tiny-skia 参照实证，批 4c-4）。
+	if c := img2.RGBAAt(60, 20); diff(float64(c.R), 128) > 25 || diff(float64(c.B), 128) > 25 || c.G > 30 {
+		t.Errorf("reflect mid-mirror = %+v, want purple ≈(127,0,127)", c)
+	}
+	// x=78 镜像近末端：t'≈0.95 → 红端。
+	if c := img2.RGBAAt(78, 20); c.R < 230 || c.B > 60 {
+		t.Errorf("reflect near mirror end = %+v, want red-ish", c)
 	}
 }
 
 func TestP38GradientUserSpacePixels(t *testing.T) {
 	doc := mustParseFile(t, "grad_linear_userspace.svg")
 	img := doc.Render(100, 60)
-	// 两端近纯色；中点 (50,30)：线性域插值 t=0.5 ⇒ srgb(0.5)≈186/188（非 128）。
+	// 两端近纯色；中点 (50,30)：stop 插值在 sRGB（SVG 缺省
+	// color-interpolation + resvg/tiny-skia 参照实证），t=0.5 ⇒ 128。
 	if c := img.RGBAAt(2, 30); c.R < 220 || c.B > 90 {
 		t.Errorf("left = %+v, want red", c)
 	}
@@ -167,8 +177,8 @@ func TestP38GradientUserSpacePixels(t *testing.T) {
 		t.Errorf("right = %+v, want blue", c)
 	}
 	mid := img.RGBAAt(50, 30)
-	if diff(float64(mid.R), 186) > 25 || diff(float64(mid.B), 188) > 25 {
-		t.Errorf("mid = %+v, want ~186/188 (gamma-correct midpoint)", mid)
+	if diff(float64(mid.R), 128) > 25 || diff(float64(mid.B), 128) > 25 {
+		t.Errorf("mid = %+v, want ~128 (sRGB midpoint)", mid)
 	}
 }
 
@@ -194,13 +204,13 @@ func TestP38GradientTransformPixel(t *testing.T) {
 	img := doc.Render(100, 60)
 	// gradientTransform=rotate(90 50 30)：CustomBrush 逆映射精确求值——
 	// 点 (50,y) 逆变换回梯度空间 x = 50±(y−30)（绕 (50,30) 逆转 90°）：
-	// 顶 (50,4) → 梯度空间 x=24 ⇒ t=0.24（线性域 R≈225/B≈135），
-	// 底 (50,56) → x=76 ⇒ t=0.76（线性域 R≈133/B≈226），t 沿 y 增大。
-	if c := img.RGBAAt(50, 4); c.R < 140 {
-		t.Errorf("top = %+v, want t≈0.24 ramp (R≈225)", c)
+	// 顶 (50,4) → 梯度空间 x=24 ⇒ t=0.24（sRGB 域 R≈194/B≈61），
+	// 底 (50,56) → x=76 ⇒ t=0.76（sRGB 域 R≈61/B≈194），t 沿 y 增大。
+	if c := img.RGBAAt(50, 4); c.R < 185 {
+		t.Errorf("top = %+v, want t≈0.24 ramp (R≈194)", c)
 	}
-	if c := img.RGBAAt(50, 56); c.B < 200 || c.R > 160 {
-		t.Errorf("bottom = %+v, want t≈0.76 ramp (R≈133/B≈226)", c)
+	if c := img.RGBAAt(50, 56); c.B < 185 || c.R > 75 {
+		t.Errorf("bottom = %+v, want t≈0.76 ramp (R≈61/B≈194)", c)
 	}
 	if top, bottom := img.RGBAAt(50, 4), img.RGBAAt(50, 56); top.B >= bottom.B {
 		t.Errorf("ramp must increase downward: top=%+v bottom=%+v", top, bottom)

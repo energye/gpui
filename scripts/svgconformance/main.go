@@ -14,13 +14,15 @@
 // rate with graded pixel comparison.
 //
 // Grading (perceptual, not bit-exact — cross-renderer AA/色彩管理 differs):
-//   identical: mean grid diff ≤ 3
-//   close:     ≤ 24
-//   far:       > 24
-//   blank:     render is fully transparent while the expectation is not
-//   error:     parse/render failure
+//
+//	identical: mean grid diff ≤ 3
+//	close:     ≤ 24
+//	far:       > 24
+//	blank:     render is fully transparent while the expectation is not
+//	error:     parse/render failure
 //
 // Usage:
+//
 //	go run ./scripts/svgconformance -root /tmp/resvg/crates/resvg/tests/tests \
 //	    [-group text] [-font render/text/testdata/wqy-microhei.ttf] [-out report.md]
 package main
@@ -210,7 +212,9 @@ func runOne(svgPath, pngPath string) (string, float64) {
 			fmt.Fprintf(os.Stderr, "PANIC %s: %v\n", svgPath, r)
 		}
 	}()
-	doc, err := svg.Parse(data)
+	doc, err := svg.ParseWithConfig(data, svg.ParseConfig{
+		ResourcesDir: filepath.Dir(svgPath),
+	})
 	if err != nil {
 		return "error", 0
 	}

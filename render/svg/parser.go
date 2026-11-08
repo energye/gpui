@@ -9,15 +9,14 @@
 package svg
 
 import (
-	"reflect"
 	"bytes"
-	"encoding/base64"
 	"encoding/xml"
 	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -26,6 +25,19 @@ import (
 type parseCtx struct {
 	doc *Document
 	dec *xml.Decoder
+	cfg ParseConfig
+}
+
+// ParseConfig carries the parse-time environment: the directory external
+// <image> hrefs resolve against (usvg Options::resources_dir) and the
+// sub-document nesting depth (internal).
+type ParseConfig struct {
+	// ResourcesDir is the base for plain-path <image> hrefs; empty keeps
+	// the data-URI-only subset (external references warn and skip).
+	ResourcesDir string
+
+	// svgDepth is the <image>→SVG nesting depth (internal; Parse starts 0).
+	svgDepth int `json:"-"`
 }
 
 // warn records a non-fatal diagnostic (parse continues). reason is a stable
@@ -46,12 +58,23 @@ func (pc *parseCtx) warn(elem, attr, reason, detail string) {
 // Unsupported or dangling constructs are diagnosed in Document.Warnings and
 // render as "not painted" (fail-closed) instead of silently wrong pixels.
 func Parse(data []byte) (*Document, error) {
+	return ParseWithConfig(data, ParseConfig{})
+}
+
+// ParseWithConfig parses with a parse-time environment (external image
+// hrefs resolve against cfg.ResourcesDir).
+func ParseWithConfig(data []byte, cfg ParseConfig) (*Document, error) {
+	// DOCTYPE internal-subset entities are expanded textually before the
+	// XML tokenizer (Go's decoder has no DTD support); non-UTF-8 documents
+	// go through a charset reader per their encoding declaration.
+	data = expandDTDEntities(data)
 	decoder := xml.NewDecoder(bytes.NewReader(data))
+	decoder.CharsetReader = charsetReader
 
 	doc := &Document{
 		ViewBox: ViewBox{Width: 16, Height: 16}, // legacy default when no viewBox
 	}
-	pc := &parseCtx{doc: doc, dec: decoder}
+	pc := &parseCtx{doc: doc, dec: decoder, cfg: cfg}
 
 	// Find the root <svg> element.
 	for {
@@ -59,7 +82,7 @@ func Parse(data []byte) (*Document, error) {
 		if err != nil {
 			return nil, fmt.Errorf("svg: failed to find <svg> root element: %w", err)
 		}
-		if se, ok := tok.(xml.StartElement); ok && se.Name.Local == "svg" {
+		if se, ok := tok.(xml.StartElement); ok && se.Name.Local == "svg" && isSVGNameSpace(se.Name) {
 			if err := parseSVGRoot(pc, se); err != nil {
 				return nil, err
 			}
@@ -69,7 +92,14 @@ func Parse(data []byte) (*Document, error) {
 				return nil, err
 			}
 			doc.Elements = children
+			// A failing condition on the root <svg> hides the whole
+			// document (usvg converts nothing).
+			if rootConditionFailed(se) {
+				doc.Elements = nil
+				doc.Styles = nil
+			}
 			validateReferences(pc)
+			resolveCSS(pc)
 			return doc, nil
 		}
 	}
@@ -100,12 +130,14 @@ func parseSVGRoot(pc *parseCtx, se xml.StartElement) error {
 				return fmt.Errorf("svg: <svg> width: %w", err)
 			}
 			doc.Width = v
+			doc.hasSize = true
 		case "height":
 			v, err := parseDimension(attr.Value, doc.ViewBox.Height)
 			if err != nil {
 				return fmt.Errorf("svg: <svg> height: %w", err)
 			}
 			doc.Height = v
+			doc.hasSize = true
 		case "preserveAspectRatio":
 			doc.Par = parsePreserveAspectRatio(attr.Value)
 		}
@@ -210,6 +242,7 @@ func parseElement(pc *parseCtx, se xml.StartElement) (Element, error) {
 	if e == nil || isNilElement(e) {
 		return nil, err
 	}
+	checkConditions(e)
 	return e, err
 }
 
@@ -222,6 +255,12 @@ func isNilElement(e Element) bool {
 }
 
 func parseElementInner(pc *parseCtx, se xml.StartElement) (Element, error) {
+	// Elements outside the SVG namespace render nothing (usvg drops them at
+	// tag-name resolution); their content stays in the tree so `use` can
+	// still reference it by id (usvg resolves hrefs against the raw XML).
+	if !isSVGNameSpace(se.Name) {
+		return parseInertContainer(pc, se, false)
+	}
 	switch se.Name.Local {
 	case "path":
 		return parsePathElement(pc, se)
@@ -282,15 +321,53 @@ func parseElementInner(pc *parseCtx, se xml.StartElement) (Element, error) {
 			return nil, fmt.Errorf("svg: error skipping <%s>: %w", se.Name.Local, err)
 		}
 		return nil, nil //nolint:nilnil // descriptive element
+	case "a":
+		// Links are groups (usvg parse.rs: "Treat links as groups"); href
+		// and target metadata carry no rendering semantics here.
+		return parseGroupElement(pc, se)
+	case "switch":
+		// Conditional container: the first direct child element whose
+		// conditions pass renders (usvg switch.rs convert); the element
+		// itself acts as a group wrapper for the chosen child.
+		return parseSwitchElement(pc, se)
 	default:
-		// Deliberately unsupported (text/filter/gradient until their batches,
-		// foreignObject, animation...): named refusal, rendered as nothing.
-		if err := pc.dec.Skip(); err != nil {
-			return nil, fmt.Errorf("svg: error skipping <%s>: %w", se.Name.Local, err)
-		}
-		pc.warn(se.Name.Local, "", warnUnsupportedElement, "element not rendered (deliberate subset boundary)")
-		return nil, nil //nolint:nilnil // unsupported element
+		// Unknown SVG-namespace element: parsed as an inert container —
+		// not rendered in place (usvg skips unknown tags), but content
+		// stays referenceable by id (usvg use-resolution reaches into the
+		// raw XML by id). Deliberate-subset refusals that must hide their
+		// whole subtree are handled by their own cases above.
+		return parseInertContainer(pc, se, true)
 	}
+}
+
+// isSVGNameSpace reports whether the element belongs to the SVG namespace.
+// No namespace at all is treated as SVG: hand-written documents commonly
+// omit xmlns, and strictness there would reject everything.
+func isSVGNameSpace(name xml.Name) bool {
+	return name.Space == "" || name.Space == "http://www.w3.org/2000/svg"
+}
+
+// parseInertContainer parses an element whose node is not rendered in
+// place but whose children remain in the tree: `use` can reference them
+// by id, inheritance passes through (empty attrs are transparent), and
+// the container's own attributes — beyond the id — are dropped (usvg
+// never creates the node, so its attributes never enter the cascade).
+func parseInertContainer(pc *parseCtx, se xml.StartElement, warn bool) (Element, error) {
+	elem := &GroupElement{inert: true}
+	for _, attr := range se.Attr {
+		if attr.Name.Local == "id" {
+			elem.Attrs.ID = attr.Value
+		}
+	}
+	if warn {
+		pc.warn(se.Name.Local, "", warnUnsupportedElement, "element not rendered (deliberate subset boundary)")
+	}
+	children, err := parseChildren(pc)
+	if err != nil {
+		return nil, err
+	}
+	elem.Children = children
+	return elem, nil
 }
 
 // parseAttrs extracts common SVG presentation attributes as raw strings.
@@ -299,6 +376,10 @@ func parseElementInner(pc *parseCtx, se xml.StartElement) (Element, error) {
 func parseAttrs(pc *parseCtx, se xml.StartElement) Attrs {
 	a := Attrs{tag: se.Name.Local}
 	for _, attr := range se.Attr {
+		if a.Raw == nil {
+			a.Raw = make(map[string]string, len(se.Attr))
+		}
+		a.Raw[attr.Name.Local] = attr.Value
 		switch attr.Name.Local {
 		case "id":
 			a.ID = attr.Value
@@ -332,6 +413,8 @@ func parseAttrs(pc *parseCtx, se xml.StartElement) Attrs {
 			a.Opacity = attr.Value
 		case "transform":
 			a.Transform = attr.Value
+		case "transform-origin":
+			a.TransformOrigin = attr.Value
 		case "clip-rule":
 			a.ClipRule = attr.Value
 		case "color":
@@ -631,6 +714,9 @@ func parseDefsElement(pc *parseCtx, se xml.StartElement) (*DefsElement, error) {
 // own viewBox/preserveAspectRatio viewport.
 func parseSymbolElement(pc *parseCtx, se xml.StartElement) (*SymbolElement, error) {
 	elem := &SymbolElement{Attrs: parseAttrs(pc, se)}
+	if strings.TrimSpace(elem.Attrs.Overflow) == "visible" {
+		elem.OverflowVisible = true
+	}
 	for _, attr := range se.Attr {
 		switch attr.Name.Local {
 		case "viewBox":
@@ -681,6 +767,9 @@ func parseUseElement(pc *parseCtx, se xml.StartElement) (*UseElement, error) {
 	if !hasH {
 		elem.H = Length{Value: 100, Unit: LengthUnitPercent}
 	}
+
+	elem.hasW, elem.hasH = hasW, hasH
+
 	if err := pc.dec.Skip(); err != nil {
 		return nil, fmt.Errorf("svg: error reading <use>: %w", err)
 	}
@@ -698,8 +787,10 @@ func parseSVGElement(pc *parseCtx, se xml.StartElement) (*SVGElement, error) {
 			elem.Y = mustLength(pc, "svg", "y", attr.Value)
 		case "width":
 			elem.W = mustLength(pc, "svg", "width", attr.Value)
+			elem.hasW = true
 		case "height":
 			elem.H = mustLength(pc, "svg", "height", attr.Value)
+			elem.hasH = true
 		case "viewBox":
 			vb, err := parseViewBox(attr.Value)
 			if err != nil {
@@ -762,34 +853,19 @@ func parseGradientStops(pc *parseCtx) ([]*GradientStopElement, error) {
 // parseStopElement parses <stop>: offset (number or %), stop-color,
 // stop-opacity (raw strings stay on Attrs for inheritance debugging).
 func parseStopElement(pc *parseCtx, se xml.StartElement) (*GradientStopElement, error) {
-	elem := &GradientStopElement{Attrs: parseAttrs(pc, se), Opacity: 1}
+	elem := &GradientStopElement{Attrs: parseAttrs(pc, se), Opacity: 1, OpacitySet: true}
 	for _, attr := range se.Attr {
 		switch attr.Name.Local {
 		case "offset":
-			v := strings.TrimSpace(attr.Value)
-			if strings.HasSuffix(v, "%") {
-				raw := strings.TrimSpace(strings.TrimSuffix(v, "%"))
-				f, err := strconv.ParseFloat(raw, 64)
-				if err != nil {
-					pc.warn("stop", "offset", warnInvalidValue, err.Error())
-				} else {
-					elem.Offset = f / 100
-				}
-			} else if v != "" {
-				f, err := strconv.ParseFloat(v, 64)
-				if err != nil {
-					pc.warn("stop", "offset", warnInvalidValue, err.Error())
-				} else {
-					elem.Offset = f
-				}
-			}
-			elem.Offset = clamp01(elem.Offset)
+			// Raw storage: the prev-offset fallback and clamping happen at
+			// normalization (usvg convert_stops walks the stop sequence).
+			elem.OffsetSet = true
+			elem.OffsetRaw = strings.TrimSpace(attr.Value)
 		case "stop-color":
 			elem.Color = attr.Value
 		case "stop-opacity":
-			if f, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
-				elem.Opacity = clamp01(f)
-			}
+			elem.OpacityRaw = strings.TrimSpace(attr.Value)
+			elem.OpacitySet = true
 		}
 	}
 	if err := pc.dec.Skip(); err != nil {
@@ -844,7 +920,9 @@ func parseLinearGradient(pc *parseCtx, se xml.StartElement) (*LinearGradientElem
 		g.Y1 = Length{}
 	}
 	if !set["x2"] {
-		g.X2 = Length{Value: 1}
+		// Spec default: 100% — a percent, so userSpaceOnUse resolves it
+		// against the viewport width (usvg Length::new(100.0, Percent)).
+		g.X2 = Length{Value: 100, Unit: LengthUnitPercent}
 	}
 	if !set["y2"] {
 		g.Y2 = Length{}
@@ -966,29 +1044,45 @@ func parseStyleElement(pc *parseCtx, se xml.StartElement) (*StyleElement, error)
 			text.Write(t)
 		}
 	}
-	pc.doc.Styles = append(pc.doc.Styles, parseStyleContent(pc, text.String()))
+	pc.doc.Styles = append(pc.doc.Styles, parseStyleContent(pc, text.String(), styleType(se)))
 	return elem, nil
 }
 
-// parseImageElement parses <image> with a data: URI href (external
-// references are a named refusal, D2). Decoding runs at parse.
+// styleType reads the <style type> attribute: an explicit non-CSS type
+// makes the whole stylesheet skipped (usvg resolve_css: Some("text/css")
+// parses, Some(_) skips, None parses).
+func styleType(se xml.StartElement) string {
+	for _, attr := range se.Attr {
+		if attr.Name.Local == "type" {
+			return strings.TrimSpace(attr.Value)
+		}
+	}
+	return ""
+}
+
+// parseImageElement parses <image>: href (data: URI or external path via
+// ParseConfig.ResourcesDir — usvg parser/image.rs semantics), geometry
+// with SVG2 auto/intrinsic defaults, and preserveAspectRatio. Decoding
+// and sub-SVG parsing run at parse.
 func parseImageElement(pc *parseCtx, se xml.StartElement) (*ImageElement, error) {
 	elem := &ImageElement{Attrs: parseAttrs(pc, se)}
-	set := map[string]bool{}
+	hasW, hasH := false, false
 	for _, attr := range se.Attr {
 		switch attr.Name.Local {
 		case "x":
 			elem.X = mustLength(pc, "image", "x", attr.Value)
-			set["x"] = true
 		case "y":
 			elem.Y = mustLength(pc, "image", "y", attr.Value)
-			set["y"] = true
 		case "width":
-			elem.W = mustLength(pc, "image", "width", attr.Value)
-			set["width"] = true
+			if l, ok := imageLength(pc, "width", attr.Value); ok {
+				elem.W = l
+				hasW = true
+			}
 		case "height":
-			elem.H = mustLength(pc, "image", "height", attr.Value)
-			set["height"] = true
+			if l, ok := imageLength(pc, "height", attr.Value); ok {
+				elem.H = l
+				hasH = true
+			}
 		case "href":
 			elem.HRef = attr.Value
 		case "preserveAspectRatio":
@@ -996,14 +1090,43 @@ func parseImageElement(pc *parseCtx, se xml.StartElement) (*ImageElement, error)
 			elem.HasPar = true
 		}
 	}
-	if !set["x"] {
-		elem.X = Length{}
+	// Resolve the reference first: the intrinsic size drives the geometry
+	// defaults (usvg convert: width/height default to the actual size).
+	elem.raw, elem.rawMime, elem.SubDoc = func() ([]byte, string, *Document) {
+		raw, mime, doc, ok := resolveImageRef(pc, elem.HRef)
+		if !ok {
+			return nil, "", nil
+		}
+		return raw, mime, doc
+	}()
+	if doc := elem.SubDoc; doc != nil {
+		elem.HasImage = true
+		sw, sh := subDocSize(doc)
+		elem.ImgW, elem.ImgH = int(sw), int(sh)
+	} else if elem.raw != nil {
+		elem.HasImage = true
+		if cfg, _, err := image.DecodeConfig(bytes.NewReader(elem.raw)); err == nil {
+			elem.ImgW, elem.ImgH = cfg.Width, cfg.Height
+		}
 	}
-	if !set["y"] {
-		elem.Y = Length{}
+	// Geometry defaults (usvg convert_user_length + the one-sided aspect
+	// rule): missing width/height default to the intrinsic size; one side
+	// present scales the other by the intrinsic aspect. "auto" parsed as
+	// absent above (usvg: unparseable Length → the intrinsic default).
+	if elem.HasImage && elem.ImgW > 0 && elem.ImgH > 0 {
+		iw, ih := float64(elem.ImgW), float64(elem.ImgH)
+		switch {
+		case !hasW && !hasH:
+			elem.W = Length{Value: iw}
+			elem.H = Length{Value: ih}
+		case hasW && !hasH:
+			w := resolveViewBoxLength(pc, elem.W, LengthAxisX)
+			elem.H = Length{Value: ih * (w / iw)}
+		case !hasW && hasH:
+			h := resolveViewBoxLength(pc, elem.H, LengthAxisY)
+			elem.W = Length{Value: iw * (h / ih)}
+		}
 	}
-	// width/height default to the intrinsic image size at render.
-	decodeImageRef(pc, elem)
 	// <image> is a leaf: consume up to the matching end (self-closing emits
 	// its EndElement immediately — without this the enclosing parseChildren
 	// would treat it as the parent's close and drop every later sibling).
@@ -1013,62 +1136,35 @@ func parseImageElement(pc *parseCtx, se xml.StartElement) (*ImageElement, error)
 	return elem, nil
 }
 
-// decodeImageRef resolves the href: data: URIs decode at parse (has/size
-// recorded); anything else is a named refusal (cross-file references are
-// out of scope, D2).
-func decodeImageRef(pc *parseCtx, elem *ImageElement) {
-	href := strings.TrimSpace(elem.HRef)
-	if href == "" {
-		return
+// imageLength parses an image width/height: "auto" (SVG2) or "" mean
+// absent (usvg: unparseable Length → the intrinsic default, no warning).
+func imageLength(pc *parseCtx, attr, v string) (Length, bool) {
+	v = strings.TrimSpace(v)
+	if v == "" || v == "auto" {
+		return Length{}, false
 	}
-	if !strings.HasPrefix(href, "data:") {
-		pc.warn("image", "href", warnUnsupportedRef, "external references are not supported (data: URIs only)")
-		return
-	}
-	comma := strings.Index(href, ",")
-	if comma < 0 {
-		pc.warn("image", "href", warnInvalidValue, "malformed data URI")
-		return
-	}
-	head, payload := href[:comma], href[comma+1:]
-	if !strings.Contains(head, ";base64") {
-		pc.warn("image", "href", warnUnsupportedRef, "percent-encoded data URIs are not supported (use base64)")
-		return
-	}
-	raw, err := base64.StdEncoding.DecodeString(payload)
+	l, err := parseLength(v)
 	if err != nil {
-		pc.warn("image", "href", warnInvalidValue, "base64 decode: "+err.Error())
-		return
+		pc.warn("image", attr, warnInvalidValue, err.Error())
+		return Length{}, false
 	}
-	mime := strings.TrimPrefix(head, "data:")
-	if i := strings.Index(mime, ";"); i >= 0 {
-		mime = mime[:i]
-	}
-	switch mime {
-	case "image/png", "image/jpeg", "image/gif":
-		cfg, _, err := image.Decode(strings.NewReader(string(raw)))
-		if err != nil {
-			pc.warn("image", "href", warnInvalidValue, "decode: "+err.Error())
-			return
-		}
-		elem.HasImage = true
-		elem.ImgW, elem.ImgH = cfg.Bounds().Dx(), cfg.Bounds().Dy()
-		elem.raw = raw
-		elem.rawMime = mime
-	case "image/svg+xml", "image/webp":
-		pc.warn("image", "href", warnUnsupportedRef, "mime "+mime+" is not supported in <image>")
-	default:
-		pc.warn("image", "href", warnUnsupportedRef, "mime "+mime+" is not supported in <image>")
-	}
+	return l, true
 }
 
-// parsePatternElement parses <pattern> (units default userSpaceOnUse for
-// both patternUnits and patternContentUnits — the zero value is
-// objectBoundingBox, so both are set explicitly up front).
+// resolveViewBoxLength resolves one length against the document viewBox
+// (usvg convert_user_length: percentages resolve against state.view_box).
+func resolveViewBoxLength(pc *parseCtx, l Length, axis LengthAxis) float64 {
+	return l.Resolve(RefSpace{ViewportW: pc.doc.ViewBox.Width, ViewportH: pc.doc.ViewBox.Height}, axis)
+}
+
 func parsePatternElement(pc *parseCtx, se xml.StartElement) (*PatternElement, error) {
 	elem := &PatternElement{
-		Attrs:        parseAttrs(pc, se),
-		Units:        UnitsUserSpaceOnUse,
+		Attrs: parseAttrs(pc, se),
+		// Spec defaults (usvg convert_units): patternUnits =
+		// objectBoundingBox, patternContentUnits = userSpaceOnUse — the
+		// two defaults differ; zero-value handling elsewhere relies on
+		// these being explicit.
+		Units:        UnitsObjectBoundingBox,
 		ContentUnits: UnitsUserSpaceOnUse,
 	}
 	for _, attr := range se.Attr {
@@ -1086,13 +1182,19 @@ func parsePatternElement(pc *parseCtx, se xml.StartElement) (*PatternElement, er
 			elem.H = mustLength(pc, "pattern", "height", attr.Value)
 			elem.setH = true
 		case "patternUnits":
-			if strings.TrimSpace(attr.Value) == "objectBoundingBox" {
-				elem.Units = UnitsObjectBoundingBox
-			} else {
+			// Invalid values fall back to the spec default oBB (usvg
+			// convert_units: unparseable attribute → default), not to
+			// userSpaceOnUse.
+			if strings.TrimSpace(attr.Value) == "userSpaceOnUse" {
 				elem.Units = UnitsUserSpaceOnUse
+			} else {
+				elem.Units = UnitsObjectBoundingBox
 			}
 			elem.unitsSet = true
 		case "patternContentUnits":
+			// NOTE: the content-units default is userSpaceOnUse (usvg
+			// convert_units def), unlike patternUnits' oBB default; invalid
+			// values fall back to that default.
 			if strings.TrimSpace(attr.Value) == "objectBoundingBox" {
 				elem.ContentUnits = UnitsObjectBoundingBox
 			} else {
@@ -1593,7 +1695,7 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 				img.Par = parsePreserveAspectRatio(fp.Aspect)
 				img.HasPar = true
 			}
-			decodeImageRef(pc, img)
+			decodeImageInto(pc, img)
 			fp.Img = img
 		}
 	case "feComponentTransfer":

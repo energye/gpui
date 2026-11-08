@@ -151,6 +151,12 @@ func walkElements(elems []Element, visit func(Element) bool) {
 			walkElements(t.Children, visit)
 		case *SVGElement:
 			walkElements(t.Children, visit)
+		case *ClipPathElement:
+			walkElements(t.Children, visit)
+		case *MaskElement:
+			walkElements(t.Children, visit)
+		case *PatternElement:
+			walkElements(t.Children, visit)
 		}
 	}
 }

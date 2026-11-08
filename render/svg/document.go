@@ -27,6 +27,10 @@ type Document struct {
 	// Width and Height are the explicit width/height from the SVG root element.
 	// If zero, ViewBox dimensions are used.
 	Width, Height float64
+	// hasSize records explicit root width/height attributes (usvg
+	// restore_viewbox: without them AND without a viewBox the document
+	// sizes itself to the content bounding box at render).
+	hasSize bool
 
 	// RootFill is the fill attribute from the <svg> root element.
 	// In SVG, presentation attributes on <svg> are inherited by children.
@@ -43,7 +47,8 @@ type Document struct {
 	// Elements contains the top-level SVG elements.
 	Elements []Element
 
-	// Styles holds parsed <style> element blocks (minimal selector set).
+	// Styles holds parsed <style> element blocks; consumed (nil) after
+	// parse-time CSS materialization (css.go resolveCSS).
 	Styles []StyleBlock
 
 	// Warnings collects parse-time and reference-validation diagnostics.
@@ -129,6 +134,7 @@ type Attrs struct {
 	StrokeDashoffset string
 	Opacity          string // element-level, not inherited
 	Transform        string
+	TransformOrigin  string // SVG2 transform-origin raw (usvg resolve_transform)
 	ClipRule         string
 	Color            string // currentColor source
 	FontSize         string // length; font-relative units resolve against parent
@@ -149,6 +155,22 @@ type Attrs struct {
 	ClipPath string
 	// Mask carries the raw mask="url(#id)" reference.
 	Mask string
+
+	// Raw snapshots every attribute by local name for CSS attribute
+	// selectors ([x], [x=1], …) — the typed fields above are the whitelist
+	// the renderer consumes; this is the full attribute surface simplecss
+	// matches against.
+	Raw map[string]string
+
+	// condInvalid marks an invisible element: failed conditional
+	// processing or display="none" (usvg is_visible_element). The element
+	// and its subtree render nothing and stay unreachable through <use>.
+	condInvalid bool
+	// condFailed isolates the conditional-processing part (without
+	// display) — <switch> child selection tests only this (usvg
+	// is_condition_passed), then the chosen child may still be hidden by
+	// display=none without falling through to the next child.
+	condFailed bool
 
 	// tag is the element tag name (CSS tag selectors); set by the parser.
 	tag string
@@ -235,6 +257,10 @@ func (e *PolylineElement) attrs() *Attrs { return &e.Attrs }
 type GroupElement struct {
 	Attrs    Attrs
 	Children []Element
+	// inert marks an invisible container (unknown SVG tag or foreign
+	// namespace): never rendered in place, but children stay referenceable
+	// by id and inheritance passes through the empty attrs.
+	inert bool
 }
 
 func (e *GroupElement) attrs() *Attrs { return &e.Attrs }
@@ -254,7 +280,10 @@ type SymbolElement struct {
 	ViewBox    ViewBox
 	Par        PreserveAspectRatio
 	HasViewBox bool
-	Children   []Element
+	// OverflowVisible (overflow="visible") disables the use-viewport clip
+	// (usvg symbol conversion keeps the attribute).
+	OverflowVisible bool
+	Children        []Element
 }
 
 func (e *SymbolElement) attrs() *Attrs { return &e.Attrs }
@@ -271,10 +300,13 @@ const (
 // UseElement represents <use>: an instance of a referenced element or
 // symbol. HRef accepts SVG2 href and SVG 1.1 xlink:href.
 type UseElement struct {
-	Attrs   Attrs
-	HRef    string
-	X, Y    Length
-	W, H    Length  // width/height: symbol viewport size (default 100%)
+	Attrs Attrs
+	HRef  string
+	X, Y  Length
+	W, H  Length // width/height: symbol/svg viewport override (unset = target default)
+	hasW  bool
+	hasH  bool
+
 	target  Element // resolved at parse
 	kind    RefKind
 	invalid bool // unresolved/cyclic/over-deep: renders nothing
@@ -292,6 +324,7 @@ type SVGElement struct {
 	Attrs           Attrs
 	X, Y            Length
 	W, H            Length
+	hasW, hasH      bool // explicit width/height (clip eligibility per usvg)
 	ViewBox         ViewBox
 	Par             PreserveAspectRatio
 	HasViewBox      bool
@@ -318,12 +351,16 @@ func (e *ClipPathElement) attrs() *Attrs { return &e.Attrs }
 type ImageElement struct {
 	Attrs      Attrs
 	X, Y       Length
-	W, H       Length // viewport (default: intrinsic image size)
+	W, H       Length // viewport (default: intrinsic image size, SVG2 auto)
 	HRef       string
 	Par        PreserveAspectRatio // preserveAspectRatio (default xMidYMid meet)
 	HasPar     bool
 	HasImage   bool
 	ImgW, ImgH int
+
+	// SubDoc carries the parsed sub-document for SVG(Z) image sources
+	// (usvg ImageKind::SVG); raster sources use raw/rawMime.
+	SubDoc *Document
 
 	raw     []byte // decoded data-URI payload (parse-time)
 	rawMime string
@@ -407,11 +444,11 @@ func (e *TspanElement) attrs() *Attrs { return &e.Attrs }
 // transform baked in; the SVG2 `path` attribute is a registered no-op like
 // resvg v0.42 (no href → the text falls back to the normal flow).
 type TextPathElement struct {
-	Attrs    Attrs
-	Text     string
-	Href     string // "#id" reference; "path1" forms and missing hrefs → normal flow
-	StartOffset string // raw (length or percent of the path length)
-	Children []Element // TspanElement / nested TextPathElement
+	Attrs       Attrs
+	Text        string
+	Href        string    // "#id" reference; "path1" forms and missing hrefs → normal flow
+	StartOffset string    // raw (length or percent of the path length)
+	Children    []Element // TspanElement / nested TextPathElement
 }
 
 func (e *TextPathElement) attrs() *Attrs { return &e.Attrs }
@@ -490,10 +527,21 @@ func (m SpreadMode) extendOf() render.ExtendMode {
 
 // GradientStopElement represents <stop> inside a gradient.
 type GradientStopElement struct {
-	Attrs   Attrs
-	Offset  float64 // clamped to [0,1]; "%" resolved /100 at parse
-	Color   string  // stop-color raw (currentColor resolved at paint)
-	Opacity float64 // stop-opacity clamped [0,1]
+	Attrs Attrs
+	// Offset: raw per usvg convert_stops — missing/invalid/other-unit
+	// offsets fall back to the previous stop's resolved number at
+	// normalization, so only the raw string is kept here.
+	OffsetSet bool
+	OffsetRaw string
+	// Color raw: number/percent/currentColor/inherit resolved at
+	// normalization (currentColor against the inherited color, inherit
+	// one level into the owning gradient).
+	Color string
+	// Opacity: raw string; missing/invalid → 1, inherit → the owning
+	// gradient's stop-opacity.
+	Opacity    float64
+	OpacitySet bool
+	OpacityRaw string
 }
 
 func (e *GradientStopElement) attrs() *Attrs { return &e.Attrs }

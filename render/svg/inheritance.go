@@ -24,108 +24,6 @@ type CSSDecl struct {
 	Value string
 }
 
-// CSSRule is one selector with its declaration block.
-type CSSRule struct {
-	Selector string
-	Decls    []CSSDecl
-}
-
-// StyleBlock is the parsed content of one <style> element.
-type StyleBlock struct {
-	Rules []CSSRule
-}
-
-// parseStyleContent parses <style> text into rules. Selectors outside the
-// minimal set (single class ".name", tag "name", comma groups of those) are
-// skipped with a warning rather than half-applied.
-func parseStyleContent(pc *parseCtx, content string) StyleBlock {
-	content = stripCSSComments(content)
-	var out StyleBlock
-	for _, chunk := range strings.Split(content, "}") {
-		open := strings.Index(chunk, "{")
-		if open < 0 {
-			continue
-		}
-		sel := strings.TrimSpace(chunk[:open])
-		if sel == "" {
-			continue
-		}
-		if !supportedSelector(sel) {
-			pc.warn("style", "selector", warnUnsupportedSelector, "unsupported selector "+sel)
-			continue
-		}
-		rule := CSSRule{Selector: sel}
-		for _, d := range strings.Split(chunk[open+1:], ";") {
-			colon := strings.Index(d, ":")
-			if colon < 0 {
-				continue
-			}
-			name := strings.ToLower(strings.TrimSpace(d[:colon]))
-			value := strings.TrimSpace(d[colon+1:])
-			if name == "" || value == "" {
-				continue
-			}
-			rule.Decls = append(rule.Decls, CSSDecl{Name: name, Value: value})
-		}
-		if len(rule.Decls) > 0 {
-			out.Rules = append(out.Rules, rule)
-		}
-	}
-	return out
-}
-
-func supportedSelector(sel string) bool {
-	for _, part := range strings.Split(sel, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" || strings.ContainsAny(part, " \t>+~[") {
-			return false // descendant/attribute/complex selectors: not supported
-		}
-		if !strings.HasPrefix(part, ".") && !isName(part) {
-			return false
-		}
-	}
-	return true
-}
-
-func isName(s string) bool {
-	for _, r := range s {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
-			return false
-		}
-	}
-	return len(s) > 0
-}
-
-func stripCSSComments(s string) string {
-	for {
-		open := strings.Index(s, "/*")
-		if open < 0 {
-			return s
-		}
-		close_ := strings.Index(s[open+2:], "*/")
-		if close_ < 0 {
-			return s[:open]
-		}
-		s = s[:open] + s[open+2+close_+2:]
-	}
-}
-
-func ruleMatches(selector string, a Attrs) bool {
-	for _, part := range strings.Split(selector, ",") {
-		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, ".") {
-			for _, cls := range strings.Fields(a.Class) {
-				if cls == part[1:] {
-					return true
-				}
-			}
-		} else if part == a.tag {
-			return true
-		}
-	}
-	return false
-}
-
 // props is the resolved inherited property set at one element (SVG 1.1
 // inherited properties relevant to the static subset).
 type props struct {
@@ -175,36 +73,16 @@ func (p *props) clone() *props {
 }
 
 // evalProps computes the property set for one element: inherited parent
-// values overridden by the element's own declarations in cascade order
-// (presentation attrs < tag rules < class rules < inline style).
+// values overridden by the element's own declarations. Stylesheet rules
+// were materialized into the style attribute at parse time (css.go), so
+// the cascade here is presentation attrs < inline style (which already
+// carries the rules ahead of the element's own style declarations).
 func evalProps(parent *props, a Attrs, doc *Document) *props {
 	p := parent.clone()
 	p.opacity = 1 // element-level: reset before applying own
 
-	var pres, tagDecls, classDecls, inline []CSSDecl
+	var pres, inline []CSSDecl
 	pres = presentationDecls(a)
-	for _, blk := range doc.Styles {
-		for _, r := range blk.Rules {
-			if !ruleMatches(r.Selector, a) {
-				continue
-			}
-			// One rule's strength is decided by its strongest selector part
-			// (a comma group matches if any part matches). Bucket by class
-			// presence so ".a, rect" still beats a plain tag rule.
-			classed := false
-			for _, part := range strings.Split(r.Selector, ",") {
-				if strings.HasPrefix(strings.TrimSpace(part), ".") {
-					classed = true
-					break
-				}
-			}
-			if classed {
-				classDecls = append(classDecls, r.Decls...)
-			} else {
-				tagDecls = append(tagDecls, r.Decls...)
-			}
-		}
-	}
 	if a.Style != "" {
 		for _, d := range strings.Split(a.Style, ";") {
 			colon := strings.Index(d, ":")
@@ -219,12 +97,6 @@ func evalProps(parent *props, a Attrs, doc *Document) *props {
 		}
 	}
 	for _, d := range pres {
-		applyDecl(p, d, parent, doc)
-	}
-	for _, d := range tagDecls {
-		applyDecl(p, d, parent, doc)
-	}
-	for _, d := range classDecls {
 		applyDecl(p, d, parent, doc)
 	}
 	for _, d := range inline {

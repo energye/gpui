@@ -45,6 +45,16 @@ func (d *Document) clipRegionFor(id string, refBBox render.Rect, rs RefSpace) (*
 		unitM = render.Translate(refBBox.Min.X, refBBox.Min.Y).Multiply(render.Scale(w, h))
 	}
 
+	// The clipPath element's own transform shifts the whole clip region
+	// (usvg clip conversion: resolve_transform — transform-origin shifts
+	// the origin, percentages against the viewBox).
+	var cpM render.Matrix
+	if cp.Attrs.Transform != "" {
+		if m, err := parseTransformList(cp.Attrs.Transform); err == nil {
+			cpM = withTransformOrigin(m, &cp.Attrs, rs)
+		}
+	}
+
 	var paths []*render.Path
 	for _, child := range cp.Children {
 		// <use> inside clipPath resolves to its target shape.
@@ -55,6 +65,9 @@ func (d *Document) clipRegionFor(id string, refBBox render.Rect, rs RefSpace) (*
 		}
 		if unitM != render.Identity() {
 			p = transformPath(p, unitM)
+		}
+		if cpM != render.Identity() && cpM != (render.Matrix{}) {
+			p = transformPath(p, cpM)
 		}
 		paths = append(paths, p)
 	}

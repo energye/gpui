@@ -71,6 +71,16 @@ func (d *Document) RenderToWithColor(dc *render.Context, x, y, width, height flo
 
 // renderInternal is the shared rendering implementation.
 func (d *Document) renderInternal(dc *render.Context, x, y, width, height float64, overrideColor color.Color) {
+	if !d.hasViewBox && !d.hasSize {
+		// Root <svg> with no width/height and no viewBox: size to the
+		// content bounding box (usvg calculate_svg_bbox after
+		// restore_viewbox — the 100% fallback resolves against the render
+		// target, then the tree bbox redefines the size).
+		if r, ok := d.measureContentBBox(); ok {
+			d.ViewBox = ViewBox{MinX: 0, MinY: 0, Width: r.Max.X, Height: r.Max.Y}
+			d.hasViewBox = true
+		}
+	}
 	if d.hasViewBox && (d.ViewBox.Width <= 0 || d.ViewBox.Height <= 0) {
 		// Declared but degenerate viewBox: nothing sensible to map.
 		return
@@ -97,10 +107,16 @@ func (d *Document) renderInternal(dc *render.Context, x, y, width, height float6
 	}
 
 	rootP := evalProps(rootProps(), d.rootAttrs, d)
+	// Percentages resolve against the viewBox when present (usvg
+	// units.rs: state.view_box), not the render canvas.
+	pw, ph := width, height
+	if d.hasViewBox {
+		pw, ph = d.ViewBox.Width, d.ViewBox.Height
+	}
 	state := &renderState{
 		doc:           d,
 		overrideColor: overrideColor,
-		rs:            RefSpace{ViewportW: width, ViewportH: height, FontSize: rootP.fontSize},
+		rs:            RefSpace{ViewportW: pw, ViewportH: ph, FontSize: rootP.fontSize},
 	}
 
 	renderElements(dc, d.Elements, rootP, state)

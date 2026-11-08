@@ -411,7 +411,7 @@ func renderTextElement(dc *render.Context, e *TextElement, a *Attrs, p *props, s
 	}
 
 	dc.Push()
-	applyElementTransform(dc, a)
+	applyElementTransform(dc, a, st)
 
 	// Whole-run bounding box (clip/mask region resolution).
 	var fullBBox render.Rect

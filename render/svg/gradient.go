@@ -11,6 +11,7 @@ package svg
 import (
 	"image"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/energye/gpui/render"
@@ -65,39 +66,179 @@ func (d *Document) resolvePaintBrush(id string, bbox render.Rect, rs RefSpace, c
 	return nil, false
 }
 
-// gradientStopsToColorStops converts SVG stops (href chain resolved,
-// currentColor resolved, offsets clamped) into render color stops.
-// ok=false when the gradient has no stops (invalid paint).
-func gradientStopsToColorStops(d *Document, g stopsProvider, color string) ([]render.ColorStop, bool) {
-	stops := EffectiveStops(d, g)
+// stopNorm is one normalized stop (usvg Stop): offset clamped to [0,1],
+// color premultiplied-ready components, opacity folded in later.
+type stopNorm struct {
+	offset  float64
+	r, g, b float64 // 0..1 straight colors
+	a       float64 // stop-opacity (0..1)
+}
+
+// gradientStopsToColorStops converts the owning gradient's stops into
+// render color stops with usvg convert_stops semantics applied verbatim:
+//
+//   - offset missing/invalid/other-unit → previous stop's resolved number
+//     (first stop → 0); percent → /100; clamp [0,1] AFTER prev tracking;
+//   - stop-color: currentColor → inherited color; inherit → the owning
+//     gradient's stop-color (one level, usvg resolve_inherit); invalid →
+//     black + warning; missing → black;
+//   - stop-opacity: inherit → the owning gradient's stop-opacity; missing
+//     or invalid → 1;
+//   - post-passes: three consecutive equal offsets drop the middle one,
+//     zero-offset pairs get an epsilon bump, equal offsets shift apart.
+//
+// ok=false when there are no stops at all (invalid paint, usvg
+// find_gradient_with_stops → None).
+func gradientStopsToColorStops(d *Document, stops []*GradientStopElement, owner Attrs, color string) ([]render.ColorStop, bool) {
 	if len(stops) == 0 {
 		return nil, false
 	}
 	base := &props{color: color}
-	out := make([]render.ColorStop, 0, len(stops))
-	for _, s := range stops {
-		c, err := parseColor(resolveColorToken(resolveVarTokens(d, s.Color), base))
+	norm := make([]stopNorm, 0, len(stops))
+	prev := 0.0
+	for _, st := range stops {
+		offset := prev
+		if st.OffsetSet {
+			if v, ok := parseStopOffset(st.OffsetRaw); ok {
+				offset = v
+			}
+		}
+		prev = offset
+		offset = clamp01(offset)
+
+		colorToken := st.Color
+		switch {
+		case colorToken == "inherit":
+			// One level into the owning gradient (usvg resolve_inherit at
+			// tree build); a missing parent value falls back to black.
+			colorToken = owner.Raw["stop-color"]
+			if colorToken == "" || colorToken == "inherit" {
+				colorToken = "black"
+			}
+		case colorToken == "":
+			colorToken = "black"
+		}
+		c, err := parseColor(resolveColorToken(resolveVarTokens(d, colorToken), base))
 		if err != nil || c == nil {
-			// "none"/invalid stop color: skip the stop (the gradient stays
-			// renderable when other stops exist).
-			continue
+			pcWarnStopColor(d, colorToken)
+			c, _ = parseColor("black")
 		}
 		r, gg, b, a := c.RGBA()
-		fa := float64(a>>8) / 255 * clamp01(s.Opacity)
-		out = append(out, render.ColorStop{
-			Offset: clamp01(s.Offset),
-			Color: render.RGBA{
-				R: float64(r>>8) / 255,
-				G: float64(gg>>8) / 255,
-				B: float64(b>>8) / 255,
-				A: fa,
-			},
+
+		opacity := 1.0
+		if st.OpacitySet {
+			switch st.OpacityRaw {
+			case "inherit":
+				if v := owner.Raw["stop-opacity"]; v != "" && v != "inherit" {
+					if f, err := strconv.ParseFloat(v, 64); err == nil {
+						opacity = clamp01(f)
+					}
+				}
+			default:
+				if f, err := strconv.ParseFloat(st.OpacityRaw, 64); err == nil {
+					opacity = clamp01(f)
+				}
+			}
+		}
+
+		norm = append(norm, stopNorm{
+			offset: offset,
+			r:      float64(r>>8) / 255,
+			g:      float64(gg>>8) / 255,
+			b:      float64(b>>8) / 255,
+			a:      float64(a>>8) / 255 * opacity,
 		})
 	}
-	if len(out) == 0 {
-		return nil, false
+	normalizeStopOffsets(norm)
+
+	out := make([]render.ColorStop, 0, len(norm))
+	for _, st := range norm {
+		out = append(out, render.ColorStop{
+			Offset: st.offset,
+			Color:  render.RGBA{R: st.r, G: st.g, B: st.b, A: st.a},
+		})
 	}
 	return out, true
+}
+
+// pcWarnStopColor surfaces an invalid stop-color once per document parse —
+// the warning path needs a parse context, which paint-time conversion does
+// not carry; the fail-closed value (black) is what usvg logs too.
+func pcWarnStopColor(d *Document, value string) {
+	d.Warnings = append(d.Warnings, ParseWarning{
+		Element: "stop", Attribute: "stop-color", Reason: warnInvalidValue,
+		Detail: "failed to parse stop-color value: " + value,
+	})
+}
+
+// parseStopOffset parses one offset token: number or percent; anything
+// else (other units, invalid) falls back to the previous offset (ok=false).
+func parseStopOffset(raw string) (float64, bool) {
+	if raw == "" {
+		return 0, false
+	}
+	if strings.HasSuffix(raw, "%") {
+		f, err := strconv.ParseFloat(strings.TrimSuffix(raw, "%"), 64)
+		if err != nil {
+			return 0, false
+		}
+		return f / 100, true
+	}
+	f, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, false
+	}
+	return f, true
+}
+
+// normalizeStopOffsets applies the usvg offset post-passes verbatim:
+// three consecutive equal offsets drop the middle (ULPS 4), adjacent zero
+// offsets get an epsilon bump, equal (or decreasing) neighbors shift the
+// earlier one down by an epsilon.
+func normalizeStopOffsets(stops []stopNorm) {
+	eq := func(a, b float64) bool { return approxEqUlpsF32(a, b, 4) }
+	if len(stops) >= 3 {
+		i := 0
+		for i < len(stops)-2 {
+			if eq(stops[i].offset, stops[i+1].offset) && eq(stops[i+1].offset, stops[i+2].offset) {
+				stops = append(stops[:i+1], stops[i+2:]...)
+			} else {
+				i++
+			}
+		}
+	}
+	if len(stops) >= 2 {
+		for i := 0; i < len(stops)-1; i++ {
+			if eq(stops[i].offset, 0) && eq(stops[i+1].offset, 0) {
+				stops[i+1].offset = clamp01(stops[i].offset + f32Epsilon)
+			}
+		}
+	}
+	for i := 1; i < len(stops); i++ {
+		prev, cur := stops[i-1].offset, stops[i].offset
+		if prev > cur || eq(prev, cur) {
+			stops[i-1].offset = clamp01(prev - f32Epsilon)
+			stops[i].offset = clamp01(prev)
+		}
+	}
+}
+
+const f32Epsilon = 1.1920929e-7 // math float32 epsilon (usvg f32::EPSILON)
+
+// approxEqUlpsF32 compares two values as float32s within ulps ULPs
+// (usvg approx_eq_ulps(N) on f32 offsets).
+func approxEqUlpsF32(af, bf float64, ulps int) bool {
+	ai := int32(math.Float32bits(float32(af)))
+	bi := int32(math.Float32bits(float32(bf)))
+	if ai < 0 != (bi < 0) {
+		// Different signs: only both-zero (±0) are near.
+		return af == 0 && bf == 0
+	}
+	d := ai - bi
+	if d < 0 {
+		d = -d
+	}
+	return d <= int32(ulps)
 }
 
 // gradientMappingFrom builds the user-space map for a resolved gradient's
@@ -114,11 +255,17 @@ func gradientMappingFrom(g interface{ unitsAndTransform() (Units, string) }, bbo
 		}
 		m = render.Translate(bbox.Min.X, bbox.Min.Y).Multiply(render.Scale(w, h))
 	}
-	gt, err := parseTransformList(transform)
-	if err != nil {
-		return render.Matrix{}, false
+	if transform != "" {
+		gt, err := parseTransformList(transform)
+		if err != nil || singularMatrix(gt) {
+			// Invalid or singular gradientTransform falls back to identity
+			// (usvg: unparseable attribute → default transform; resvg
+			// renders the untransformed gradient — reference-probed).
+			gt = render.Identity()
+		}
+		m = m.Multiply(gt)
 	}
-	return m.Multiply(gt), true
+	return m, true
 }
 
 // gradientCoordsIn resolves a gradient geometry length in its own space:
@@ -139,59 +286,147 @@ func gradientCoordsIn(g interface{ unitsAndTransform() (Units, string) }, l Leng
 	return v
 }
 
-func (d *Document) buildLinearBrush(g *LinearGradientElement, bbox render.Rect, rs RefSpace, color string) (render.Brush, bool) {
-	// Per-attribute href inheritance (SVG 1.1): unset attributes come from
-	// the referenced gradient, first-set-wins along the chain.
-	e := *g // shallow copy as the accumulation base
-	x1s, y1s, x2s, y2s := g.setX1, g.setY1, g.setX2, g.setY2
-	us, ts, sp := g.Units != UnitsObjectBoundingBox || g.unitsSet, g.Transform != "", g.spreadSet
-	cur := g
-	seen := map[Element]bool{g: true}
+// gradientChain walks self-first along xlink:href (usvg href_iter):
+// self/origin references stop the walk with a warning; every kind of
+// element may appear (callers type-check per usvg rules).
+func (d *Document) gradientChain(start Element) []Element {
+	out := []Element{start}
+	seen := map[Element]bool{start: true}
+	cur := start
 	for {
-		if !x1s && cur.setX1 {
-			e.X1 = cur.X1
-			x1s = true
+		var href string
+		if a := cur.attrs(); a != nil {
+			href = a.Raw["href"]
+			if href == "" {
+				href = a.Raw["xlink:href"]
+			}
 		}
-		if !y1s && cur.setY1 {
-			e.Y1 = cur.Y1
-			y1s = true
+		if href == "" {
+			return out
 		}
-		if !x2s && cur.setX2 {
-			e.X2 = cur.X2
-			x2s = true
+		tgt := d.ElementByID(strings.TrimPrefix(strings.TrimSpace(href), "#"))
+		if tgt == nil || seen[tgt] {
+			return out // dangling or cycle: chain ends here
 		}
-		if !y2s && cur.setY2 {
-			e.Y2 = cur.Y2
-			y2s = true
-		}
-		if !us && cur.unitsSet {
-			e.Units = cur.Units
-			us = true
-		}
-		if !ts && cur.Transform != "" {
-			e.Transform = cur.Transform
-			ts = true
-		}
-		if !sp && cur.spreadSet {
-			e.Spread = cur.Spread
-			sp = true
-		}
-		if cur.HRef == "" {
-			break
-		}
-		tgt := d.ElementByID(strings.TrimPrefix(cur.HRef, "#"))
-		nl, ok := tgt.(*LinearGradientElement)
-		if !ok || seen[nl] {
-			break
-		}
-		seen[nl] = true
-		cur = nl
+		out = append(out, tgt)
+		seen[tgt] = true
+		cur = tgt
 	}
+}
 
-	stops, ok := gradientStopsToColorStops(d, &e, color)
+// gradientAttrSource walks the chain for one attribute per usvg
+// resolve_lg_attr/resolve_rg_attr: coordinates only from same-type
+// gradients, units/spread/transform from any gradient kind. Returns the
+// raw value and whether any chain element carries it.
+func gradientAttrSource(chain []Element, self Element, attr string, sameTypeOnly bool) (string, bool) {
+	for _, e := range chain {
+		accepted := true
+		if sameTypeOnly {
+			// Coordinates resolve only from a gradient of the same kind.
+			switch self.(type) {
+			case *LinearGradientElement:
+				_, accepted = e.(*LinearGradientElement)
+			case *RadialGradientElement:
+				_, accepted = e.(*RadialGradientElement)
+			}
+		} else {
+			switch e.(type) {
+			case *LinearGradientElement, *RadialGradientElement:
+			default:
+				accepted = false // any-gradient attributes stop at non-gradients
+			}
+		}
+		if !accepted {
+			return "", false // usvg `_ => break`: the chain stops here
+		}
+		a := e.attrs()
+		if a == nil {
+			continue
+		}
+		if v, ok := a.Raw[attr]; ok {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// gradientStopsFromChain walks the chain (self first) for the first
+// gradient with stop children (usvg find_gradient_with_stops); a
+// non-gradient link fails the whole paint.
+func gradientStopsFromChain(chain []Element) ([]*GradientStopElement, Attrs, bool) {
+	for _, e := range chain {
+		var lp *LinearGradientElement
+		var rp *RadialGradientElement
+		switch g := e.(type) {
+		case *LinearGradientElement:
+			lp = g
+		case *RadialGradientElement:
+			rp = g
+		default:
+			// usvg: non-gradient in the href chain fails stop lookup.
+			return nil, Attrs{}, false
+		}
+		if lp != nil && len(lp.Stops) > 0 {
+			return lp.Stops, lp.Attrs, true
+		}
+		if rp != nil && len(rp.Stops) > 0 {
+			return rp.Stops, rp.Attrs, true
+		}
+	}
+	return nil, Attrs{}, false
+}
+
+// unitsFromChain resolves gradientUnits (any gradient kind, default oBB).
+func unitsFromChain(chain []Element) Units {
+	if v, ok := gradientAttrSource(chain, chain[0], "gradientUnits", false); ok {
+		if strings.TrimSpace(v) == "userSpaceOnUse" {
+			return UnitsUserSpaceOnUse
+		}
+		return UnitsObjectBoundingBox
+	}
+	return UnitsObjectBoundingBox
+}
+
+func (d *Document) buildLinearBrush(g *LinearGradientElement, bbox render.Rect, rs RefSpace, color string) (render.Brush, bool) {
+	chain := d.gradientChain(g)
+
+	stopsRaw, owner, ok := gradientStopsFromChain(chain)
 	if !ok {
 		return nil, false
 	}
+	stops, ok := gradientStopsToColorStops(d, stopsRaw, owner, color)
+	if !ok {
+		return nil, false
+	}
+	// usvg stops_to_color: a single stop paints a solid color.
+	if len(stops) == 1 {
+		return solidStopBrush(stops[0]), true
+	}
+
+	e := LinearGradientElement{Attrs: g.Attrs, Units: UnitsObjectBoundingBox}
+	e.Units = unitsFromChain(chain)
+	if v, ok := gradientAttrSource(chain, g, "x1", true); ok {
+		e.X1 = parseGradientLength(v)
+	}
+	if v, ok := gradientAttrSource(chain, g, "y1", true); ok {
+		e.Y1 = parseGradientLength(v)
+	}
+	if v, ok := gradientAttrSource(chain, g, "x2", true); ok {
+		e.X2 = parseGradientLength(v)
+	} else {
+		e.X2 = Length{Value: 100, Unit: LengthUnitPercent}
+	}
+	if v, ok := gradientAttrSource(chain, g, "y2", true); ok {
+		e.Y2 = parseGradientLength(v)
+	}
+	if v, ok := gradientAttrSource(chain, g, "spreadMethod", false); ok {
+		e.Spread = spreadToken(v)
+		e.spreadSet = true
+	}
+	if v, ok := gradientAttrSource(chain, g, "gradientTransform", false); ok {
+		e.Transform = v
+	}
+
 	mapping, ok := gradientMappingFrom(&e, bbox, rs)
 	if !ok {
 		return nil, false
@@ -207,75 +442,111 @@ func (d *Document) buildLinearBrush(g *LinearGradientElement, bbox render.Rect, 
 	if wrapped := wrapBrushIfMapped(brush, mapping); wrapped != nil {
 		return wrapped, true
 	}
-	return nil, false // singular mapping (e.g. matrix(0 0 0 0 0 0)): paint invalid
+	return nil, false
+}
+
+// solidStopBrush paints everything with one stop's color (usvg
+// stops_to_color / the zero-radius rule).
+func solidStopBrush(st render.ColorStop) render.Brush {
+	b := render.NewCustomBrush(func(x, y float64) render.RGBA {
+		return st.Color
+	}).WithName("svg_solid_stop")
+	return b
+}
+
+// parseGradientLength parses one gradient geometry value (number or
+// percent); invalid values fall back to 0 (usvg: attribute parse failure
+// → default).
+func parseGradientLength(v string) Length {
+	l, err := parseLength(strings.TrimSpace(v))
+	if err != nil {
+		return Length{}
+	}
+	return l
 }
 
 func (d *Document) buildRadialBrush(g *RadialGradientElement, bbox render.Rect, rs RefSpace, color string) (render.Brush, bool) {
-	e := *g
-	cxs, cys, rr, fxs, fys := g.setCX, g.setCY, g.setR, g.setFX, g.setFY
-	us, ts, sp := g.unitsSet, g.Transform != "", g.spreadSet
-	cur := g
-	seen := map[Element]bool{g: true}
-	for {
-		if !cxs && cur.setCX {
-			e.CX = cur.CX
-			cxs = true
-		}
-		if !cys && cur.setCY {
-			e.CY = cur.CY
-			cys = true
-		}
-		if !rr && cur.setR {
-			e.R = cur.R
-			rr = true
-		}
-		if !fxs && cur.setFX {
-			e.FX = cur.FX
-			fxs = true
-		}
-		if !fys && cur.setFY {
-			e.FY = cur.FY
-			fys = true
-		}
-		if !us && cur.unitsSet {
-			e.Units = cur.Units
-			us = true
-		}
-		if !ts && cur.Transform != "" {
-			e.Transform = cur.Transform
-			ts = true
-		}
-		if !sp && cur.spreadSet {
-			e.Spread = cur.Spread
-			sp = true
-		}
-		if cur.HRef == "" {
-			break
-		}
-		tgt := d.ElementByID(strings.TrimPrefix(cur.HRef, "#"))
-		nr, ok := tgt.(*RadialGradientElement)
-		if !ok || seen[nr] {
-			break
-		}
-		seen[nr] = true
-		cur = nr
-	}
+	chain := d.gradientChain(g)
 
-	stops, ok := gradientStopsToColorStops(d, &e, color)
+	stopsRaw, owner, ok := gradientStopsFromChain(chain)
 	if !ok {
 		return nil, false
 	}
+	stops, ok := gradientStopsToColorStops(d, stopsRaw, owner, color)
+	if !ok {
+		return nil, false
+	}
+	if len(stops) == 1 {
+		return solidStopBrush(stops[0]), true
+	}
+
+	e := RadialGradientElement{Attrs: g.Attrs, Units: UnitsObjectBoundingBox}
+	e.Units = unitsFromChain(chain)
+	// Defaults first (usvg resolve_number defaults): cx/cy/r = 50%, then
+	// per-attribute chain resolution (coordinates same-type only).
+	e.CX = Length{Value: 50, Unit: LengthUnitPercent}
+	e.CY = Length{Value: 50, Unit: LengthUnitPercent}
+	e.R = Length{Value: 50, Unit: LengthUnitPercent}
+	if v, ok := gradientAttrSource(chain, g, "cx", true); ok {
+		e.CX = parseGradientLength(v)
+	}
+	if v, ok := gradientAttrSource(chain, g, "cy", true); ok {
+		e.CY = parseGradientLength(v)
+	}
+	if v, ok := gradientAttrSource(chain, g, "r", true); ok {
+		e.R = parseGradientLength(v)
+	}
+	// fx/fy default INDEPENDENTLY to the resolved cx/cy numbers (usvg
+	// resolve_number defaults: Length::new_number(cx as f64) / cy) — an
+	// explicit fx with no fy still focuses at (fx, cy_resolved).
+	fxFound := false
+	fyFound := false
+	if v, ok := gradientAttrSource(chain, g, "fx", true); ok {
+		e.FX = parseGradientLength(v)
+		fxFound = true
+		e.HasFocus = true
+	}
+	if v, ok := gradientAttrSource(chain, g, "fy", true); ok {
+		e.FY = parseGradientLength(v)
+		fyFound = true
+		e.HasFocus = true
+	}
+	if e.HasFocus {
+		if !fxFound {
+			e.FX = Length{Value: gradientCoordsIn(&e, e.CX, LengthAxisX, rs)}
+		}
+		if !fyFound {
+			e.FY = Length{Value: gradientCoordsIn(&e, e.CY, LengthAxisY, rs)}
+		}
+	}
+	if v, ok := gradientAttrSource(chain, g, "spreadMethod", false); ok {
+		e.Spread = spreadToken(v)
+		e.spreadSet = true
+	}
+	if v, ok := gradientAttrSource(chain, g, "gradientTransform", false); ok {
+		e.Transform = v
+	}
+
+	// r invalid (zero or negative) → solid paint of the last stop
+	// (usvg: !r.is_valid_length() → last stop color; spec 5.8.5 quote).
+	rv := gradientCoordsIn(&e, e.R, LengthAxisDiagonal, rs)
+	if rv <= 0 {
+		return solidStopBrush(stops[len(stops)-1]), true
+	}
+
 	mapping, ok := gradientMappingFrom(&e, bbox, rs)
 	if !ok {
 		return nil, false
 	}
 	cx := gradientCoordsIn(&e, e.CX, LengthAxisX, rs)
 	cy := gradientCoordsIn(&e, e.CY, LengthAxisY, rs)
-	r := gradientCoordsIn(&e, e.R, LengthAxisDiagonal, rs)
-	brush := render.NewRadialGradientBrush(cx, cy, 0, r)
+	brush := render.NewRadialGradientBrush(cx, cy, 0, rv)
 	brush.Stops = stops
 	brush.Extend = e.Spread.extendOf()
 	if e.HasFocus {
+		// No pre-correction: resvg feeds the raw fx/fy to tiny-skia's
+		// two-point conical shader, whose degenerate mask (no real t)
+		// produces the corpus-verified output for outside-focal cases.
 		fx := gradientCoordsIn(&e, e.FX, LengthAxisX, rs)
 		fy := gradientCoordsIn(&e, e.FY, LengthAxisY, rs)
 		if fx != cx || fy != cy {
@@ -285,7 +556,7 @@ func (d *Document) buildRadialBrush(g *RadialGradientElement, bbox render.Rect, 
 	if wrapped := wrapBrushIfMapped(brush, mapping); wrapped != nil {
 		return wrapped, true
 	}
-	return nil, false // singular mapping: paint invalid
+	return nil, false
 }
 
 // wrapBrushIfMapped returns the native brush when the mapping is identity,
@@ -427,11 +698,17 @@ func (d *Document) buildPatternBrushDepth(p *PatternElement, bbox render.Rect, r
 	}
 	tc := render.NewContext(tw, th)
 	defer tc.Close()
-	if e.Units == UnitsUserSpaceOnUse {
-		tc.Translate(-originX, -originY)
-	}
+	// Tile content renders 1:1 in tile space (resvg render_pattern_pixmap:
+	// content with scale only — no translate by (x,y); the tile is the
+	// snapshot of content-space [0,w]×[0,h] and the rect origin anchors
+	// the TILE placement). viewBox (when present) maps the viewBox onto
+	// the tile box; oBB content units scale content by the FILL BBOX
+	// dimensions — usvg to_user_coordinates pushes Transform::from_scale(
+	// bbox.width, bbox.height) with no shift ("no need to shift patterns").
 	if e.HasViewBox {
 		tc.Transform(viewportTransform(float64(tw), float64(th), e.ViewBox, e.Par))
+	} else if e.ContentUnits == UnitsObjectBoundingBox {
+		tc.Scale(bbox.Max.X-bbox.Min.X, bbox.Max.Y-bbox.Min.Y)
 	}
 	tileProps := evalProps(rootProps(), e.Attrs, d)
 	tileSt := renderState{doc: d, rs: rs, paintDepth: depth + 1}
@@ -446,10 +723,14 @@ func (d *Document) buildPatternBrushDepth(p *PatternElement, bbox render.Rect, r
 	m := render.Identity()
 	if e.Transform != "" {
 		pt, err := parseTransformList(e.Transform)
-		if err != nil {
-			return nil, false
+		if err != nil || singularMatrix(pt) {
+			// Invalid or singular patternTransform → identity (usvg
+			// default-transform semantics; resvg reference-probed).
+			pt = render.Identity()
 		}
-		m = pt
+		// SVG2 transform-origin on the pattern shifts the transform
+		// origin (usvg resolve_transform on PatternTransform).
+		m = withTransformOrigin(pt, &e.Attrs, rs)
 	}
 	var minv render.Matrix
 	if m != render.Identity() {

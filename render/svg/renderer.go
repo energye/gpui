@@ -9,6 +9,8 @@
 package svg
 
 import (
+	"strings"
+
 	"image/color"
 	"math"
 
@@ -67,6 +69,11 @@ func renderElement(dc *render.Context, elem Element, parent *props, st *renderSt
 		return
 	}
 	a := elem.attrs()
+	if a != nil && a.condInvalid {
+		// Failed conditional processing: element and subtree render nothing
+		// (converter is_visible_element), including via <use>.
+		return
+	}
 	if _, isText := elem.(*TextElement); isText {
 		// <text> manages its own clip/mask AFTER layout (the glyph bounding
 		// box only exists once the run is shaped) — see renderTextElement.
@@ -240,9 +247,22 @@ func renderElementBody(dc *render.Context, elem Element, a *Attrs, parent *props
 	case *PolylineElement:
 		renderPolyline(dc, e, a, p, &child)
 	case *GroupElement:
+		if e.inert {
+			// Invisible container: content is only reachable via <use>.
+			return
+		}
 		dc.Push()
-		applyElementTransform(dc, a)
-		renderElements(dc, e.Children, p, &child)
+		applyElementTransform(dc, a, st)
+		// opacity on a container composites the subtree as a group
+		// (SVG group opacity); shapes fold it into the paint color
+		// instead (equivalent for a single fill).
+		if p.opacity < 1 {
+			dc.PushLayer(render.BlendNormal, p.opacity)
+			renderElements(dc, e.Children, p, &child)
+			dc.PopLayer()
+		} else {
+			renderElements(dc, e.Children, p, &child)
+		}
 		dc.Pop()
 	case *DefsElement:
 		// Reference-only container: never rendered directly.
@@ -274,7 +294,7 @@ func renderPath(dc *render.Context, e *PathElement, a *Attrs, p *props, st *rend
 	}
 
 	dc.Push()
-	applyElementTransform(dc, a)
+	applyElementTransform(dc, a, st)
 
 	fillAndStroke(dc, a, p, st, path.BoundingBox(), func() {
 		dc.DrawPath(path)
@@ -290,7 +310,7 @@ func renderCircle(dc *render.Context, e *CircleElement, a *Attrs, p *props, st *
 	r := e.R.Resolve(st.rs, LengthAxisDiagonal)
 	bbox := render.Rect{Min: render.Point{X: cx - r, Y: cy - r}, Max: render.Point{X: cx + r, Y: cy + r}}
 	dc.Push()
-	applyElementTransform(dc, a)
+	applyElementTransform(dc, a, st)
 
 	fillAndStroke(dc, a, p, st, bbox, func() {
 		dc.DrawCircle(cx, cy, r)
@@ -307,7 +327,7 @@ func renderRect(dc *render.Context, e *RectElement, a *Attrs, p *props, st *rend
 	h := e.H.Resolve(st.rs, LengthAxisY)
 	bbox := render.Rect{Min: render.Point{X: x, Y: y}, Max: render.Point{X: x + w, Y: y + h}}
 	dc.Push()
-	applyElementTransform(dc, a)
+	applyElementTransform(dc, a, st)
 
 	fillAndStroke(dc, a, p, st, bbox, func() {
 		if e.RX.Value > 0 || e.RY.Value > 0 {
@@ -334,7 +354,7 @@ func renderEllipse(dc *render.Context, e *EllipseElement, a *Attrs, p *props, st
 	ry := e.RY.Resolve(st.rs, LengthAxisY)
 	bbox := render.Rect{Min: render.Point{X: cx - rx, Y: cy - ry}, Max: render.Point{X: cx + rx, Y: cy + ry}}
 	dc.Push()
-	applyElementTransform(dc, a)
+	applyElementTransform(dc, a, st)
 
 	fillAndStroke(dc, a, p, st, bbox, func() {
 		dc.DrawEllipse(cx, cy, rx, ry)
@@ -350,7 +370,7 @@ func renderLine(dc *render.Context, e *LineElement, a *Attrs, p *props, st *rend
 		return
 	}
 	dc.Push()
-	applyElementTransform(dc, a)
+	applyElementTransform(dc, a, st)
 
 	if !applyStrokeAttrs(dc, p, st, render.Rect{}) {
 		dc.Pop()
@@ -370,7 +390,7 @@ func renderPolygon(dc *render.Context, e *PolygonElement, a *Attrs, p *props, st
 	}
 
 	dc.Push()
-	applyElementTransform(dc, a)
+	applyElementTransform(dc, a, st)
 
 	fillAndStroke(dc, a, p, st, pointsBBox(e.Points, st.rs), func() {
 		dc.ClearPath()
@@ -387,7 +407,7 @@ func renderPolyline(dc *render.Context, e *PolylineElement, a *Attrs, p *props, 
 	}
 
 	dc.Push()
-	applyElementTransform(dc, a)
+	applyElementTransform(dc, a, st)
 
 	fillAndStroke(dc, a, p, st, pointsBBox(e.Points, st.rs), func() {
 		dc.ClearPath()
@@ -404,7 +424,7 @@ func renderUse(dc *render.Context, e *UseElement, p *props, st *renderState) {
 		return
 	}
 	dc.Push()
-	applyElementTransform(dc, &e.Attrs)
+	applyElementTransform(dc, &e.Attrs, st)
 
 	dx := e.X.Resolve(st.rs, LengthAxisX)
 	dy := e.Y.Resolve(st.rs, LengthAxisY)
@@ -418,24 +438,62 @@ func renderUse(dc *render.Context, e *UseElement, p *props, st *renderState) {
 	inner := *st
 	inner.rs.FontSize = useProps.fontSize
 
+	// opacity on <use> composites the whole instance as a group
+	// (usvg: the use group carries the element opacity).
+	if useProps.opacity < 1 {
+		dc.PushLayer(render.BlendNormal, useProps.opacity)
+		defer dc.PopLayer()
+	}
+
 	if e.kind == RefKindSymbol {
 		sym, _ := e.target.(*SymbolElement)
 		if sym == nil {
 			dc.Pop()
 			return
 		}
-		// Symbol viewport: use width/height (default 100% of the current
-		// viewport), clipped, with the symbol's own viewBox/pAR mapping.
-		vw := e.W.Resolve(st.rs, LengthAxisX)
-		vh := e.H.Resolve(st.rs, LengthAxisY)
-		if vw > 0 && vh > 0 {
+		// Symbol viewport: use width/height override the symbol's own
+		// (symbols have none — unset use w/h defaults to 100% of the
+		// current viewport); clipped unless overflow=visible. The symbol
+		// itself acts as a group: its attributes (opacity, fill, …)
+		// cascade into the content (usvg symbol conversion).
+		symProps := evalProps(useProps, sym.Attrs, st.doc)
+		vw, vh := symbolViewportSize(e, st)
+		if vw > 0 && vh > 0 && overflowClips(sym.Attrs.Overflow) {
 			dc.ClipRect(0, 0, vw, vh)
 		}
 		if sym.HasViewBox {
 			dc.Transform(viewportTransform(vw, vh, sym.ViewBox, sym.Par))
 		}
 		inner.rs.ViewportW, inner.rs.ViewportH = vw, vh
-		renderElements(dc, sym.Children, useProps, &inner)
+		if symProps.opacity < 1 {
+			dc.PushLayer(render.BlendNormal, symProps.opacity)
+			renderElements(dc, sym.Children, symProps, &inner)
+			dc.PopLayer()
+		} else {
+			renderElements(dc, sym.Children, symProps, &inner)
+		}
+	} else if svgTarget, isSVG := e.target.(*SVGElement); isSVG {
+		// use→<svg>: the use width/height REPLACE the svg's own width/
+		// height only when set (usvg use_node); unset keeps the svg's
+		// (100% default from the nested-svg parse). The svg's viewBox
+		// maps onto the viewport; no viewBox renders content 1:1.
+		vw, vh := svgViewportSize(e, svgTarget, st)
+		// The referenced svg's own x/y offset its viewport (renderNestedSVG
+		// semantics for a direct nested svg apply here too).
+		if sdx := svgTarget.X.Resolve(st.rs, LengthAxisX); sdx != 0 {
+			dc.Translate(sdx, 0)
+		}
+		if sdy := svgTarget.Y.Resolve(st.rs, LengthAxisY); sdy != 0 {
+			dc.Translate(0, sdy)
+		}
+		if vw > 0 && vh > 0 && overflowClips(svgTarget.Attrs.Overflow) {
+			dc.ClipRect(0, 0, vw, vh)
+		}
+		if svgTarget.HasViewBox {
+			dc.Transform(viewportTransform(vw, vh, svgTarget.ViewBox, svgTarget.Par))
+		}
+		inner.rs.ViewportW, inner.rs.ViewportH = vw, vh
+		renderElements(dc, svgTarget.Children, useProps, &inner)
 	} else {
 		// Depth is bounded: the static reference graph was validated at
 		// parse (cycles refused, depth ≤ 64).
@@ -453,11 +511,11 @@ func renderImageElement(dc *render.Context, e *ImageElement, a *Attrs, p *props,
 	if !e.HasImage {
 		return // refused/undecodable at parse (warning already recorded)
 	}
+	// Geometry defaults (intrinsic size / one-sided aspect) were applied
+	// at parse; an explicit zero or negative side leaves the rect invalid
+	// (usvg NonZeroRect) and the image is skipped.
 	vw := e.W.Resolve(st.rs, LengthAxisX)
 	vh := e.H.Resolve(st.rs, LengthAxisY)
-	if vw <= 0 || vh <= 0 {
-		vw, vh = float64(e.ImgW), float64(e.ImgH) // intrinsic default
-	}
 	if vw <= 0 || vh <= 0 {
 		return
 	}
@@ -465,10 +523,21 @@ func renderImageElement(dc *render.Context, e *ImageElement, a *Attrs, p *props,
 	y := e.Y.Resolve(st.rs, LengthAxisY)
 
 	dc.Push()
-	applyElementTransform(dc, a)
+	applyElementTransform(dc, a, st)
 	dc.Translate(x, y)
 	// Viewport clip (slice overflow must not leak).
 	dc.ClipRect(0, 0, vw, vh)
+	if e.SubDoc != nil {
+		// SVG image source (usvg ImageKind::SVG + render_vector): the
+		// sub-document's intrinsic size fits the image slot through the
+		// image's preserveAspectRatio, then the sub-document maps its own
+		// viewBox onto that space (two-step = usvg's aligned rect + the
+		// sub-tree's own viewBox transform).
+		dc.Transform(viewportTransform(vw, vh, ViewBox{0, 0, float64(e.ImgW), float64(e.ImgH)}, e.Par))
+		e.SubDoc.renderInternal(dc, 0, 0, float64(e.ImgW), float64(e.ImgH), nil)
+		dc.Pop()
+		return
+	}
 	// Map the intrinsic image rect into the viewport with pAR semantics.
 	dc.Transform(viewportTransform(vw, vh, ViewBox{0, 0, float64(e.ImgW), float64(e.ImgH)}, e.Par))
 	// Decode lazily at render from the stored raw bytes (cache-friendly: the
@@ -486,7 +555,7 @@ func renderImageElement(dc *render.Context, e *ImageElement, a *Attrs, p *props,
 // viewBox/pAR mapping, clipped by default.
 func renderNestedSVG(dc *render.Context, e *SVGElement, p *props, st *renderState) {
 	dc.Push()
-	applyElementTransform(dc, &e.Attrs)
+	applyElementTransform(dc, &e.Attrs, st)
 
 	vw := e.W.Resolve(st.rs, LengthAxisX)
 	vh := e.H.Resolve(st.rs, LengthAxisY)
@@ -496,7 +565,11 @@ func renderNestedSVG(dc *render.Context, e *SVGElement, p *props, st *renderStat
 		dc.Translate(dx, dy)
 	}
 
-	if !e.OverflowVisible {
+	// usvg get_clip_rect: overflow visible AND auto leave the nested svg
+	// unclipped; a viewBox-only nested svg (no width/height) is unclipped
+	// as well — only an explicit rect (width AND height) with a clipping
+	// overflow gets the viewport clip.
+	if overflowClips(e.Attrs.Overflow) && e.hasW && e.hasH {
 		if vw > 0 && vh > 0 {
 			dc.ClipRect(0, 0, vw, vh)
 		} else {
@@ -875,9 +948,17 @@ func setColorWithOpacity(dc *render.Context, c color.Color, opacity float64) {
 }
 
 // applyElementTransform applies the element's transform attribute to the context.
-func applyElementTransform(dc *render.Context, a *Attrs) {
+func applyElementTransform(dc *render.Context, a *Attrs, st *renderState) {
 	if a.Transform != "" {
-		// Errors in transforms are silently ignored (best effort).
+		// Errors in transforms are silently ignored (best effort). The
+		// SVG2 transform-origin shifts the origin (usvg resolve_transform).
+		if a.TransformOrigin != "" && st != nil {
+			if m, err := parseTransformList(a.Transform); err == nil {
+				m = withTransformOrigin(m, a, st.rs)
+				dc.Transform(m)
+				return
+			}
+		}
 		_ = applyTransform(dc, a.Transform)
 	}
 }
@@ -897,4 +978,138 @@ func drawPointsPath(dc *render.Context, points []Length, closed bool, rs RefSpac
 	if closed {
 		dc.ClosePath()
 	}
+}
+
+// measureContentBBox unions the rendered-tree geometry bounds in user
+// space (usvg calculate_svg_bbox: the tree's absolute bounding box).
+// Containers recurse with composed transforms; defs/symbol/clip/mask
+// content is reference-only and excluded; text contributes its layout
+// bounds when a resolver is wired.
+func (d *Document) measureContentBBox() (render.Rect, bool) {
+	st := &renderState{doc: d}
+	var walk func(elems []Element, m render.Matrix) (render.Rect, bool)
+	union := func(out render.Rect, ok bool, r render.Rect, rok bool) (render.Rect, bool) {
+		if !rok {
+			return out, ok
+		}
+		if !ok {
+			return r, true
+		}
+		if r.Min.X < out.Min.X {
+			out.Min.X = r.Min.X
+		}
+		if r.Min.Y < out.Min.Y {
+			out.Min.Y = r.Min.Y
+		}
+		if r.Max.X > out.Max.X {
+			out.Max.X = r.Max.X
+		}
+		if r.Max.Y > out.Max.Y {
+			out.Max.Y = r.Max.Y
+		}
+		return out, true
+	}
+	apply := func(bb render.Rect, m render.Matrix) render.Rect {
+		corners := [4]render.Point{
+			{X: bb.Min.X, Y: bb.Min.Y}, {X: bb.Max.X, Y: bb.Min.Y},
+			{X: bb.Max.X, Y: bb.Max.Y}, {X: bb.Min.X, Y: bb.Max.Y},
+		}
+		out := render.Rect{}
+		for i, c := range corners {
+			p := m.TransformPoint(c)
+			if i == 0 {
+				out = render.Rect{Min: p, Max: p}
+				continue
+			}
+			if p.X < out.Min.X {
+				out.Min.X = p.X
+			}
+			if p.Y < out.Min.Y {
+				out.Min.Y = p.Y
+			}
+			if p.X > out.Max.X {
+				out.Max.X = p.X
+			}
+			if p.Y > out.Max.Y {
+				out.Max.Y = p.Y
+			}
+		}
+		return out
+	}
+	walk = func(elems []Element, m render.Matrix) (render.Rect, bool) {
+		var out render.Rect
+		any := false
+		for _, e := range elems {
+			if e == nil {
+				continue
+			}
+			em := m
+			if a := e.attrs(); a != nil && a.Transform != "" {
+				if t, err := parseTransformList(a.Transform); err == nil {
+					em = m.Multiply(t)
+				}
+			}
+			switch t := e.(type) {
+			case *GroupElement:
+				if r, ok := walk(t.Children, em); ok {
+					out, any = union(out, any, r, true)
+				}
+			case *SVGElement:
+				if r, ok := walk(t.Children, em); ok {
+					out, any = union(out, any, r, true)
+				}
+			case *DefsElement, *SymbolElement, *ClipPathElement, *MaskElement,
+				*StyleElement, *LinearGradientElement, *RadialGradientElement,
+				*PatternElement, *FilterElement:
+				// reference-only or paint-server content: no direct bounds
+			default:
+				if bb, ok := elementBBoxRaw(e, st); ok {
+					out, any = union(out, any, apply(bb, em), true)
+				}
+			}
+		}
+		return out, any
+	}
+	return walk(d.Elements, render.Identity())
+}
+
+// symbolViewportSize resolves the use→symbol viewport: explicit use
+// width/height win; missing sides default to 100% of the current viewport
+// (usvg use_node convert defaults).
+func symbolViewportSize(e *UseElement, st *renderState) (float64, float64) {
+	vw := e.W.Resolve(st.rs, LengthAxisX)
+	vh := e.H.Resolve(st.rs, LengthAxisY)
+	if !e.hasW {
+		vw = Length{Value: 100, Unit: LengthUnitPercent}.Resolve(st.rs, LengthAxisX)
+	}
+	if !e.hasH {
+		vh = Length{Value: 100, Unit: LengthUnitPercent}.Resolve(st.rs, LengthAxisY)
+	}
+	return vw, vh
+}
+
+// svgViewportSize resolves the use→svg viewport: explicit use sides
+// replace the svg's own; missing use sides keep the svg element's
+// (already defaulted to 100% at parse).
+func svgViewportSize(e *UseElement, svg *SVGElement, st *renderState) (float64, float64) {
+	vw, vh := svg.W.Resolve(st.rs, LengthAxisX), svg.H.Resolve(st.rs, LengthAxisY)
+	if e.hasW {
+		vw = e.W.Resolve(st.rs, LengthAxisX)
+	}
+	if e.hasH {
+		vh = e.H.Resolve(st.rs, LengthAxisY)
+	}
+	return vw, vh
+}
+
+// overflowClips reports whether an overflow value asks for viewport
+// clipping (usvg get_clip_rect: explicit "visible"/"auto" leave the
+// viewport unclipped; a missing attribute clips — corpus-verified on
+// deeply-nested-svg vs nested-svg-with-overflow-auto).
+func overflowClips(overflow string) bool {
+	switch strings.ToLower(strings.TrimSpace(overflow)) {
+	case "visible", "auto":
+		return false
+	}
+	return true
 }
