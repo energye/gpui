@@ -399,6 +399,7 @@
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|
 | `Brush` 接口 / `Solid` / `SolidRGB` / `SolidRGBA` / `SolidHex` + `SolidBrush` 方法（WithAlpha/Opaque/Transparent/Lerp） | 画刷接口与实色画刷构造（RGB/RGBA/十六进制/透明度链式） | 实色画刷 | ✅ |
+| `BrushWithAlpha(b Brush, alpha float64) Brush` | 任意画刷的画笔级 alpha 折算（Skia paint alpha 语义）：非实色涂料（渐变/图案）的逐采样色按系数乘 alpha；实色走颜色折算不经此。SVG 层元素 opacity 折进 paint-server 填充/描边用（P3.8 批 4d：showcase 反射带渐变+opacity 洞） | 画刷透明度折算 | 🔌 已验证待接线（`render/svg` 调用方 + c4d 钉测；render 包外零消费者） |
 | `LinearGradientBrush` + `NewLinearGradientBrush`（AddColorStop/SetExtend/ColorAt） | 两端点线性渐变画刷（色标/边界模式/求色）；几何随 CTM（填充/描边按设备空间重述） | 线性渐变 | ✅（水滴/矢量真窗实测） |
 | `RadialGradientBrush` + `NewRadialGradientBrush`（SetFocus/AddColorStop/SetExtend/ColorAt） | 圆心发散的径向渐变（支持偏心焦点）；几何随 CTM，相似变换折中心/焦点/半径 | 径向渐变 | ✅（水滴真窗实测） |
 | `SweepGradientBrush` + `NewSweepGradientBrush` / `SweepGradient` | 圆锥（扫描式）渐变画刷；几何随 CTM，中心平移/旋转折入角度（镜像走逆取样） | 圆锥渐变 | ✅ |
