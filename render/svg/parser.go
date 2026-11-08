@@ -9,6 +9,7 @@
 package svg
 
 import (
+	"reflect"
 	"bytes"
 	"encoding/base64"
 	"encoding/xml"
@@ -200,8 +201,27 @@ func parseChildren(pc *parseCtx) ([]Element, error) {
 
 // parseElement parses a single SVG element from a start element.
 // Returns nil for constructs that produce no node (descriptive elements,
-// collected-only content already registered elsewhere).
+// collected-only content already registered elsewhere, elements dropped by
+// tolerance rules). The nil is normalized at this boundary: a concrete
+// parser's `return nil, nil` is a typed nil that would survive `!= nil`
+// checks once wrapped in the Element interface.
 func parseElement(pc *parseCtx, se xml.StartElement) (Element, error) {
+	e, err := parseElementInner(pc, se)
+	if e == nil || isNilElement(e) {
+		return nil, err
+	}
+	return e, err
+}
+
+// isNilElement reports a typed-nil Element: a concrete parser's `return
+// nil, nil` wraps (*T)(nil) into the interface, where it survives both
+// `== nil` and `!= nil` checks (the interface holds a non-nil type word).
+func isNilElement(e Element) bool {
+	v := reflect.ValueOf(e)
+	return v.Kind() == reflect.Pointer && v.IsNil()
+}
+
+func parseElementInner(pc *parseCtx, se xml.StartElement) (Element, error) {
 	switch se.Name.Local {
 	case "path":
 		return parsePathElement(pc, se)
@@ -549,15 +569,18 @@ func parsePolygonElement(pc *parseCtx, se xml.StartElement) (*PolygonElement, er
 	elem := &PolygonElement{Attrs: parseAttrs(pc, se)}
 	for _, attr := range se.Attr {
 		if attr.Name.Local == "points" {
-			pts, err := parsePoints(pc, "polygon", attr.Value)
-			if err != nil {
-				return nil, fmt.Errorf("svg: <polygon> points: %w", err)
-			}
-			elem.Points = pts
+			elem.Points = parsePoints(pc, "polygon", attr.Value)
 		}
 	}
+	// usvg points_to_path: 'polygon' must contain at least 2 points — fewer
+	// skips the element (warning), the document continues. The XML stream is
+	// consumed first: the closing tag must be read even when dropping it.
 	if err := pc.dec.Skip(); err != nil {
 		return nil, fmt.Errorf("svg: error reading <polygon>: %w", err)
+	}
+	if len(elem.Points) < 4 {
+		pc.warn("polygon", "points", warnInvalidValue, "less than 2 points, element skipped")
+		return nil, nil //nolint:nilnil
 	}
 	return elem, nil
 }
@@ -567,15 +590,16 @@ func parsePolylineElement(pc *parseCtx, se xml.StartElement) (*PolylineElement, 
 	elem := &PolylineElement{Attrs: parseAttrs(pc, se)}
 	for _, attr := range se.Attr {
 		if attr.Name.Local == "points" {
-			pts, err := parsePoints(pc, "polyline", attr.Value)
-			if err != nil {
-				return nil, fmt.Errorf("svg: <polyline> points: %w", err)
-			}
-			elem.Points = pts
+			elem.Points = parsePoints(pc, "polyline", attr.Value)
 		}
 	}
+	// usvg points_to_path: 'polyline' must contain at least 2 points.
 	if err := pc.dec.Skip(); err != nil {
 		return nil, fmt.Errorf("svg: error reading <polyline>: %w", err)
+	}
+	if len(elem.Points) < 4 {
+		pc.warn("polyline", "points", warnInvalidValue, "less than 2 points, element skipped")
+		return nil, nil //nolint:nilnil
 	}
 	return elem, nil
 }
@@ -1164,6 +1188,16 @@ func parseTextLike(pc *parseCtx, se xml.StartElement, tag string) (Element, erro
 				}
 				continue
 			}
+			if t.Name.Local == "textPath" {
+				sub, err := parseTextPathElement(pc, t)
+				if err != nil {
+					return nil, err
+				}
+				if sub != nil {
+					*childrenOut = append(*childrenOut, sub)
+				}
+				continue
+			}
 			if err := pc.dec.Skip(); err != nil {
 				return nil, err
 			}
@@ -1175,6 +1209,64 @@ func parseTextLike(pc *parseCtx, se xml.StartElement, tag string) (Element, erro
 		return textElem, nil
 	}
 	return spanElem, nil
+}
+
+// parseTextPathElement parses <textPath> (P3.8 4b-4): href + startOffset
+// attributes, mixed text/tspan/nested-textPath content. The SVG2 `path`
+// attribute and side/method/spacing are parsed-and-ignored like resvg
+// v0.42 (a missing/invalid href falls back to the normal text flow).
+func parseTextPathElement(pc *parseCtx, se xml.StartElement) (*TextPathElement, error) {
+	elem := &TextPathElement{Attrs: parseAttrs(pc, se)}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "href", "xlink:href":
+			// First one wins (resvg); an href without the "#id" form stays
+			// unresolved → normal flow at render.
+			if elem.Href == "" {
+				elem.Href = attr.Value
+			}
+		case "startOffset":
+			elem.StartOffset = attr.Value
+		}
+	}
+	depth := 1
+	for depth > 0 {
+		tok, err := pc.dec.Token()
+		if err != nil {
+			return nil, fmt.Errorf("svg: error reading <textPath>: %w", err)
+		}
+		switch t := tok.(type) {
+		case xml.CharData:
+			elem.Text += string(t)
+		case xml.StartElement:
+			if t.Name.Local == "tspan" {
+				sub, err := parseTspanElement(pc, t)
+				if err != nil {
+					return nil, err
+				}
+				if sub != nil {
+					elem.Children = append(elem.Children, sub)
+				}
+				continue
+			}
+			if t.Name.Local == "textPath" {
+				sub, err := parseTextPathElement(pc, t)
+				if err != nil {
+					return nil, err
+				}
+				if sub != nil {
+					elem.Children = append(elem.Children, sub)
+				}
+				continue
+			}
+			if err := pc.dec.Skip(); err != nil {
+				return nil, err
+			}
+		case xml.EndElement:
+			depth--
+		}
+	}
+	return elem, nil
 }
 
 // parseLengthList parses a whitespace/comma separated x/y/dx/dy list.
@@ -1717,20 +1809,24 @@ func parseLightSource(se xml.StartElement) *LightSource {
 }
 
 // parsePoints parses an SVG points attribute value into alternating x/y
-// lengths ("x1,y1 x2,y2" or "x1 y1 x2 y2").
-func parsePoints(pc *parseCtx, elem, s string) ([]Length, error) {
+// lengths ("x1,y1 x2,y2" or "x1 y1 x2 y2") with the usvg PointsParser
+// tolerance (P3.8 4b-4): pairs are collected until the first token pair that
+// fails to parse — that token and everything after it is ignored
+// (stop-processing-on-invalid-data); a trailing odd coordinate without a
+// partner is dropped (ignore-odd-points). A malformed attribute therefore
+// degrades to a point prefix instead of failing the whole document; the
+// element-level "<2 points → skip" rule lives at the call sites.
+func parsePoints(pc *parseCtx, elem, s string) []Length {
 	s = strings.ReplaceAll(s, ",", " ")
 	parts := strings.Fields(s)
-	if len(parts)%2 != 0 {
-		return nil, fmt.Errorf("odd number of coordinate values (%d)", len(parts))
-	}
-	points := make([]Length, len(parts))
-	for i, p := range parts {
-		l, err := parseLength(p)
-		if err != nil {
-			return nil, fmt.Errorf("invalid coordinate %q: %w", p, err)
+	var points []Length
+	for i := 0; i+1 < len(parts); i += 2 {
+		x, errx := parseLength(parts[i])
+		y, erry := parseLength(parts[i+1])
+		if errx != nil || erry != nil {
+			break
 		}
-		points[i] = l
+		points = append(points, x, y)
 	}
-	return points, nil
+	return points
 }

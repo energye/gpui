@@ -47,7 +47,7 @@ func validateReferences(pc *parseCtx) {
 // unmatched family is a named warning and marks the element not-rendered
 // (fail-closed, without mutating document state during render).
 func validateTextFonts(pc *parseCtx, te *TextElement) {
-	spans := flattenTextSpans(*te)
+	spans := flattenTextSpans(*te, nil)
 	for _, sp := range spans {
 		family := familyList(sp.attrs)[0]
 		if family == "" {

@@ -400,6 +400,22 @@ type TspanElement struct {
 
 func (e *TspanElement) attrs() *Attrs { return &e.Attrs }
 
+// TextPathElement represents <textPath> (P3.8 4b-4): text laid out along a
+// referenced path's arc length (resvg usvg resolve_text_flow + layout.rs
+// collect_normals semantics). The href target converts through the shape
+// path builder (any shape works — rect outlines too) with the target's own
+// transform baked in; the SVG2 `path` attribute is a registered no-op like
+// resvg v0.42 (no href → the text falls back to the normal flow).
+type TextPathElement struct {
+	Attrs    Attrs
+	Text     string
+	Href     string // "#id" reference; "path1" forms and missing hrefs → normal flow
+	StartOffset string // raw (length or percent of the path length)
+	Children []Element // TspanElement / nested TextPathElement
+}
+
+func (e *TextPathElement) attrs() *Attrs { return &e.Attrs }
+
 // MaskElement represents <mask>: luminance mask content with a region
 // (maskUnits on x/y/width/height; maskContentUnits for the children).
 type MaskElement struct {

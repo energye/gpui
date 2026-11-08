@@ -275,6 +275,13 @@
 | `DrawShaderMask(c Canvas, x,y,w,h float64, mask Brush, draw func())` | `Push` → `PushLayerIsolated(1)` → `Push` → `ClipRect(bounds)` → `draw()` → `ClearPath` → `SetFillBrush(mask)` → `SetBlendMode(DstIn)` → 强制 AA → 画满 bounds 矩形 → 还原画刷/混合 → 三层 `Pop`。`mask==nil` 直通 `draw()`；调用后 CTM/裁剪/画刷/混合/AA 全部还原。掩码只调制整层（不是每条命令各乘一次），bounds 外内容被裁掉 | 用户空间掩码 | 🔌 **已验证待接线**：`render/draw_shader_mask_test.go`（CPU 契约）+ `_gpu_test.go`（固定混合取点）+ `render/internal/gpu/brush_blend_rect_test.go` + `render/recording/shader_mask_test.go` + `ui/rendering/paint_context_shadermask_test.go`；直调真窗 `ui_wr_shadermask`（像素 18/18、retained≡direct 9/9、Golden 864000px 两连 0.0000%、抓屏 vs 快照 0 差）；生产消费者为零 |
 
 
+### 3.21 path_measure + svg textPath（1 类型+2 方法+1 子包类型）· 路径弧长参数化与沿路径文字（2026-11-08 P3.8 批 4b-4）
+| API | 功能 | 精简 | 状态 |
+|-----|------|------|------|
+| `render.PathMeasure` + `NewPathMeasure(*Path, accuracy)` + `Length()` + `Sample(s) (x,y,angleDeg,ok)` | 路径弧长参数化（resvg usvg layout.rs collect_normals 逐字语义：段→三次曲线映射[line 升 1/3-2/3 点、quad 精确升阶、conic ToQuads、Close 回子路径起点的连续累计]、自适应弧长 + 64 弦表线性反解距离→t、切线角=tangent-90°；s 出 [0,total] 返回 !ok） | 路径弧长测量 | 🔌 P3.8 4b-4 textPath 语料组（44 枚零 far）；无生产消费者 |
+| `svg.TextPathElement`（`<textPath>`：Href/StartOffset/Text/Children）+ `FilterElement.FloodColor/FloodOpacity`（4c-0 顺登） | textPath 解析面：href+startOffset，text/tspan/嵌套 textPath 混合内容；SVG2 `path` 属性与 side/method/spacing 解析即忽略（resvg v0.42 同口径）；无 href/非形状目标→普通流回退 | textPath 解析面 | 🔌 同上 + parse 钉测 |
+| `svg.parsePoints` 容错（usvg PointsParser 语义：坏 token 停止前缀保留、奇数尾丢弃、<2 点跳元素+Warning——polyline/polygon 4b-1 fail-fast 拒整文档改容错降级） | shapes 坏数据容错 + `parseElement` typed-nil 出口归一（reflect IsNil——`*PolygonElement(nil)` 装接口绕过 `!= nil` 检查的解析器洞） | 解析容错 | 🔌 shapes 组 error 6→0（95.4%）+ 坏数据钉测 |
+
 ### 3.20 svg_turbulence（2 方法+2 类型+3 常量）· SVG 湍流噪声与卷积矩阵（2026-11-08 P3.8 批 4b-3）
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|

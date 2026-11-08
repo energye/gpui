@@ -50,39 +50,98 @@ func resolveFont(family string, weight text.FontWeight, italic bool) (*text.Font
 	return src, true
 }
 
-// textSpan is one flattened run of <text>/<tspan> content.
+// textSpan is one flattened run of <text>/<tspan>/<textPath> content.
 type textSpan struct {
 	attrs  Attrs
 	text   string
 	x, y   []Length
 	dx, dy []Length
 	rotate []float64
+	// tp carries the <textPath> placement when the run lives inside one
+	// (nil = normal flow).
+	tp *textPathSpan
+}
+
+// textPathSpan is a resolved <textPath> placement: the referenced path's
+// geometry with the target's own transform baked in (resvg resolve_text_flow)
+// plus the resolved startOffset (percentages against the path length).
+type textPathSpan struct {
+	path        *render.Path
+	startOffset float64
 }
 
 // flattenTextSpans walks a <text> tree into a flat run list (document order).
-// Tspan attributes inherit the unset fields from their <text> ancestor.
-func flattenTextSpans(root TextElement) []textSpan {
+// Tspan attributes inherit the unset fields from their ancestors
+// (text → textPath → tspan). A <textPath> subtree resolves its href through
+// the shape path builder (any shape works; missing/invalid hrefs leave the
+// runs in the normal flow — resvg's fallback).
+func flattenTextSpans(root TextElement, st *renderState) []textSpan {
 	var out []textSpan
 	if strings.TrimSpace(root.Text) != "" {
 		out = append(out, textSpan{attrs: root.Attrs, text: root.Text,
 			x: root.X, y: root.Y, dx: root.DX, dy: root.DY, rotate: root.Rotate})
 	}
-	var walk func(children []Element)
-	walk = func(children []Element) {
+	var walk func(children []Element, base Attrs, tp *textPathSpan)
+	walk = func(children []Element, base Attrs, tp *textPathSpan) {
 		for _, c := range children {
-			ts, ok := c.(*TspanElement)
-			if !ok {
-				continue
+			switch t := c.(type) {
+			case *TspanElement:
+				attrs := inheritTextAttrs(base, t.Attrs)
+				if strings.TrimSpace(t.Text) != "" {
+					out = append(out, textSpan{attrs: attrs, text: t.Text,
+						x: t.X, y: t.Y, dx: t.DX, dy: t.DY, rotate: t.Rotate, tp: tp})
+				}
+				walk(t.Children, attrs, tp)
+			case *TextPathElement:
+				attrs := inheritTextAttrs(base, t.Attrs)
+				// st is nil at parse-time font validation — href resolution
+				// only happens for the render call.
+				var tp2 *textPathSpan
+				if st != nil {
+					tp2 = resolveTextPath(t, st)
+				}
+				if strings.TrimSpace(t.Text) != "" {
+					out = append(out, textSpan{attrs: attrs, text: t.Text, tp: tp2})
+				}
+				walk(t.Children, attrs, tp2)
 			}
-			if strings.TrimSpace(ts.Text) != "" {
-				out = append(out, textSpan{attrs: inheritTextAttrs(root.Attrs, ts.Attrs), text: ts.Text,
-					x: ts.X, y: ts.Y, dx: ts.DX, dy: ts.DY, rotate: ts.Rotate})
-			}
-			walk(ts.Children)
 		}
 	}
-	walk(root.Children)
+	walk(root.Children, root.Attrs, nil)
 	return out
+}
+
+// resolveTextPath resolves a <textPath> href into the referenced shape's
+// path (target transform baked, resvg resolve_text_flow) and the resolved
+// startOffset (percent of the path length, usvg semantics; other lengths
+// resolve in user space). No "#id" form or non-shape target → nil (normal
+// text flow), matching resvg's TextFlow fallback.
+func resolveTextPath(t *TextPathElement, st *renderState) *textPathSpan {
+	ref := strings.TrimSpace(t.Href)
+	if !strings.HasPrefix(ref, "#") {
+		return nil
+	}
+	target := st.doc.ElementByID(strings.TrimPrefix(ref, "#"))
+	if target == nil {
+		return nil
+	}
+	p, ok := shapeRenderPath(target, st)
+	if !ok {
+		return nil
+	}
+	tp := &textPathSpan{path: p}
+	so := strings.TrimSpace(t.StartOffset)
+	if so == "" {
+		return tp
+	}
+	if l, err := parseLength(so); err == nil {
+		if l.Unit == LengthUnitPercent {
+			tp.startOffset = render.NewPathMeasure(p, 0.5).Length() * l.Value / 100
+		} else {
+			tp.startOffset = l.Resolve(st.rs, LengthAxisX)
+		}
+	}
+	return tp
 }
 
 // inheritTextAttrs fills the child's unset text/paint fields from the
@@ -133,7 +192,7 @@ func renderTextElement(dc *render.Context, e *TextElement, a *Attrs, p *props, s
 	if strings.TrimSpace(e.Text) == "" && len(e.Children) == 0 {
 		return
 	}
-	spans := flattenTextSpans(*e)
+	spans := flattenTextSpans(*e, st)
 	if len(spans) == 0 {
 		return
 	}
@@ -183,10 +242,14 @@ func renderTextElement(dc *render.Context, e *TextElement, a *Attrs, p *props, s
 			adv += glyphs[i].XAdvance + spacing
 		}
 		shaped = append(shaped, shapedSpan{glyphs: glyphs, adv: adv})
-		totalAdv += adv
+		if sp.tp == nil {
+			totalAdv += adv
+		}
 	}
 
-	// Pass 2: text-anchor shifts the whole run.
+	// Pass 2: text-anchor shifts the whole run. Runs inside a <textPath>
+	// anchor independently (their own group total — resvg's per-chunk
+	// process_anchor), so only the normal-flow spans count here.
 	anchorShift := 0.0
 	switch textAnchorOf(spans[0].attrs) {
 	case "middle":
@@ -199,6 +262,45 @@ func renderTextElement(dc *render.Context, e *TextElement, a *Attrs, p *props, s
 	// Pass 3: place glyphs. x/y/dx/dy/rotate lists index PER SPAN (each
 	// element's lists restart at its own first character, SVG 1.1); the
 	// text-anchor shift applies to every absolute x as well.
+	//
+	// <textPath> runs place along the referenced path's arc length instead
+	// (resvg resolve_clusters_positions_path + collect_normals): the group
+	// start is the resolved startOffset plus the group anchor shift, each
+	// glyph hangs its baseline midpoint on the path (dx joins the advance,
+	// dy accumulates as a running shift — the resvg quirk), the glyph
+	// rotates by the path tangent around that midpoint, and samples outside
+	// [0, length] hide the glyph.
+	type tpGroupState struct {
+		measure   *render.PathMeasure
+		start     float64
+		pen       float64
+		dySum     float64
+		spanStart bool
+	}
+	tpGroups := map[*textPathSpan]float64{} // group → total advance (anchor)
+	for si, sp := range spans {
+		if sp.tp != nil {
+			tpGroups[sp.tp] += shaped[si].adv
+		}
+	}
+	tpStates := map[*textPathSpan]*tpGroupState{}
+	initTPGroup := func(tp *textPathSpan, anchorAttrs Attrs) *tpGroupState {
+		if gs, ok := tpStates[tp]; ok {
+			return gs
+		}
+		gs := &tpGroupState{measure: render.NewPathMeasure(tp.path, 0.5), spanStart: true}
+		shift := 0.0
+		switch textAnchorOf(anchorAttrs) {
+		case "middle":
+			shift = -tpGroups[tp] / 2
+		case "end":
+			shift = -tpGroups[tp]
+		}
+		gs.start = tp.startOffset + shift
+		gs.pen = gs.start
+		tpStates[tp] = gs
+		return gs
+	}
 	parsed := map[*text.FontSource]text.ParsedFont{}
 	for si, sp := range spans {
 		family := familyList(sp.attrs)[0]
@@ -215,6 +317,55 @@ func renderTextElement(dc *render.Context, e *TextElement, a *Attrs, p *props, s
 			parsed[src] = parsedFont
 		}
 		spacing := letterSpacingOf(sp.attrs, st.rs)
+		if sp.tp != nil {
+			gs := initTPGroup(sp.tp, sp.attrs)
+			// An absolute x on a textPath run re-anchors the pen along the
+			// path (resvg chunk_offset joins start_offset).
+			if gs.spanStart {
+				if len(sp.x) > 0 {
+					gs.pen = gs.start + sp.x[0].Resolve(st.rs, LengthAxisX)
+				}
+				gs.spanStart = false
+			}
+			for gi, gl := range shaped[si].glyphs {
+				if gi < len(sp.dx) {
+					gs.pen += sp.dx[gi].Resolve(st.rs, LengthAxisX)
+				}
+				halfWidth := (gl.XAdvance + spacing) / 2
+				px, py, ang, okS := gs.measure.Sample(gs.pen + halfWidth)
+				if okS {
+					if gi < len(sp.dy) {
+						gs.dySum += sp.dy[gi].Resolve(st.rs, LengthAxisY)
+					}
+					rot := 0.0
+					if gi < len(sp.rotate) {
+						rot = sp.rotate[gi]
+					}
+					outline, err := extractor.ExtractOutline(parsedFont, text.GlyphID(gl.GID), fontSize)
+					if err == nil && outline != nil && !outline.IsEmpty() {
+						// resvg transform order: translate the baseline
+						// origin onto the path point, rotate by the tangent
+						// around the glyph midpoint, then the running dy
+						// (along the rotated axis) and the rotate list.
+						m := render.Translate(px-halfWidth, py).
+							Multiply(render.Translate(halfWidth, 0).
+								Multiply(render.Rotate(ang * 3.141592653589793 / 180)).
+								Multiply(render.Translate(-halfWidth, 0)))
+						if gs.dySum != 0 {
+							m = m.Multiply(render.Translate(0, gs.dySum))
+						}
+						if rot != 0 {
+							m = m.Multiply(render.Rotate(rot * 3.141592653589793 / 180))
+						}
+						if gp := outlineToPathM(outline, m); gp != nil {
+							spanPaints[si] = append(spanPaints[si], gp)
+						}
+					}
+				}
+				gs.pen += gl.XAdvance + spacing
+			}
+			continue
+		}
 		for gi, gl := range shaped[si].glyphs {
 			if gi < len(sp.x) {
 				penX = sp.x[gi].Resolve(st.rs, LengthAxisX) + anchorShift
@@ -467,21 +618,24 @@ func firstLength(raw string) *Length {
 // optional per-glyph rotation (degrees, around the glyph origin). Font Y is
 // up, screen Y is down → Y is flipped.
 func outlineToPath(outline *text.GlyphOutline, x, y, rotateDeg float64) *render.Path {
+	m := render.Translate(x, y)
+	if rotateDeg != 0 {
+		m = m.Multiply(render.Rotate(rotateDeg * 3.141592653589793 / 180.0))
+	}
+	return outlineToPathM(outline, m)
+}
+
+// outlineToPathM flattens a glyph outline through an affine matrix (font Y
+// up → screen Y down happens inside, before the matrix applies).
+func outlineToPathM(outline *text.GlyphOutline, m render.Matrix) *render.Path {
 	if outline == nil || outline.SegmentCount() == 0 {
 		return nil
-	}
-	var m render.Matrix
-	if rotateDeg != 0 {
-		m = render.Rotate(rotateDeg * 3.141592653589793 / 180.0)
 	}
 	fl := func(px, py float32) (float64, float64) {
 		fx := float64(px)
 		fy := -float64(py) // font Y up → screen Y down
-		if rotateDeg != 0 {
-			pt := m.TransformPoint(render.Point{X: fx, Y: fy})
-			return pt.X, pt.Y
-		}
-		return fx, fy
+		pt := m.TransformPoint(render.Point{X: fx, Y: fy})
+		return pt.X, pt.Y
 	}
 	b := render.BuildPath()
 	segs := outline.Segments
@@ -500,19 +654,19 @@ func outlineToPath(outline *text.GlyphOutline, x, y, rotateDeg float64) *render.
 				continue
 			}
 			fx, fy := fl(seg.Points[0].X, seg.Points[0].Y)
-			b.MoveTo(x+fx, y+fy)
+			b.MoveTo(fx, fy)
 		case text.OutlineOpLineTo:
 			fx, fy := fl(seg.Points[0].X, seg.Points[0].Y)
-			b.LineTo(x+fx, y+fy)
+			b.LineTo(fx, fy)
 		case text.OutlineOpQuadTo:
 			cx, cy := fl(seg.Points[0].X, seg.Points[0].Y)
 			ex, ey := fl(seg.Points[1].X, seg.Points[1].Y)
-			b.QuadTo(x+cx, y+cy, x+ex, y+ey)
+			b.QuadTo(cx, cy, ex, ey)
 		case text.OutlineOpCubicTo:
 			c1x, c1y := fl(seg.Points[0].X, seg.Points[0].Y)
 			c2x, c2y := fl(seg.Points[1].X, seg.Points[1].Y)
 			ex, ey := fl(seg.Points[2].X, seg.Points[2].Y)
-			b.CubicTo(x+c1x, y+c1y, x+c2x, y+c2y, x+ex, y+ey)
+			b.CubicTo(c1x, c1y, c2x, c2y, ex, ey)
 		}
 	}
 	// Close the final subpath: every contour is a closed shape, and an open
