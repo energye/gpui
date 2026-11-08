@@ -72,3 +72,10 @@
 2. feTurbulence stitchTiles 缝合逻辑有边角（resvg 305 行里占约 1/3）——先不做 stitchTiles=stitch 的对拍容差声明，或按参照直译后逐用例对拍。
 3. textPath 若归因确认假绿，text 组 99.4% 基线会重定（如实登记，不掩盖）。
 4. conformance 全量跑有测试间干扰（37.8% vs 单组 55.2%）——验收口径统一用单组复跑。
+
+## 7. 批 4b-3 交付记录（2026-11-08）
+
+- §2 新写型两行全部落地：feTurbulence/feConvolveMatrix 按 resvg 参照逐字直译（含 stitchTiles 按参照直译后逐用例对拍——风险 2 的后者路线，语料 1 枚 stitch 用例 close 8.37）；§5 分层纪律守住（internal/filter 两新文件 + Context 公开口，svg 层仅解析映射）。
+- **计划外发现并修复 conformance 门禁环境洞**：脚本未 import `_ render/filters`，4b-1 起滤镜实现在 conformance 进程从未注册（空转口径 66.0%→82.1% 全部失真）；修复后真实口径 filters 单组 82.6%、全量 86.0%。风险 4 的「干扰」疑云部分源于此。
+- 新公开口 7 符号入 catalog §3.20，apidoc rc=0；钉测 17 枚 + 负向；金图三窗 0.0000%。
+- 剩余 far 全为 4b-1/4b-2 原语在真实生效口径下暴露的既有洞（morphology 半径/光照系），登记不掩盖，归批 4c 归因。

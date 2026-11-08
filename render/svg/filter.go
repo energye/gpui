@@ -37,11 +37,12 @@ import (
 //	feComposite    → Porter-Duff (over/in/out/xor via BlendMode)
 //	feMerge        → sequential DrawImage
 //
-// Named refusals (registered, design §4.1): feComposite arithmetic,
-// feTile, feImage, feTurbulence, feDisplacementMap, feComponentTransfer,
-// feConvolveMatrix, feMorphology, and the lighting family. A filter that
-// contains an unsupported primitive is NOT applied — the element renders
-// unfiltered (CSS Masking error口径) — and the refusal is a warning.
+// Named refusals (registered, design §4.1): feComposite arithmetic (until
+// 4b-2), feTile, feImage, feTurbulence (until 4b-3), feDisplacementMap,
+// feComponentTransfer, feConvolveMatrix (until 4b-3), feMorphology, and the
+// lighting family (until 4b-2). A filter that contains an unsupported
+// primitive is NOT applied — the element renders unfiltered (CSS Masking
+// error口径) — and the refusal is a warning.
 
 // FilterPrimitive is one fe* element of a filter chain.
 type FilterPrimitive struct {
@@ -89,6 +90,25 @@ type FilterPrimitive struct {
 	LightingColor    string
 	Light            *LightSource
 	K1, K2, K3, K4   float64
+	// P3.8 4b-3: feTurbulence (Str1 carries type; the fractalNoise match is
+	// exact like usvg) + feConvolveMatrix. kernelUnitLength is parsed by
+	// resvg but unused — not carried.
+	BaseFrequency []float64
+	NumOctaves    float64
+	HasNumOctaves bool
+	Seed          float64
+	HasSeed       bool
+	StitchTiles   bool
+	Order         []float64
+	KernelMatrix  []float64
+	Divisor       float64
+	HasDivisor    bool
+	Bias          float64
+	HasBias       bool
+	TargetX, TargetY int
+	HasTargetX, HasTargetY bool
+	EdgeMode      string
+	PreserveAlpha bool
 }
 
 // LightSource is one feDistantLight/fePointLight/feSpotLight child.
@@ -134,7 +154,8 @@ func supportedFilterPrimitive(kind string) bool {
 	case "feGaussianBlur", "feOffset", "feFlood", "feColorMatrix",
 		"feBlend", "feComposite", "feMerge", "feDropShadow",
 		"feMorphology", "feTile", "feDisplacementMap", "feComponentTransfer", "feImage",
-		"feDiffuseLighting", "feSpecularLighting":
+		"feDiffuseLighting", "feSpecularLighting",
+		"feTurbulence", "feConvolveMatrix":
 		return true
 	}
 	return false
@@ -598,6 +619,30 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 					w.ApplySVGLighting(params)
 				})
 			}
+		case "feTurbulence":
+			// resvg apply_turbulence: the noise generates over the FULL
+			// filter region buffer (subregion clipping is the generic
+			// machinery below) and has no input. Coordinates: resvg samples
+			// at (pixel + region_offset) / canvas scale; this engine's
+			// filter buffers are user-space 1:1 (region origin subtracted at
+			// setup), so the sample coordinate is pixel + region origin.
+			w := render.NewContext(rw, rh)
+			defer w.Close()
+			w.ApplySVGTurbulence(turbulenceParams(fp, regX, regY, f.LinearRGB))
+			out = render.ImageBufFromImage(w.Image())
+		case "feConvolveMatrix":
+			if p, okP := convolveMatrixParams(fp, f.LinearRGB); okP {
+				out = applyTo(inBuf, func(w *render.Context) {
+					w.ApplySVGConvolveMatrix(p)
+				})
+			} else {
+				// usvg convert_convolve_matrix → None → dummy primitive
+				// (transparent black flood): divisor≈0, target out of
+				// [0,order), or kernelMatrix count ≠ order_x·order_y.
+				w := render.NewContext(rw, rh)
+				defer w.Close()
+				out = render.ImageBufFromImage(w.Image())
+			}
 		}
 		if out == nil {
 			disposeAll(images)
@@ -728,6 +773,151 @@ func morphologyRadii(nums []float64) (float64, float64) {
 		y = 0
 	}
 	return x, y
+}
+
+// turbulenceParams resolves feTurbulence into the public parameter set
+// (usvg convert_turbulence verbatim): baseFrequency is a 1–2 value list
+// (invalid/negative-by-sign → both 0), numOctaves defaults 1 with
+// sign-negative → 0 and rounding, seed truncates, type matches
+// "fractalNoise" exactly (anything else → turbulence).
+func turbulenceParams(fp *FilterPrimitive, regX, regY float64, linearRGB bool) render.SVGTurbulenceParams {
+	bfx, bfy := 0.0, 0.0
+	switch len(fp.BaseFrequency) {
+	case 1:
+		bfx, bfy = fp.BaseFrequency[0], fp.BaseFrequency[0]
+	case 2:
+		bfx, bfy = fp.BaseFrequency[0], fp.BaseFrequency[1]
+	}
+	if math.Signbit(bfx) || math.Signbit(bfy) {
+		bfx, bfy = 0, 0
+	}
+	octaves := 1.0
+	if fp.HasNumOctaves {
+		octaves = fp.NumOctaves
+	}
+	if math.Signbit(octaves) {
+		octaves = 0
+	}
+	o := int(math.Round(octaves))
+	// resvg casts the rounded count to u32 (saturating); a hostile doc with
+	// a billions-of-octaves value would hang it the same way — the ceiling
+	// keeps the engine live and is far beyond any sane octave count.
+	if o > 256 {
+		o = 256
+	}
+	seed := int32(0)
+	if fp.HasSeed {
+		s := float64(float32(fp.Seed)) // usvg parses the seed as f32
+		if s > math.MaxInt32 {
+			seed = math.MaxInt32
+		} else if s < math.MinInt32 {
+			seed = math.MinInt32
+		} else {
+			seed = int32(s) // trunc() — 1.5 → 1
+		}
+	}
+	return render.SVGTurbulenceParams{
+		OffsetX:        float32(regX),
+		OffsetY:        float32(regY),
+		BaseFrequencyX: float32(bfx),
+		BaseFrequencyY: float32(bfy),
+		NumOctaves:     o,
+		Seed:           seed,
+		StitchTiles:    fp.StitchTiles,
+		FractalNoise:   fp.Str1 == "fractalNoise",
+		LinearRGB:      linearRGB,
+	}
+}
+
+// convolveMatrixParams resolves feConvolveMatrix into the public parameter
+// set (usvg convert_convolve_matrix verbatim). ok=false reproduces the
+// usvg → dummy-primitive cases: divisor≈0, targetX/Y outside [0,order), or
+// a kernelMatrix whose count ≠ order_x·order_y.
+func convolveMatrixParams(fp *FilterPrimitive, linearRGB bool) (render.SVGConvolveMatrixParams, bool) {
+	// order: first value → columns, second → rows (default rows = columns);
+	// non-positive values keep the 3×3 default (usvg rule).
+	cols, rows := 3, 3
+	if len(fp.Order) > 0 {
+		x := int(fp.Order[0])
+		y := x
+		if len(fp.Order) > 1 {
+			y = int(fp.Order[1])
+		}
+		if x > 0 && y > 0 {
+			cols, rows = x, y
+		}
+	}
+	// kernelMatrix: used only when the count matches cols*rows exactly
+	// (usvg); otherwise it stays empty → ConvolveMatrixData::new fails →
+	// dummy.
+	matrix := fp.KernelMatrix
+	if len(matrix) != cols*rows {
+		matrix = nil
+	}
+	// divisor: explicit attribute, else the kernel sum rounded to 1e-6 with
+	// the approx-zero → 1.0 fallback (usvg).
+	divisor := 0.0
+	if fp.HasDivisor {
+		divisor = fp.Divisor
+		if svgF32ApproxZeroWide(divisor) {
+			return render.SVGConvolveMatrixParams{}, false
+		}
+	} else {
+		sum := float32(0)
+		for _, kv := range matrix {
+			sum += float32(kv)
+		}
+		sum = float32(math.Round(float64(sum)*1e6) / 1e6)
+		if svgF32ApproxZeroWide(float64(sum)) {
+			sum = 1.0
+		}
+		divisor = float64(sum)
+	}
+	targetX, targetY := cols/2, rows/2
+	if fp.HasTargetX {
+		if fp.TargetX < 0 || fp.TargetX >= cols {
+			return render.SVGConvolveMatrixParams{}, false
+		}
+		targetX = fp.TargetX
+	}
+	if fp.HasTargetY {
+		if fp.TargetY < 0 || fp.TargetY >= rows {
+			return render.SVGConvolveMatrixParams{}, false
+		}
+		targetY = fp.TargetY
+	}
+	if len(matrix) != cols*rows { // usvg ConvolveMatrixData::new → None
+		return render.SVGConvolveMatrixParams{}, false
+	}
+	edge := render.SVGEdgeModeDuplicate
+	switch fp.EdgeMode {
+	case "none":
+		edge = render.SVGEdgeModeNone
+	case "wrap":
+		edge = render.SVGEdgeModeWrap
+	}
+	kernel := make([]float32, len(matrix))
+	for i, kv := range matrix {
+		kernel[i] = float32(kv)
+	}
+	return render.SVGConvolveMatrixParams{
+		Columns:       cols,
+		Rows:          rows,
+		Kernel:        kernel,
+		Divisor:       float32(divisor),
+		Bias:          float32(fp.Bias),
+		TargetX:       targetX,
+		TargetY:       targetY,
+		EdgeMode:      edge,
+		PreserveAlpha: fp.PreserveAlpha,
+		LinearRGB:     linearRGB,
+	}, true
+}
+
+// svgF32ApproxZeroWide is the svg-layer handle on the internal
+// ApproxZeroUlps(4)-on-f32 check (see internal/filter).
+func svgF32ApproxZeroWide(v float64) bool {
+	return math.Abs(v) <= 5.605193966189168e-45 // 4 × f32 denormal ULP
 }
 
 // compileTransferLUTs bakes the four feFunc* transfer functions into

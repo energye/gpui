@@ -45,6 +45,8 @@ func RegisterFilterOps(impls FilterOpImpls) {
 	bloomApply = impls.Bloom
 	svgLightingApply = impls.SVGLighting
 	compositeArithmeticApply = impls.CompositeArithmetic
+	turbulenceApply = impls.Turbulence
+	convolveMatrixApply = impls.ConvolveMatrix
 }
 
 func (c *Context) applyFilterInPlace(fn filterApplyFunc) {

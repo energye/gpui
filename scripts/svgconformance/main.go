@@ -40,6 +40,12 @@ import (
 
 	"github.com/energye/gpui/render/svg"
 	"github.com/energye/gpui/render/text"
+
+	// CPU filter implementations MUST be registered in this process: the
+	// SVG filter family runs on the fn-ptr registration seam, and without
+	// the side-effect import every Apply* silently no-ops (bias=9999 graded
+	// far 204 on a working engine — the filter never ran).
+	_ "github.com/energye/gpui/render/filters"
 )
 
 // gridN is the comparison grid: both images are downsampled to this many
@@ -51,6 +57,8 @@ func main() {
 	group := flag.String("group", "", "optional single group to run")
 	font := flag.String("font", "", "optional TTF to map generic font families to")
 	out := flag.String("out", "", "optional markdown report path")
+	perCasePath := flag.String("per-case", "", "optional file for per-case `<file> <grade> <delta>` lines")
+	only := flag.String("only", "", "run only the case whose basename matches (diagnostics)")
 	flag.Parse()
 	if *root == "" {
 		fmt.Fprintln(os.Stderr, "need -root")
@@ -88,7 +96,9 @@ func main() {
 			}
 			pngPath := strings.TrimSuffix(path, ".svg") + ".png"
 			if _, err := os.Stat(pngPath); err == nil {
-				jobs = append(jobs, job{path, pngPath, g.Name()})
+				if only == nil || *only == "" || filepath.Base(path) == *only {
+					jobs = append(jobs, job{path, pngPath, g.Name()})
+				}
 			}
 			return nil
 		})
@@ -98,6 +108,7 @@ func main() {
 	var mu sync.Mutex
 	results := map[string]map[string]int{}
 	worst := map[string][]string{}
+	var perCase []string
 	var done atomic.Int64
 	start := time.Now()
 
@@ -109,7 +120,12 @@ func main() {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem; recover() }()
-			grade := runOne(j.svgPath, j.pngPath)
+			grade, delta := runOne(j.svgPath, j.pngPath)
+			if *perCasePath != "" {
+				mu.Lock()
+				perCase = append(perCase, fmt.Sprintf("%s %s %.2f\n", filepath.Base(j.svgPath), grade, delta))
+				mu.Unlock()
+			}
 			done.Add(1)
 			mu.Lock()
 			if results[j.group] == nil {
@@ -130,6 +146,11 @@ func main() {
 	}
 	wg.Wait()
 	fmt.Fprintln(os.Stderr)
+
+	if *perCasePath != "" {
+		sort.Strings(perCase)
+		_ = os.WriteFile(*perCasePath, []byte(strings.Join(perCase, "")), 0o644)
+	}
 
 	// Report
 	total := map[string]int{}
@@ -176,13 +197,13 @@ func main() {
 }
 
 // runOne renders one case and grades it against the expected PNG.
-func runOne(svgPath, pngPath string) string {
+func runOne(svgPath, pngPath string) (string, float64) {
 	if os.Getenv("CONF_VERBOSE") != "" {
 		fmt.Fprintln(os.Stderr, "CASE", svgPath)
 	}
 	data, err := os.ReadFile(svgPath)
 	if err != nil {
-		return "error"
+		return "error", 0
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -191,23 +212,23 @@ func runOne(svgPath, pngPath string) string {
 	}()
 	doc, err := svg.Parse(data)
 	if err != nil {
-		return "error"
+		return "error", 0
 	}
 	want, err := loadPNG(pngPath)
 	if err != nil {
-		return "error"
+		return "error", 0
 	}
 	bw := want.Bounds().Dx()
 	bh := want.Bounds().Dy()
 	if bw <= 0 || bh <= 0 || bw > 4096 || bh > 4096 {
-		return "error"
+		return "error", 0
 	}
 	img := doc.Render(bw, bh)
 	if img == nil {
-		return "error"
+		return "error", 0
 	}
 	if isBlank(img) && !isBlank(want) {
-		return "blank"
+		return "blank", 0
 	}
 	return grade(img, want)
 }
@@ -237,7 +258,7 @@ func isBlank(img image.Image) bool {
 
 // grade downsamples both images to a gridN grid of premultiplied-agnostic
 // RGBA means and returns the mean channel delta grade.
-func grade(got, want image.Image) string {
+func grade(got, want image.Image) (string, float64) {
 	g1 := gridMeans(got)
 	g2 := gridMeans(want)
 	sum, n := 0.0, 0
@@ -254,13 +275,13 @@ func grade(got, want image.Image) string {
 	mean := sum / float64(n)
 	switch {
 	case mean <= 3:
-		return "identical"
+		return "identical", mean
 	case mean <= 24:
-		return "close"
+		return "close", mean
 	case mean <= 128:
-		return "partial"
+		return "partial", mean
 	default:
-		return "far"
+		return "far", mean
 	}
 }
 

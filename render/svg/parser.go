@@ -1412,6 +1412,54 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 				fp.Radius = parseNumberList(attr.Value)
 			}
 		}
+	case "feTurbulence":
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "type":
+				fp.Str1 = attr.Value
+			case "baseFrequency":
+				fp.BaseFrequency = parseNumberList(attr.Value)
+			case "numOctaves":
+				if v, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
+					fp.NumOctaves, fp.HasNumOctaves = v, true
+				}
+			case "seed":
+				if v, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
+					fp.Seed, fp.HasSeed = v, true
+				}
+			case "stitchTiles":
+				fp.StitchTiles = strings.TrimSpace(attr.Value) == "stitch"
+			}
+		}
+	case "feConvolveMatrix":
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "order":
+				fp.Order = parseNumberList(attr.Value)
+			case "kernelMatrix":
+				fp.KernelMatrix = parseNumberList(attr.Value)
+			case "divisor":
+				if v, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
+					fp.Divisor, fp.HasDivisor = v, true
+				}
+			case "bias":
+				if v, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
+					fp.Bias, fp.HasBias = v, true
+				}
+			case "targetX":
+				if v, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
+					fp.TargetX, fp.HasTargetX = int(v), true
+				}
+			case "targetY":
+				if v, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
+					fp.TargetY, fp.HasTargetY = int(v), true
+				}
+			case "edgeMode":
+				fp.EdgeMode = attr.Value
+			case "preserveAlpha":
+				fp.PreserveAlpha = strings.TrimSpace(attr.Value) == "true"
+			}
+		}
 	case "feDisplacementMap":
 		fp.XSel, fp.YSel = 3, 3 // spec defaults: A/A
 		for _, attr := range se.Attr {

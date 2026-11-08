@@ -2,7 +2,7 @@
   <rect x="0" y="0" width="140" height="60" fill="#171a20"/>
   <defs>
     <filter id="unsupported">
-      <feTurbulence baseFrequency="0.9"/>
+      <feUnrealized baseFrequency="0.9"/>
     </filter>
   </defs>
   <rect x="10" y="10" width="50" height="40" fill="#e24a4a" filter="url(#unsupported)"/>

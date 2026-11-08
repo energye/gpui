@@ -36,6 +36,10 @@ var (
 	// semantics) + feComposite arithmetic (premul-domain k-coefficients).
 	svgLightingApply       func(src, dst *Pixmap, p SVGLightingParams)
 	compositeArithmeticApply func(src, dst *Pixmap, k1, k2, k3, k4 float32, in2 *ImageBuf, linearRGB bool)
+	// P3.8 4b-3: feTurbulence (Perlin fractal noise generator) +
+	// feConvolveMatrix (general kernel convolution).
+	turbulenceApply     func(src, dst *Pixmap, p SVGTurbulenceParams)
+	convolveMatrixApply func(src, dst *Pixmap, p SVGConvolveMatrixParams)
 	// gpuFilterGraphApply runs F.03 multi-RT GPU ping-pong (optional).
 	// src is tight RGBA8 w*h*4; returns same layout result.
 	gpuFilterGraphApply func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)
@@ -69,6 +73,8 @@ type FilterOpImpls struct {
 	Bloom          func(src, dst *Pixmap, p BloomParams)
 	SVGLighting    func(src, dst *Pixmap, p SVGLightingParams)
 	CompositeArithmetic func(src, dst *Pixmap, k1, k2, k3, k4 float32, in2 *ImageBuf, linearRGB bool)
+	Turbulence     func(src, dst *Pixmap, p SVGTurbulenceParams)
+	ConvolveMatrix func(src, dst *Pixmap, p SVGConvolveMatrixParams)
 }
 
 // snapshotFilterOps reads back the current registration (save/restore seam

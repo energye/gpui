@@ -71,6 +71,12 @@ func init() {
 		CompositeArithmetic: func(src, dst *render.Pixmap, k1, k2, k3, k4 float32, in2 *render.ImageBuf, linearRGB bool) {
 			filter.NewCompositeArithmetic(k1, k2, k3, k4, in2, linearRGB).Apply(src, dst)
 		},
+		Turbulence: func(src, dst *render.Pixmap, p render.SVGTurbulenceParams) {
+			filter.NewSVGTurbulence(p).Apply(src, dst)
+		},
+		ConvolveMatrix: func(src, dst *render.Pixmap, p render.SVGConvolveMatrixParams) {
+			filter.NewSVGConvolveMatrix(p).Apply(src, dst)
+		},
 	})
 }
 

@@ -154,7 +154,9 @@ func TestP38FilterBlendMultiply(t *testing.T) {
 func TestP38FilterMissingAndUnsupported(t *testing.T) {
 	doc := mustParseFile(t, "filter_blend_missing.svg")
 	img := doc.Render(140, 60)
-	// 不支持原语（feTurbulence）→ filter 不应用 = 原样绘制（CSS 口径）。
+	// 不支持原语（白名单外 fe*；feTurbulence/feConvolveMatrix 已于 4b-1～
+	// 4b-3 接线，fail-closed 锚点用未知原语）→ filter 不应用 = 原样绘制
+	// （CSS 口径）。
 	if c := img.RGBAAt(35, 30); c.R < 150 {
 		t.Errorf("unsupported filter = %+v, want unfiltered red", c)
 	}
@@ -164,7 +166,7 @@ func TestP38FilterMissingAndUnsupported(t *testing.T) {
 	}
 	foundT, foundD := false, false
 	for _, w := range doc.Warnings {
-		if w.Reason == warnUnsupportedElement && w.Element == "feTurbulence" {
+		if w.Reason == warnUnsupportedElement && w.Element == "feUnrealized" {
 			foundT = true
 		}
 		if w.Reason == warnUnresolvedRef && w.Element == "rect" {
@@ -172,7 +174,7 @@ func TestP38FilterMissingAndUnsupported(t *testing.T) {
 		}
 	}
 	if !foundT {
-		t.Errorf("feTurbulence warning missing (element=rect): %+v", doc.Warnings)
+		t.Errorf("feUnrealized warning missing (element=rect): %+v", doc.Warnings)
 	}
 	if !foundD {
 		t.Errorf("dangling filter warning missing: %+v", doc.Warnings)

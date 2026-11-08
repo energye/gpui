@@ -275,6 +275,14 @@
 | `DrawShaderMask(c Canvas, x,y,w,h float64, mask Brush, draw func())` | `Push` → `PushLayerIsolated(1)` → `Push` → `ClipRect(bounds)` → `draw()` → `ClearPath` → `SetFillBrush(mask)` → `SetBlendMode(DstIn)` → 强制 AA → 画满 bounds 矩形 → 还原画刷/混合 → 三层 `Pop`。`mask==nil` 直通 `draw()`；调用后 CTM/裁剪/画刷/混合/AA 全部还原。掩码只调制整层（不是每条命令各乘一次），bounds 外内容被裁掉 | 用户空间掩码 | 🔌 **已验证待接线**：`render/draw_shader_mask_test.go`（CPU 契约）+ `_gpu_test.go`（固定混合取点）+ `render/internal/gpu/brush_blend_rect_test.go` + `render/recording/shader_mask_test.go` + `ui/rendering/paint_context_shadermask_test.go`；直调真窗 `ui_wr_shadermask`（像素 18/18、retained≡direct 9/9、Golden 864000px 两连 0.0000%、抓屏 vs 快照 0 差）；生产消费者为零 |
 
 
+### 3.20 svg_turbulence（2 方法+2 类型+3 常量）· SVG 湍流噪声与卷积矩阵（2026-11-08 P3.8 批 4b-3）
+| API | 功能 | 精简 | 状态 |
+|-----|------|------|------|
+| `Context.ApplySVGTurbulence(SVGTurbulenceParams)` + `SVGTurbulenceParams`（OffsetX·Y/BaseFrequencyX·Y/NumOctaves/Seed/StitchTiles/FractalNoise/LinearRGB） | SVG feTurbulence（resvg turbulence.rs 逐字直译：LCG 种子 Perlin 格点、fractalNoise/turbulence 两模式、numOctaves 缩放循环、stitchTiles 频率调整+格点 wrap 逐字含 per-pixel tile_x quirk）；输出 unpremul→premul→linearRGB 域 resvg 256 表回 sRGB；采样坐标=buffer 像素+region 原点（user-space buffer 模型下 resvg (x+offset)/scale 的折叠式，scale 恒 1）；CPU-only（GPU 变体挂后续性能批） | SVG 湍流噪声 | 🔌 P3.8 4b-3 钉测（feTurbulence 语料组 19 枚全 id/close）；无生产消费者 |
+| `Context.ApplySVGConvolveMatrix(SVGConvolveMatrixParams)` + `SVGConvolveMatrixParams`（Columns·Rows/Kernel row-major/Divisor/Bias/TargetX·Y/EdgeMode/PreserveAlpha/LinearRGB） | SVG feConvolveMatrix（resvg convolve_matrix.rs 逐字直译：kernel 翻转取 (cols-ox-1, rows-oy-1)、edgeMode none/duplicate/wrap、preserveAlpha 先 demul 跑直域+源 alpha 直通、premul 域 RGB 钳新 alpha）；linearRGB 域往返 resvg 256 表；参数校验（divisor≈0/target 越界/kernel 数量不配→透明 dummy）在 svg 层 convolveMatrixParams；CPU-only 同上 | SVG 卷积矩阵 | 🔌 P3.8 4b-3 钉测（feConvolveMatrix 语料组 25 枚：11 id+14 close 零 partial 零 far）；无生产消费者 |
+| `SVGEdgeModeNone/SVGEdgeModeDuplicate/SVGEdgeModeWrap` | feConvolveMatrix 边缘模式常量（resvg EdgeMode 次序 0/1/2） | 边缘模式常量 | 🔌 同上 |
+| `svg.FilterPrimitive.BaseFrequency/NumOctaves/Seed/StitchTiles/Order/KernelMatrix/Divisor/Bias/TargetX·Y/EdgeMode/PreserveAlpha`（`Str1`=type） | 两原语的解析面（feTurbulence type 精确匹配 fractalNoise；kernelUnitLength resvg 不用不携带） | 解析面 | 🔌 同上（parse 钉测） |
+
 ### 3.19 svg_lighting（2 方法+2 类型）· SVG 光照族与算术合成（2026-11-08 P3.8 批 4b-2）
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|
