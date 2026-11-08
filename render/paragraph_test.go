@@ -259,8 +259,8 @@ func TestApplyMergeAndDisplacement(t *testing.T) {
 				d[i2], d[i2+1], d[i2+2] = a-d[i2], a-d[i2+1], a-d[i2+2]
 			}
 		},
-		Erode:          func(src, dst *Pixmap, radius int) {},
-		Dilate:         func(src, dst *Pixmap, radius int) {},
+		Erode:          func(src, dst *Pixmap, radiusX, radiusY int) {},
+		Dilate:         func(src, dst *Pixmap, radiusX, radiusY int) {},
 		Offset:         func(src, dst *Pixmap, dx, dy int) {},
 		AlphaThreshold: func(src, dst *Pixmap, threshold uint8) {},
 		Tile:           func(src, dst *Pixmap, srcRect [4]float32) {},

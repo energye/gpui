@@ -19,27 +19,31 @@ import (
 	"github.com/energye/gpui/render/scene"
 )
 
-// MorphologyFilter applies erode (min) or dilate (max) over a (2r+1)²
-// neighborhood. O(w·h·r²) straightforward implementation; Skia's separable
-// O(n) optimization is a registered follow-up.
+// MorphologyFilter applies erode (min) or dilate (max) over an
+// anisotropic neighborhood. The window is resvg/SVG-feMorphology exact:
+// half-open [-rx, rx) × [-ry, ry) in pixels, and out-of-bounds neighbors
+// are SKIPPED (not clamped, not transparent — border pixels aggregate over
+// in-bounds samples only). O(w·h·rx·ry) straightforward implementation;
+// Skia's separable O(n) optimization is a registered follow-up.
 type MorphologyFilter struct {
-	erode  bool
-	radius int
+	erode   bool
+	radiusX int
+	radiusY int
 }
 
 // NewErodeFilter keeps the darkest (minimum) color in each neighborhood.
 func NewErodeFilter(radiusX, radiusY int) *MorphologyFilter {
-	return &MorphologyFilter{erode: true, radius: radiusX}
+	return &MorphologyFilter{erode: true, radiusX: radiusX, radiusY: radiusY}
 }
 
 // NewDilateFilter keeps the brightest (maximum) color in each neighborhood.
 func NewDilateFilter(radiusX, radiusY int) *MorphologyFilter {
-	return &MorphologyFilter{erode: false, radius: radiusX}
+	return &MorphologyFilter{erode: false, radiusX: radiusX, radiusY: radiusY}
 }
 
 // ExpandBounds grows by the neighborhood radius.
 func (m *MorphologyFilter) ExpandBounds(bounds image.Rectangle) image.Rectangle {
-	return bounds.Inset(-m.radius)
+	return bounds.Inset(-maxInt(m.radiusX, m.radiusY))
 }
 
 // Apply runs the morphology op over the bounds (premul domain: alpha and RGB
@@ -48,20 +52,59 @@ func (m *MorphologyFilter) ExpandBounds(bounds image.Rectangle) image.Rectangle 
 // on the same neighborhood — Skia's raster morphology does exactly this).
 func (m *MorphologyFilter) Apply(src, dst *render.Pixmap, bounds scene.Rect) {
 	w, h := src.Width(), src.Height()
-	r := m.radius
-	if r <= 0 {
+	rx, ry := m.radiusX, m.radiusY
+	if rx <= 0 || ry <= 0 {
 		copyPixmapRegion(src, dst, bounds)
 		return
 	}
+	// resvg caps the window at the image size; once the window covers every
+	// in-bounds pixel the min/max is global — one pass instead of w·h·r².
+	cols := minInt(2*rx, w)
+	rows := minInt(2*ry, h)
 	srcData, dstData := src.Data(), dst.Data()
+	if cols >= w && rows >= h {
+		var best [4]uint8
+		first := true
+		for i := 0; i < w*h; i++ {
+			px := [4]uint8{srcData[i*4], srcData[i*4+1], srcData[i*4+2], srcData[i*4+3]}
+			if first {
+				best, first = px, false
+				continue
+			}
+			if m.erode {
+				for c := 0; c < 4; c++ {
+					if px[c] < best[c] {
+						best[c] = px[c]
+					}
+				}
+			} else {
+				for c := 0; c < 4; c++ {
+					if px[c] > best[c] {
+						best[c] = px[c]
+					}
+				}
+			}
+		}
+		for i := 0; i < w*h; i++ {
+			dstData[i*4], dstData[i*4+1], dstData[i*4+2], dstData[i*4+3] =
+				best[0], best[1], best[2], best[3]
+		}
+		return
+	}
 	for y := int(bounds.MinY); y < int(bounds.MaxY); y++ {
 		for x := int(bounds.MinX); x < int(bounds.MaxX); x++ {
 			var best [4]uint8
 			first := true
-			for dy := -r; dy <= r; dy++ {
-				sy := clampInt(y+dy, 0, h-1)
-				for dx := -r; dx <= r; dx++ {
-					sx := clampInt(x+dx, 0, w-1)
+			for dy := -rows / 2; dy < rows-rows/2; dy++ {
+				sy := y + dy
+				if sy < 0 || sy >= h {
+					continue // resvg: OOB samples are skipped, not clamped
+				}
+				for dx := -cols / 2; dx < cols-cols/2; dx++ {
+					sx := x + dx
+					if sx < 0 || sx >= w {
+						continue
+					}
 					i := (sy*w + sx) * 4
 					px := [4]uint8{srcData[i], srcData[i+1], srcData[i+2], srcData[i+3]}
 					if first {
@@ -85,6 +128,12 @@ func (m *MorphologyFilter) Apply(src, dst *render.Pixmap, bounds scene.Rect) {
 				}
 			}
 			oi := (y*w + x) * 4
+			if first {
+				// Window entirely outside the surface: keep the pixel.
+				dstData[oi], dstData[oi+1], dstData[oi+2], dstData[oi+3] =
+					srcData[oi], srcData[oi+1], srcData[oi+2], srcData[oi+3]
+				continue
+			}
 			dstData[oi], dstData[oi+1], dstData[oi+2], dstData[oi+3] = best[0], best[1], best[2], best[3]
 		}
 	}
@@ -161,4 +210,18 @@ func absI(v int) int {
 		return -v
 	}
 	return v
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

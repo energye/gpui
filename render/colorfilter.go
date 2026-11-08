@@ -17,6 +17,17 @@ type ColorFilter interface {
 	Filter(r, g, b, a float32) (float32, float32, float32, float32)
 }
 
+// ColorFilterFunc adapts a plain per-channel function to ColorFilter (the
+// SkColorFilter function-form slot): callers that compile a transfer into a
+// lookup closure (SVG feComponentTransfer LUTs) wrap it here instead of
+// declaring a one-method type.
+type ColorFilterFunc func(r, g, b, a float32) (float32, float32, float32, float32)
+
+// Filter implements ColorFilter.
+func (f ColorFilterFunc) Filter(r, g, b, a float32) (float32, float32, float32, float32) {
+	return f(r, g, b, a)
+}
+
 // ApplyColorFilter runs a ColorFilter over the content (P3.4). CPU-side
 // only: color filters are cheap, and the GPU graph's straight-domain color
 // passes (matrix class) cover the accelerator-worthy cases already.

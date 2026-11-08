@@ -275,6 +275,20 @@
 | `DrawShaderMask(c Canvas, x,y,w,h float64, mask Brush, draw func())` | `Push` → `PushLayerIsolated(1)` → `Push` → `ClipRect(bounds)` → `draw()` → `ClearPath` → `SetFillBrush(mask)` → `SetBlendMode(DstIn)` → 强制 AA → 画满 bounds 矩形 → 还原画刷/混合 → 三层 `Pop`。`mask==nil` 直通 `draw()`；调用后 CTM/裁剪/画刷/混合/AA 全部还原。掩码只调制整层（不是每条命令各乘一次），bounds 外内容被裁掉 | 用户空间掩码 | 🔌 **已验证待接线**：`render/draw_shader_mask_test.go`（CPU 契约）+ `_gpu_test.go`（固定混合取点）+ `render/internal/gpu/brush_blend_rect_test.go` + `render/recording/shader_mask_test.go` + `ui/rendering/paint_context_shadermask_test.go`；直调真窗 `ui_wr_shadermask`（像素 18/18、retained≡direct 9/9、Golden 864000px 两连 0.0000%、抓屏 vs 快照 0 差）；生产消费者为零 |
 
 
+### 3.19 svg_lighting（2 方法+2 类型）· SVG 光照族与算术合成（2026-11-08 P3.8 批 4b-2）
+| API | 功能 | 精简 | 状态 |
+|-----|------|------|------|
+| `Context.ApplySVGLighting(SVGLightingParams)` + `SVGLightingParams`（Specular/SurfaceScale/Diffuse·SpecularConstant/Exponent/LightColor/LightType 三型/Azimuth·Elevation/LightX·Y·Z/PointsAt·/SpotSpecularExponent/LimitingConeAngle/LinearRGB） | SVG feDiffuseLighting/feSpecularLighting（resvg lighting.rs 逐字直译：9 类法线核按位取整、diffuse 平面分支=L.z、specular 平面分支=(H.z/\|H\|)^exp、Spot 光锥黑钳制+软边指数、高度图=源 alpha、diffuse 输出不透明/specular alpha=max(R,G,B)）；linearRGB=color-interpolation-filters 缺省域（输出过 resvg 256 表回 sRGB）；CPU-only（GPU 变体挂后续性能批，同 turbulence/convolve 口径） | SVG 光照对 | 🔌 P3.8 4b-2 钉测（feDiffuse/feSpecular/三光源语料组）；无生产消费者 |
+| `Context.ApplyCompositeArithmetic(k1,k2,k3,k4,in2,linearRGB)` | SVG feComposite operator="arithmetic"（resvg composite.rs：premul 域 result=k1·i1·i2+k2·i1+k3·i2+k4、RGB 钳到新 alpha、alpha≈0 全透明；linearRGB 域往返 resvg 256 表）；CPU-only 同上 | 算术合成 | 🔌 同上（operator=arithmetic 语料组） |
+| `svg.LightSource`（feDistantLight/fePointLight/feSpotLight 解析态）+ `FilterPrimitive.Light/SurfaceScale/Diffuse·SpecularConstant·Exponent/LightingColor/K1..K4` | 光源子元素与算术系数的解析面（`LightSource.Type` 0/1/2 三型） | 光照解析面 | 🔌 同上 |
+
+### 3.18 filter_ops/colorfilter（3 符号+1 字段）· 异向形态学与函数式 ColorFilter（2026-11-08 P3.8 批 4b-1）
+| API | 功能 | 精简 | 状态 |
+|-----|------|------|------|
+| `Context.ApplyErodeXY(radiusX, radiusY)` / `Context.ApplyDilateXY(radiusX, radiusY)` | 异向形态学（SVG feMorphology rx/ry；Skia SkMorphologyImageFilter 同位物）：窗口半开 `[-rx,rx)×[-ry,ry)`、界外样本跳过（resvg 语义，双腿 CPU+GPU mode7/8 一致，窗口按表面尺寸封顶）；`ApplyErode/ApplyDilate` 变为 XY 的各向同性别名，`FilterOpImpls.Erode/Dilate` 签名扩为双半径；节点字段 `ImageFilterNode.MorphRadiusY`（0=回退 MorphRadius）；半径 ≤0 为 no-op（SVG 的零半径清空语义归 svg 求值器） | 异向形态学 | 🔌 P3.8 4b-1 单测（conformance feMorphology 组）+render 层对拍；无生产消费者 |
+| `ColorFilterFunc func(r,g,b,a float32)(...)`（实现 `ColorFilter`） | 函数式 ColorFilter 适配器（SkColorFilter 函数形态槽）：svg feComponentTransfer 五型编译 256 LUT 后经此接入 `ApplyColorFilter`（unpremul→filter→premul 回转由 ApplyColorFilter 统一管） | 函数式颜色过滤 | 🔌 P3.8 4b-1 钉测（feComponentTransfer 组）；无生产消费者 |
+| `svg.TransferFunc`（feFuncR/G/B/A 五型：identity/table/discrete/linear/gamma） | feComponentTransfer 每通道迁移函数的解析态（`svg.FilterPrimitive.Funcs [4]`）；LUT 编译公式=resvg component_transfer.rs 逐字（输出截断非四舍五入） | 迁移函数解析态 | 🔌 同上 |
+
 ### 3.17 context_picture.go（1 方法+2 哨兵+计数口）· 嵌套 Picture 族（2026-11-07 P3.8 批 6）
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|

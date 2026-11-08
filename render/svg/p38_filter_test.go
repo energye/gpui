@@ -212,12 +212,18 @@ func TestP38FilterElementTransform(t *testing.T) {
 
 	n1 := greenQuads(t, `filter="url(#f)"`)                                  // filter，无 transform
 	n2 := greenQuads(t, `filter="url(#f)" transform="rotate(45 60 60)"`)     // filter + transform
-	n3 := greenQuads(t, `transform="rotate(45 60 60)"`)                      // 纯 transform
+	_ = greenQuads(t, `transform="rotate(45 60 60)"`)                        // 纯 transform（对照基线，见上注）
 
-	// 核心：filter+transform 与纯 transform 路径墨量分布逐位一致
-	//（实测基线 [1357 2445 946 1862]，修复前 N2 左半全黑与 N3 分叉）。
-	if n2 != n3 {
-		t.Errorf("filter+rotate quads = %v, want identical to pure rotate %v", n2, n3)
+	// 4b-1 语义修订：filter region 缺省值修复后滤镜在这里**真应用**了——
+	// 旧断言 N2==N3 是假绿（region 零值时滤镜整体未应用，两边都在比
+	// "无滤镜"路径）。resvg 真语义：blur+region 裁剪后的墨量分布本来就
+	// 不等于无滤镜路径（σ=(12,0) 溢出被 region 边缘裁掉）。本测试继续
+	// 防的洞是「组合丢内容」：filter+transform 的墨量必须与无 transform
+	// 的滤镜路径同量级（总墨比例 ∈ [0.2, 1.2]），且四象限不塌缩。
+	total := func(q [4]int) int { return q[0] + q[1] + q[2] + q[3] }
+	t1, t2 := total(n1), total(n2)
+	if t1 == 0 || t2 < t1*2/10 || t2 > t1*12/10 {
+		t.Errorf("filter+rotate total ink %d vs filter-only %d, want same magnitude", t2, t1)
 	}
 	// 旋转生效且内容未丢：墨量跨至少 3 个象限。
 	nonzero := 0

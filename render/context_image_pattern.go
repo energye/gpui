@@ -276,6 +276,17 @@ func (p *ImagePattern) ColorAt(x, y float64) RGBA {
 		ix += p.x
 		iy += p.y
 		r, g, b, a := p.image.GetRGBA(ix, iy)
+		// ColorAt's contract is STRAIGHT color (the fill pipeline multiplies
+		// by alpha itself). A premul-format buffer stores premul bytes —
+		// unpremultiply here, or the fill leg double-multiplies every
+		// semi-transparent pixel (premul bytes read as straight, then
+		// premultiplied again by blendCoverageSolid).
+		if p.image.Format().IsPremultiplied() && a > 0 {
+			aa := float64(a) / 255.0
+			r = uint8(float64(r)/aa + 0.5)
+			g = uint8(float64(g)/aa + 0.5)
+			b = uint8(float64(b)/aa + 0.5)
+		}
 		col := RGBA{
 			R: float64(r) / 255.0,
 			G: float64(g) / 255.0,

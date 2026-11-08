@@ -31,10 +31,24 @@ type renderState struct {
 	clipDepth   int
 	filterDepth int
 	paintDepth  int // pattern tile recursion (pattern fill inside pattern tile)
+
+	// filterRefs (P3.8 4b-1): filter ids currently being evaluated up the
+	// chain. An feImage-referenced subtree whose own filter is already
+	// in-progress renders UNFILTERED — the render-time equivalent of resvg's
+	// in-conversion cache hit returning an empty filter (self-recursive
+	// feImage terminates with the referenced content drawn plain).
+	filterRefs map[string]bool
 }
 
 // maxPropChainDepth bounds mask/clip/filter chain recursion.
 const maxPropChainDepth = 64
+
+// filterRefActive reports whether the filter id is already being evaluated
+// up the current chain (the feImage recursion breaker — an feImage-referenced
+// subtree renders unfiltered when its own filter is in progress).
+func (st *renderState) filterRefActive(id string) bool {
+	return st.filterRefs[id]
+}
 
 // renderElements renders a list of elements into the given render.Context.
 func renderElements(dc *render.Context, elements []Element, p *props, st *renderState) {
@@ -84,12 +98,12 @@ func renderElement(dc *render.Context, elem Element, parent *props, st *renderSt
 	// filterInvalid（悬空/不支持原语）→ 原样绘制（CSS error 口径），不 return。
 	if _, isText := elem.(*TextElement); !isText {
 		if a.Filter != "" && !a.filterInvalid {
-			if id, isRef := paintRefID(a.Filter); isRef {
+			if id, isRef := paintRefID(a.Filter); isRef && !st.filterRefActive(id) {
 				if f, okF := st.doc.ElementByID(id).(*FilterElement); okF {
 					if bbox, hasBBox := elementBBox(elem, st); hasBBox {
 						if combined, okP := shapeRenderPath(elem, st); okP {
 							tp := evalProps(parent, *a, st.doc)
-							if st.doc.renderFilterElement(dc, combined, bbox, f, a, tp, st) {
+							if st.doc.renderFilterElement(dc, combined, bbox, f, a, tp, id, st) {
 								return
 							}
 							// filter 未应用 → 落到原样绘制

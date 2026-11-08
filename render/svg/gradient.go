@@ -129,7 +129,14 @@ func gradientCoordsIn(g interface{ unitsAndTransform() (Units, string) }, l Leng
 	if units == UnitsUserSpaceOnUse {
 		return l.Resolve(rs, axis)
 	}
-	return l.Value
+	// objectBoundingBox coordinates are fractions of the bbox: percentages
+	// divide by 100 (a bare "50%" used to pass through as 50 — 50 bbox
+	// widths away, pushing every sample past the last stop).
+	v := l.Value
+	if l.Unit == LengthUnitPercent {
+		v /= 100
+	}
+	return v
 }
 
 func (d *Document) buildLinearBrush(g *LinearGradientElement, bbox render.Rect, rs RefSpace, color string) (render.Brush, bool) {

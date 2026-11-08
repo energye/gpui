@@ -24,14 +24,18 @@ var (
 	colorMatrixApply    func(src, dst *Pixmap, matrix [20]float32)
 	grayscaleApply      func(src, dst *Pixmap)
 	invertApply         func(src, dst *Pixmap)
-	erodeApply          func(src, dst *Pixmap, radius int)
-	dilateApply         func(src, dst *Pixmap, radius int)
+	erodeApply          func(src, dst *Pixmap, radiusX, radiusY int)
+	dilateApply         func(src, dst *Pixmap, radiusX, radiusY int)
 	offsetApply         func(src, dst *Pixmap, dx, dy int)
 	alphaThresholdApply func(src, dst *Pixmap, threshold uint8)
 	lightingApply       func(src, dst *Pixmap, lightPos [3]float32, color RGBA, kd, surfaceScale float32)
 	tileApply           func(src, dst *Pixmap, srcRect [4]float32)
 	displacementApply   func(src, dst *Pixmap, xSel, ySel, scale int, disp *ImageBuf)
 	bloomApply          func(src, dst *Pixmap, p BloomParams)
+	// P3.8 4b-2: SVG lighting pair (feDiffuse/feSpecularLighting, resvg
+	// semantics) + feComposite arithmetic (premul-domain k-coefficients).
+	svgLightingApply       func(src, dst *Pixmap, p SVGLightingParams)
+	compositeArithmeticApply func(src, dst *Pixmap, k1, k2, k3, k4 float32, in2 *ImageBuf, linearRGB bool)
 	// gpuFilterGraphApply runs F.03 multi-RT GPU ping-pong (optional).
 	// src is tight RGBA8 w*h*4; returns same layout result.
 	gpuFilterGraphApply func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)
@@ -55,14 +59,16 @@ type FilterOpImpls struct {
 	ColorMatrix    func(src, dst *Pixmap, matrix [20]float32)
 	Grayscale      func(src, dst *Pixmap)
 	Invert         func(src, dst *Pixmap)
-	Erode          func(src, dst *Pixmap, radius int)
-	Dilate         func(src, dst *Pixmap, radius int)
+	Erode          func(src, dst *Pixmap, radiusX, radiusY int)
+	Dilate         func(src, dst *Pixmap, radiusX, radiusY int)
 	Offset         func(src, dst *Pixmap, dx, dy int)
 	AlphaThreshold func(src, dst *Pixmap, threshold uint8)
 	Lighting       func(src, dst *Pixmap, lightPos [3]float32, color RGBA, kd, surfaceScale float32)
 	Tile           func(src, dst *Pixmap, srcRect [4]float32)
 	Displacement   func(src, dst *Pixmap, xSel, ySel, scale int, disp *ImageBuf)
 	Bloom          func(src, dst *Pixmap, p BloomParams)
+	SVGLighting    func(src, dst *Pixmap, p SVGLightingParams)
+	CompositeArithmetic func(src, dst *Pixmap, k1, k2, k3, k4 float32, in2 *ImageBuf, linearRGB bool)
 }
 
 // snapshotFilterOps reads back the current registration (save/restore seam

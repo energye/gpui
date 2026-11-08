@@ -43,6 +43,8 @@ func RegisterFilterOps(impls FilterOpImpls) {
 	tileApply = impls.Tile
 	displacementApply = impls.Displacement
 	bloomApply = impls.Bloom
+	svgLightingApply = impls.SVGLighting
+	compositeArithmeticApply = impls.CompositeArithmetic
 }
 
 func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
@@ -339,33 +341,46 @@ func (c *Context) readbackFilterSrcIntoScratch(srcView gpucontext.TextureView, w
 // ApplyErode morphologically shrinks bright regions by the radius (P3.4).
 // GPU-first via the filter graph, CPU fallback otherwise.
 func (c *Context) ApplyErode(radius int) {
-	if radius <= 0 {
+	c.ApplyErodeXY(radius, radius)
+}
+
+// ApplyErodeXY is the anisotropic erode (SVG feMorphology rx/ry; P3.8 4b-1).
+// Radii <= 0 are no-ops — the caller decides the transparent-output stance
+// for zero radii (resvg clears, which is an SVG-semantic call, not a
+// morphology one).
+func (c *Context) ApplyErodeXY(radiusX, radiusY int) {
+	if radiusX <= 0 || radiusY <= 0 {
 		return
 	}
-	nodes := []ImageFilterNode{{Kind: ImageFilterErode, MorphRadius: radius}}
+	nodes := []ImageFilterNode{{Kind: ImageFilterErode, MorphRadius: radiusX, MorphRadiusY: radiusY}}
 	if c.tryApplyFilterGraphGPU(nodes...) {
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		if erodeApply != nil {
-			erodeApply(src, dst, radius)
+			erodeApply(src, dst, radiusX, radiusY)
 		}
 	})
 	c.markLayerFullComposite()
 }
 
-// ApplyDilate morphologically grows bright regions by the radius (P3.4).
+// ApplyDilate morphologically grows bright regions by the radius.
 func (c *Context) ApplyDilate(radius int) {
-	if radius <= 0 {
+	c.ApplyDilateXY(radius, radius)
+}
+
+// ApplyDilateXY is the anisotropic dilate (SVG feMorphology rx/ry).
+func (c *Context) ApplyDilateXY(radiusX, radiusY int) {
+	if radiusX <= 0 || radiusY <= 0 {
 		return
 	}
-	nodes := []ImageFilterNode{{Kind: ImageFilterDilate, MorphRadius: radius}}
+	nodes := []ImageFilterNode{{Kind: ImageFilterDilate, MorphRadius: radiusX, MorphRadiusY: radiusY}}
 	if c.tryApplyFilterGraphGPU(nodes...) {
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		if dilateApply != nil {
-			dilateApply(src, dst, radius)
+			dilateApply(src, dst, radiusX, radiusY)
 		}
 	})
 	c.markLayerFullComposite()

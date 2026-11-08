@@ -45,6 +45,22 @@ var (
 	filterSeedMeshEncoderDesc = &hal.CommandEncoderDescriptor{Label: "filter_seed_mesh_enc"}
 )
 
+// morphRadiusYOf resolves the anisotropic morphology Y radius: isotropic
+// nodes leave MorphRadiusY 0 — fall back to the X radius.
+func morphRadiusYOf(n render.ImageFilterNode) int {
+	if n.MorphRadiusY > 0 {
+		return n.MorphRadiusY
+	}
+	return n.MorphRadius
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 const filterGPUGraphWGSL = `
 struct Params {
     size: vec2<f32>,
@@ -141,8 +157,10 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         return vec4<f32>(lit * a, a);
     }
     if p.mode == 12u {
-        // Tile (P3.4, Skia ImageFilters::Tile): repeat p.rect2/rect3's
-        // src-rect region of the source across the whole output.
+        // Tile (P3.4; phase anchored at the rect origin — resvg feTile
+        // Pattern::translate(x0,y0)+Repeat semantics): dst(x) samples
+        // src(x0 + mod(x - x0, w)), so the cell's top-left lands on (x0,y0)
+        // and repeats outward in both directions.
         let x0 = p.rect2.z;
         let y0 = p.rect2.w;
         let x1 = p.rect3.x;
@@ -151,22 +169,33 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         let h0 = max(y1 - y0, 0.0001);
         let u = in.uv.x * p.size.x;
         let v = in.uv.y * p.size.y;
-        // Pixel-space origin plus the wrapped offset, normalized once —
-        // x0 must not be added to the normalized uv (ClampToEdge smear,
-        // P1-8; CPU reference lighting.go TileFilter.Apply does x0+mod).
-        let tuv = vec2<f32>((x0 + (u % w0)) / p.size.x,
-                            (y0 + (v % h0)) / p.size.y);
+        let mx = (u - x0) - w0 * floor((u - x0) / w0);
+        let my = (v - y0) - h0 * floor((v - y0) / h0);
+        let tuv = vec2<f32>((x0 + mx) / p.size.x,
+                            (y0 + my) / p.size.y);
         return textureSampleLevel(src_tex, samp, tuv, 0.0);
     }
     if p.mode == 7u || p.mode == 8u {
-        // Morphology (P3.4): erode=min / dilate=max over a (2r+1)^2 box.
+        // Morphology (P3.4; resvg/SVG-feMorphology semantics): erode=min /
+        // dilate=max over a half-open [-rx,rx) × [-ry,ry) window; OOB
+        // neighbors are SKIPPED (not clamped, not transparent). Anisotropic
+        // ry rides rect3.z (0 → isotropic fallback).
         var best = vec4<f32>(-1.0);
         let r = i32(p.radius);
-        let px = 1.0 / max(p.size, vec2<f32>(1.0, 1.0));
-        for (var dy = -r; dy <= r; dy++) {
-            for (var dx = -r; dx <= r; dx++) {
-                let uv_m = in.uv + vec2<f32>(f32(dx), f32(dy)) * px;
-                let c1 = sample_clamped(src_tex, uv_m);
+        var ry = i32(p.rect3.z);
+        if (ry == 0) {
+            ry = r;
+        }
+        // Pixel-space bounds check (uv centers sit at +0.5, so a plain
+        // uv<0 test would miss the left/top OOB column).
+        let ppos = in.uv * p.size - vec2<f32>(0.5, 0.5);
+        for (var dy = -ry; dy < ry; dy++) {
+            for (var dx = -r; dx < r; dx++) {
+                let t = ppos + vec2<f32>(f32(dx), f32(dy));
+                if (t.x < 0.0 || t.x >= p.size.x || t.y < 0.0 || t.y >= p.size.y) {
+                    continue;
+                }
+                let c1 = textureSampleLevel(src_tex, samp, (t + vec2<f32>(0.5, 0.5)) / p.size, 0.0);
                 if (best.r < -0.5) {
                     best = c1;
                 } else if (p.mode == 7u) {
@@ -175,6 +204,9 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
                     best = max(best, c1);
                 }
             }
+        }
+        if (best.r < -0.5) {
+            best = vec4<f32>(0.0);
         }
         return best;
     }
@@ -1151,6 +1183,7 @@ func runGPUFilterGraphEx(
 		shininess, surfScale   float32
 		tileX0, tileY0         float32
 		tileX1, tileY1         float32
+		morphRadiusY           float32
 		auxView                hal.TextureView
 		dstView                hal.TextureView
 		srcView                hal.TextureView
@@ -1284,6 +1317,7 @@ func runGPUFilterGraphEx(
 		putF32(172, a.tileY0)
 		putF32(176, a.tileX1)
 		putF32(180, a.tileY1)
+		putF32(184, a.morphRadiusY)
 		putF32(0, float32(w))
 		putF32(4, float32(h))
 		putF32(8, a.dirX)
@@ -1373,14 +1407,20 @@ func runGPUFilterGraphEx(
 			}
 			swap()
 		case render.ImageFilterErode:
-			if err := doPass(passArgs{mode: 7, radius: uint32(n.MorphRadius)}); err != nil {
+			// resvg caps the window at the surface size; with OOB samples
+			// skipped, capping is behavior-identical and bounds the loop.
+			rx := minInt(n.MorphRadius, w)
+			ry := minInt(morphRadiusYOf(n), h)
+			if err := doPass(passArgs{mode: 7, radius: uint32(rx), morphRadiusY: float32(ry)}); err != nil {
 				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
 			}
 			swap()
 		case render.ImageFilterDilate:
-			if err := doPass(passArgs{mode: 8, radius: uint32(n.MorphRadius)}); err != nil {
+			rx := minInt(n.MorphRadius, w)
+			ry := minInt(morphRadiusYOf(n), h)
+			if err := doPass(passArgs{mode: 8, radius: uint32(rx), morphRadiusY: float32(ry)}); err != nil {
 				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err

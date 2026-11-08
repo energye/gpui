@@ -181,9 +181,10 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 		fmt.Sprintf("got=%v want dark shadow", gotSh))
 
 	// 卡 3：saturate(0) 灰行；半透明蓝行。
-		// transform=translate(0,70) 在 filter 管线内未生效（已知限制，登记）——
-	// 灰块在无 transform 位置 y∈[40,100)，探中心。
-	check("pixel_cm_gray", 2, 130, 70, [3]float64{0.42, 0.42, 0.42})
+	// 4b-1 起 filter 管线内元素 transform 生效（region 缺省修复让滤镜真
+	// 应用，shapeRenderPath 烘焙的 translate 随之显现）——灰块在平移后
+	// 位置 y∈[110,170)，探中心。
+	check("pixel_cm_gray", 2, 130, 140, [3]float64{0.42, 0.42, 0.42})
 	gotA, okA := read(2, 130, 200)
 	add("pixel_cm_alpha", okA && gotA[2] > 0.2 && gotA[2] < colBlue[2],
 		fmt.Sprintf("got=%v want semi-transparent blue", gotA))

@@ -498,10 +498,12 @@ type ImageFilterNode struct {
 	// ColorMatrix
 	Matrix [20]float32
 
-	// Erode/Dilate/Offset/AlphaThreshold (P3.4): MorphRadius for morphology,
-	// IntOffsetX/Y for offset, AlphaThreshold for the cutoff. The integer
-	// offset avoids float rounding at whole-pixel granularity.
+	// Erode/Dilate/Offset/AlphaThreshold (P3.4): MorphRadius/MorphRadiusY for
+	// morphology (Y falls back to MorphRadius when 0 — SVG feMorphology takes
+	// separate radii), IntOffsetX/Y for offset, AlphaThreshold for the cutoff.
+	// The integer offset avoids float rounding at whole-pixel granularity.
 	MorphRadius    int
+	MorphRadiusY   int
 	IntOffsetX     int
 	IntOffsetY     int
 	AlphaThreshold uint8
@@ -711,6 +713,16 @@ func imageFilterNodeRunnable(n ImageFilterNode) bool {
 	}
 }
 
+// morphRadiusYOf resolves the anisotropic morphology Y radius: nodes built
+// before the field existed (or by isotropic callers) leave it 0 — fall back
+// to the X radius.
+func morphRadiusYOf(n ImageFilterNode) int {
+	if n.MorphRadiusY > 0 {
+		return n.MorphRadiusY
+	}
+	return n.MorphRadius
+}
+
 func applyImageFilterNode(n ImageFilterNode, src, dst *Pixmap) {
 	switch n.Kind {
 	case ImageFilterBlur:
@@ -726,9 +738,9 @@ func applyImageFilterNode(n ImageFilterNode, src, dst *Pixmap) {
 	case ImageFilterInvert:
 		invertApply(src, dst)
 	case ImageFilterErode:
-		erodeApply(src, dst, n.MorphRadius)
+		erodeApply(src, dst, n.MorphRadius, morphRadiusYOf(n))
 	case ImageFilterDilate:
-		dilateApply(src, dst, n.MorphRadius)
+		dilateApply(src, dst, n.MorphRadius, morphRadiusYOf(n))
 	case ImageFilterOffset:
 		offsetApply(src, dst, n.IntOffsetX, n.IntOffsetY)
 	case ImageFilterAlphaThreshold:

@@ -310,7 +310,14 @@ func FromStdImage(img image.Image) *ImageBuf {
 	width := bounds.Dx()
 	height := bounds.Dy()
 
-	buf, _ := NewImageBuf(width, height, FormatRGBA8)
+	// *image.RGBA pixels are PREMULTIPLIED (stdlib contract) — store them in
+	// the premul format so blitters treat the bytes correctly. The straight
+	// FormatRGBA8 here used to double-multiply every semi-transparent RGBA
+	// drawn through ImageBufFromImage (the draw legs premultiply "straight"
+	// data again). The generic path below has the same trap: image.Image's
+	// At() is premul 16-bit, so it lands in the premul format too.
+	premul, _ := NewImageBuf(width, height, FormatRGBAPremul)
+	buf := premul
 
 	// Fast path for RGBA images
 	if rgba, ok := img.(*image.RGBA); ok {
@@ -340,14 +347,17 @@ func FromStdImage(img image.Image) *ImageBuf {
 		return buf
 	}
 
-	// Generic slow path for any image type
+	// Generic slow path for any image type: At() is premul 16-bit — store
+	// the 8-bit premul bytes verbatim in the premul buffer.
 	for y := range height {
 		for x := range width {
 			c := img.At(bounds.Min.X+x, bounds.Min.Y+y)
 			r, g, b, a := c.RGBA()
 			// RGBA() returns 16-bit values, scale to 8-bit
 			// Right shift by 8 guarantees result fits in uint8
-			_ = buf.SetRGBA(x, y, byte(r>>8), byte(g>>8), byte(b>>8), byte(a>>8))
+			i := y*buf.Stride() + x*4
+			d := buf.Data()
+			d[i], d[i+1], d[i+2], d[i+3] = byte(r>>8), byte(g>>8), byte(b>>8), byte(a>>8)
 		}
 	}
 

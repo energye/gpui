@@ -41,11 +41,11 @@ func init() {
 		Invert: func(src, dst *render.Pixmap) {
 			filter.NewInvertFilter().Apply(src, dst, full(src))
 		},
-		Erode: func(src, dst *render.Pixmap, radius int) {
-			filter.NewErodeFilter(radius, radius).Apply(src, dst, full(src))
+		Erode: func(src, dst *render.Pixmap, radiusX, radiusY int) {
+			filter.NewErodeFilter(radiusX, radiusY).Apply(src, dst, full(src))
 		},
-		Dilate: func(src, dst *render.Pixmap, radius int) {
-			filter.NewDilateFilter(radius, radius).Apply(src, dst, full(src))
+		Dilate: func(src, dst *render.Pixmap, radiusX, radiusY int) {
+			filter.NewDilateFilter(radiusX, radiusY).Apply(src, dst, full(src))
 		},
 		Offset: func(src, dst *render.Pixmap, dx, dy int) {
 			filter.NewOffsetFilter(dx, dy).Apply(src, dst, full(src))
@@ -64,6 +64,12 @@ func init() {
 		},
 		Bloom: func(src, dst *render.Pixmap, p render.BloomParams) {
 			filter.NewBloomFilter(p).Apply(src, dst, full(src))
+		},
+		SVGLighting: func(src, dst *render.Pixmap, p render.SVGLightingParams) {
+			filter.NewSVGLighting(p).Apply(src, dst)
+		},
+		CompositeArithmetic: func(src, dst *render.Pixmap, k1, k2, k3, k4 float32, in2 *render.ImageBuf, linearRGB bool) {
+			filter.NewCompositeArithmetic(k1, k2, k3, k4, in2, linearRGB).Apply(src, dst)
 		},
 	})
 }

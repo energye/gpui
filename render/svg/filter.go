@@ -59,6 +59,59 @@ type FilterPrimitive struct {
 	FloodColor   string
 	FloodOpacity float64
 	MergeNodes   []string // feMergeNode in= list
+
+	// P3.8 4b-1: filter primitive subregion (x/y/width/height in
+	// primitiveUnits). Per-attr fallback: filter region (userSpaceOnUse) or
+	// 0/0/1/1 fractions of the object bbox (objectBoundingBox).
+	SX, SY, SW, SH       Length
+	SXSet, SYSet, SWSet, SHSet bool
+	// feMorphology: operator (default erode) + radius list (resvg rule:
+	// 1 value → both axes, 2 → x/y, otherwise invalid → 0/0 → transparent).
+	Operator string
+	Radius   []float64
+	// feDisplacementMap: channel selectors (0=R, 1=G, 2=B, 3=A; default A).
+	XSel, YSel int
+	Scale      float64
+	HasScale   bool
+	// feComponentTransfer: per-channel feFuncR/G/B/A (nil = identity).
+	Funcs [4]*TransferFunc
+	// feImage: href (element ref "#id" resolves at render; data: URI decodes
+	// at parse into Img), preserveAspectRatio raw.
+	Href   string
+	Aspect string
+	Img    *ImageElement
+	// P3.8 4b-2: feDiffuseLighting/feSpecularLighting + light source child;
+	// feComposite arithmetic coefficients.
+	SurfaceScale     float64
+	DiffuseConstant  float64
+	SpecularConstant float64
+	SpecularExponent float64
+	LightingColor    string
+	Light            *LightSource
+	K1, K2, K3, K4   float64
+}
+
+// LightSource is one feDistantLight/fePointLight/feSpotLight child.
+type LightSource struct {
+	Type                             int // 0=distant, 1=point, 2=spot
+	Azimuth, Elevation               float64
+	X, Y, Z                          float64
+	PointsAtX, PointsAtY, PointsAtZ  float64
+	SpotSpecularExponent             float64
+	LimitingConeAngle                float64
+	HasLimitingCone                  bool
+}
+
+// TransferFunc is one feFuncR/G/B/A transfer function of feComponentTransfer
+// (SVG Filter Effects §10: identity/table/discrete/linear/gamma).
+type TransferFunc struct {
+	Type        string // normalized lowercase; unknown → identity
+	TableValues []float64
+	Slope       float64 // linear (default 1)
+	Intercept   float64 // linear
+	Amplitude   float64 // gamma (default 1)
+	Exponent    float64 // gamma (default 1)
+	Offset      float64 // gamma
 }
 
 // FilterElement represents <filter>.
@@ -68,6 +121,7 @@ type FilterElement struct {
 	W, H         Length
 	Units        Units // filterUnits (default objectBoundingBox)
 	ContentUnits Units // primitiveUnits (default userSpaceOnUse)
+	LinearRGB    bool  // color-interpolation-filters (spec default true)
 	Primitives   []*FilterPrimitive
 }
 
@@ -78,7 +132,9 @@ func (e *FilterElement) attrs() *Attrs { return &e.Attrs }
 func supportedFilterPrimitive(kind string) bool {
 	switch kind {
 	case "feGaussianBlur", "feOffset", "feFlood", "feColorMatrix",
-		"feBlend", "feComposite", "feMerge", "feDropShadow":
+		"feBlend", "feComposite", "feMerge", "feDropShadow",
+		"feMorphology", "feTile", "feDisplacementMap", "feComponentTransfer", "feImage",
+		"feDiffuseLighting", "feSpecularLighting":
 		return true
 	}
 	return false
@@ -176,6 +232,18 @@ func colorMatrixValues(fp *FilterPrimitive) ([20]float32, bool) {
 	return m, false
 }
 
+// subRegion is one filter primitive's subregion in user-space canvas
+// coordinates (the offscreen maps it 1:1 with the (regX, regY) origin
+// subtracted). resvg carries the same per-result region for feTile cells and
+// the feOffset inheritance quirk.
+type subRegion struct{ x, y, w, h float64 }
+
+// sameAs compares on rounded ints (resvg resolves subregions to IntRect).
+func (s subRegion) sameAs(o subRegion) bool {
+	same := func(a, b float64) bool { return int(math.Round(a)) == int(math.Round(b)) }
+	return same(s.x, o.x) && same(s.y, o.y) && same(s.w, o.w) && same(s.h, o.h)
+}
+
 // renderFilterElement evaluates a filter chain for one element and composites
 // the result back. Pipeline: the element content renders into the source
 // offscreen (SourceGraphic), each primitive runs on its own offscreen Context
@@ -183,7 +251,17 @@ func colorMatrixValues(fp *FilterPrimitive) ([20]float32, bool) {
 // Returns false when the filter must not be applied (unsupported primitive /
 // dangling ref already warned) — the caller then renders the element
 // unfiltered (CSS error口径).
-func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path, bbox render.Rect, f *FilterElement, a *Attrs, p *props, st *renderState) bool {
+func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path, bbox render.Rect, f *FilterElement, a *Attrs, p *props, filterID string, st *renderState) bool {
+	// feImage recursion breaker: while this filter is being evaluated, a
+	// referenced subtree carrying the same filter renders unfiltered
+	// (resvg's in-conversion cache hit returns an empty filter — same
+	// observable semantics, see renderState.filterRefs).
+	if st.filterRefs == nil {
+		st.filterRefs = map[string]bool{}
+	}
+	st.filterRefs[filterID] = true
+	defer delete(st.filterRefs, filterID)
+
 	for _, fp := range f.Primitives {
 		if !supportedFilterPrimitive(fp.Kind) {
 			return false
@@ -222,6 +300,57 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 	if rw > maxFilterRegionSide || rh > maxFilterRegionSide || rw*rh > maxFilterRegionPixels {
 		return false
 	}
+	// Per-primitive subregion machinery (resvg filter/mod.rs orchestration):
+	// every result carries its region; a primitive whose subregion differs
+	// from the filter region gets its output clipped to it (feOffset is the
+	// registered exception — it inherits its input's region unclipped).
+	full := subRegion{regX, regY, regW, regH}
+	regionOf := map[string]subRegion{"SourceGraphic": full, "SourceAlpha": full}
+	resolveSubRegion := func(fp *FilterPrimitive) subRegion {
+		// userSpaceOnUse primitiveUnits: per-attr fallback to the filter
+		// region; objectBoundingBox: fractions of the element bbox with
+		// per-attr fallback to 0/0/1/1 (resvg resolve_primitive_region).
+		frac := func(l Length, set bool, defFrac float64, dim float64) float64 {
+			if !set {
+				return defFrac * dim
+			}
+			v := l.Value
+			if l.Unit == LengthUnitPercent {
+				v /= 100
+			}
+			return v * dim
+		}
+		user := func(l Length, set bool, def float64, axis LengthAxis, dim float64) float64 {
+			if !set {
+				return def
+			}
+			return l.Resolve(RefSpace{ViewportW: dim, ViewportH: dim}, axis)
+		}
+		if f.ContentUnits == UnitsObjectBoundingBox {
+			return subRegion{
+				x: bbox.Min.X + frac(fp.SX, fp.SXSet, 0, bw),
+				y: bbox.Min.Y + frac(fp.SY, fp.SYSet, 0, bh),
+				w: frac(fp.SW, fp.SWSet, 1, bw),
+				h: frac(fp.SH, fp.SHSet, 1, bh),
+			}
+		}
+		return subRegion{
+			x: user(fp.SX, fp.SXSet, regX, LengthAxisX, bw),
+			y: user(fp.SY, fp.SYSet, regY, LengthAxisY, bh),
+			w: user(fp.SW, fp.SWSet, regW, LengthAxisX, bw),
+			h: user(fp.SH, fp.SHSet, regH, LengthAxisY, bh),
+		}
+	}
+	clipToSubRegion := func(buf *render.ImageBuf, sr subRegion) *render.ImageBuf {
+		cw := render.NewContext(rw, rh)
+		defer cw.Close()
+		cw.ClipRect(sr.x-regX, sr.y-regY, sr.w, sr.h)
+		cw.DrawImage(buf, 0, 0)
+		out := render.ImageBufFromImage(cw.Image())
+		buf.Dispose()
+		return out
+	}
+
 	// SourceGraphic offscreen: content shifted so the filter region origin
 	// is the offscreen origin (blur/offset spills land inside the region).
 	src := render.NewContext(rw, rh)
@@ -261,10 +390,13 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 	for _, fp := range f.Primitives {
 		in := fp.In
 		if in == "" {
-			if last == "" {
-				in = "SourceGraphic"
+			// resvg resolve_input: a non-first primitive's default input is
+			// the PREVIOUS primitive's output, even when that result is
+			// unnamed (images["__last__"] carries it).
+			if _, okL := images["__last__"]; okL {
+				in = "__last__"
 			} else {
-				in = last
+				in = "SourceGraphic"
 			}
 		}
 		inBuf, ok := images[in]
@@ -321,6 +453,24 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			_ = w.Fill()
 			out = render.ImageBufFromImage(w.Image())
 		case "feBlend", "feComposite":
+			if fp.Kind == "feComposite" && strings.ToLower(strings.TrimSpace(fp.Str1)) == "arithmetic" {
+				// resvg composite.rs: premul-domain k-coefficients, RGB
+				// clamped to the new alpha, alpha≈0 → transparent.
+				in2a := fp.In2
+				if in2a == "" {
+					in2a = "SourceGraphic"
+				}
+				in2A, okA := images[in2a]
+				if !okA {
+					disposeAll(images)
+					return false
+				}
+				out = applyTo(inBuf, func(w *render.Context) {
+					w.ApplyCompositeArithmetic(
+						float32(fp.K1), float32(fp.K2), float32(fp.K3), float32(fp.K4), in2A, f.LinearRGB)
+				})
+				break
+			}
 			mode, okM := blendModeFor(fp.Kind, fp.Str1)
 			if !okM {
 				disposeAll(images)
@@ -352,17 +502,125 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 				}
 			}
 			out = render.ImageBufFromImage(w.Image())
+		case "feMorphology":
+			rx, ry := morphologyRadii(fp.Radius)
+			if rx <= 0 || ry <= 0 {
+				// resvg: non-positive radius clears (transparent output).
+				w := render.NewContext(rw, rh)
+				defer w.Close()
+				out = render.ImageBufFromImage(w.Image())
+			} else {
+				out = applyTo(inBuf, func(w *render.Context) {
+					irx, iry := int(math.Ceil(rx)), int(math.Ceil(ry))
+					if fp.Operator == "dilate" {
+						w.ApplyDilateXY(irx, iry)
+					} else {
+						w.ApplyErodeXY(irx, iry)
+					}
+				})
+			}
+		case "feTile":
+			// resvg apply_tile: the INPUT's region is the tile cell; the
+			// whole filter region is filled with repeats of it (ApplyTile
+			// phase anchors the cell at its own origin — resvg-exact).
+			cell, okC := regionOf[in]
+			if !okC {
+				cell = full
+			}
+			w := render.NewContext(rw, rh)
+			defer w.Close()
+			w.DrawImage(inBuf, 0, 0)
+			w.ApplyTile([4]float32{
+				float32(cell.x - regX), float32(cell.y - regY),
+				float32(cell.x - regX + cell.w), float32(cell.y - regY + cell.h),
+			})
+			out = render.ImageBufFromImage(w.Image())
+		case "feDisplacementMap":
+			in2 := fp.In2
+			if in2 == "" {
+				in2 = "SourceGraphic"
+			}
+			in2Buf, ok2 := images[in2]
+			if !ok2 {
+				disposeAll(images)
+				return false
+			}
+			scale := 0.0
+			if fp.HasScale {
+				scale = fp.Scale
+			}
+			out = applyTo(inBuf, func(w *render.Context) {
+				w.ApplyDisplacementMap(fp.XSel, fp.YSel, int(math.Round(scale)), in2Buf)
+			})
+		case "feComponentTransfer":
+			// resvg apply_component_transfer: demultiply → per-channel
+			// transfer → premultiply — exactly ApplyColorFilter's storage
+			// round trip; the five SVG types compile into 256-entry LUTs.
+			lutR, lutG, lutB, lutA := compileTransferLUTs(fp.Funcs)
+			out = applyTo(inBuf, func(w *render.Context) {
+				w.ApplyColorFilter(render.ColorFilterFunc(func(r, g, b, a float32) (float32, float32, float32, float32) {
+					return lutApply(lutR, r), lutApply(lutG, g), lutApply(lutB, b), lutApply(lutA, a)
+				}))
+			})
+		case "feImage":
+			sr := resolveSubRegion(fp)
+			out = d.renderFeImagePrimitive(rw, rh, regX, regY, fp, sr, st)
+		case "feDiffuseLighting", "feSpecularLighting":
+			spec := fp.Kind == "feSpecularLighting"
+			if spec && (fp.SpecularExponent < 1 || fp.SpecularExponent > 128) {
+				// resvg usvg: specularExponent outside [1,128] → dummy
+				// primitive → transparent output.
+				w := render.NewContext(rw, rh)
+				defer w.Close()
+				out = render.ImageBufFromImage(w.Image())
+			} else {
+				params := render.SVGLightingParams{
+					Specular:         spec,
+					SurfaceScale:     float32(fp.SurfaceScale),
+					DiffuseConstant:  float32(fp.DiffuseConstant),
+					SpecularConstant: float32(fp.SpecularConstant),
+					SpecularExponent: float32(fp.SpecularExponent),
+					// lighting-color defaults to white (spec).
+					LightColor: colorFromHexOr(fp.LightingColor, render.RGBA{R: 1, G: 1, B: 1, A: 1}),
+					LinearRGB:  f.LinearRGB,
+				}
+				if ls := fp.Light; ls != nil {
+					params.LightType = ls.Type
+					params.Azimuth = float32(ls.Azimuth)
+					params.Elevation = float32(ls.Elevation)
+					params.LightX, params.LightY, params.LightZ = float32(ls.X), float32(ls.Y), float32(ls.Z)
+					params.PointsAtX, params.PointsAtY, params.PointsAtZ = float32(ls.PointsAtX), float32(ls.PointsAtY), float32(ls.PointsAtZ)
+					params.SpotSpecularExponent = float32(ls.SpotSpecularExponent)
+					params.LimitingConeAngle = float32(ls.LimitingConeAngle)
+					params.HasLimitingCone = ls.HasLimitingCone
+				}
+				out = applyTo(inBuf, func(w *render.Context) {
+					w.ApplySVGLighting(params)
+				})
+			}
 		}
 		if out == nil {
 			disposeAll(images)
-			disposeAll(images)
 			return false
+		}
+		// Subregion bookkeeping: clip the output (feOffset inherits its
+		// input's region and is not clipped — resvg's registered quirk) and
+		// record the result region for feTile cells / downstream inheritance.
+		sr := resolveSubRegion(fp)
+		if fp.Kind == "feOffset" {
+			if r, okR := regionOf[in]; okR {
+				sr = r
+			}
+		} else if !sr.sameAs(full) {
+			out = clipToSubRegion(out, sr)
 		}
 		if fp.Result != "" {
 			images[fp.Result] = out
+			regionOf[fp.Result] = sr
 		}
 		last = fp.Result
 		images["__last__"] = out
+		regionOf["__last__"] = sr
 	}
 	outBuf := images["__last__"]
 	if outBuf == nil {
@@ -448,4 +706,129 @@ func colorFromHexOr(s string, def render.RGBA) render.RGBA {
 	}
 	r, g, b, a := c.RGBA()
 	return render.RGBA{R: float64(r>>8) / 255, G: float64(g>>8) / 255, B: float64(b>>8) / 255, A: float64(a>>8) / 255}
+}
+
+// morphologyRadii applies the resvg feMorphology radius-list rule: one
+// value → both axes, two → x/y, otherwise (empty / 3+ values) invalid →
+// 0/0; negatives clamp to 0 (both produce the transparent-output stance).
+func morphologyRadii(nums []float64) (float64, float64) {
+	var x, y float64
+	switch {
+	case len(nums) == 1:
+		x, y = nums[0], nums[0]
+	case len(nums) == 2:
+		x, y = nums[0], nums[1]
+	default:
+		return 0, 0
+	}
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	return x, y
+}
+
+// compileTransferLUTs bakes the four feFunc* transfer functions into
+// 256-entry LUTs (nil = channel unchanged: identity, or an empty
+// tableValues list — resvg is_dummy semantics). Formulas are resvg
+// component_transfer.rs verbatim (SVG Filter Effects §10); the output
+// clamps to [0,1] and truncates to u8 like resvg's `as u8`.
+func compileTransferLUTs(funcs [4]*TransferFunc) (r, g, b, a []uint8) {
+	compile := func(fn *TransferFunc) []uint8 {
+		if fn == nil {
+			return nil
+		}
+		switch fn.Type {
+		case "table", "discrete":
+			if len(fn.TableValues) == 0 {
+				return nil
+			}
+		case "linear", "gamma":
+		default: // identity (unknown types normalize at parse)
+			return nil
+		}
+		t := make([]uint8, 256)
+		for i := 0; i < 256; i++ {
+			c := float64(i) / 255
+			var v float64
+			switch fn.Type {
+			case "table":
+				n := len(fn.TableValues) - 1
+				k := int(math.Floor(c * float64(n)))
+				if k > n {
+					k = n
+				}
+				if k == n {
+					v = fn.TableValues[k]
+				} else {
+					vk, vk1 := fn.TableValues[k], fn.TableValues[k+1]
+					v = vk + (c-float64(k)/float64(n))*float64(n)*(vk1-vk)
+				}
+			case "discrete":
+				n := len(fn.TableValues)
+				k := int(math.Floor(c * float64(n)))
+				if k > n-1 {
+					k = n - 1
+				}
+				v = fn.TableValues[k]
+			case "linear":
+				v = fn.Slope*c + fn.Intercept
+			case "gamma":
+				v = fn.Amplitude*math.Pow(c, fn.Exponent) + fn.Offset
+			}
+			if v < 0 {
+				v = 0
+			}
+			if v > 1 {
+				v = 1
+			}
+			t[i] = uint8(v * 255)
+		}
+		return t
+	}
+	return compile(funcs[0]), compile(funcs[1]), compile(funcs[2]), compile(funcs[3])
+}
+
+// lutApply looks one straight channel up in a transfer LUT (nil = identity).
+func lutApply(tab []uint8, v float32) float32 {
+	if len(tab) != 256 {
+		return v
+	}
+	return float32(tab[int(v*255+0.5)]) / 255
+}
+
+// renderFeImagePrimitive produces the feImage output: an external/data-URI
+// raster fitted into the primitive subregion (resvg convert_inner), or the
+// referenced element subtree rendered in its own user space translated to
+// the subregion origin (resvg apply_image). Missing/invalid href → a
+// transparent image (resvg dummy-primitive stance).
+func (d *Document) renderFeImagePrimitive(rw, rh int, regX, regY float64, fp *FilterPrimitive, sr subRegion, st *renderState) *render.ImageBuf {
+	w := render.NewContext(rw, rh)
+	defer w.Close()
+	if fp.Img != nil {
+		if buf := fp.Img.renderBuf(); buf != nil {
+			w.Push()
+			w.Translate(sr.x-regX, sr.y-regY)
+			w.ClipRect(0, 0, sr.w, sr.h)
+			w.Transform(viewportTransform(sr.w, sr.h, ViewBox{0, 0, float64(fp.Img.ImgW), float64(fp.Img.ImgH)}, fp.Img.Par))
+			w.DrawImage(buf, 0, 0)
+			w.Pop()
+			buf.Dispose()
+			fp.Img.buf = nil // the cached buf is now disposed — re-evals re-decode
+		}
+	} else if ref := strings.TrimSpace(fp.Href); strings.HasPrefix(ref, "#") {
+		if target := d.ElementByID(strings.TrimPrefix(ref, "#")); target != nil {
+			w.Push()
+			w.Translate(sr.x-regX, sr.y-regY)
+			// The referenced subtree renders with the CURRENT filter state:
+			// a subtree whose own filter is in-progress renders unfiltered
+			// (st.filterRefs — the resvg self-recursive termination).
+			inner := *st
+			renderElement(w, target, evalProps(rootProps(), *target.attrs(), st.doc), &inner)
+			w.Pop()
+		}
+	}
+	return render.ImageBufFromImage(w.Image())
 }

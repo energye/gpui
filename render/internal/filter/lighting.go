@@ -106,7 +106,10 @@ func (f *TileFilter) ExpandBounds(bounds image.Rectangle) image.Rectangle {
 	return bounds
 }
 
-// Apply tiles the source rect across the bounds.
+// Apply tiles the source rect across the bounds. Phase is anchored at the
+// rect origin (resvg feTile Pattern::translate(x0,y0) + Repeat semantics):
+// the cell's top-left pixel lands exactly on (x0, y0) and repeats outward
+// in both directions — dst(x) samples src at x0 + mod(x - x0, w).
 func (f *TileFilter) Apply(src, dst *render.Pixmap, bounds scene.Rect) {
 	w, h := src.Width(), src.Height()
 	srcData, dstData := src.Data(), dst.Data()
@@ -118,8 +121,8 @@ func (f *TileFilter) Apply(src, dst *render.Pixmap, bounds scene.Rect) {
 	}
 	for y := int(bounds.MinY); y < int(bounds.MaxY); y++ {
 		for x := int(bounds.MinX); x < int(bounds.MaxX); x++ {
-			sx := x0 + modF(float32(x), tw)
-			sy := y0 + modF(float32(y), th)
+			sx := x0 + modF(float32(x)-x0, tw)
+			sy := y0 + modF(float32(y)-y0, th)
 			sxi, syi := int(sx), int(sy)
 			if sxi < 0 || sxi >= w || syi < 0 || syi >= h {
 				continue

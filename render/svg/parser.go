@@ -836,7 +836,18 @@ func parseLinearGradient(pc *parseCtx, se xml.StartElement) (*LinearGradientElem
 // parseRadialGradient parses <radialGradient> (cx/cy/r/fx/fy; fx/fy default
 // to cx/cy per axis when either is present).
 func parseRadialGradient(pc *parseCtx, se xml.StartElement) (*RadialGradientElement, error) {
-	g := &RadialGradientElement{Attrs: parseAttrs(pc, se)}
+	// Spec defaults cx=cy=r=50% stated on the Lengths (NOT on the set flags —
+	// href inheritance keys off the flags, so an unset cx still inherits from
+	// the referenced gradient; the 50% only survives when no link sets it).
+	// The zero-value Length previously gave r=0 → the gradient painted its
+	// last stop everywhere (every default radial in the resvg corpus was
+	// solid white).
+	g := &RadialGradientElement{
+		Attrs: parseAttrs(pc, se),
+		CX:    Length{Value: 50, Unit: LengthUnitPercent},
+		CY:    Length{Value: 50, Unit: LengthUnitPercent},
+		R:     Length{Value: 50, Unit: LengthUnitPercent},
+	}
 	set := map[string]bool{}
 	for _, attr := range se.Attr {
 		switch attr.Name.Local {
@@ -1204,7 +1215,22 @@ func tName(se xml.StartElement) string { return se.Name.Local }
 
 // parseFilterElement parses <filter> (region + units; primitives via children).
 func parseFilterElement(pc *parseCtx, se xml.StartElement) (Element, error) {
-	elem := &FilterElement{Attrs: parseAttrs(pc, se), Units: UnitsObjectBoundingBox}
+	// Defaults stated explicitly: the enum zero value is objectBoundingBox
+	// but the spec defaults are filterUnits=oBB / primitiveUnits=userSpaceOnUse;
+	// the region defaults to -10%..120% of the bbox (resvg usvg filter.rs
+	// resolve_number fallbacks — a zero-value Length here silently produced
+	// a zero-area region and skipped every filter without explicit x/y/w/h).
+	elem := &FilterElement{
+		Attrs:        parseAttrs(pc, se),
+		Units:        UnitsObjectBoundingBox,
+		ContentUnits: UnitsUserSpaceOnUse,
+		// Spec default: linearRGB (resvg usvg ColorInterpolation::default).
+		LinearRGB: true,
+		X:         Length{Value: -10, Unit: LengthUnitPercent},
+		Y:         Length{Value: -10, Unit: LengthUnitPercent},
+		W:         Length{Value: 120, Unit: LengthUnitPercent},
+		H:         Length{Value: 120, Unit: LengthUnitPercent},
+	}
 	for _, attr := range se.Attr {
 		switch attr.Name.Local {
 		case "x":
@@ -1221,9 +1247,19 @@ func parseFilterElement(pc *parseCtx, se xml.StartElement) (Element, error) {
 			} else {
 				elem.Units = UnitsObjectBoundingBox
 			}
+		case "color-interpolation-filters":
+			// Only the explicit "sRGB" leaves the linearRGB default.
+			elem.LinearRGB = strings.TrimSpace(attr.Value) != "sRGB"
 		case "primitiveUnits":
-			// userSpaceOnUse is the default and the only supported form;
-			// objectBoundingBox content is a named refusal at render.
+			// Spec default userSpaceOnUse; objectBoundingBox scales the
+			// primitives' numeric params and subregions by the element bbox
+			// (4b-1 resolves subregions with it; numeric params stay a
+			// registered gap).
+			if strings.TrimSpace(attr.Value) == "objectBoundingBox" {
+				elem.ContentUnits = UnitsObjectBoundingBox
+			} else {
+				elem.ContentUnits = UnitsUserSpaceOnUse
+			}
 		}
 	}
 	prims, err := parseFilterPrimitives(pc)
@@ -1321,8 +1357,124 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 				fp.Str1 = attr.Value
 			case "operator":
 				fp.Str1 = attr.Value
+			case "k1":
+				fp.K1 = numF(attr.Value)
+			case "k2":
+				fp.K2 = numF(attr.Value)
+			case "k3":
+				fp.K3 = numF(attr.Value)
+			case "k4":
+				fp.K4 = numF(attr.Value)
 			}
 		}
+	case "feDiffuseLighting", "feSpecularLighting":
+		fp.SurfaceScale, fp.DiffuseConstant, fp.SpecularConstant, fp.SpecularExponent = 1, 1, 1, 1
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "surfaceScale":
+				fp.SurfaceScale = numF(attr.Value)
+			case "diffuseConstant":
+				fp.DiffuseConstant = numF(attr.Value)
+			case "specularConstant":
+				fp.SpecularConstant = numF(attr.Value)
+			case "specularExponent":
+				fp.SpecularExponent = numF(attr.Value)
+			case "lighting-color":
+				fp.LightingColor = attr.Value
+			}
+		}
+		// The light source is a child element (first one wins — resvg usvg).
+		depth := 1
+		for depth > 0 {
+			tok, err := pc.dec.Token()
+			if err != nil {
+				return nil, fmt.Errorf("svg: error reading <%s>: %w", kind, err)
+			}
+			switch t := tok.(type) {
+			case xml.StartElement:
+				if ls := parseLightSource(t); ls != nil && fp.Light == nil {
+					fp.Light = ls
+				}
+				if err := pc.dec.Skip(); err != nil {
+					return nil, fmt.Errorf("svg: error reading <%s>: %w", kind, err)
+				}
+			case xml.EndElement:
+				depth--
+			}
+		}
+		return fp, nil
+	case "feMorphology":
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "operator":
+				fp.Operator = strings.ToLower(strings.TrimSpace(attr.Value))
+			case "radius":
+				fp.Radius = parseNumberList(attr.Value)
+			}
+		}
+	case "feDisplacementMap":
+		fp.XSel, fp.YSel = 3, 3 // spec defaults: A/A
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "xChannelSelector":
+				fp.XSel = colorChannelIndex(attr.Value)
+			case "yChannelSelector":
+				fp.YSel = colorChannelIndex(attr.Value)
+			case "scale":
+				if v, err := strconv.ParseFloat(strings.TrimSpace(attr.Value), 64); err == nil {
+					fp.Scale, fp.HasScale = v, true
+				}
+			}
+		}
+	case "feImage":
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "href":
+				fp.Href = attr.Value
+			case "preserveAspectRatio":
+				fp.Aspect = attr.Value
+			}
+		}
+		// External/data-URI hrefs decode now (element refs "#id" resolve at
+		// render); missing/invalid href → empty result at render (resvg
+		// dummy primitive stance).
+		if ref := strings.TrimSpace(fp.Href); ref != "" && !strings.HasPrefix(ref, "#") {
+			img := &ImageElement{HRef: ref}
+			if fp.Aspect != "" {
+				img.Par = parsePreserveAspectRatio(fp.Aspect)
+				img.HasPar = true
+			}
+			decodeImageRef(pc, img)
+			fp.Img = img
+		}
+	case "feComponentTransfer":
+		for _, attr := range se.Attr {
+			switch attr.Name.Local {
+			case "in":
+				fp.In = attr.Value
+			case "result":
+				fp.Result = attr.Value
+			}
+		}
+		depth := 1
+		for depth > 0 {
+			tok, err := pc.dec.Token()
+			if err != nil {
+				return nil, fmt.Errorf("svg: error reading <feComponentTransfer>: %w", err)
+			}
+			switch t := tok.(type) {
+			case xml.StartElement:
+				if ch := transferChannelIndex(t.Name.Local); ch >= 0 {
+					fp.Funcs[ch] = parseTransferFunc(t)
+				}
+				if err := pc.dec.Skip(); err != nil {
+					return nil, fmt.Errorf("svg: error reading <feComponentTransfer>: %w", err)
+				}
+			case xml.EndElement:
+				depth--
+			}
+		}
+		return fp, nil
 	case "feMerge":
 		depth := 1
 		for depth > 0 {
@@ -1348,7 +1500,7 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 		}
 		return fp, nil
 	}
-	// Common in/in2/result + generic numeric catch-alls.
+	// Common in/in2/result + subregion + generic numeric catch-alls.
 	for _, attr := range se.Attr {
 		switch attr.Name.Local {
 		case "in":
@@ -1357,6 +1509,22 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 			fp.In2 = attr.Value
 		case "result":
 			fp.Result = attr.Value
+		case "x":
+			if v, err := parseLength(attr.Value); err == nil {
+				fp.SX, fp.SXSet = v, true
+			}
+		case "y":
+			if v, err := parseLength(attr.Value); err == nil {
+				fp.SY, fp.SYSet = v, true
+			}
+		case "width":
+			if v, err := parseLength(attr.Value); err == nil {
+				fp.SW, fp.SWSet = v, true
+			}
+		case "height":
+			if v, err := parseLength(attr.Value); err == nil {
+				fp.SH, fp.SHSet = v, true
+			}
 		case "dx", "dy":
 			if v, err := parseLength(attr.Value); err == nil {
 				fp.Numbers = append(fp.Numbers, v.Value)
@@ -1367,6 +1535,128 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 		return nil, fmt.Errorf("svg: error reading <%s>: %w", kind, err)
 	}
 	return fp, nil
+}
+
+// colorChannelIndex maps an SVG color-channel selector word onto 0=R..3=A
+// (unknown → A, the spec default).
+func colorChannelIndex(s string) int {
+	switch strings.ToUpper(strings.TrimSpace(s)) {
+	case "R":
+		return 0
+	case "G":
+		return 1
+	case "B":
+		return 2
+	default:
+		return 3
+	}
+}
+
+// transferChannelIndex maps feFuncR/G/B/A onto the channel slot (-1: other).
+func transferChannelIndex(local string) int {
+	switch local {
+	case "feFuncR":
+		return 0
+	case "feFuncG":
+		return 1
+	case "feFuncB":
+		return 2
+	case "feFuncA":
+		return 3
+	default:
+		return -1
+	}
+}
+
+// parseTransferFunc parses one feFunc* element (SVG Filter Effects §10).
+// Defaults follow the spec: slope/amplitude/exponent 1, the rest 0; an
+// unknown type degrades to identity.
+func parseTransferFunc(se xml.StartElement) *TransferFunc {
+	fn := &TransferFunc{Type: "identity", Slope: 1, Amplitude: 1, Exponent: 1}
+	num := func(v string) float64 {
+		f, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err != nil {
+			return 0
+		}
+		return f
+	}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "type":
+			fn.Type = strings.ToLower(strings.TrimSpace(attr.Value))
+		case "tableValues":
+			fn.TableValues = parseNumberList(attr.Value)
+		case "slope":
+			fn.Slope = num(attr.Value)
+		case "intercept":
+			fn.Intercept = num(attr.Value)
+		case "amplitude":
+			fn.Amplitude = num(attr.Value)
+		case "exponent":
+			fn.Exponent = num(attr.Value)
+		case "offset":
+			fn.Offset = num(attr.Value)
+		}
+	}
+	switch fn.Type {
+	case "identity", "table", "discrete", "linear", "gamma":
+	default:
+		fn.Type = "identity"
+	}
+	return fn
+}
+
+// numF parses one float number ("0"/"-1"/"2.5"); unparsable → 0.
+func numF(v string) float64 {
+	f, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+	if err != nil {
+		return 0
+	}
+	return f
+}
+
+// parseLightSource parses one feDistantLight/fePointLight/feSpotLight child
+// (nil for other elements). Defaults per SVG Filter Effects §10.
+func parseLightSource(se xml.StartElement) *LightSource {
+	ls := &LightSource{}
+	num := numF
+	switch se.Name.Local {
+	case "feDistantLight":
+		ls.Type = 0
+	case "fePointLight":
+		ls.Type = 1
+	case "feSpotLight":
+		ls.Type = 2
+		ls.SpotSpecularExponent = 1
+	default:
+		return nil
+	}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "azimuth":
+			ls.Azimuth = num(attr.Value)
+		case "elevation":
+			ls.Elevation = num(attr.Value)
+		case "x":
+			ls.X = num(attr.Value)
+		case "y":
+			ls.Y = num(attr.Value)
+		case "z":
+			ls.Z = num(attr.Value)
+		case "pointsAtX":
+			ls.PointsAtX = num(attr.Value)
+		case "pointsAtY":
+			ls.PointsAtY = num(attr.Value)
+		case "pointsAtZ":
+			ls.PointsAtZ = num(attr.Value)
+		case "specularExponent":
+			ls.SpotSpecularExponent = num(attr.Value)
+		case "limitingConeAngle":
+			ls.LimitingConeAngle = num(attr.Value)
+			ls.HasLimitingCone = true
+		}
+	}
+	return ls
 }
 
 // parsePoints parses an SVG points attribute value into alternating x/y

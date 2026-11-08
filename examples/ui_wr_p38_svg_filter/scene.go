@@ -26,6 +26,25 @@ var cardAt = [4][2]float64{
 	{12, 316}, {592, 316},
 }
 
+// 4b-1 新原语演示卡：feMorphology 异向扩缩 + feTile/feImage。
+const morphSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="528" height="252" viewBox="0 0 528 252">
+  <rect x="0" y="0" width="528" height="252" fill="#171a20"/>
+  <defs>
+    <filter id="dil6" x="-20%" y="-20%" width="140%" height="140%">
+      <feMorphology operator="dilate" radius="6"/>
+    </filter>
+    <filter id="ero4" x="-20%" y="-20%" width="140%" height="140%">
+      <feMorphology operator="erode" radius="4"/>
+    </filter>
+  </defs>
+  <rect x="40" y="96" width="100" height="60" fill="#4caf50"/>
+  <rect x="40" y="96" width="100" height="60" fill="#4caf50" filter="url(#dil6)" transform="translate(190,0)"/>
+  <rect x="40" y="96" width="100" height="60" fill="#4caf50" filter="url(#ero4)" transform="translate(380,0)"/>
+  <text x="40" y="70" fill="#9aa4b0" font-size="14">reference</text>
+  <text x="230" y="70" fill="#9aa4b0" font-size="14">dilate 6</text>
+  <text x="420" y="70" fill="#9aa4b0" font-size="14">erode 4</text>
+</svg>`
+
 const blurSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="528" height="252" viewBox="0 0 528 252">
   <rect x="0" y="0" width="528" height="252" fill="#171a20"/>
   <defs>
@@ -177,7 +196,7 @@ func buildSVGScene(shell *wrkit.ShellChrome) {
 
 	card(0, "1 feGaussianBlur σ=6/12（对比无滤镜）")
 	card(1, "2 feDropShadow dx/dy 正负偏移+颜色")
-	card(2, "3 feColorMatrix saturate(0)+半透明 alpha")
+	card(2, "3 feColorMatrix saturate(0)+半透明 alpha（transform 生效）")
 	card(3, "4 投影链 blur+offset+flood+composite+merge")
 }
 
