@@ -2,7 +2,7 @@
   "name": "solid_gradient",
   "width": 128,
   "height": 96,
-  "notes": "Left half solid red; right half linear gradient (red@0, green@0.5, blue@1 over x=64..128) with a radial overlay (red@0 -> blue@1, center 96,80 r=32) in the bottom-right quadrant. Expected values are the gradient interpolation at each pixel center in LINEAR-LIGHT space, then sRGB-encoded (measured: both backends agree within 1/255). Region rects inset 1px because integer-aligned fill edges lose ~7% coverage in the outer pixel row/column (both backends identical). Resource bounds are zero: the K1 per-context ledger leak (two TexturedQuadPipeline bicubic variants per run, 131072 bytes) was traced and fixed in P2.4c; a non-zero steady delta now fails the gate.",
+  "notes": "Left half solid red; right half linear gradient (red@0, green@0.5, blue@1 over x=64..128) with a radial overlay (red@0 -> blue@1, center 96,80 r=32) in the bottom-right quadrant. Expected values are the gradient interpolation at each pixel center in sRGB stop-interpolation space (SVG color-interpolation default; resvg/tiny-skia aligned in P3.8 batch 4c-4; measured: both backends agree within 1/255). Region rects inset 1px because integer-aligned fill edges lose ~7% coverage in the outer pixel row/column (both backends identical). Resource bounds are zero: the K1 per-context ledger leak (two TexturedQuadPipeline bicubic variants per run, 131072 bytes) was traced and fixed in P2.4c; a non-zero steady delta now fails the gate.",
   "ops": [
     {
       "kind": "clear",
@@ -127,8 +127,8 @@
       "x": 80,
       "y": 32,
       "rgba": [
-        185,
-        190,
+        123,
+        131,
         0,
         255
       ],
@@ -140,8 +140,8 @@
       "y": 32,
       "rgba": [
         0,
-        253,
-        34,
+        251,
+        3,
         255
       ],
       "tol": 2
@@ -152,8 +152,8 @@
       "y": 32,
       "rgba": [
         0,
-        185,
-        190,
+        123,
+        131,
         255
       ],
       "tol": 2
@@ -163,9 +163,9 @@
       "x": 96,
       "y": 80,
       "rgba": [
-        253,
+        249,
         0,
-        41,
+        5,
         255
       ],
       "tol": 2

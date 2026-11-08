@@ -251,11 +251,14 @@ func TestCOLRv1Render_LinearGradient(t *testing.T) {
 	if !(rB > bB && rB > 128 && gB < 128) {
 		t.Errorf("gradient bottom = (%d,%d,%d), want red-dominant", rB>>8, gB>>8, bB>>8)
 	}
-	// Middle: t=0.5 interpolated in LINEAR-LIGHT RGB per the CPAL spec's
-	// Interpolation of Colors rule — sRGB-encoded midpoint ≈ 0.5^(1/2.2)·255 ≈ 188.
+	// Middle: t=0.5 interpolated in sRGB — the OT COLRv1 gradient
+	// interpolation space and the engine-wide stop lerp (SVG
+	// color-interpolation default + resvg/tiny-skia aligned, batch 4c-4):
+	// midpoint ≈ 128. The previous linear-light reading (~188) was a
+	// batch-5 misreading of the CPAL rule.
 	rM, _, bM, _ := img.At(cx, sampleY((box.Min.Y+box.Max.Y)/2)).RGBA()
-	if math.Abs(float64(rM>>8)-188) > 12 || math.Abs(float64(bM>>8)-188) > 12 {
-		t.Errorf("gradient middle = (%d,%d,%d), want linear-light half mix (~188)", rM>>8, 0, bM>>8)
+	if math.Abs(float64(rM>>8)-128) > 12 || math.Abs(float64(bM>>8)-128) > 12 {
+		t.Errorf("gradient middle = (%d,%d,%d), want sRGB half mix (~128)", rM>>8, 0, bM>>8)
 	}
 }
 

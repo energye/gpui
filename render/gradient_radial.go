@@ -91,6 +91,14 @@ func (RadialGradientBrush) brushMarker() {}
 
 // ColorAt returns the color at the given point.
 // Implements the Pattern and Brush interfaces.
+//
+// Focal gradients use the two-point conical formulation (Skia
+// SkTwoPointRadialGradient / tiny-skia 0.11-0.12 Focal stages): t solves
+// |P − (F + t·(C−F))| = t·r for a zero start radius at the focal point.
+// Points with no real solution (negative discriminant — the tangent-cone
+// complement when the focal lies outside the circle) and degenerate
+// t ≤ 0 render transparent, exactly like tiny-skia's
+// mask_2pt_conical_degenerates.
 func (g *RadialGradientBrush) ColorAt(x, y float64) RGBA {
 	// Handle degenerate gradient (zero radius difference)
 	radiusDiff := g.EndRadius - g.StartRadius
@@ -98,7 +106,15 @@ func (g *RadialGradientBrush) ColorAt(x, y float64) RGBA {
 		return firstStopColor(g.ensureSorted())
 	}
 
-	t := g.computeT(x, y)
+	if g.Focus.X != g.Center.X || g.Focus.Y != g.Center.Y {
+		t, ok := g.computeTFocal(x, y)
+		if !ok {
+			return Transparent // degenerate: no real t (tiny-skia vector mask)
+		}
+		return colorAtOffset(g.ensureSorted(), t, g.Extend)
+	}
+
+	t := g.computeTSimple(x, y)
 	return colorAtOffset(g.ensureSorted(), t, g.Extend)
 }
 
@@ -106,19 +122,6 @@ func (g *RadialGradientBrush) ColorAt(x, y float64) RGBA {
 // The cache is invalidated by AddColorStop.
 func (g *RadialGradientBrush) ensureSorted() []ColorStop {
 	return ensureSortedStops(&g.sorted, &g.sortedStops, g.Stops)
-}
-
-// computeT calculates the gradient parameter t for a point.
-// For simple case (focus == center): t = (distance - startRadius) / (endRadius - startRadius)
-// For focal gradient: uses ray-circle intersection.
-func (g *RadialGradientBrush) computeT(x, y float64) float64 {
-	// Simple case: focus at center
-	if g.Focus.X == g.Center.X && g.Focus.Y == g.Center.Y {
-		return g.computeTSimple(x, y)
-	}
-
-	// Complex case: focal gradient
-	return g.computeTFocal(x, y)
 }
 
 // computeTSimple calculates t for the simple case where focus equals center.
@@ -135,68 +138,52 @@ func (g *RadialGradientBrush) computeTSimple(x, y float64) float64 {
 	return (distance - g.StartRadius) / radiusDiff
 }
 
-// computeTFocal calculates t for focal gradients (focus != center).
-// This solves a ray-circle intersection problem.
-func (g *RadialGradientBrush) computeTFocal(x, y float64) float64 {
-	// Direction from focus to point
-	dx := x - g.Focus.X
-	dy := y - g.Focus.Y
+// computeTFocal solves the two-point conical equation for the gradient
+// parameter t: the t-circle is centered at F + t·(C−F) with radius
+// StartRadius + t·(EndRadius−StartRadius); P lies on it. Returns
+// ok=false for degenerate points (no real solution or t ≤ 0), which
+// render transparent per tiny-skia's degenerate mask.
+func (g *RadialGradientBrush) computeTFocal(x, y float64) (float64, bool) {
+	wx, wy := x-g.Focus.X, y-g.Focus.Y
+	dx, dy := g.Center.X-g.Focus.X, g.Center.Y-g.Focus.Y
+	dd := dx*dx + dy*dy // |C−F|²
+	wd := wx*dx + wy*dy // w·(C−F)
+	ww := wx*wx + wy*wy // |P−F|²
+	dr := g.EndRadius - g.StartRadius
+	a := dd - dr*dr            // quadratic coefficient (r0=0 model)
+	b := wd + g.StartRadius*dr // linear coefficient / −2
+	c := ww - g.StartRadius*g.StartRadius
 
-	// Vector from focus to center
-	fx := g.Center.X - g.Focus.X
-	fy := g.Center.Y - g.Focus.Y
-
-	// Solve quadratic for ray-circle intersection
-	// Ray: P(t) = Focus + t * (Point - Focus)
-	// Circle: |P - Center|^2 = EndRadius^2
-	//
-	// |Focus + t*(dx,dy) - Center|^2 = EndRadius^2
-	// |t*(dx,dy) - (fx,fy)|^2 = EndRadius^2
-	// t^2*(dx^2+dy^2) - 2t*(dx*fx+dy*fy) + (fx^2+fy^2) - EndRadius^2 = 0
-
-	a := dx*dx + dy*dy
-	b := -2 * (dx*fx + dy*fy)
-	c := fx*fx + fy*fy - g.EndRadius*g.EndRadius
-
-	// Handle degenerate case (point at focus)
-	if a == 0 {
-		return 0
+	if math.Abs(a) < 1e-12 {
+		// Focal on the circle (|C−F| == r): the quadratic degenerates to
+		// linear, t = |w|² / (2·(w·d)) (limit of the general root).
+		if wd <= 0 {
+			return 0, false
+		}
+		t := c / (2 * wd)
+		if t <= 0 || math.IsNaN(t) {
+			return 0, false
+		}
+		return t, true
 	}
 
-	discriminant := b*b - 4*a*c
-	if discriminant < 0 {
-		// Point is outside the gradient circle
-		return 1
+	disc := b*b - a*c
+	if disc < 0 {
+		return 0, false // no real solution: outside the tangent cone
 	}
-
-	// We want the positive root (forward along ray)
-	sqrtD := math.Sqrt(discriminant)
-	t1 := (-b - sqrtD) / (2 * a)
-	t2 := (-b + sqrtD) / (2 * a)
-
-	// Choose the appropriate root
-	// t > 0 means the intersection is in the direction from focus to point
+	sqrtD := math.Sqrt(disc)
+	// Root selection per tiny-skia's stages: focal inside the circle
+	// (a<0) keeps the only non-negative root; focal outside (a>0, the
+	// "greater" stage) takes the greater root — both verified against the
+	// resvg corpus (focal-point-correction).
 	var t float64
-	switch {
-	case t1 > 0 && t2 > 0:
-		t = math.Min(t1, t2)
-	case t1 > 0:
-		t = t1
-	case t2 > 0:
-		t = t2
-	default:
-		return 0
+	if a < 0 {
+		t = (sqrtD - b) / (-a)
+	} else {
+		t = (-sqrtD - b) / (-a)
 	}
-
-	// The gradient parameter is the ratio of actual distance to intersection distance
-	pointDist := math.Sqrt(a) // Distance from focus to point
-	intersectDist := t * pointDist
-
-	if intersectDist == 0 {
-		return 0
+	if t <= 0 || math.IsNaN(t) {
+		return 0, false
 	}
-
-	// Map to gradient space, accounting for start radius
-	gradientT := pointDist / intersectDist
-	return gradientT
+	return t, true
 }

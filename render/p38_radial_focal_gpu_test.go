@@ -41,7 +41,11 @@ func TestP38RadialFocalGPUMatchesCPU(t *testing.T) {
 	bad := 0
 	for _, x := range []int{0, 40, 80, 110, 120, 172, 220, 260, 300, 343} {
 		c := img.RGBAAt(x, 30)
-		cpu := g.ColorAt(float64(x), 30)
+		// GPU samples the pixel CENTER; the CPU parity probe must use the
+		// same point (the exact focal pixel t=0 is a measure-zero
+		// degenerate — transparent per the tiny-skia mask — while the
+		// pixel covering it evaluates at its center, t>0).
+		cpu := g.ColorAt(float64(x)+0.5, 30.5)
 		want := uint8(math.Round(math.Min(1, math.Max(0, cpu.R)) * 255))
 		diff := int(c.R) - int(want)
 		if diff < 0 {

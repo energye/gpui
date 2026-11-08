@@ -314,10 +314,15 @@ func TestRadialGradientBrush_FocalCompute(t *testing.T) {
 		AddColorStop(0, Red).
 		AddColorStop(1, Blue)
 
-	// computeTFocal should be called when focus != center
-	t1 := g.computeT(30, 30) // At focus
-	if math.Abs(t1) > 0.001 {
-		t.Errorf("computeT at focus should be ~0, got %v", t1)
+	// computeTFocal should be called when focus != center. The EXACT
+	// focal point has t=0 → degenerate mask (tiny-skia t≤0 → masked),
+	// so ok=false is the aligned result; a point toward the center has
+	// t small positive.
+	if _, ok := g.computeTFocal(30, 30); ok {
+		t.Errorf("computeTFocal at exact focus should be masked (t=0), got ok")
+	}
+	if t1, ok := g.computeTFocal(31, 31); !ok || t1 <= 0 || t1 > 0.1 {
+		t.Errorf("computeTFocal near focus should be small positive, got %v ok=%v", t1, ok)
 	}
 }
 
@@ -424,9 +429,9 @@ func TestNormalizeAngle(t *testing.T) {
 // --- Interpolation Extended Tests ---
 
 func TestInterpolateColorLinear_SameColor(t *testing.T) {
-	got := interpolateColorLinear(Red, Red, 0.5)
+	got := interpolateColorSRGB(Red, Red, 0.5)
 	if !colorsEqual(got, Red, 0.001) {
-		t.Errorf("interpolateColorLinear(Red, Red, 0.5) = %+v, want Red", got)
+		t.Errorf("interpolateColorSRGB(Red, Red, 0.5) = %+v, want Red", got)
 	}
 }
 
@@ -435,19 +440,19 @@ func TestInterpolateColorLinear_WithAlpha(t *testing.T) {
 	opaque := RGBA2(1, 0, 0, 1)      // Red fully opaque
 
 	// At t=0 should be transparent
-	got := interpolateColorLinear(transparent, opaque, 0)
+	got := interpolateColorSRGB(transparent, opaque, 0)
 	if math.Abs(got.A-0) > 0.01 {
 		t.Errorf("t=0 alpha = %v, want ~0", got.A)
 	}
 
 	// At t=1 should be opaque
-	got = interpolateColorLinear(transparent, opaque, 1)
+	got = interpolateColorSRGB(transparent, opaque, 1)
 	if math.Abs(got.A-1) > 0.01 {
 		t.Errorf("t=1 alpha = %v, want ~1", got.A)
 	}
 
 	// At t=0.5 should be semi-transparent
-	got = interpolateColorLinear(transparent, opaque, 0.5)
+	got = interpolateColorSRGB(transparent, opaque, 0.5)
 	if got.A < 0.1 || got.A > 0.9 {
 		t.Errorf("t=0.5 alpha = %v, expected between 0.1 and 0.9", got.A)
 	}

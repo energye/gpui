@@ -93,50 +93,47 @@ fn gradient_t(px: f32, py: f32) -> f32 {
         }
         return rel * u.p1.y;
     }
-    // focal: p0=focus, p1=center, inv_len2=endRadius
+    // focal: p0=focus, p1=center, inv_len2=endRadius — two-point conical
+    // (matches render.RadialGradientBrush.computeTFocal: Skia/tiny-skia
+    // semantics; inside-focal keeps the only non-negative root, outside-
+    // focal takes the greater root, and no-real-solution / t<=0 are
+    // DEGENERATE — fs_main discards them to transparent).
     let focus = u.p0;
     let center = u.p1;
     let end_r = u.inv_len2;
-    let d = vec2<f32>(px, py) - focus;
-    let f = center - focus;
-    let a = dot(d, d);
-    if (a < 1e-12) {
-        return 0.0;
+    let w = vec2<f32>(px, py) - focus;
+    let dv = center - focus;
+    let dd = dot(dv, dv);
+    let b = dot(w, dv);
+    let c = dot(w, w);
+    let a = dd - end_r * end_r;
+    if (abs(a) < 1e-12) {
+        // Focal on the circle: linear limit t = |w|² / (2·(w·d)).
+        if (b <= 0.0) {
+            return -1.0;
+        }
+        let t = c / (2.0 * b);
+        if (t <= 0.0) {
+            return -1.0;
+        }
+        return t;
     }
-    let b = -2.0 * dot(d, f);
-    let c = dot(f, f) - end_r * end_r;
-    let disc = b * b - 4.0 * a * c;
+    let disc = b * b - a * c;
     if (disc < 0.0) {
-        return 1.0;
+        return -1.0; // no real solution: outside the tangent cone
     }
     let sqrt_d = sqrt(disc);
-    let t1 = (-b - sqrt_d) / (2.0 * a);
-    let t2 = (-b + sqrt_d) / (2.0 * a);
-    var t_ray = 0.0;
-    let t1p = t1 > 0.0;
-    let t2p = t2 > 0.0;
-    if (t1p && t2p) {
-        t_ray = min(t1, t2);
-    } else if (t1p) {
-        t_ray = t1;
-    } else if (t2p) {
-        t_ray = t2;
+    var t: f32;
+    if (a < 0.0) {
+        t = (sqrt_d - b) / (-a);
     } else {
-        t_ray = 1.0;
+        t = (-sqrt_d - b) / (-a);
     }
-    // The gradient parameter is the ratio of the focus-to-point distance over
-    // the focus-to-circle intersection distance along the same ray (matches
-    // render.RadialGradientBrush.computeTFocal and the stencil-fallback
-    // linear_ramp_mask shader). t_ray alone is the ray parameter and would
-    // invert the ramp for every point beyond the first unit span.
-    let point_dist = sqrt(a);
-    let intersect_dist = t_ray * point_dist;
-    if (intersect_dist < 1e-12) {
-        return 0.0;
+    if (t <= 0.0) {
+        return -1.0;
     }
-    return point_dist / intersect_dist;
+    return t;
 }
-
 // sweep_tile folds the raw sweep parameter into one gradient period before the
 // ramp lookup (Skia tile-mode semantics on t): pad clamps later, repeat wraps,
 // reflect mirrors. Only applied when the brush Extend mode requests it.
@@ -181,6 +178,11 @@ fn fs_main(in: CoverVertexOutput) -> @location(0) vec4<f32> {
     // Sweep only: honor ExtendRepeat/ExtendReflect by folding t into [0,1).
     if (u.mode > 1.5 && u.mode < 2.5) {
         tt = sweep_tile(tt, u.tile.x);
+    }
+    // Focal only: negative t marks the degenerate region (no real conical
+    // solution or t<=0) — transparent, matching the CPU ColorAt mask.
+    if (u.mode > 2.5 && tt < 0.0) {
+        discard;
     }
     var ru = (tt - u.t_min) * u.inv_span;
     ru = clamp(ru, 0.0, 1.0);

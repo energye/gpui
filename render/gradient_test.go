@@ -144,31 +144,31 @@ func TestInterpolateColorLinear(t *testing.T) {
 			want: Blue,
 		},
 		{
-			// In linear sRGB interpolation, midpoint of black (0,0,0) and white (1,1,1)
-			// is NOT 0.5 in sRGB space. Linear midpoint (0.5 in linear space)
-			// converts to approximately 0.735 in sRGB due to gamma correction.
-			// This is the expected and correct behavior for perceptually uniform blending.
+			// Stop interpolation happens in sRGB (SVG color-interpolation
+			// default + resvg/tiny-skia reference-verified, batch 4c-4):
+			// the black→white midpoint is 0.5, not the gamma-corrected
+			// 0.735 the previous linear-space lerp produced.
 			name: "black to white midpoint",
 			c1:   Black,
 			c2:   White,
 			t:    0.5,
-			want: RGB(0.735, 0.735, 0.735), // Linear midpoint in sRGB
+			want: RGB(0.5, 0.5, 0.5), // sRGB midpoint
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := interpolateColorLinear(tt.c1, tt.c2, tt.t)
+			got := interpolateColorSRGB(tt.c1, tt.c2, tt.t)
 			// For endpoints, we expect exact match
 			if tt.t == 0 || tt.t == 1 {
 				if !colorsEqual(got, tt.want, 0.001) {
-					t.Errorf("interpolateColorLinear() = %+v, want %+v", got, tt.want)
+					t.Errorf("interpolateColorSRGB() = %+v, want %+v", got, tt.want)
 				}
 			}
 			// For midpoint, check it's close to expected gamma-corrected value
 			if tt.t == 0.5 {
 				if !colorsEqual(got, tt.want, 0.01) {
-					t.Errorf("interpolateColorLinear() = %+v, want approximately %+v", got, tt.want)
+					t.Errorf("interpolateColorSRGB() = %+v, want approximately %+v", got, tt.want)
 				}
 			}
 		})
@@ -528,10 +528,16 @@ func TestRadialGradientBrush_Focal(t *testing.T) {
 		AddColorStop(0, Red).
 		AddColorStop(1, Blue)
 
-	// At focus point, should be Red
+	// At the EXACT focal point t=0 hits tiny-skia's degenerate mask
+	// (t≤0 → transparent); the pixel right next to it (toward the center,
+	// t small positive) is red — both per the two-point conical semantics.
 	focusColor := g.ColorAt(40, 40)
-	if !colorsEqual(focusColor, Red, gradientEpsilon) {
-		t.Errorf("Focus color = %+v, want Red", focusColor)
+	if focusColor.A != 0 {
+		t.Errorf("Focus point = %+v, want transparent (t=0 degenerate mask)", focusColor)
+	}
+	nearColor := g.ColorAt(40.5, 40.5)
+	if nearColor.R < 0.9 {
+		t.Errorf("Near focus = %+v, want red-ish (t≈0+)", nearColor)
 	}
 
 	// At center, should be somewhere between Red and Blue
@@ -630,6 +636,6 @@ func BenchmarkInterpolateColor(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = interpolateColorLinear(c1, c2, 0.5)
+		_ = interpolateColorSRGB(c1, c2, 0.5)
 	}
 }

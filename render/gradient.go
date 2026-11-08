@@ -13,8 +13,6 @@ package render
 import (
 	"math"
 	"sort"
-
-	"github.com/energye/gpui/render/internal/color"
 )
 
 // ExtendMode defines how gradients extend beyond their defined bounds.
@@ -105,45 +103,21 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// interpolateColorLinear performs linear interpolation between two colors in linear sRGB space.
-// This produces perceptually correct color blending.
-func interpolateColorLinear(c1, c2 RGBA, t float64) RGBA {
-	// Convert to internal color format (float32)
-	col1 := color.ColorF32{
-		R: float32(c1.R),
-		G: float32(c1.G),
-		B: float32(c1.B),
-		A: float32(c1.A),
-	}
-	col2 := color.ColorF32{
-		R: float32(c2.R),
-		G: float32(c2.G),
-		B: float32(c2.B),
-		A: float32(c2.A),
-	}
-
-	// Convert to linear space
-	linear1 := color.SRGBToLinearColor(col1)
-	linear2 := color.SRGBToLinearColor(col2)
-
-	// Interpolate in linear space
-	t32 := float32(t)
-	interpolated := color.ColorF32{
-		R: linear1.R + t32*(linear2.R-linear1.R),
-		G: linear1.G + t32*(linear2.G-linear1.G),
-		B: linear1.B + t32*(linear2.B-linear1.B),
-		A: linear1.A + t32*(linear2.A-linear1.A),
-	}
-
-	// Convert back to sRGB
-	result := color.LinearToSRGBColor(interpolated)
-
+// interpolateColorSRGB interpolates two stop colors in premultiplied
+// sRGB — the SVG default interpolation space (color-interpolation=sRGB)
+// and Skia/tiny-skia's stop lerp space (PremultipliedColorU8). The
+// previous linear-space lerp shifted every multi-stop ramp measurably
+// (grey t=0.2 read 0.48 sRGB instead of 0.20).
+func interpolateColorSRGB(c1, c2 RGBA, t float64) RGBA {
+	// Premultiply, lerp, back to straight.
+	r1, g1, b1 := c1.R*c1.A, c1.G*c1.A, c1.B*c1.A
+	r2, g2, b2 := c2.R*c2.A, c2.G*c2.A, c2.B*c2.A
 	return RGBA{
-		R: float64(result.R),
-		G: float64(result.G),
-		B: float64(result.B),
-		A: float64(result.A),
-	}
+		R: r1 + t*(r2-r1),
+		G: g1 + t*(g2-g1),
+		B: b1 + t*(b2-b1),
+		A: c1.A + t*(c2.A-c1.A),
+	}.Unpremultiply()
 }
 
 // colorAtOffset returns the interpolated color at a given offset.
@@ -190,5 +164,5 @@ func colorAtOffset(stops []ColorStop, t float64, mode ExtendMode) RGBA {
 	// Calculate interpolation factor
 	localT := (t - stop1.Offset) / (stop2.Offset - stop1.Offset)
 
-	return interpolateColorLinear(stop1.Color, stop2.Color, localT)
+	return interpolateColorSRGB(stop1.Color, stop2.Color, localT)
 }
