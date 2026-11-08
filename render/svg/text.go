@@ -196,6 +196,15 @@ func renderTextElement(dc *render.Context, e *TextElement, a *Attrs, p *props, s
 	if len(spans) == 0 {
 		return
 	}
+	// font-family inherited from ancestors (root <svg font-family>) never
+	// lands in span attrs — flatten only chains text→tspan. Seed spans
+	// without their own family from the computed cascade (批 4d: showcase
+	// 根节点 font-family="Ahem" 下所有文字被静默丢弃).
+	for i := range spans {
+		if strings.TrimSpace(spans[i].attrs.FontFamily) == "" {
+			spans[i].attrs.FontFamily = p.fontFamily
+		}
+	}
 	extractor := text.NewOutlineExtractor()
 
 	// Pass 1: resolve fonts + shape every span; collect glyph placements.
@@ -625,15 +634,19 @@ func outlineToPath(outline *text.GlyphOutline, x, y, rotateDeg float64) *render.
 	return outlineToPathM(outline, m)
 }
 
-// outlineToPathM flattens a glyph outline through an affine matrix (font Y
-// up → screen Y down happens inside, before the matrix applies).
+// outlineToPathM flattens a glyph outline through an affine matrix. The
+// outline is already in screen Y-down space (ExtractOutline maps font Y-up
+// to Y-down: ink above the baseline carries NEGATIVE y — see
+// color_glyph_render.go:358); no extra flip here. 批 4d：旧实现按过期的
+// Y-up 契约再翻一次，双重翻转 = 没翻，整篇文字墨迹落到基线下方（resvg
+// 参照为上方）。
 func outlineToPathM(outline *text.GlyphOutline, m render.Matrix) *render.Path {
 	if outline == nil || outline.SegmentCount() == 0 {
 		return nil
 	}
 	fl := func(px, py float32) (float64, float64) {
 		fx := float64(px)
-		fy := -float64(py) // font Y up → screen Y down
+		fy := float64(py)
 		pt := m.TransformPoint(render.Point{X: fx, Y: fy})
 		return pt.X, pt.Y
 	}

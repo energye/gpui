@@ -532,6 +532,15 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			w := render.NewContext(rw, rh)
 			defer w.Close()
 			for _, name := range fp.MergeNodes {
+				if name == "" {
+					// feMergeNode without `in` = previous primitive's result
+					// (resolve_input default, same rule as fp.In above).
+					if _, okL := images["__last__"]; okL {
+						name = "__last__"
+					} else {
+						name = "SourceGraphic"
+					}
+				}
 				if ib, ok2 := images[name]; ok2 {
 					w.DrawImage(ib, 0, 0)
 				}
@@ -749,13 +758,16 @@ func dropShadowParams(fp *FilterPrimitive) (float64, float64, float64) {
 
 // offsetDeltas extracts (dx, dy) from feOffset.
 func offsetDeltas(fp *FilterPrimitive) (float64, float64) {
-	if len(fp.Numbers) >= 2 {
-		return fp.Numbers[0], fp.Numbers[1]
-	}
+	// Canonical layout (parseFilterPrimitive feOffset branch): Number=dx,
+	// Numbers[0]=dy — the same contract dropShadowParams reads.
+	dx, dy := 0.0, 0.0
 	if fp.HasNumber {
-		return fp.Number, 0
+		dx = fp.Number
 	}
-	return 0, 0
+	if len(fp.Numbers) >= 1 {
+		dy = fp.Numbers[0]
+	}
+	return dx, dy
 }
 
 // colorFromHexOr parses a hex/named color, falling back to def.

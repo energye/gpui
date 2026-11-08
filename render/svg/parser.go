@@ -1516,8 +1516,33 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 			}
 		}
 	case "feOffset", "feDropShadow":
+		// Name-keyed read + early return: this primitive must NOT fall
+		// through to the generic numeric tail, which would append dx/dy a
+		// second time and shift the slots (批 4d: dx="14" dy="0" rendered
+		// as (0,14) — the offsets swapped). Canonical layout shared with
+		// offsetDeltas/dropShadowParams: Number = dx, Numbers[0] = dy.
 		for _, attr := range se.Attr {
 			switch attr.Name.Local {
+			case "in":
+				fp.In = attr.Value
+			case "result":
+				fp.Result = attr.Value
+			case "x":
+				if v, err := parseLength(attr.Value); err == nil {
+					fp.SX, fp.SXSet = v, true
+				}
+			case "y":
+				if v, err := parseLength(attr.Value); err == nil {
+					fp.SY, fp.SYSet = v, true
+				}
+			case "width":
+				if v, err := parseLength(attr.Value); err == nil {
+					fp.SW, fp.SWSet = v, true
+				}
+			case "height":
+				if v, err := parseLength(attr.Value); err == nil {
+					fp.SH, fp.SHSet = v, true
+				}
 			case "dx":
 				if v, err := parseLength(attr.Value); err == nil {
 					fp.Number = v.Value
@@ -1525,14 +1550,16 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 				}
 			case "dy":
 				if v, err := parseLength(attr.Value); err == nil {
-					fp.Number = v.Value
-					fp.HasNumber = true
 					fp.Numbers = append(fp.Numbers, v.Value)
 				}
 			case "stdDeviation":
 				fp.Numbers2 = parseNumberList(attr.Value)
 			}
 		}
+		if err := pc.dec.Skip(); err != nil {
+			return nil, fmt.Errorf("svg: error reading <%s>: %w", kind, err)
+		}
+		return fp, nil
 	case "feColorMatrix":
 		for _, attr := range se.Attr {
 			switch attr.Name.Local {
@@ -1727,6 +1754,11 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 		}
 		return fp, nil
 	case "feMerge":
+		for _, attr := range se.Attr {
+			if attr.Name.Local == "result" {
+				fp.Result = attr.Value
+			}
+		}
 		depth := 1
 		for depth > 0 {
 			tok, err := pc.dec.Token()
@@ -1736,11 +1768,20 @@ func parseFilterPrimitive(pc *parseCtx, se xml.StartElement, kind string) (*Filt
 			switch t := tok.(type) {
 			case xml.StartElement:
 				if t.Name.Local == "feMergeNode" {
+					// A feMergeNode without `in` means the previous
+					// primitive's result (SVG spec / resvg resolve_input);
+					// keep the "" sentinel — the renderer resolves it with
+					// the same default rule as a primitive's missing in.
+					// 批 4d: the implicit first node used to be dropped, so
+					// <feMergeNode/> contributed nothing (glowChain 泛光分支
+					// 整体消失).
+					in := ""
 					for _, attr := range t.Attr {
 						if attr.Name.Local == "in" {
-							fp.MergeNodes = append(fp.MergeNodes, attr.Value)
+							in = attr.Value
 						}
 					}
+					fp.MergeNodes = append(fp.MergeNodes, in)
 				}
 				if err := pc.dec.Skip(); err != nil {
 					return nil, err

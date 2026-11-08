@@ -862,7 +862,11 @@ func applyFillAttrs(dc *render.Context, a *Attrs, p *props, st *renderState, bbo
 		if !ok {
 			return false
 		}
-		dc.SetFillBrush(brush)
+		// Element opacity folds into the paint here: the solid branch does
+		// it via setColorWithOpacity, paint servers (per-sample colors) via
+		// an alpha-scaled brush — showcase 反射带（渐变 + opacity 0.55）按
+		// 全不透明绘制的洞，批 4d。
+		dc.SetFillBrush(render.BrushWithAlpha(brush, p.opacity))
 		return true
 	}
 
@@ -923,7 +927,7 @@ func applyStrokeAttrs(dc *render.Context, p *props, st *renderState, bbox render
 		if !ok {
 			return false
 		}
-		dc.SetStrokeBrush(brush)
+		dc.SetStrokeBrush(render.BrushWithAlpha(brush, p.opacity))
 		return true
 	}
 

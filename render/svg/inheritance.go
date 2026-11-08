@@ -44,6 +44,7 @@ type props struct {
 	dashOffset       float64
 	color            string
 	fontSize         float64 // px
+	fontFamily       string  // inherited (usvg: font-family is a CSS inherited property; "" = resolver default)
 	opacity          float64 // element-level, never inherited
 	visibility       string
 }
@@ -77,6 +78,12 @@ func (p *props) clone() *props {
 // were materialized into the style attribute at parse time (css.go), so
 // the cascade here is presentation attrs < inline style (which already
 // carries the rules ahead of the element's own style declarations).
+//
+// fill/stroke resolve in a second pass: "currentColor" refers to the
+// element's OWN computed color (CSS computed-value order), so every
+// color-affecting declaration — including the element's own `color` —
+// must be applied first. showcase 归因（批 4d）：fill="currentColor"
+// color="#e24a4a" 同元素时旧实现按 parent.color 解析成黑。
 func evalProps(parent *props, a Attrs, doc *Document) *props {
 	p := parent.clone()
 	p.opacity = 1 // element-level: reset before applying own
@@ -96,11 +103,32 @@ func evalProps(parent *props, a Attrs, doc *Document) *props {
 			}
 		}
 	}
+	// Cascade order pass: everything except fill/stroke (last declaration
+	// of each wins, inline beats presentation attrs).
+	var fillDecl, strokeDecl *CSSDecl
+	apply := func(d CSSDecl) {
+		switch d.Name {
+		case "fill":
+			fillDecl = &d
+		case "stroke":
+			strokeDecl = &d
+		default:
+			applyDecl(p, d, parent, doc)
+		}
+	}
 	for _, d := range pres {
-		applyDecl(p, d, parent, doc)
+		apply(d)
 	}
 	for _, d := range inline {
-		applyDecl(p, d, parent, doc)
+		apply(d)
+	}
+	// Paint pass: fill/stroke resolve against the element's own computed
+	// color (p starts as parent.clone, so absent color = inherited value).
+	if fillDecl != nil {
+		applyDecl(p, *fillDecl, parent, doc)
+	}
+	if strokeDecl != nil {
+		applyDecl(p, *strokeDecl, parent, doc)
 	}
 	return p
 }
@@ -128,6 +156,7 @@ func presentationDecls(a Attrs) []CSSDecl {
 	add("opacity", a.Opacity)
 	add("color", a.Color)
 	add("font-size", a.FontSize)
+	add("font-family", a.FontFamily)
 	add("visibility", a.Visibility)
 	return out
 }
@@ -140,9 +169,9 @@ func applyDecl(p *props, d CSSDecl, parent *props, doc *Document) {
 	fs := RefSpace{FontSize: parent.fontSize}
 	switch d.Name {
 	case "fill":
-		p.fill = resolveColorToken(resolveVarTokens(doc, d.Value), parent)
+		p.fill = resolveColorToken(resolveVarTokens(doc, d.Value), p)
 	case "stroke":
-		p.stroke = resolveColorToken(resolveVarTokens(doc, d.Value), parent)
+		p.stroke = resolveColorToken(resolveVarTokens(doc, d.Value), p)
 	case "color":
 		p.color = resolveColorToken(resolveVarTokens(doc, d.Value), parent)
 	case "fill-opacity":
@@ -182,6 +211,8 @@ func applyDecl(p *props, d CSSDecl, parent *props, doc *Document) {
 		}
 	case "font-size":
 		p.fontSize = resolveFontSize(d.Value, parent.fontSize)
+	case "font-family":
+		p.fontFamily = strings.TrimSpace(d.Value)
 	case "visibility":
 		p.visibility = strings.ToLower(strings.TrimSpace(d.Value))
 	}

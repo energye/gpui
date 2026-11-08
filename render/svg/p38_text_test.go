@@ -70,23 +70,24 @@ func TestP38TextBasicAnchor(t *testing.T) {
 	withAhem(t)
 	doc := mustParseFile(t, "text_basic.svg")
 	img := doc.Render(200, 80)
-	// 行 1：x=10 anchor=start（缺省）⇒ 两方块 [10,50)，基线 y=30 ⇒ 方块占 y[10,30)
-	// （AHEM 基线在方块底部）。探方块内部两点 + 右端点外空。
-	if c := img.RGBAAt(15, 36); c.R < 150 {
-		t.Errorf("start glyph1 (15,20) = %+v, want red-ish", c)
+	// 行 1：x=10 anchor=start（缺省）⇒ 两方块 [10,50)，基线 y=30 ⇒ 方块占
+	// y[14,34)（AHEM ascent 0.8 在基线上方、descent 0.2 下方；中线镂空
+	// y[19,21) 避开）。探方块内部两点 + 右端点外空。
+	if c := img.RGBAAt(15, 16); c.R < 150 {
+		t.Errorf("start glyph1 (15,16) = %+v, want red-ish", c)
 	}
-	if c := img.RGBAAt(45, 36); c.R < 150 {
-		t.Errorf("start glyph2 (45,25) = %+v, want red-ish (advance 20)", c)
+	if c := img.RGBAAt(45, 16); c.R < 150 {
+		t.Errorf("start glyph2 (45,16) = %+v, want red-ish (advance 20)", c)
 	}
-	if c := img.RGBAAt(55, 36); !near(c, [3]float64{0.09, 0.10, 0.125}) {
-		t.Errorf("beyond run (55,20) = %+v, want bg", c)
+	if c := img.RGBAAt(55, 16); !near(c, [3]float64{0.09, 0.10, 0.125}) {
+		t.Errorf("beyond run (55,16) = %+v, want bg", c)
 	}
 	// 行 2：x=10 anchor=middle ⇒ 行宽 40，起点 = 10−20 = −10 ⇒ 方块 [−10,30)：可见部分 [0,30)。
-	if c := img.RGBAAt(5, 60); c.B < 150 {
-		t.Errorf("middle glyph1 (5,50) = %+v, want blue-ish (clipped at left)", c)
+	if c := img.RGBAAt(5, 46); c.B < 150 {
+		t.Errorf("middle glyph1 (5,46) = %+v, want blue-ish (clipped at left)", c)
 	}
-	if c := img.RGBAAt(45, 60); !near(c, [3]float64{0.09, 0.10, 0.125}) {
-		t.Errorf("middle beyond (45,50) = %+v, want bg (run ends at x=30)", c)
+	if c := img.RGBAAt(45, 46); !near(c, [3]float64{0.09, 0.10, 0.125}) {
+		t.Errorf("middle beyond (45,46) = %+v, want bg (run ends at x=30)", c)
 	}
 }
 
@@ -97,17 +98,17 @@ func TestP38TextTspan(t *testing.T) {
 	doc := mustParseFile(t, "text_tspan.svg")
 	img := doc.Render(200, 80)
 	// 主行 x=10 y=30：'a' [10,30)；tspan dx=30 ⇒ 'b' 起点 = 30(a 尾) + 30 = 60 → [60,80) 绿。
-	if c := img.RGBAAt(15, 36); c.R < 150 {
+	if c := img.RGBAAt(15, 16); c.R < 150 {
 		t.Errorf("'a' = %+v, want red", c)
 	}
-	if c := img.RGBAAt(65, 36); c.G < 150 {
+	if c := img.RGBAAt(65, 16); c.G < 150 {
 		t.Errorf("'b' (dx=30) = %+v, want green at [60,80)", c)
 	}
 	// tspan x=150 dy=20 ⇒ 绝对定位 (150, 50) 蓝。
-	if c := img.RGBAAt(155, 56); c.B < 150 {
+	if c := img.RGBAAt(155, 36); c.B < 150 {
 		t.Errorf("'c' (x=150,dy=20) = %+v, want blue at (150,50) baseline", c)
 	}
-	if c := img.RGBAAt(120, 36); !near(c, [3]float64{0.09, 0.10, 0.125}) {
+	if c := img.RGBAAt(120, 16); !near(c, [3]float64{0.09, 0.10, 0.125}) {
 		t.Errorf("gap between a and b = %+v, want bg", c)
 	}
 }
@@ -200,13 +201,13 @@ func TestP38TextLetterSpacing(t *testing.T) {
 	}
 	img := doc.Render(120, 40)
 	// 'a' [0,20)；间距 10 ⇒ 'b' 起点 30 → [30,50)；[20,30) 空。
-	if c := img.RGBAAt(10, 36); c.R < 150 {
+	if c := img.RGBAAt(10, 16); c.R < 150 {
 		t.Errorf("'a' = %+v, want red", c)
 	}
-	if c := img.RGBAAt(25, 36); !near(c, [3]float64{0.09, 0.10, 0.125}) {
-		t.Errorf("letter gap (25,20) = %+v, want bg", c)
+	if c := img.RGBAAt(25, 16); !near(c, [3]float64{0.09, 0.10, 0.125}) {
+		t.Errorf("letter gap (25,16) = %+v, want bg", c)
 	}
-	if c := img.RGBAAt(35, 36); c.R < 150 {
+	if c := img.RGBAAt(35, 16); c.R < 150 {
 		t.Errorf("'b' (spacing 10) = %+v, want red at [30,50)", c)
 	}
 }

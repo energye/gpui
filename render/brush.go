@@ -121,6 +121,19 @@ func (b SolidBrush) Transparent() SolidBrush {
 	return b.WithAlpha(0.0)
 }
 
+// BrushWithAlpha returns a brush that draws the inner brush with its alpha
+// scaled by the given factor — paint-level alpha for non-solid paints
+// (Skia paint alpha semantics). Solid colors fold the factor into the color
+// instead (see Context color paths); paint-server fills/strokes (gradients,
+// patterns) have per-sample colors, so the fold wraps the brush here.
+// Used by the SVG layer for element opacity on paint-server paints.
+func BrushWithAlpha(b Brush, alpha float64) Brush {
+	if b == nil || alpha >= 1 {
+		return b
+	}
+	return opacityMulBrush{base: b, mul: alpha}
+}
+
 // Lerp performs linear interpolation between two solid brushes.
 // Returns a new SolidBrush with the interpolated color.
 //

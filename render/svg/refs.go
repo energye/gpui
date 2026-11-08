@@ -45,11 +45,17 @@ func validateReferences(pc *parseCtx) {
 
 // validateTextFonts resolves every text span's font at parse time: an
 // unmatched family is a named warning and marks the element not-rendered
-// (fail-closed, without mutating document state during render).
-func validateTextFonts(pc *parseCtx, te *TextElement) {
+// (fail-closed, without mutating document state during render). inherited
+// is the font-family in effect from the ancestor chain — spans without
+// their own family inherit it (usvg: font-family is a CSS inherited
+// property; 批 4d: 根节点声明的家族此前到不了校验与渲染两条路).
+func validateTextFonts(pc *parseCtx, te *TextElement, inherited string) {
 	spans := flattenTextSpans(*te, nil)
 	for _, sp := range spans {
 		family := familyList(sp.attrs)[0]
+		if family == "" {
+			family = familyList(Attrs{FontFamily: inherited})[0]
+		}
 		if family == "" {
 			continue
 		}
@@ -62,11 +68,43 @@ func validateTextFonts(pc *parseCtx, te *TextElement) {
 	}
 }
 
+// styleFontFamily extracts a font-family declaration from the materialized
+// style attribute (CSS rules land there at parse time).
+func styleFontFamily(style string) string {
+	for _, d := range strings.Split(style, ";") {
+		colon := strings.Index(d, ":")
+		if colon < 0 {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(d[:colon]), "font-family") {
+			return strings.TrimSpace(d[colon+1:])
+		}
+	}
+	return ""
+}
+
+// inheritedFontFamily returns the font-family this element contributes to
+// its own subtree: its own declaration (presentation attr or materialized
+// style) if present, else the value from the ancestor chain.
+func inheritedFontFamily(a *Attrs, fromParent string) string {
+	if a != nil {
+		if a.FontFamily != "" {
+			return a.FontFamily
+		}
+		if v := styleFontFamily(a.Style); v != "" {
+			return v
+		}
+	}
+	return fromParent
+}
+
 // validateClips checks clip-path="url(#id)" references on the rendered
 // tree: unresolved targets mark the element not-rendered (fail-closed).
+// The walk threads the inherited font-family so text validation sees
+// families declared on ancestors.
 func validateClips(pc *parseCtx) {
-	var walk func(elems []Element)
-	walk = func(elems []Element) {
+	var walk func(elems []Element, fam string)
+	walk = func(elems []Element, fam string) {
 		for _, e := range elems {
 			if e == nil {
 				continue
@@ -87,7 +125,7 @@ func validateClips(pc *parseCtx) {
 				}
 			}
 			if te, isText := e.(*TextElement); isText {
-				validateTextFonts(pc, te)
+				validateTextFonts(pc, te, fam)
 			}
 			if a != nil && a.Filter != "" {
 				id := extractURLRefID(a.Filter)
@@ -121,15 +159,15 @@ func validateClips(pc *parseCtx) {
 			}
 			switch t := e.(type) {
 			case *GroupElement:
-				walk(t.Children)
+				walk(t.Children, inheritedFontFamily(a, fam))
 			case *SymbolElement:
-				walk(t.Children)
+				walk(t.Children, inheritedFontFamily(a, fam))
 			case *SVGElement:
-				walk(t.Children)
+				walk(t.Children, inheritedFontFamily(a, fam))
 			}
 		}
 	}
-	walk(pc.doc.Elements)
+	walk(pc.doc.Elements, inheritedFontFamily(&pc.doc.rootAttrs, ""))
 }
 
 // walkElements visits every element in the tree (including defs/symbol
