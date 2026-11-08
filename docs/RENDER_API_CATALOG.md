@@ -275,6 +275,11 @@
 | `DrawShaderMask(c Canvas, x,y,w,h float64, mask Brush, draw func())` | `Push` → `PushLayerIsolated(1)` → `Push` → `ClipRect(bounds)` → `draw()` → `ClearPath` → `SetFillBrush(mask)` → `SetBlendMode(DstIn)` → 强制 AA → 画满 bounds 矩形 → 还原画刷/混合 → 三层 `Pop`。`mask==nil` 直通 `draw()`；调用后 CTM/裁剪/画刷/混合/AA 全部还原。掩码只调制整层（不是每条命令各乘一次），bounds 外内容被裁掉 | 用户空间掩码 | 🔌 **已验证待接线**：`render/draw_shader_mask_test.go`（CPU 契约）+ `_gpu_test.go`（固定混合取点）+ `render/internal/gpu/brush_blend_rect_test.go` + `render/recording/shader_mask_test.go` + `ui/rendering/paint_context_shadermask_test.go`；直调真窗 `ui_wr_shadermask`（像素 18/18、retained≡direct 9/9、Golden 864000px 两连 0.0000%、抓屏 vs 快照 0 差）；生产消费者为零 |
 
 
+### 3.22 svg 解析环境（1 类型+1 方法）· 解析期配置与外链图像（2026-11-08 P3.8 批 4c-6）
+| API | 功能 | 精简 | 状态 |
+|-----|------|------|------|
+| `svg.ParseWithConfig(data, ParseConfig)` + `svg.ParseConfig{ResourcesDir string}` | 解析期环境：`ResourcesDir` 是 `<image>` 外链相对路径的基准目录（usvg `Options::resources_dir` 同位物——"相对输入 SVG 文件或 resources_dir"，conformance 等工具传 SVG 文件所在目录）；空值保持 data:-URI-only 子集（外链具名警告跳过，不画）；URL scheme（http:// 等）具名拒绝不联网（usvg 同口径）；`Parse` 即空配置别名。SVG(Z) 图像源递归解析挂 `svgDepth` 护栏（≤8） | 解析期配置 | 🔌 P3.8 4c-6 image 语料组（外链/内嵌/svgz/mime 别名/魔数嗅探 28 枚）+ 钉测；无生产消费者 |
+
 ### 3.21 path_measure + svg textPath（1 类型+2 方法+1 子包类型）· 路径弧长参数化与沿路径文字（2026-11-08 P3.8 批 4b-4）
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|
