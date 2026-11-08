@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg [
+<!ENTITY accent "#e2b84a">
+<!ENTITY deep "#1b2430">
+]>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1024" height="640" viewBox="0 0 1024 640" font-family="Ahem">
+  <title>P3.8 full-surface stress showcase</title>
+  <desc>One dense document exercising every supported static-SVG feature;
+        reference rendered by resvg 0.42 with the Ahem font pinned.</desc>
+
+  <defs>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4a90e2"/>
+      <stop offset="0.5" stop-color="#3ccf7a"/>
+      <stop offset="1" stop-color="&accent;"/>
+    </linearGradient>
+    <linearGradient id="reflectBand" x1="0" y1="0" x2="0" y2="1" spreadMethod="reflect">
+      <stop offset="0" stop-color="#4a90e2"/>
+      <stop offset="0.25" stop-color="#171a20"/>
+    </linearGradient>
+    <radialGradient id="heroRadial" cx="0.5" cy="0.45" r="0.55" fx="0.38" fy="0.35">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.45" stop-color="#e2884a"/>
+      <stop offset="1" stop-color="#7a2f8f"/>
+    </radialGradient>
+    <radialGradient id="maskFade" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#404040"/>
+    </radialGradient>
+    <pattern id="tilePatt" patternUnits="userSpaceOnUse" x="700" y="430" width="48" height="48"
+             patternContentUnits="objectBoundingBox">
+      <rect x="0" y="0" width="0.5" height="0.5" fill="#2c3542"/>
+      <rect x="0.5" y="0" width="0.5" height="0.5" fill="&accent;"/>
+      <rect x="0" y="0.5" width="0.5" height="0.5" fill="#3ccf7a"/>
+      <rect x="0.5" y="0.5" width="0.5" height="0.5" fill="#20272f"/>
+    </pattern>
+    <clipPath id="flowerClip">
+      <path d="M 175 220 C 120 160 150 90 215 110 C 230 60 310 60 325 110 C 390 90 420 160 365 220 C 420 260 380 330 320 310 C 300 360 200 360 180 310 C 120 330 80 260 175 220 Z"/>
+      <circle cx="270" cy="215" r="52"/>
+    </clipPath>
+    <clipPath id="starClip" clip-rule="evenodd">
+      <path clip-rule="evenodd" d="M 170 380 L 200 460 L 285 460 L 215 510 L 245 590 L 170 540 L 95 590 L 125 510 L 55 460 L 140 460 Z"/>
+    </clipPath>
+    <mask id="fadeMask" maskUnits="userSpaceOnUse" x="680" y="240" width="330" height="170">
+      <rect x="680" y="240" width="330" height="170" fill="url(#maskFade)"/>
+    </mask>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="6" dy="8" stdDeviation="5" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.35" intercept="0"/></feComponentTransfer>
+    </filter>
+    <filter id="pop" x="-30%" y="-30%" width="160%" height="160%">
+      <feMorphology operator="dilate" radius="3"/>
+      <feGaussianBlur stdDeviation="1.2"/>
+    </filter>
+    <filter id="glowChain" x="-40%" y="-40%" width="180%" height="180%">
+      <feFlood flood-color="#4a90e2" flood-opacity="0.9"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+      <feOffset dx="4" dy="-4"/>
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <symbol id="badge" viewBox="0 0 60 40">
+      <rect x="0" y="0" width="60" height="40" rx="6" fill="#3ccf7a"/>
+      <circle cx="30" cy="20" r="11" fill="#171a20"/>
+    </symbol>
+    <symbol id="badgeFaded" opacity="0.45">
+      <rect x="0" y="0" width="60" height="40" rx="6" fill="#e24a4a"/>
+    </symbol>
+    <path id="wavePath" d="M 30 615 C 150 585 260 645 380 615 C 500 585 610 645 730 615 C 850 585 940 635 1000 615" fill="none"/>
+    <image id="innerPic" x="0" y="0" width="90" height="60" href="res63.png"/>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="640" fill="&deep;"/>
+  <rect x="0" y="0" width="1024" height="70" fill="#20272f"/>
+  <rect x="0" y="560" width="1024" height="80" fill="url(#reflectBand)" opacity="0.55"/>
+
+  <style>
+    #footerNote { fill: #9aa4b0; font-size: 13px }
+    .chip { fill: #3ccf7a }
+    rect[data-tag] { fill: #4a90e2 }
+    g.crew &gt; rect { fill: &accent; }
+  </style>
+
+  <rect x="0" y="0" width="1024" height="70" filter="url(#grain)" opacity="0.35"/>
+  <text x="24" y="46" font-size="26" fill="url(#titleGrad)">P3.8 STRESS SHOWCASE</text>
+  <text x="560" y="44" font-size="14" fill="#9aa4b0">every supported feature, one document</text>
+  <rect x="960" y="18" width="40" height="34" rx="5" class="chip"/>
+
+  <g id="hero" clip-path="url(#flowerClip)">
+    <rect x="80" y="60" width="360" height="310" fill="url(#heroRadial)"/>
+    <path d="M 120 300 C 160 240 200 280 240 220 S 320 180 340 240 C 360 300 300 330 260 300 C 220 340 140 340 120 300 Z"
+          fill="#171a20" opacity="0.55"/>
+    <ellipse cx="270" cy="215" rx="38" ry="30" fill="#ffffff" opacity="0.8"/>
+  </g>
+  <rect x="60" y="50" width="380" height="330" fill="none" stroke="&accent;" stroke-width="2"
+        filter="url(#softShadow)"/>
+
+  <polygon points="170,380 200,460 285,460 215,510 245,590 170,540 95,590 125,510 55,460 140,460"
+           fill="#e2884a" clip-path="url(#starClip)" opacity="0.9"/>
+  <g stroke="#4a90e2" stroke-width="4" fill="none" stroke-dasharray="14 8 4 8">
+    <line x1="250" y1="400" x2="330" y2="600"/>
+    <line x1="280" y1="400" x2="360" y2="600"/>
+  </g>
+
+  <g font-size="13" fill="#9aa4b0">
+    <text x="360" y="92">use instances + group opacity</text>
+    <text x="680" y="92">images: external + nested svg</text>
+    <text x="680" y="252">luminance mask</text>
+    <text x="680" y="412">morphology + blur pair</text>
+    <text x="680" y="540">pattern (oBB content + phase)</text>
+  </g>
+
+  <use href="#badge" x="360" y="104" width="60" height="40"/>
+  <use href="#badge" x="440" y="104" width="60" height="40" opacity="0.6"/>
+  <use href="#badge" x="520" y="104" width="60" height="40" opacity="0.3"/>
+  <use href="#badgeFaded" x="360" y="160" width="60" height="40"/>
+  <use href="#badgeFaded" x="440" y="160" width="60" height="40" opacity="0.7"/>
+  <use href="#innerPic" x="360" y="215"/>
+
+  <image x="680" y="104" width="126" height="122" href="res63.png"/>
+  <image x="830" y="104" width="110" height="110" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MCA0MCI+PHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjZTI4ODRhIi8+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMTMiIGZpbGw9IiNmZmZmZmYiLz48L3N2Zz4="/>
+
+  <g mask="url(#fadeMask)">
+    <rect x="680" y="240" width="330" height="170" fill="#4a90e2"/>
+    <circle cx="760" cy="325" r="52" fill="#3ccf7a"/>
+    <rect x="850" y="270" width="120" height="110" fill="&accent;"/>
+  </g>
+
+  <rect x="680" y="420" width="130" height="90" fill="#e24a4a" filter="url(#pop)"/>
+  <rect x="850" y="420" width="130" height="90" fill="#3ccf7a" filter="url(#softShadow)"/>
+  <rect x="680" y="555" width="320" height="70" fill="url(#tilePatt)" stroke="#9aa4b0" stroke-width="1"/>
+
+  <switch>
+    <g transform="translate(380 260)">
+      <rect x="0" y="0" width="250" height="120" rx="10" fill="#232b36"/>
+      <rect x="16" y="16" width="60" height="60" fill="&accent;" transform="rotate(45)" transform-origin="46 46"/>
+      <rect x="100" y="16" width="120" height="26" fill="#4a90e2" skewX="12"/>
+      <g class="crew"><rect x="100" y="56" width="120" height="20"/></g>
+      <rect x="100" y="86" width="120" height="20" data-tag="crew2"/>
+      <text x="16" y="106" font-size="12" fill="#c8d0da">switch(en) + origin + skew</text>
+    </g>
+  </switch>
+
+  <g transform="translate(30 380)">
+    <rect x="0" y="0" width="40" height="200" fill="url(#reflectBand)"/>
+    <rect x="60" y="20" width="80" height="80" fill="#e24a4a" filter="url(#glowChain)" transform="skewY(6)"/>
+  </g>
+
+  <rect x="430" y="400" width="220" height="60" fill="none" stroke="&accent;" stroke-width="3" stroke-dasharray="20 10"/>
+  <circle cx="540" cy="520" r="46" fill="none" stroke="#4a90e2" stroke-width="6" stroke-dasharray="30 14" stroke-linecap="round"/>
+
+  <text x="430" y="500" font-size="15" fill="#c8d0da">Ahem body copy &amp; tspan:
+    <tspan fill="&accent;" font-size="18">accent</tspan>
+    <tspan dy="14" fill="#4a90e2">dropped</tspan>
+  </text>
+
+  <text font-size="14" fill="#e2b84a" clip-path="url(#starClip)" x="0" y="0">
+    <textPath href="#wavePath" startOffset="10">text along a wave — Ahem metrics pinned on both sides</textPath>
+  </text>
+
+  <g id="footerNote">
+    <text x="24" y="632" font-size="13">left: clip+filter+gradient art · right: pattern/mask/filters · bottom: textPath + CSS chips</text>
+  </g>
+  <rect x="760" y="600" width="18" height="18" fill="currentColor" color="#e24a4a"/>
+  <rect x="790" y="600" width="18" height="18" fill="currentColor" color="#3ccf7a"/>
+</svg>

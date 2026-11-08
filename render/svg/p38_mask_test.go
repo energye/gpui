@@ -9,6 +9,7 @@
 package svg
 
 import (
+	"math"
 	"testing"
 )
 
@@ -89,5 +90,69 @@ func TestP38MaskOnGroup(t *testing.T) {
 	}
 	if a := img.RGBAAt(60, 20).A; a != 0 {
 		t.Errorf("group mask outside = %+v, want hidden", img.RGBAAt(60, 20))
+	}
+}
+
+// 批 4c 收尾洞：mask 区域 W/H 在 maskUnits=userSpaceOnUse 下是绝对长度，
+// 不是坐标——旧实现 `- rx/- ry` 把每个非零原点区域裁坏（showcase 参照对拍
+// 抓出：region (680,240,330,170) 算成 (680,240,-350,-70) → 整组不渲染）。
+func TestP38MaskRegionUserSpaceOffsets(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		xy   [2]int
+		want [3]float64
+	}{
+		{
+			name: "非零原点区域+白内容",
+			src: `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="640">
+				<defs><mask id="m" maskUnits="userSpaceOnUse" x="100" y="50" width="200" height="100">
+					<rect x="100" y="50" width="200" height="100" fill="#fff"/></mask></defs>
+				<rect width="1024" height="640" fill="#1b2430"/>
+				<rect x="100" y="50" width="200" height="100" fill="#4a90e2" mask="url(#m)"/>
+			</svg>`,
+			xy:   [2]int{150, 100},
+			want: [3]float64{0.29, 0.565, 0.886},
+		},
+		{
+			name: "组目标+非零原点",
+			src: `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="640">
+				<defs><mask id="m" maskUnits="userSpaceOnUse" x="680" y="240" width="330" height="170">
+					<rect x="680" y="240" width="330" height="170" fill="#fff"/></mask></defs>
+				<rect width="1024" height="640" fill="#1b2430"/>
+				<g mask="url(#m)"><rect x="680" y="240" width="330" height="170" fill="#4a90e2"/></g>
+			</svg>`,
+			xy:   [2]int{845, 325},
+			want: [3]float64{0.29, 0.565, 0.886},
+		},
+		{
+			name: "渐变内容+非零原点（luminance 衰减）",
+			src: `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="640">
+				<defs>
+					<radialGradient id="mg"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#404040"/></radialGradient>
+					<mask id="m" maskUnits="userSpaceOnUse" x="680" y="240" width="330" height="170">
+						<rect x="680" y="240" width="330" height="170" fill="url(#mg)"/></mask>
+				</defs>
+				<rect width="1024" height="640" fill="#1b2430"/>
+				<g mask="url(#m)"><rect x="680" y="240" width="330" height="170" fill="#4a90e2"/></g>
+			</svg>`,
+			xy:   [2]int{845, 325},
+			want: [3]float64{0.286, 0.557, 0.882}, // 白心不衰减
+		},
+	}
+	for _, tc := range cases {
+		doc, err := Parse([]byte(tc.src))
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		img := doc.Render(1024, 640)
+		r, g, b, _ := img.At(tc.xy[0], tc.xy[1]).RGBA()
+		got := [3]float64{float64(r>>8) / 255, float64(g>>8) / 255, float64(b>>8) / 255}
+		for i := range tc.want {
+			if math.Abs(got[i]-tc.want[i]) > 0.05 {
+				t.Errorf("%s at %v = %v, want %v", tc.name, tc.xy, got, tc.want)
+				break
+			}
+		}
 	}
 }

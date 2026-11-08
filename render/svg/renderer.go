@@ -188,8 +188,18 @@ func renderMasked(dc *render.Context, elem Element, a *Attrs, id string, parent 
 	}
 	rx := regionCoord(m.X, LengthAxisX, bbox.Min.X, bw)
 	ry := regionCoord(m.Y, LengthAxisY, bbox.Min.Y, bh)
-	rw := regionCoord(m.W, LengthAxisX, bbox.Min.X, bw) - rx
-	rh := regionCoord(m.H, LengthAxisY, bbox.Min.Y, bh) - ry
+	// userSpaceOnUse W/H resolve to absolute lengths (NOT coordinates —
+	// the pre-fix `- rx` corrupted every region off the origin, showcase
+	// reference run caught it); oBB W/H resolve to coordinates and the
+	// origin subtract converts them to extents.
+	var rw, rh float64
+	if m.Units == UnitsUserSpaceOnUse {
+		rw = m.W.Resolve(st.rs, LengthAxisX)
+		rh = m.H.Resolve(st.rs, LengthAxisY)
+	} else {
+		rw = regionCoord(m.W, LengthAxisX, bbox.Min.X, bw) - rx
+		rh = regionCoord(m.H, LengthAxisY, bbox.Min.Y, bh) - ry
+	}
 	if rw <= 0 || rh <= 0 {
 		return // empty mask region: everything hidden
 	}
