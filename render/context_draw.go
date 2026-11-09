@@ -447,7 +447,10 @@ func (c *Context) doStrokeUnprojected() error {
 		// Intentional CPU layer path (no GPU RT on this layer).
 	} else if !isSoftwareRenderer {
 		// Custom Renderer DI: never intercept with the global GPU accelerator.
-	} else if !forceCPUClip && !userSpaceStroke && !CPUOnlyMode() {
+	} else if !forceCPUClip && !userSpaceStroke && !CPUOnlyMode() && !c.cpuOnly {
+		// 批②/4f 同类：WithCPUOnly 的离屏烘焙（如 SVG）必须走 CPU 解析描边，
+		// 否则窗口进程（已 import render/gpu 注册 accelerator）里描边被 SDF/GPU
+		// 接单 → 粗线/合段（prod 与离线探针不一致的结构性假绿，同 doFill）。
 		devicePath := c.deviceSpacePath()
 		origPath := c.path
 		origScale := c.paint.TransformScale

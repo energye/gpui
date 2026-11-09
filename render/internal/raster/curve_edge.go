@@ -123,6 +123,13 @@ type LineEdge struct {
 //
 //nolint:gosec // G115: shift is bounded [0, MaxCoeffShift], conversions are safe
 func NewLineEdge(p0, p1 CurvePoint, shift int) (LineEdge, bool) {
+	return NewLineEdgeWithAccuracy(p0, p1, shift, DefaultPixelAccuracy)
+}
+
+// NewLineEdgeWithAccuracy is NewLineEdge with an explicit pixel-space snapping
+// accuracy（批②参数化）。accuracy 只影响 UpperY/LowerY/UpperX/PixelDX 的
+// 像素空间粒度；子像素边构造（FDot6 shift）不受影响。
+func NewLineEdgeWithAccuracy(p0, p1 CurvePoint, shift int, accuracy int32) (LineEdge, bool) {
 	// Convert to FDot6 with AA scaling (truncation, matching the SkScalarToFDot6).
 	// Scale = 1 << (shift + 6), e.g., 64 for no AA, 256 for 4x AA.
 	scale := float32(int32(1) << uint(shift+FDot6Shift))
@@ -143,18 +150,18 @@ func NewLineEdge(p0, p1 CurvePoint, shift int) (LineEdge, bool) {
 	//   y = SnapY(same formula for Y)
 	//
 	// All values are in SkFixed (16.16 pixel-space).
-	const skiaAccuracy = 2                          // kDefaultAccuracy
-	const skiaMultiplier = int32(1) << skiaAccuracy // 4
+	skiaAccuracy := accuracy
+	skiaMultiplier := int32(1) << skiaAccuracy
 	// SkScalarToFDot6(p.X * multiplier) = int(p.X * multiplier * 64) = int(p.X * 256)
 	skX0 := int32(p0.X * float32(skiaMultiplier) * 64.0)
 	skY0 := int32(p0.Y * float32(skiaMultiplier) * 64.0)
 	skX1 := int32(p1.X * float32(skiaMultiplier) * 64.0)
 	skY1 := int32(p1.Y * float32(skiaMultiplier) * 64.0)
 	// SkFDot6ToFixed(v) >> accuracy = (v << 10) >> 2 = v << 8
-	pxX0 := leftShift(skX0, 10-skiaAccuracy)
-	pxY0 := snapY(leftShift(skY0, 10-skiaAccuracy))
-	pxX1 := leftShift(skX1, 10-skiaAccuracy)
-	pxY1 := snapY(leftShift(skY1, 10-skiaAccuracy))
+	pxX0 := leftShift(skX0, 10-int(skiaAccuracy))
+	pxY0 := snapYWithAccuracy(leftShift(skY0, 10-int(skiaAccuracy)), skiaAccuracy)
+	pxX1 := leftShift(skX1, 10-int(skiaAccuracy))
+	pxY1 := snapYWithAccuracy(leftShift(skY1, 10-int(skiaAccuracy)), skiaAccuracy)
 
 	winding := int8(1)
 	if y0 > y1 {
@@ -226,14 +233,35 @@ func NewLineEdge(p0, p1 CurvePoint, shift int) (LineEdge, bool) {
 	}, true
 }
 
-// snapY applies the SnapY rounding with accuracy=2.
+// snapY applies the SnapY rounding with accuracy=2 (Skia kDefaultAccuracy).
 // Rounds FDot16 Y to nearest 1/4 pixel boundary.
 func snapY(y FDot16) FDot16 {
-	const accuracy = 2
-	const half = int32(1) << (16 - accuracy - 1)
-	const mask = ^(int32(1)<<(16-accuracy) - 1)
+	return snapYWithAccuracy(y, 2)
+}
+
+// snapYWithAccuracy rounds FDot16 Y to the nearest 1/2^accuracy pixel boundary.
+// 批②：accuracy 从硬编码 2 参数化（4e 机器重建）——2=Skia kDefaultAccuracy
+// （1/4 px 量化），6=细吸附（1/64 px）。与条带切分策略联动：acc=2 走 Skia
+// 1/4 步进逐位，acc>2 由 AnalyticFiller 的交点切分保证段内边序恒定。
+func snapYWithAccuracy(y FDot16, accuracy int32) FDot16 {
+	half := int32(1) << (16 - accuracy - 1)
+	mask := ^(int32(1)<<(16-accuracy) - 1)
 	return (y + half) & mask
 }
+
+// DefaultPixelAccuracy is Skia's kDefaultAccuracy (1/4 px).
+const DefaultPixelAccuracy = int32(2)
+
+// FinePixelAccuracy is the fine snapping grid (1/64 px) enabled by batch ②
+// for quality-critical paths (dense short edges fall back to default via
+// EdgeBuilder adaptive selection).
+const FinePixelAccuracy = int32(6)
+
+// DensePathVerbThreshold switches back to the default accuracy for dense
+// paths: the strip boundary count per row scales with the snapping grid, and
+// dense endpoints multiply sub-strips (S69 budget measured +6-19% at acc=6).
+// 批②重建 4e 的自适应策略。
+const DensePathVerbThreshold = 600
 
 // IsVertical returns true if the edge has zero slope.
 func (e *LineEdge) IsVertical() bool {

@@ -218,14 +218,15 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 
 	// Create image pattern with pre-computed inverse transform.
 	pattern := &ImagePattern{
-		image:   img,
-		x:       srcX,
-		y:       srcY,
-		w:       srcW,
-		h:       srcH,
-		inverse: inverse,
-		opacity: opts.Opacity,
-		clamp:   true, // Don't tile — clamp to image bounds
+		image:    img,
+		x:        srcX,
+		y:        srcY,
+		w:        srcW,
+		h:        srcH,
+		inverse:  inverse,
+		opacity:  opts.Opacity,
+		clamp:    true,                                // Don't tile — clamp to image bounds
+		bilinear: opts.Interpolation != InterpNearest, // batch②：bilinear/默认真正双线性（nearest 才走整数取样）
 	}
 
 	// Save current state (paint, path, transform). Push/Pop covers path and

@@ -223,11 +223,11 @@ func (af *AnalyticFiller) processScanlineAAA(
 	ySubpixel := int32(y) * aaScale
 	ySubpixelNext := ySubpixel + aaScale
 
-	af.aet.RemoveExpiredSubpixel(ySubpixel)
-
 	// All Y tracking in SkFixed (16.16) — matches the aaa_walk_edges exactly.
 	yFixed := intToSkFixed(int32(y))        // pixel row start in SkFixed
 	yFixedEnd := intToSkFixed(int32(y) + 1) // pixel row end in SkFixed
+
+	af.aet.RemoveExpiredSubpixelRow(ySubpixel, yFixed)
 
 	// Insert new edges with source index tracking.
 	// Initialize their persistent edgeState from origin (goY slow path).
@@ -315,7 +315,12 @@ func (af *AnalyticFiller) processScanlineAAA(
 			if d.upperY <= stripTop {
 				af.aet.InsertWithIndex(allEdges[d.idx], d.idx)
 				af.initSingleEdgeState(d.idx, aaScale, yFixed)
-				af.edgeIdx = d.idx + 1
+				// edgeIdx 是 first-pass 游标，必须单调（高水位）。延迟边按 upperY
+				// 依次插入，其 idx 未必递增；无条件回写会把它拉到已入表边之前，
+				// 下一行 first-pass 便会重复插入同一批边（winding 失衡→弦线/少墨）。
+				if d.idx+1 > af.edgeIdx {
+					af.edgeIdx = d.idx + 1
+				}
 				// Remove from deferred
 				af.deferredEdges = append(af.deferredEdges[:i], af.deferredEdges[i+1:]...)
 				// Rebuild AET mapping
@@ -339,7 +344,9 @@ func (af *AnalyticFiller) processScanlineAAA(
 	for _, d := range af.deferredEdges {
 		af.aet.InsertWithIndex(allEdges[d.idx], d.idx)
 		af.initSingleEdgeState(d.idx, aaScale, yFixed)
-		af.edgeIdx = d.idx + 1
+		if d.idx+1 > af.edgeIdx {
+			af.edgeIdx = d.idx + 1
+		}
 	}
 	af.deferredEdges = af.deferredEdges[:0]
 

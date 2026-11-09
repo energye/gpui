@@ -245,6 +245,9 @@ func (c *Context) applyDeviceSpaceBrush() func() {
 		src := pat.Source()
 		src.Inverse = src.Inverse.Multiply(m.Invert())
 		np := NewImagePatternFromSource(src)
+		// 保留采样模式（重生 pattern 默认 nearest；不带走会让非恒等 CTM 下的
+		// 图像（如 SVG 烘焙 1.11× 放大）恒回 nearest → 锯齿。batch②）
+		np.bilinear = pat.bilinear
 		c.paint.Pattern = np
 		c.paint.Brush = CustomBrush{Func: np.ColorAt, Name: "pattern"}
 		return func() {

@@ -70,6 +70,28 @@ type textPathSpan struct {
 	startOffset float64
 }
 
+// normalizeSVGText collapses xml:space=default whitespace: any run of
+// space/tab/newline/CR becomes one space. (Leading/trailing of the whole text
+// is trimmed by the caller.) usvg does the same; without it, source indentation
+// between a text chunk and its <tspan> is laid out as extra glyph advances and
+// the following run is pushed right.
+func normalizeSVGText(s string) string {
+	var b strings.Builder
+	inWS := false
+	for _, r := range s {
+		if r == ' ' || r == 0x09 || r == 0x0A || r == 0x0D {
+			if !inWS {
+				b.WriteByte(' ')
+				inWS = true
+			}
+			continue
+		}
+		inWS = false
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 // flattenTextSpans walks a <text> tree into a flat run list (document order).
 // Tspan attributes inherit the unset fields from their ancestors
 // (text → textPath → tspan). A <textPath> subtree resolves its href through
@@ -78,7 +100,7 @@ type textPathSpan struct {
 func flattenTextSpans(root TextElement, st *renderState) []textSpan {
 	var out []textSpan
 	if strings.TrimSpace(root.Text) != "" {
-		out = append(out, textSpan{attrs: root.Attrs, text: root.Text,
+		out = append(out, textSpan{attrs: root.Attrs, text: normalizeSVGText(root.Text),
 			x: root.X, y: root.Y, dx: root.DX, dy: root.DY, rotate: root.Rotate})
 	}
 	var walk func(children []Element, base Attrs, tp *textPathSpan)
@@ -88,7 +110,7 @@ func flattenTextSpans(root TextElement, st *renderState) []textSpan {
 			case *TspanElement:
 				attrs := inheritTextAttrs(base, t.Attrs)
 				if strings.TrimSpace(t.Text) != "" {
-					out = append(out, textSpan{attrs: attrs, text: t.Text,
+					out = append(out, textSpan{attrs: attrs, text: normalizeSVGText(t.Text),
 						x: t.X, y: t.Y, dx: t.DX, dy: t.DY, rotate: t.Rotate, tp: tp})
 				}
 				walk(t.Children, attrs, tp)
@@ -101,13 +123,26 @@ func flattenTextSpans(root TextElement, st *renderState) []textSpan {
 					tp2 = resolveTextPath(t, st)
 				}
 				if strings.TrimSpace(t.Text) != "" {
-					out = append(out, textSpan{attrs: attrs, text: t.Text, tp: tp2})
+					out = append(out, textSpan{attrs: attrs, text: normalizeSVGText(t.Text), tp: tp2})
 				}
 				walk(t.Children, attrs, tp2)
 			}
 		}
 	}
 	walk(root.Children, root.Attrs, nil)
+	// xml:space=default: trim the single leading/trailing space at the whole
+	// text's start/end (inner boundary spaces stay).
+	for i := range out {
+		if strings.TrimSpace(out[i].text) == "" {
+			continue
+		}
+		if i == 0 {
+			out[i].text = strings.TrimLeft(out[i].text, " ")
+		}
+	}
+	if len(out) > 0 {
+		out[len(out)-1].text = strings.TrimRight(out[len(out)-1].text, " ")
+	}
 	return out
 }
 

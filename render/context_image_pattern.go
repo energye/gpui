@@ -10,6 +10,8 @@
 
 package render
 
+import intImage "github.com/energye/gpui/render/internal/image"
+
 // NewImagePattern creates an image pattern from a rectangular region of an
 // image. w/h of 0 mean "whole image dimension". The pattern can be used with
 // SetFillPattern or SetStrokePattern.
@@ -150,12 +152,13 @@ func (c *Context) SetStrokePattern(pattern Pattern) {
 // the inverse from anchor+scale parameters. For full affine control, the inverse
 // is set directly by DrawImageEx or via SetTransform.
 type ImagePattern struct {
-	image   *ImageBuf
-	x, y    int     // source region offset within the image
-	w, h    int     // source region size (0 = full image dimension)
-	inverse Matrix  // maps drawing-space -> image-space (pre-computed)
-	opacity float64 // opacity multiplier (0=transparent, 1=opaque; 0 means default=1)
-	clamp   bool    // when true, out-of-bounds returns transparent instead of tiling
+	image    *ImageBuf
+	x, y     int     // source region offset within the image
+	w, h     int     // source region size (0 = full image dimension)
+	inverse  Matrix  // maps drawing-space -> image-space (pre-computed)
+	opacity  float64 // opacity multiplier (0=transparent, 1=opaque; 0 means default=1)
+	clamp    bool    // when true, out-of-bounds returns transparent instead of tiling
+	bilinear bool    // true: bilinear texel sampling (DrawImage bilinear); false: nearest
 
 	// Legacy fields for SetAnchor/SetScale backward compatibility.
 	// When these are used, rebuildInverse() computes the inverse from them.
@@ -267,6 +270,28 @@ func (p *ImagePattern) ColorAt(x, y float64) RGBA {
 	}
 
 	if p.clamp {
+		// Bilinear path（batch②：DrawImage 默认 bilinear 此前落到 nearest，上采样出锯齿）：
+		// 用 intImage.SampleBilinear 采样（texel 中心=索引+0.5，与下面 nearest 的 int(lx) 网格
+		// 一致：u=(p.x+lx)/imgW）。区域外按透明处理。
+		if p.bilinear {
+			if lx < 0 || lx >= float64(patternW) || ly < 0 || ly >= float64(patternH) {
+				return RGBA{}
+			}
+			u := (float64(p.x) + lx) / float64(imgW)
+			v := (float64(p.y) + ly) / float64(imgH)
+			r, g, b, a := intImage.SampleBilinear(p.image, u, v)
+			if p.image.Format().IsPremultiplied() && a > 0 {
+				aa := float64(a) / 255.0
+				r = uint8(float64(r)/aa + 0.5)
+				g = uint8(float64(g)/aa + 0.5)
+				b = uint8(float64(b)/aa + 0.5)
+			}
+			col := RGBA{R: float64(r) / 255.0, G: float64(g) / 255.0, B: float64(b) / 255.0, A: float64(a) / 255.0}
+			if p.opacity > 0 && p.opacity < 1.0 {
+				col.A *= p.opacity
+			}
+			return col
+		}
 		// Clamp mode: out-of-bounds returns transparent.
 		ix := int(lx)
 		iy := int(ly)

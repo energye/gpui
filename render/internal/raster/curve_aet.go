@@ -150,6 +150,35 @@ func (aet *CurveAwareAET) RemoveExpiredSubpixel(ySubpixel int32) {
 	aet.edges = aet.edges[:n]
 }
 
+// RemoveExpiredSubpixelRow removes edges that have completely ended, using a
+// hybrid rule that stays exact at kDefaultAccuracy while fixing fine accuracy:
+//
+//   - line edges with pixel-space fields expire by LowerY > rowStartFixed
+//     (pixel-space SkFixed). At accuracy=2 this is exactly equivalent to the
+//     sub-pixel BottomY rule (LowerY/65536 == (LastY+1)/aaScale), so Skia
+//     bit-exact behavior is preserved. At accuracy=6 the sub-pixel LastY is
+//     still rounded to 1/4 px, so an edge truly ending at y=57.1 would be
+//     expired at row 57.0 and lose [57.0,57.1]; pixel-space LowerY keeps it.
+//   - other edges (curves) keep the overall BottomY (sub-pixel) rule.
+func (aet *CurveAwareAET) RemoveExpiredSubpixelRow(ySubpixel, rowStartFixed int32) {
+	n := 0
+	for i := range aet.edges {
+		edge := &aet.edges[i].edge
+		line := edge.AsLine()
+		var active bool
+		if line != nil && (line.UpperY != 0 || line.LowerY != 0) {
+			active = line.LowerY > rowStartFixed
+		} else {
+			active = edge.BottomY() > ySubpixel
+		}
+		if active {
+			aet.edges[n] = aet.edges[i]
+			n++
+		}
+	}
+	aet.edges = aet.edges[:n]
+}
+
 // StepCurves advances curve edges to their next line segment.
 // This should be called once per scanline after RemoveExpired.
 //

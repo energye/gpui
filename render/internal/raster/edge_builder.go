@@ -137,8 +137,39 @@ type EdgeBuilder struct {
 	// Kept across Reset() calls to amortize allocation to zero in steady state.
 	sortBuf []sortableEdge
 
+	// explicitPixelAccuracy 是 SetPixelAccuracy 显式钉的粒度（0=自适应）。
+	// pixelAccuracy 是每 build 的落定值（BuildFromPath/F64 开头按自适应规则解析）。
+	explicitPixelAccuracy int32
+	pixelAccuracy         int32
+
 	// bounds accumulates the bounding box of all edges
 	bounds edgeBounds
+}
+
+// SetPixelAccuracy pins the pixel-space snapping accuracy（批②）。
+// accuracy<=0 or >FinePixelAccuracy falls back to the default; callers that
+// want the adaptive dense-path rule should leave it unset（0）。
+func (eb *EdgeBuilder) SetPixelAccuracy(accuracy int32) {
+	eb.explicitPixelAccuracy = accuracy
+}
+
+// PixelAccuracy returns the effective accuracy for the last build (0 = unset).
+func (eb *EdgeBuilder) PixelAccuracy() int32 {
+	return eb.pixelAccuracy
+}
+
+// effectivePixelAccuracy resolves the adaptive accuracy for a build:
+// explicit >0 value wins; otherwise fine accuracy for sparse paths and the
+// Skia default for dense ones（条带边界数随吸附网格放大，稠密端点在细网格
+// 下每行子条带数倍增——S69 预算实测 +6-19%）。
+func effectivePixelAccuracy(explicit int32, numVerbs int) int32 {
+	if explicit > 0 {
+		return explicit
+	}
+	if numVerbs > DensePathVerbThreshold {
+		return DefaultPixelAccuracy
+	}
+	return FinePixelAccuracy
 }
 
 // VelloLine stores a line segment with original float32 coordinates.
@@ -204,6 +235,12 @@ func NewEdgeBuilder(aaShift int) *EdgeBuilder {
 		velloLines:     make([]VelloLine, 0, 64),
 		aaShift:        aaShift,
 		bounds:         newEmptyBounds(),
+		// 批②：默认钉 Skia kDefaultAccuracy——既有 Skia 逐位回归网
+		// （golden/compositing/trace 钉测）在此粒度下逐位有效。生产入口
+		// （NewSoftwareRenderer）显式 SetPixelAccuracy(0) 切自适应
+		// （稀疏 acc=6 / 稠密回 2）。
+		explicitPixelAccuracy: DefaultPixelAccuracy,
+		pixelAccuracy:         DefaultPixelAccuracy,
 	}
 }
 
@@ -232,6 +269,9 @@ func (eb *EdgeBuilder) BuildFromPath(path PathLike, transform Transform) {
 	if path == nil || path.IsEmpty() {
 		return
 	}
+
+	// 批②：同 BuildFromPathF64 的自适应落定（verb 数按本 path 的动词流）。
+	eb.pixelAccuracy = effectivePixelAccuracy(eb.explicitPixelAccuracy, len(path.Verbs()))
 
 	// State for path traversal
 	var curX, curY float32     // Current position
@@ -320,6 +360,9 @@ func (eb *EdgeBuilder) BuildFromPathF64(verbs []byte, coords []float64) {
 	if len(verbs) == 0 {
 		return
 	}
+
+	// 批②：自适应精度落定（显式设置优先；稠密路径回 Skia 默认）。
+	eb.pixelAccuracy = effectivePixelAccuracy(eb.explicitPixelAccuracy, len(verbs))
 
 	var curX, curY float32
 	var startX, startY float32
@@ -414,7 +457,7 @@ func (eb *EdgeBuilder) addLineUnclipped(x0, y0, x1, y1 float32) {
 	p0 := CurvePoint{X: x0, Y: y0}
 	p1 := CurvePoint{X: x1, Y: y1}
 
-	edge, ok := NewLineEdge(p0, p1, eb.aaShift)
+	edge, ok := NewLineEdgeWithAccuracy(p0, p1, eb.aaShift, eb.pixelAccuracy)
 	if !ok {
 		return // Horizontal or degenerate
 	}
