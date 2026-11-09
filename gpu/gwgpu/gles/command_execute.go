@@ -253,13 +253,19 @@ func (c *MSAAResolveCommand) Execute(ctx *gl.Context, st *glExecState) {
 // Returns false if the FBO creation fails.
 // ensureResolveFBO lazily creates the resolve FBO and binds it as draw target.
 // Returns false if the FBO creation fails.
+//
+// First-use binds DRAW_FRAMEBUFFER only: GL_FRAMEBUFFER would also rebind
+// GL_READ_FRAMEBUFFER (GLES3 §4.4.1), clobbering the MSAA read source the
+// caller bound just before the blit — the resolve then blitted the resolve
+// FBO onto itself and every offscreen 4x readback read zeros (go4x black
+// snapshot; P4.1 batch 4, evidence/P4.1/batch4/go4x-diagnosis.md).
 func (c *MSAAResolveCommand) ensureResolveFBO(ctx *gl.Context) bool {
 	if c.resolveTexture.fbo == 0 {
 		fbo := ctx.GenFramebuffers(1)
-		ctx.BindFramebuffer(gl.FRAMEBUFFER, fbo)
-		ctx.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+		ctx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, fbo)
+		ctx.FramebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
 			c.resolveTexture.target, c.resolveTexture.id, 0)
-		if ctx.CheckFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE {
+		if ctx.CheckFramebufferStatus(gl.DRAW_FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE {
 			ctx.DeleteFramebuffers(fbo)
 			return false
 		}

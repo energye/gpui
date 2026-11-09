@@ -1,0 +1,35 @@
+{
+  "cases": [
+    {
+      "name": "evenodd_ring_clip_msaa4",
+      "note": "P4.1 批 4（子项①）：MSAA=4 下 even-odd 裁剪孔洞。双同心圆（同向）+ FillRuleEvenOdd → 环带=奇数次=裁剪内，内圆盘=偶数次=孔洞。Skia 标准：MSAA 下 even-odd 走 stencil INVERT（gEOStencilPass/gEOColorPass）；现状 depth_clip.go RecordDraw 只认 winding（IncrWrap/DecrWrap）→ 孔洞 stencil=2≠0 → 深度写入 → 孔洞内容被错误保留（红测：孔中心=红=洞没挖出）",
+      "canvas": [128, 128],
+      "background": [0, 1, 0, 1],
+      "clip_circles": [[64, 64, 48], [64, 64, 24]],
+      "fill_rule": "evenodd",
+      "fill": [1, 0, 0, 1],
+      "fill_rect": [0, 0, 128, 128],
+      "probes": [
+        { "x": 64, "y": 64, "want": [0, 255, 0, 255], "tol": 0, "desc": "hole center shows background (even-odd hole carved)" },
+        { "x": 64, "y": 48, "want": [0, 255, 0, 255], "tol": 0, "desc": "inside inner circle r=16: hole shows background" },
+        { "x": 64, "y": 22, "want": [255, 0, 0, 255], "tol": 0, "desc": "ring band r=42: clipped, fill drawn" },
+        { "x": 64, "y": 116, "want": [0, 255, 0, 255], "tol": 0, "desc": "outside outer circle r=52: not clipped" }
+      ]
+    },
+    {
+      "name": "winding_ring_clip_msaa4_lock",
+      "note": "winding（非零规则）锁定卡：同向双圆 winding=2 仍非零 → 整个外圆盘都是裁剪内（含内圆），行为必须零变化（修 even-odd 不得动 winding）",
+      "canvas": [128, 128],
+      "background": [0, 1, 0, 1],
+      "clip_circles": [[64, 64, 48], [64, 64, 24]],
+      "fill_rule": "nonzero",
+      "fill": [1, 0, 0, 1],
+      "fill_rect": [0, 0, 128, 128],
+      "probes": [
+        { "x": 64, "y": 64, "want": [255, 0, 0, 255], "tol": 0, "desc": "winding=2 nonzero: inner disk still clipped, red" },
+        { "x": 64, "y": 22, "want": [255, 0, 0, 255], "tol": 0, "desc": "ring band: clipped, red" },
+        { "x": 64, "y": 116, "want": [0, 255, 0, 255], "tol": 0, "desc": "outside outer circle: not clipped" }
+      ]
+    }
+  ]
+}

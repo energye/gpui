@@ -1,0 +1,6 @@
+# 1x 桌面 GL 全量金图回归（深度门控首次激活，2026-11-10）
+# native 15 窗：14 绿（golden 0.0000%）+ p31_linear_blend 0.7278%（HEAD 同败=先在红，别线）+ p41_mesh_paint_blend rc=1（批1 B卡 #3 在册挂账）
+# go/GL 15 窗：13 绿 + 同两处先在红
+# 窗清单：p31 p32 p33 p34 p35(conic/patheffect/persp/rrect4) p37(mat_persp/scene) p39 p39a p41(drawshadow/fractional_clip/mesh_paint_blend)
+abed24b461194215bebe96de56c7b7c3c589f7871858f24d4fb2e93cc36d481b  examples/ui_wr_p41_evenodd_msaa/testdata/goldens/p41_evenodd_msaa_final_go.png
+2e00c2e9d3f6bb4c0e180e1bcb2f51c93af3ea6ff6377c7f29f26df77e574605  examples/ui_wr_p41_evenodd_msaa/testdata/goldens/p41_evenodd_msaa_final.png

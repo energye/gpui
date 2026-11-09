@@ -1,0 +1,37 @@
+=== RUN   TestClipEvenOddMSAACasesGPU
+J5TRACE Open device=0xc0005100f0 ctx=0xc000094080
+=== RUN   TestClipEvenOddMSAACasesGPU/evenodd_ring_clip_msaa4
+=== RUN   TestClipEvenOddMSAACasesGPU/winding_ring_clip_msaa4_lock
+2026/11/10 07:20:29 WARN gles: AdapterContext frame-end keep on a foreign thread; unmade instead tid=1604353 glTid=1604356
+--- PASS: TestClipEvenOddMSAACasesGPU (0.39s)
+    --- PASS: TestClipEvenOddMSAACasesGPU/evenodd_ring_clip_msaa4 (0.27s)
+    --- PASS: TestClipEvenOddMSAACasesGPU/winding_ring_clip_msaa4_lock (0.00s)
+=== RUN   TestClipEvenOddMSAACasesCPU
+=== RUN   TestClipEvenOddMSAACasesCPU/evenodd_ring_clip_msaa4
+=== RUN   TestClipEvenOddMSAACasesCPU/winding_ring_clip_msaa4_lock
+--- PASS: TestClipEvenOddMSAACasesCPU (0.00s)
+    --- PASS: TestClipEvenOddMSAACasesCPU/evenodd_ring_clip_msaa4 (0.00s)
+    --- PASS: TestClipEvenOddMSAACasesCPU/winding_ring_clip_msaa4_lock (0.00s)
+=== RUN   TestClipEvenOddMSAAMatchesCPU
+J5TRACE Open device=0xc000510e10 ctx=0xc0002c0b80
+=== RUN   TestClipEvenOddMSAAMatchesCPU/evenodd_ring_clip_msaa4
+=== RUN   TestClipEvenOddMSAAMatchesCPU/winding_ring_clip_msaa4_lock
+2026/11/10 07:20:29 WARN gles: AdapterContext frame-end keep on a foreign thread; unmade instead tid=1604353 glTid=1604356
+--- PASS: TestClipEvenOddMSAAMatchesCPU (0.12s)
+    --- PASS: TestClipEvenOddMSAAMatchesCPU/evenodd_ring_clip_msaa4 (0.05s)
+    --- PASS: TestClipEvenOddMSAAMatchesCPU/winding_ring_clip_msaa4_lock (0.01s)
+=== RUN   TestGLESMSAAOffscreenReadback
+J5TRACE Open device=0xc0002b21e0 ctx=0xc000094080
+=== RUN   TestGLESMSAAOffscreenReadback/solid_rect_4x
+=== RUN   TestGLESMSAAOffscreenReadback/solid_rect_4x_large
+2026/11/10 07:20:30 WARN gles: AdapterContext frame-end keep on a foreign thread; unmade instead tid=1604355 glTid=1604367
+--- PASS: TestGLESMSAAOffscreenReadback (0.32s)
+    --- PASS: TestGLESMSAAOffscreenReadback/solid_rect_4x (0.05s)
+    --- PASS: TestGLESMSAAOffscreenReadback/solid_rect_4x_large (0.18s)
+=== RUN   TestGLESMSAA1xUnaffected
+J5TRACE Open device=0xc000114000 ctx=0xc0003aa000
+=== RUN   TestGLESMSAA1xUnaffected/solid_rect_1x
+--- PASS: TestGLESMSAA1xUnaffected (0.07s)
+    --- PASS: TestGLESMSAA1xUnaffected/solid_rect_1x (0.02s)
+PASS
+ok  	github.com/energye/gpui/render	0.958s

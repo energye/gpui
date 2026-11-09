@@ -112,7 +112,7 @@ func TestDepthClipPipeline_BuildClipResources_NilPath(t *testing.T) {
 	}
 
 	// Nil path should return nil resources.
-	res, err := p.BuildClipResources(nil, 800, 600)
+	res, err := p.BuildClipResources(nil, render.FillRuleNonZero, 800, 600)
 	if err != nil {
 		t.Fatalf("BuildClipResources(nil) returned error: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestDepthClipPipeline_BuildClipResources_EmptyPath(t *testing.T) {
 
 	// Empty path (no commands) should produce no tessellation vertices.
 	emptyPath := &render.Path{}
-	res, err := p.BuildClipResources(emptyPath, 800, 600)
+	res, err := p.BuildClipResources(emptyPath, render.FillRuleNonZero, 800, 600)
 	if err != nil {
 		t.Fatalf("BuildClipResources(empty) returned error: %v", err)
 	}
@@ -758,7 +758,7 @@ func TestBuildClipMask_SampleCount1(t *testing.T) {
 		t.Fatalf("write uniform: %v", err)
 	}
 
-	res, err := pipe.BuildClipResources(p, 200, 200)
+	res, err := pipe.BuildClipResources(p, render.FillRuleNonZero, 200, 200)
 	if err != nil {
 		t.Fatalf("BuildClipResources: %v", err)
 	}
@@ -801,7 +801,7 @@ func TestDepthClipResources_BuildAndReleaseFromSession(t *testing.T) {
 	if s.depthClipPipeline == nil {
 		t.Fatal("depthClipPipeline is nil — ClipPath will never build resources")
 	}
-	res, err := s.depthClipPipeline.BuildClipResources(path, 800, 600)
+	res, err := s.depthClipPipeline.BuildClipResources(path, render.FillRuleNonZero, 800, 600)
 	if err != nil {
 		t.Fatalf("BuildClipResources failed: %v", err)
 	}

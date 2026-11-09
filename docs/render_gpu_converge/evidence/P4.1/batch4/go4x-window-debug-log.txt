@@ -1,0 +1,61 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0002ba000 ctx=0xc00030e100
+2026/11/10 06:06:53 [go4x] seq 1 tag EnsureOffscreenFBO created 2 texID 3 samples 1 target 0xde1 complete true
+2026/11/10 06:06:53 [go4x] seq 2 tag EnsureOffscreenFBO created 3 texID 8 samples 4 target 0x9100 complete true
+2026/11/10 06:06:53 [go4x] seq 1 tag MSAAResolve toSurface true surfaceNil false drawFBO 1 msaaFBO 3 size 1920x1080
+2026/11/10 06:06:53 [go4x] seq 1 tag MSAAResolve.after drawFBOBound 1
+ui_wr_p39b_msaa_anim: event #1 type=resize
+ui_wr_p39b_msaa_anim: event #2 type=resize
+ui_wr_p39b_msaa_anim: event #3 type=state-changed
+ui_wr_p39b_msaa_anim: event #4 type=focus
+2026/11/10 06:06:53 [go4x] seq 3 tag EnsureOffscreenFBO created 5 texID 14 samples 1 target 0xde1 complete true
+2026/11/10 06:06:53 [go4x] seq 4 tag EnsureOffscreenFBO created 6 texID 16 samples 4 target 0x9100 complete true
+2026/11/10 06:06:53 [go4x] seq 2 tag MSAAResolve toSurface true surfaceNil false drawFBO 4 msaaFBO 6 size 1868x1053
+2026/11/10 06:06:53 [go4x] seq 2 tag MSAAResolve.after drawFBOBound 4
+2026/11/10 06:06:53 [go4x] seq 3 tag MSAAResolve toSurface true surfaceNil false drawFBO 4 msaaFBO 6 size 1868x1053
+2026/11/10 06:06:53 [go4x] seq 3 tag MSAAResolve.after drawFBOBound 4
+ui_wr_p39b_msaa_anim: event #5 type=pointer
+2026/11/10 06:06:53 [go4x] seq 5 tag EnsureOffscreenFBO created 8 texID 23 samples 1 target 0xde1 complete true
+2026/11/10 06:06:54 [go4x] seq 6 tag EnsureOffscreenFBO created 9 texID 25 samples 4 target 0x9100 complete true
+2026/11/10 06:06:54 [go4x] seq 4 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 4 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 5 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 5 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 6 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 6 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 7 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 7 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 8 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 8 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 9 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 9 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 10 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 10 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 11 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 11 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 12 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 12 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 13 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 13 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 14 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 14 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 15 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 15 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:54 [go4x] seq 16 tag MSAAResolve toSurface true surfaceNil false drawFBO 7 msaaFBO 9 size 1868x1021
+2026/11/10 06:06:54 [go4x] seq 16 tag MSAAResolve.after drawFBOBound 7
+2026/11/10 06:06:59 [go4x] seq 7 tag EnsureOffscreenFBO created 10 texID 399 samples 4 target 0x9100 complete true
+2026/11/10 06:06:59 [go4x] seq 1 tag ensureResolveFBO created 11 texID 401 texTarget 0xde1
+2026/11/10 06:06:59 [go4x] seq 1 tag MSAAResolve.offscreen msaaFBO 10 resolveFBO 11 prevFBO 0 size 1868x1021
+2026/11/10 06:06:59 [go4x] seq 1 tag MSAAResolve.after.offscreen glErr 0x0 readFBO 11 drawFBOBound 11
+2026/11/10 06:06:59 [go4x] seq 1 tag CopyTexToBuf texFmt BGRA8Unorm samples 1 fbo 11 size 1868x1021 first16 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+snapshot: examples/ui_wr_p39b_msaa_anim/testdata/p39b_anim_final.png
+ui_wr_p39b_msaa_anim: logic scene_primitives         ok=true primitives=26082 (want >60)
+ui_wr_p39b_msaa_anim: logic mesh_triangles           ok=true mesh tris=79054
+ui_wr_p39b_msaa_anim: logic msaa_setting             ok=true requested=4 effective=4
+ui_wr_p39b_msaa_anim: logic device_surface_bytes     ok=true bytes=76289120
+ui_wr_p39b_msaa_anim: logic phase_advanced           ok=true mode=gate advancing=false lastPhase(x1000)=1234 freeze=true break=""
+ui_wr_p39b_msaa_anim: logic window_not_black         ok=false nonblack=0/23504 (want >10%)
+ui_wr_p39b_msaa_anim: pixel anchor_magenta     FAIL anchor_magenta at (1728,904) got=(0,0,0) want=(255,0,255)
+ui_wr_p39b_msaa_anim: pixel anchor_cyan        FAIL anchor_cyan at (1728,965) got=(0,0,0) want=(0,255,255)
+{"ability_id":"P39b-msaa-anim","scenario":"ui_wr_p39b_msaa_anim","backend":"wayland","present_policy":"full_paint","target_hz":60,"fps_wall":27.902342462769166,"fps_interval":31.383670262971286,"interval_avg_ms":31.863704647058825,"interval_p50_ms":31.151578999999998,"interval_p95_ms":38.2047,"interval_p99_ms":46.922200999999994,"hitch_count":41,"hitch_rate_per_min":412.85469971609285,"vsync_source":"fallback","frame_build_ms":0.9988440000000001,"frame_raster_ms":233.161971,"pipeline_depth":0,"pipeline_max":2,"layout_count":3,"paint_count":188,"damage_area_px":1907228,"damage_ratio":0.9197665895061728,"present_mode":"full","present_count":189,"frame_count":188,"cpu_pct_avg":112.03592378606575,"cpu_ui_pct":4.693306266509179,"cpu_raster_pct":107.34261751955657,"rss_start_kb":115280,"rss_end_kb":348184,"rss_peak_kb":348184,"rss_slope_kb_per_min":175214.01293036036,"rss_slope_valid":false,"rss_warmup_sec":15,"rss_after_close_kb":347876,"gpu_ops":13422,"cpu_fallback_ops":0,"frame_flushes":2,"last_cpu_fallback":"","gpu_backend":"integrated","gpu_fallbacks":0,"warmup":true,"time_to_first_present_ms":397.224764,"first_present_paint_count":1,"elapsed_sec":6.77362484,"boundary_rerecord":0,"boundary_skip":0,"filter_layer_count":0,"picture_op_count":70,"measure_cache_hit":0,"measure_cache_miss":0,"debug_repaint_draws":0,"debug_repaint_on":false,"pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":7,"evictions":5,"purged":0,"entries":2,"idle":2,"bytes":76289120,"peak_bytes":147766752,"budget":134217728}],"ruler_name":null,"ruler_cpu_pct":null,"ruler_rss_mb":null,"ruler_ratio_cpu":null,"ruler_ratio_rss":null,"ability_extra":{"apis":"MeshGradient/DrawMeshGradient, DrawImageEx, DrawString, rendering.Fill{Linear,Radial}Gradient/StrokePath/FillRoundRect/FillCircle, SaveLayer, PushTransform","backend_env":"go","break_mode":"","content_h":1021,"content_w":1868,"device_surface_bytes":76289120,"fps_gate":"off_correctness","logic_01_scene_primitives":true,"logic_02_mesh_triangles":true,"logic_03_msaa_setting":true,"logic_04_device_surface_bytes":true,"logic_05_phase_advanced":true,"logic_06_window_not_black":false,"logic_failed":1,"logic_probes_ok":5,"logic_probes_total":6,"manual_events":5,"mesh_triangles":79054,"mode":"gate","msaa_requested":4,"msaa_setting":4,"phase_frozen":true,"phase_last_x1000":1234,"pixel_golden_diff_pct":0,"pixel_golden_first_run":false,"pixel_golden_total_px":0,"resolution_h":1080,"resolution_w":1920,"scene_primitives":26082,"slope_gate":"off","window_nonblack":0,"window_samples":23504}}
+FAIL: logic probes 5/6 ok

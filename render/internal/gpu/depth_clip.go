@@ -109,6 +109,15 @@ type DepthClipPipeline struct {
 	// DepthWriteEnabled=false, ColorWriteMask=None.
 	stencilFillPipeline hal.RenderPipeline
 
+	// eoStencilFillPipeline is the even-odd Phase 1 variant (sampleCount>1):
+	// same fan triangles, both faces PassOp=Invert. Each fragment flips the
+	// stencil, so regions covered an odd number of times end non-zero (clip
+	// interior) and even-covered regions — even-odd holes — end zero. Skia
+	// gEOStencilPass (GrPathStencilSettings.h:18-26); the Phase 2 cover's
+	// NotEqual-0 gate is already fill-rule agnostic. Only used when the
+	// group's clip fill rule is EvenOdd; winding keeps stencilFillPipeline.
+	eoStencilFillPipeline hal.RenderPipeline
+
 	// stencilExpandPipeline (sampleCount==1 only) performs the geometric
 	// stencil expansion half of GPU-CLIP-003a-AA: it paints the analytic-AA
 	// exterior band mesh (bandVerts, stride-12 x,y,d) with stencil Replace(1)
@@ -266,56 +275,35 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 		CullMode: types.CullModeNone,
 	}
 
-	// --- Phase 1 pipeline: Stencil fill (non-zero winding) ---
+	// --- Phase 1 pipelines: Stencil fill ---
 	//
 	// Fan-tessellated clip path writes to stencil buffer only.
-	// Front faces: IncrementWrap, Back faces: DecrementWrap.
-	// After pass: stencil != 0 inside clip, stencil == 0 outside.
-	// No depth write, no color write.
-	stencilFillPipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
-		Label:  "depth_clip_stencil_fill_pipeline",
-		Layout: p.pipeLayout,
-		Vertex: hal.VertexState{
-			Module:     p.shader,
-			EntryPoint: shaderEntryVS,
-			Buffers:    vertexBufLayout,
-		},
-		Fragment: &hal.FragmentState{
-			Module:     p.shader,
-			EntryPoint: shaderEntryFS,
-			Targets: []types.ColorTargetState{
-				{
-					Format:    types.TextureFormatBGRA8Unorm,
-					WriteMask: types.ColorWriteMaskNone,
-				},
-			},
-		},
-		DepthStencil: &hal.DepthStencilState{
-			Format:            types.TextureFormatDepth24PlusStencil8,
-			DepthWriteEnabled: false,                       // don't write depth in Phase 1
-			DepthCompare:      types.CompareFunctionAlways, // pass all depth tests
-			StencilFront: hal.StencilFaceState{
-				Compare:     types.CompareFunctionAlways,
-				FailOp:      types.StencilOperationKeep,
-				DepthFailOp: types.StencilOperationKeep,
-				PassOp:      types.StencilOperationIncrementWrap,
-			},
-			StencilBack: hal.StencilFaceState{
-				Compare:     types.CompareFunctionAlways,
-				FailOp:      types.StencilOperationKeep,
-				DepthFailOp: types.StencilOperationKeep,
-				PassOp:      types.StencilOperationDecrementWrap,
-			},
-			StencilReadMask:  0xFF,
-			StencilWriteMask: 0xFF,
-		},
-		Multisample: multisample,
-		Primitive:   primitive,
-	})
+	// Non-zero winding (default): front IncrementWrap, back DecrementWrap —
+	// after the pass stencil != 0 inside the clip, 0 outside.
+	// Even-odd (sampleCount>1): both faces Invert — each fragment flips the
+	// stencil, so odd-covered regions end non-zero (interior) and
+	// even-covered regions (even-odd holes) end zero. Skia gEOStencilPass
+	// (GrPathStencilSettings.h:18-26); Phase 2's NotEqual-0 cover gate is
+	// fill-rule agnostic and shared. No depth write, no color write.
+	stencilFillPipeline, err := p.createStencilFillPipeline(
+		"depth_clip_stencil_fill_pipeline",
+		types.StencilOperationIncrementWrap, types.StencilOperationDecrementWrap,
+		multisample, primitive, vertexBufLayout)
 	if err != nil {
-		return fmt.Errorf("create depth clip stencil fill pipeline: %w", err)
+		return err
 	}
 	p.stencilFillPipeline = stencilFillPipeline
+
+	if p.sampleCount > 1 {
+		eoFill, err := p.createStencilFillPipeline(
+			"depth_clip_stencil_fill_eo_pipeline",
+			types.StencilOperationInvert, types.StencilOperationInvert,
+			multisample, primitive, vertexBufLayout)
+		if err != nil {
+			return err
+		}
+		p.eoStencilFillPipeline = eoFill
+	}
 
 	// --- sampleCount==1 stencil-expansion pipeline (GPU-CLIP-003a-AA) ---
 	//
@@ -439,6 +427,64 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 	return nil
 }
 
+// createStencilFillPipeline builds one Phase 1 stencil-fill pipeline variant.
+// frontOp/backOp select the fill rule: winding = IncrementWrap/DecrementWrap,
+// even-odd = Invert/Invert (Skia gEOStencilPass). Everything else — shader,
+// vertex layout, no depth write, no color write, Always/Keep/Keep compare and
+// fail ops, full stencil masks — is shared between the variants.
+func (p *DepthClipPipeline) createStencilFillPipeline(
+	label string,
+	frontOp, backOp types.StencilOperation,
+	multisample types.MultisampleState,
+	primitive types.PrimitiveState,
+	vertexBufLayout []types.VertexBufferLayout,
+) (hal.RenderPipeline, error) {
+	pipe, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Label:  label,
+		Layout: p.pipeLayout,
+		Vertex: hal.VertexState{
+			Module:     p.shader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    vertexBufLayout,
+		},
+		Fragment: &hal.FragmentState{
+			Module:     p.shader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					WriteMask: types.ColorWriteMaskNone,
+				},
+			},
+		},
+		DepthStencil: &hal.DepthStencilState{
+			Format:            types.TextureFormatDepth24PlusStencil8,
+			DepthWriteEnabled: false,                       // don't write depth in Phase 1
+			DepthCompare:      types.CompareFunctionAlways, // pass all depth tests
+			StencilFront: hal.StencilFaceState{
+				Compare:     types.CompareFunctionAlways,
+				FailOp:      types.StencilOperationKeep,
+				DepthFailOp: types.StencilOperationKeep,
+				PassOp:      frontOp,
+			},
+			StencilBack: hal.StencilFaceState{
+				Compare:     types.CompareFunctionAlways,
+				FailOp:      types.StencilOperationKeep,
+				DepthFailOp: types.StencilOperationKeep,
+				PassOp:      backOp,
+			},
+			StencilReadMask:  0xFF,
+			StencilWriteMask: 0xFF,
+		},
+		Multisample: multisample,
+		Primitive:   primitive,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create depth clip stencil fill pipeline %q: %w", label, err)
+	}
+	return pipe, nil
+}
+
 // DepthClipResources holds per-frame resources for one depth clip draw.
 // Contains both the fan tessellation vertices (Phase 1: stencil fill) and
 // the cover quad vertices (Phase 2: depth write).
@@ -453,6 +499,12 @@ type DepthClipResources struct {
 	// DepthClipPipeline.geomCache. Release must not destroy them; the
 	// pipeline drops the whole frame cache after encoding.
 	geomShared bool
+
+	// evenOdd selects the Phase 1 stencil fill rule for this group: true =
+	// stencil INVERT (Skia gEOStencilPass, carves even-odd holes at
+	// sampleCount>1), false = non-zero winding (IncrWrap/DecrWrap). Geometry
+	// is fill-rule independent (same fan), only the pipeline differs.
+	evenOdd bool
 
 	// maskTex / maskView / maskBG hold the analytic-AA coverage mask for the
 	// clip path when rendering at sampleCount==1 (Skia kCoverage / Flutter
@@ -868,13 +920,15 @@ func clipPathCoverageMaskKey(clipPath *render.Path, fillRule render.FillRule, w,
 
 // BuildClipResources tessellates the clip path and uploads vertices + uniforms
 // to the GPU. Returns resources needed for RecordDraw, or nil if the path is
-// empty (no clip to draw).
+// empty (no clip to draw). fillRule selects the Phase 1 stencil fill rule at
+// sampleCount>1 (non-zero winding vs even-odd INVERT).
 //
 // Produces two vertex buffers:
 //   - Fan triangles for Phase 1 (stencil fill) — determines winding inside clip
 //   - Cover quad for Phase 2 (depth write) — bounding box of the clip path
 func (p *DepthClipPipeline) BuildClipResources(
 	clipPath *render.Path,
+	fillRule render.FillRule,
 	w, h uint32,
 ) (*DepthClipResources, error) {
 	if clipPath == nil || clipPath.NumVerbs() == 0 {
@@ -943,6 +997,7 @@ func (p *DepthClipPipeline) BuildClipResources(
 		bandCount:  geom.bandCount,
 		owned:      true,
 		geomShared: true,
+		evenOdd:    fillRule == render.FillRuleEvenOdd,
 	}, nil
 }
 
@@ -1189,10 +1244,19 @@ func (p *DepthClipPipeline) RecordDraw(rp hal.RenderPassEncoder, res *DepthClipR
 		return
 	}
 
-	// Phase 1: Stencil fill — fan triangles determine winding inside clip path.
-	// Front faces IncrementWrap, back faces DecrementWrap. No depth write, no color.
+	// Phase 1: Stencil fill — fan triangles determine inside/outside per the
+	// group's clip fill rule. Non-zero winding: front IncrementWrap, back
+	// DecrementWrap. Even-odd (sampleCount>1): both faces Invert — Skia
+	// gEOStencilPass; even-covered regions (holes) end stencil 0 so the Phase
+	// 2 cover skips them. No depth write, no color.
 	clearPassBindGroups(rp)
-	rp.SetPipeline(p.stencilFillPipeline)
+	fillPipe := p.stencilFillPipeline
+	if res.evenOdd && p.eoStencilFillPipeline != nil {
+		// sampleCount==1 has no eo pipeline: the R8 coverage mask carves
+		// even-odd holes there; keep the winding pipeline (1x unchanged).
+		fillPipe = p.eoStencilFillPipeline
+	}
+	rp.SetPipeline(fillPipe)
 	rp.SetBindGroup(0, res.bindGroup, nil)
 	rp.SetVertexBuffer(0, res.vertBuf, 0)
 	rp.SetStencilReference(0)
@@ -1260,6 +1324,10 @@ func (p *DepthClipPipeline) Destroy() {
 	if p.stencilFillPipeline != nil {
 		p.stencilFillPipeline.Destroy()
 		p.stencilFillPipeline = nil
+	}
+	if p.eoStencilFillPipeline != nil {
+		p.eoStencilFillPipeline.Destroy()
+		p.eoStencilFillPipeline = nil
 	}
 	if p.stencilExpandPipeline != nil {
 		p.stencilExpandPipeline.Destroy()

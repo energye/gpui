@@ -54,6 +54,8 @@ var (
 	cifVoid3UUF      types.CallInterface // void fn(uint32, uint32, float32) - SamplerParameterf
 	cifVoid1Float    types.CallInterface // void fn(float32) - ClearDepthf
 	cifVoid2Float    types.CallInterface // void fn(float32, float32) - DepthRangef
+	cifVoid1Double   types.CallInterface // void fn(float64) - glClearDepth (desktop GLdouble)
+	cifVoid2Double   types.CallInterface // void fn(float64, float64) - glDepthRange (desktop GLdouble)
 	cifInitialized   bool
 )
 
@@ -135,6 +137,27 @@ func initCommonCallInterfaces() error {
 		[]*types.TypeDescriptor{
 			types.FloatTypeDescriptor,
 			types.FloatTypeDescriptor,
+		})
+	if err != nil {
+		return err
+	}
+
+	// void fn(float64) - glClearDepth (desktop GL: GLdouble parameter)
+	err = ffi.PrepareCallInterface(&cifVoid1Double, types.DefaultCall,
+		types.VoidTypeDescriptor,
+		[]*types.TypeDescriptor{
+			types.DoubleTypeDescriptor,
+		})
+	if err != nil {
+		return err
+	}
+
+	// void fn(float64, float64) - glDepthRange (desktop GL: two GLdouble)
+	err = ffi.PrepareCallInterface(&cifVoid2Double, types.DefaultCall,
+		types.VoidTypeDescriptor,
+		[]*types.TypeDescriptor{
+			types.DoubleTypeDescriptor,
+			types.DoubleTypeDescriptor,
 		})
 	if err != nil {
 		return err
@@ -854,21 +877,35 @@ func (c *Context) ClearColor(r, g, b, a float32) {
 }
 
 // ClearDepth sets the depth value used by glClear(GL_DEPTH_BUFFER_BIT).
-// On GLES the loaded function is glClearDepthf (float32).
-// On desktop GL it is glClearDepth (double) — but Linux GLES contexts always
-// load glClearDepthf, so we pass float32 unconditionally.
+// The FFI signature must match the loaded symbol: GLES loads glClearDepthf
+// (GLfloat) and gets the float path; desktop GL loads glClearDepth (GLdouble)
+// and MUST get the double path — passing a float32 bit pattern to the double
+// function read ≈1e-312 ≈ 0, silently clearing depth to ~0 and deadlocking the
+// GreaterEqual depth gate of GPU-CLIP-003a on every desktop-GL context
+// (P4.1 batch 4, evidence/P4.1/batch4/depth-clear-range-diagnosis.md).
 func (c *Context) ClearDepth(depth float64) {
-	d := float32(depth)
-	args := [1]unsafe.Pointer{unsafe.Pointer(&d)}
-	_, _ = ffi.CallFunction(&cifVoid1Float, c.glClearDepth, nil, args[:])
+	if c.isGLES {
+		d := float32(depth)
+		args := [1]unsafe.Pointer{unsafe.Pointer(&d)}
+		_, _ = ffi.CallFunction(&cifVoid1Float, c.glClearDepth, nil, args[:])
+		return
+	}
+	args := [1]unsafe.Pointer{unsafe.Pointer(&depth)}
+	_, _ = ffi.CallFunction(&cifVoid1Double, c.glClearDepth, nil, args[:])
 }
 
-// DepthRange sets the mapping of NDC depth to window depth.
-// On GLES the loaded function is glDepthRangef (float32).
+// DepthRange sets the mapping of NDC depth to window depth. Same per-API
+// signature split as ClearDepth: GLES glDepthRangef (GLfloat) vs desktop
+// glDepthRange (two GLdouble).
 func (c *Context) DepthRange(near, far float64) {
-	n, f := float32(near), float32(far)
-	args := [2]unsafe.Pointer{unsafe.Pointer(&n), unsafe.Pointer(&f)}
-	_, _ = ffi.CallFunction(&cifVoid2Float, c.glDepthRange, nil, args[:])
+	if c.isGLES {
+		n, f := float32(near), float32(far)
+		args := [2]unsafe.Pointer{unsafe.Pointer(&n), unsafe.Pointer(&f)}
+		_, _ = ffi.CallFunction(&cifVoid2Float, c.glDepthRange, nil, args[:])
+		return
+	}
+	args := [2]unsafe.Pointer{unsafe.Pointer(&near), unsafe.Pointer(&far)}
+	_, _ = ffi.CallFunction(&cifVoid2Double, c.glDepthRange, nil, args[:])
 }
 
 func (c *Context) Viewport(x, y, width, height int32) {

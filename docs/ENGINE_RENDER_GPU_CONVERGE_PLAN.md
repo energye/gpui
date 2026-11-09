@@ -184,7 +184,7 @@ render/
 | 能力 | 现状 | 位置 | 修法 | 验收 |
 |---|---|---|---|---|
 | 线性空间混合 | helper 写好未接线（2026-11-01 复核：`GetBlendFuncLinear/BlendLinear` 全仓 0 生产调用，仅 linear_test.go；GPU/CPU 主路均在 sRGB 空间混合，`blend_gpu.go:55`、`software_blend.go:32`） | `render/internal/blend/linear.go` | 合并为带 linear 参数的单一入口并接主路 | 单测 + 金图 |
-| MSAA>1 even-odd 裁剪 | 退化跳过 | `internal/gpu/depth_clip.go:596-618` | 补 sampleCount>1 路径 | 真窗 + 金图 |
+| MSAA>1 even-odd 裁剪 | **✅ 已收口（2026-11-10 P4.1 批 4）**：MSAA>1 走新增 even-odd stencil 管线（双面 PassOp=Invert，Skia gEOStencilPass 口径），cover NotEqual-0 门控复用；sampleCount==1 mask 路与 winding 管线零变化。同批修掉同链两洞：GLES 离屏 resolve READ 绑定被毁（go4x 快照全黑）、桌面 GL glClearDepth/glDepthRange double 签名按 float32 传参（深度门控从未生效，1x 被 mask 掩盖） | `internal/gpu/depth_clip.go`（eoStencilFillPipeline）+ `gpu/gwgpu/gles/command_execute.go` + `gpu/gwgpu/gles/gl/context_linux.go` | 已修（三红绿对+双负向） | 真窗 + 金图（`ui_wr_p41_evenodd_msaa` 双后端 4x 各自 0.0000%/763584px；P3.9b 四组合全绿 go4x 翻绿） |
 | 非整数裁剪矩形 | 整数 scissor 无 AA | `internal/clip/stack.go:421` | 走路径裁剪或分数 scissor | 金图 |
 | 顶点网格 paint alpha/blend | 忽略，GPU 硬边 | `vertices_mesh.go:18-95`、`gpu_render_context.go:1058-1183` | 透传 blend/alpha，补 AA 或声明 | 真窗 + 金图 |
 | DrawShadow | spot 单 pass 已对齐 Impeller tonal 模型（2026-11-09 复核：`context_misc_draw.go:222-297`，`shadowSpotColor` 逐字移植 `dl_dispatcher.cc:879-904`）；真缺=非仿射投影下剪影精确化（`projShadowDegrades` 只计数仍按 2×3 近似照画） | `context_misc_draw.go:222-297` | 按 Skia 模型补 **→ 口径修正（2026-11-09 P4.1 开工拍板 D2a）：Flutter 3.47 主路 Impeller 已是 spot 单 pass 无 ambient（`dl_dispatcher.cc:869-928`），本库 `shadowSpotColor`/抬升/模糊公式已逐字对齐该模型——标准口径改为对齐 Impeller spot 单 pass，只补真缺的：非仿射投影下剪影精确化（或显式降级）；Skia 回退路径的 ambient(0.039)+spot(0.25) 双 pass 不做（`dl_sk_dispatcher.cc:338-357` 仅回退路）** | 金图 |

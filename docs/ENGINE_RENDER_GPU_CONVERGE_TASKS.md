@@ -98,6 +98,50 @@
   洞（层合成 gpuTex 末尾统一重放盖住后画直接绘制；真窗本体先画绕过）；
   #6 卡片内局部 SetProjection×dpr×GPU 层组合域丢内容（真窗避开）。证据
   `evidence/P4.1/batch3/`。
+- **批 4 状态：✅ 收口（2026-11-10，三洞修复 + even-odd 落地）**——同链三存量洞全部
+  红绿对闭环：①GLES 离屏 resolve READ 绑定被毁（go4x 快照全黑；ensureResolveFBO
+  改 DRAW_FRAMEBUFFER-only，用户拍板）→ `render/gles_msaa_resolve_test.go` 红转绿；
+  ②even-odd 孔洞被 winding stencil 保留 → `render/internal/gpu/depth_clip.go`
+  新增 eoStencilFillPipeline（双面 Invert，Skia gEOStencilPass 口径，sampleCount>1
+  才建，winding/1x mask 路零变化）→ `render/clip_evenodd_msaa_test.go` 红转绿；
+  ③桌面 GL glClearDepth/glDepthRange double 签名按 float32 传参（深度门控自上线
+  从未生效，1x 被 mask 掩盖 4x 才暴露）→ context_linux.go 按 isGLES 分派
+  double/float cif（用户拍板）。真窗 `ui_wr_p41_evenodd_msaa` 四卡双后端 4x 各自
+  0.0000%/763584px（native+go seed→verify）、pixel 12/12、负向 nonzero 断言红 5 探针
+  exit1 还原绿、人工窗 rc=0；引擎级双负向（eo-to-wind / depth-clear-revert）红→还原绿；
+  1x 全量金图回归 15 窗×双后端**零新增红**（p31 0.7278% 与 p41_mesh_paint_blend
+  B 卡双后端 HEAD 同败=先在红已归属）；P3.9b 四组合复核全绿、go4x 金图补种
+  翻绿；race/vet/apidoc(rc=0 零公开 API) 绿。跨后端 433px AA 级差按后端分基线
+  登记。metal 不可验（无真机）。证据 `evidence/P4.1/batch4/`（summary.md 三洞表
+  + 两诊断 + 五证据全落）。**P4.1 四子项至此全部收口（批 1 B 卡 #3 在册挂账除外），
+  P4.1 整体状态由批 1 B 卡决定。**
+- **批 4 载体（子项① MSAA>1 even-odd 裁剪 + go4x 黑洞修复，2026-11-10 开工登记）**：
+  修法口径（assessment.md §3 草案细化）：MSAA>1 且 group.ClipFillRule==EvenOdd 时走
+  **新增 even-odd 专用 stencil 管线**——对照 Skia `gEOStencilPass`/`gEOColorPass`
+  （GrPathStencilSettings.h:18-26/29-37）：Phase 1 双面 PassOp=Invert（每 fragment 翻转
+  stencil=奇偶计数，盖奇数次=1、偶次=0，孔洞自然出来），Phase 2 cover 以 stencil
+  NotEqual-0 门控写深度；winding 规则保持现有 IncrWrap/DecrWrap 管线**零变化**；
+  sampleCount==1 保持现有 R8 coverage mask 路**零变化**（BuildClipMask :625 现状跳过不动）。
+  go4x 黑洞按 D1a 同批修：先「定位到行号 + 对齐 GLES resolve/readback 标准方案」，
+  停「停下报告」拍板后动手，修法方向=GLES 4x resolve 链（multisample renderbuffer
+  resolve、blit mask/滤波、readback FBO 绑定）。
+  能力单测：`render/clip_evenodd_msaa_test.go`（新增，先红后绿；数据
+  `render/testdata/clip_evenodd_msaa_cases.json`）:: `TestClipEvenOddMSAACasesGPU`（红测：
+  MSAA=4 + even-odd 裁剪孔洞，现状孔洞内容被保留）/ `TestClipEvenOddMSAACasesCPU` /
+  `TestClipEvenOddMSAAMatchesCPU` / `TestClipWindingMSAALock`（winding 规则 MSAA 行为零
+  变化锁定）；GPU 断言无设备 skip（ErrFallbackToCPU 口径）。
+  真窗：`examples/ui_wr_p41_evenodd_msaa`（`-auto-only` 自动判 + 常驻人工窗二合一；
+  开窗前 `SetMSAASampleCount(MSAASampleCount4)`）四卡：A 双圆环 even-odd 孔洞（孔洞露
+  下层）、B even-odd 星形自交、C winding 锁定卡（非零规则两圆环照画不挖）、
+  D even-odd + 内容填充验证孔洞内图形不可见。
+  金图：`examples/ui_wr_p41_evenodd_msaa/testdata/goldens/p41_evenodd_msaa_final.png`
+  （go/GL 为 `..._go.png`），容差 0（P0.1 逐位）。
+  双后端：webgpu（native）4x 待跑；gwgpu-gles（`GPUI_BACKEND=go`）4x 待跑（依赖 go4x
+  修复，这正是 D1a 把 go4x 修进批 4 的原因）；gwgpu-metal 不可验（无 macOS 真机）。
+  负向对照：`GPUI_P41E_BREAK=eo-to-wind`（even-odd MSAA 强制走 winding 管线=现状洞）
+  → 预期孔洞探针红、金图红；红了还原复绿。
+  显存复核（P3.9b 义务）：收口跑 `examples/ui_wr_p39b_msaa_anim` 1x/4x 门禁复核无回归。
+  证据：`evidence/P4.1/batch4/`。
 - **批 2 状态：✅ 全量收口（2026-11-10）**——单测 9/9 先红后绿 + 真窗 10 探针
   （A 半覆盖 AA/B 整数锁定/C 分数+内容/D 嵌套形状）+ 双后端金图各自 verify
   0.0000%/763584px + 负向 hard-edge 红 rc=1 + 回归零新增 + race/vet/apidoc 绿 +
@@ -119,7 +163,7 @@
 - 能力/逻辑单测（随真窗逻辑探针）：`runLogicProbes` 断言场景图元计数、`mesh_triangles > 0`、`msaa_setting == msaa_requested`、`device_surface_bytes > 0`、`phase_advanced == (mode==measure)`、`cpu_fallback == 0`；像素探针（冻结相位）断言 `anchor_magenta`/`anchor_cyan`/`background_not_clear`。
 - 真窗：`examples/ui_wr_p39b_msaa_anim`（`-auto-only` 冻结相位自动判 + `-measure` 动画测量 + 无参数常驻人工窗二合一）；满窗混合：文字/圆角/曲线路径/线性径向渐变/图片/半透明层/旋转缩放/粒子点阵 + **mesh gradient 3×3 网格**一起每帧动，指标行浮在画面左上角。
 - 金图：`examples/ui_wr_p39b_msaa_anim/testdata/goldens/p39b_anim_<backend>_msaa<1|4>.png`（3 份有效，go4x 因全黑洞不 seed、已删污染黑图）；容差 0（P0.1 逐位）；实测 native1x/native4x/go1x 各自 **0.0000%**、logic 6/6、非黑 23504/23504；比对区排除指标行 `GoldenRect{0,44,w,h-44}`，用 `GoldenGateW`。
-- 双后端：webgpu（native）1x/4x ✅ 有效；gwgpu-gles（`GPUI_BACKEND=go`）1x ✅ 有效、**4x ❌ 整窗全黑（既有引擎洞，登记不可验）**；gwgpu-metal 不可验（无 macOS 真机）。
+- 双后端：webgpu（native）1x/4x ✅ 有效；gwgpu-gles（`GPUI_BACKEND=go`）1x ✅ 有效、**4x ✅ 翻绿（2026-11-10 P4.1 批 4 修掉 GLES 4x 链三洞后复核 6/6+金图 0.0000%，go4x 金图已补种；原「整窗全黑登记不可验」由该批销账）**；gwgpu-metal 不可验（无 macOS 真机）。
 - 负向对照：① `GPUI_P39B_BREAK=freeze` 在 measure 模式冻结相位 → phase_advanced 红、exit 1 ✅；② `window_not_black` 防假绿探针 → go4x 全黑 `nonblack=0` 红、exit 1、标 INVALID ✅；③ 无 OOM 降级日志、4x 显存峰值 2.35× 证明 4x 真生效 ✅。
 - 证据：`evidence/P3.9b/`（assessment.md、design.md、findings-go4x-black.md、compare.md、summary.md、run_measure.sh、gate/、measure/、negative/、window/、gates/、golden-sha256.txt 全落）。
 - 拍板（2026-11-09 用户确认）：满屏 1920×1080 出真数据 + 代码留 3840×2160 档本机不跑 / 混合通用动画 + mesh / 当前 Wayland 桌面单窗串行；**遇 go4x 洞二次拍板：不修洞、继续测完、如实登记不可验、P3.9b 零引擎改动**。
@@ -455,7 +499,7 @@
 | P3.9 | mesh gradient（Skia `drawPatch` 口径 Coons 12 控制点 / PDF type 7 TensorProduct(bicubic) 16 控制点：4 角角色色 TL/TR/BR/BL + 2×2/3×3 个 patch 网格；**2026-11-02 拍板 D2 从 P3.6 剔出单列**，依赖图 §3b 第 7 条 + PLAN §5.1/§7.4 已同步） | P3.0 | ✅ 2026-11-09 像素收口（native + go/GL 各自金图 0.0000% / 763584 px、logic 6/6、pixel 16/16；负向 `GPUI_P39_BREAK=swap-corners` 与 GL `baseVertex` 摘除两路红→还原绿；**同批修 GLES `DrawIndexed` 忽略 `baseVertex`**；单测/录制/vet/apidoc/五目标构建全绿；D1-D3=单 patch 原语 / 16 点 TensorProduct / paint alpha-blend 留 P4.1；标准：Skia `SkPatchUtils::MakeVertices`→`drawVertices`，复用现有彩色 mesh，无新 WGSL；证据 `evidence/P3.9/summary.md`） | `evidence/P3.9/`（assessment.md、design.md 已落） |
 | P3.9a | mesh gradient 高层网格（阶段 1）：rows×columns 个 patch、(rows+1)×(columns+1) 顶点、每顶点位置/颜色/可选四切向量、自动 C1 推断（逐字对齐 AndroidX Compose `MeshGradientConfig.inferBezierControlPointsIfRequired`）、Bilinear/CatmullRom 颜色模型；高层默认 Coons 12 点，TensorProduct 16 点继续用低层 `MeshPatch`；一次绘制合成一个 indexed `Mesh`；**不做纹理/paint alpha-blend/AA/HDR/kit/PDF/SVG/Spine**（阶段 2 归 P4.1，阶段 3 按需另立，阶段 4 先验证/基准） | P3.9 | ✅ 2026-11-09 像素收口（native + go/GL 各自金图 0.0000% / 763584 px、logic 3/3、pixel 8/8、跨后端 changed=0；负向 swap-color-model 15.3974% / zero-tangents 38.1758% 红→还原绿；单测 9+3+2、vet/apidoc/五目标构建/race 全绿；证据 `evidence/P3.9a/summary.md`） | `evidence/P3.9a/` |
 | P3.9b | 1x/4x MSAA 真实窗口动画性能基准（**测量补充，非新能力**）：满窗混合通用动画场景（文字/圆角/曲线/渐变/图片/半透明层/旋转缩放/粒子 + mesh gradient 一起每帧动），指标浮在内容上；分辨率可配（默认满屏 1920×1080，留 3840×2160 档本机不跑）、MSAA 可配（开窗前 `SetMSAASampleCount`）；三模式（`-auto-only` 冻结相位门禁 / `-measure` 动画测量 / 常驻人工窗）；**零引擎改动、零新增公开 API** | P3.9a | ✅ 2026-11-09 测量收口（满屏 1080p 混合通用动画真窗；native 1x/4x + go 1x 三组合门禁金图 0.0000%/logic 6/6、18s 测量有效；**抓到并如实落位 go/GL+4x 整窗全黑既有引擎洞**，用户拍板不修/登记不可验/不标绿；native 1x→4x 显存峰值 2.35×、fps −24.9%、p95 破线；证据 `evidence/P3.9b/summary.md`、`compare.md`、`findings-go4x-black.md`） | `evidence/P3.9b/` |
-| P4.1 | 正确性：MSAA>1 even-odd 裁剪、分数裁剪 AA、顶点网格 alpha/blend、DrawShadow | P3.4、P3.8 | 🟡 拆四批（③→②→④→①）：批 1（③alpha/blend 接线）核心交付、B 卡挂 #3 GPU 路待诊断；**批 2（②分数裁剪 AA）✅ 全量收口（2026-11-10）**；**批 3（④ DrawShadow 设备空间抬升）✅ 语义收口（2026-11-10，#4/#5/#6 三洞登记）**；批 4（①+go4x）待开工（D1a/D2a/D3a 拍板，PLAN §6 已回写） | `evidence/P4.1/` |
+| P4.1 | 正确性：MSAA>1 even-odd 裁剪、分数裁剪 AA、顶点网格 alpha/blend、DrawShadow | P3.4、P3.8 | 🟡 拆四批（③→②→④→①）：批 1（③alpha/blend 接线）核心交付、B 卡挂 #3 GPU 路待诊断；**批 2（②分数裁剪 AA）✅ 全量收口（2026-11-10）**；**批 3（④ DrawShadow 设备空间抬升）✅ 语义收口（2026-11-10，#4/#5/#6 三洞登记）**；**批 4（①+go4x）✅ 收口（2026-11-10，三洞红绿对闭环 + 双后端 4x 真窗 0.0000% + 1x 全量金图零新增红 + P3.9b go4x 翻绿；PLAN §6 已回写）**——P4.1 四子项除批 1 B 卡（#3 在册）外全部收口 | `evidence/P4.1/` |
 | P4.2 | 一致性：GPU/CPU 模糊对齐 | P4.1、P3.4 | ⬜ | `evidence/P4.2/` |
 | P4.3 | 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化 | P4.1、P3.4 | ⬜ | `evidence/P4.3/` |
 | P4.4 | 文本：COLRv1 完整层（若 P3.8 未覆盖） | P3.3、P3.8 | ⬜ | `evidence/P4.4/` |
@@ -981,3 +1025,5 @@ docs/render_gpu_converge/
 | 2026-11-09 | 欠账源码实证销账（用户要求「不看文档只看源码」） | 逐项去源码核对 §2.2 待办池：发现 7 项早已修好但总账未销账——K3/K5（`shape_result_cache.go:414-415` / `scene/renderer.go:1298` 已填 Cluster，0608c605 批 6）、G2（四老抽象文件已删、RectAllocator 独立）、J1（`cache.go:252-255` repool 查重 + idle 边沿触发）、J2（`direct_submit.go:139-141` drain 解 token）、M4（带 lib 单跑 ok）、C2（`ui_wr_t_stress` 示例已整删）。另修 2 处假注释：`edge_builder.go:240` 声称 NewSoftwareRenderer 调 SetPixelAccuracy(0) 而代码没调；`analytic_filler.go:769` 声称实现 edges_too_close 而两条 sub-strip 路径都没实现。K6 证据清单加终态说明（12 枚已修、剩 10 枚全量干扰单跑全绿）。仍存在项（G3/M5/I2/B1/B2/M2/K2/K4/M3/K6 引擎侧/acc=6 暂挂）逐项附源码行号或真窗实测，见 `evidence/render_full_run_reds.md` §终态 | `evidence/render_full_run_reds.md` §终态 |
 | 2026-11-09 | 真源小瑕疵销账 | §2.1 残留一条「当前进行中：批 4b 🟡 立项（2026-11-08）」，但批 4b-1/2/3/4 四行均已「已交付并收口 ✅」、§7 822 行「✅ P3.8 翻绿，六批全收」，且 conformance 73.9%→94.0%（§7 823 行）。把该行改为 ✅ 已收口并注明依据；§7 824 行的立项登记属历史流水只增不改，保留。纯簿记，零代码/零行为变化，目的是让新会话按 §0「找第一个未完成且未阻塞任务」时不被假 🟡 误导 | §2.1 / §7 822-824 行 |
 | 2026-11-09 | acc=6 方向拍板（维持标准对齐固定 2） | 用户明确「继续维持标准对齐的固定 2」。源码实证：Skia `SkAnalyticEdge.h:54` `static constexpr int kDefaultAccuracy = 2`（`SnapY` 内 constexpr、`SkASSERT(yShift <= kDefaultAccuracy)` 上限、`SkScan_AAAPath.cpp:1348` 的 1/4 px 步进；`include/core`、`include/private` 零公开设置口），Flutter 层零命中、走 SkCanvas 即该值；本仓 `curve_edge.go:270` `DefaultPixelAccuracy=2` 对齐、`NewEdgeBuilder` 默认钉 2、`effectivePixelAccuracy` 的 explicit>0 分支恒返回 2、`SetPixelAccuracy` 全仓仅 2 个测试文件调用（生产零调用）⇒ 全局固定 2，非运行时可配、非按模块分配；GPU 直画路不经 EdgeBuilder、不吃该吸附精度。acc=6 全局启用与「按路径可配」能力均不启用，`FinePixelAccuracy` 与批②引擎修复保留但不接线。历史评估里「acc=6 待启用」登记由本次拍板覆盖。零代码改动（纯簿记），把 §2.1:50 与 `batch2-precision-hold-findings.md` 状态行的「暂挂」改为明确终态 | §2.1:50 / evidence/P3.8/batch2-precision-hold-findings.md / §7 本行 |
+| 2026-11-10 | P4.1 批 4 | **⬜→🟡 开工登记（子项① MSAA>1 even-odd 裁剪 + go4x 黑洞修复，D1a 口径）**：交接核对完成（四文档+assessment+findings 已读；git status 逐条归属——1 个已跟踪改动=P3.8 别线金图不提交、7 个未跟踪=别线遗留不动、根目录无 ELF 垃圾；未推送提交实测 8 个非交接所称 10 个，HEAD e4b5043f 一致）。行号复核全部成立：`depth_clip.go:625` BuildClipMask sampleCount>1 直接 return、`:269-318` stencil 管线 winding-only（IncrWrap/DecrWrap）、`RecordDraw` 不认 fillRule、fillRule 链路 clip op→`gpuClipFillRule`→`SetClipPath`→`group.ClipFillRule`（even-odd 只活在被跳过的 mask 路）；底座 `gpu/types/render.go:481` StencilOperationInvert + `gles/command_execute.go:1267` gl.INVERT 映射均在。载体四项已登记 §2.1（单测 `render/clip_evenodd_msaa_test.go` 先红后绿、真窗 `ui_wr_p41_evenodd_msaa` 四卡、金图容差 0、双后端 webgpu/gles 待跑+metal 不可验）。§3 开工条件核对：依赖 P3.4/P3.8 ✅、先红后绿按批 2/3 同款、go4x 修复前停在「停下报告」问用户。下一步：go4x 复现→行号→标准方案 → 停下报告 | `evidence/P4.1/batch4/`（收口时落盘） |
+| 2026-11-10 | P4.1 批 4 | **✅ 收口（三洞红绿对闭环）**：①go4x 定位「ensureResolveFBO 首用裸 FRAMEBUFFER bind 毁 READ=resolve 自拷贝→离屏读回全零」（插桩实锤 readFBO=drawFBO、无头 4x 探针确定性复现）→ 停下报告拍板 DRAW-only → 红绿对 `render/gles_msaa_resolve_test.go` + p39b 真窗 window_not_black 0/23504→23504/23504；②even-odd `eoStencilFillPipeline`（双面 Invert，BuildClipResources 携 fillRule，RecordDraw 分流，sampleCount==1/winding 零变化）→ 红测 `clip_evenodd_msaa_test.go` 红转绿；③实施中抓到深度门控从未生效（桌面 GL glClearDepth/glDepthRange double 签名按 float32 传参，判别实验链+缓冲直读实锤）→ 停下报告拍板按草案修 → isGLES 分派 double/float cif。**真窗 `ui_wr_p41_evenodd_msaa` 四卡双后端 4x 各自 0.0000%/763584px、pixel 12/12、负向 nonzero 红 exit1 还原绿、人工窗 rc=0**；引擎双负向红→还原绿；**1x 全量金图回归 15 窗×双后端零新增红**（p31 0.7278%/p41_mesh B 卡 HEAD 同败先在红已归属）；**P3.9b 四组合全绿 + go4x 金图补种翻绿**；race/vet/apidoc rc=0（零公开 API）。跨后端 433px AA 级差按后端分基线登记。metal 不可验。诊断插桩全还原。证据 `evidence/P4.1/batch4/`（summary.md+两诊断+五证据）；PLAN §6 已回写 | `evidence/P4.1/batch4/summary.md` |

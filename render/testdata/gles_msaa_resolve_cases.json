@@ -1,0 +1,30 @@
+{
+  "cases": [
+    {
+      "name": "solid_rect_4x",
+      "note": "GLES 4x 离屏 resolve→readback 内容探针（go4x 修复红绿对）：MSAAResolveCommand.ensureResolveFBO 首用分支裸 FRAMEBUFFER bind 毁 READ 绑定 → resolve 自拷贝 → 离屏 4x 内容全丢。修法=DRAW_FRAMEBUFFER-only（evidence/P4.1/batch4/go4x-diagnosis.md）",
+      "canvas": [128, 128],
+      "background": [1, 1, 1, 1],
+      "fill": [1, 0, 0, 1],
+      "rect": [16, 16, 96, 96],
+      "probes": [
+        { "x": 64, "y": 64, "want": [255, 0, 0, 255], "tol": 0, "desc": "rect center red" },
+        { "x": 32, "y": 96, "want": [255, 0, 0, 255], "tol": 0, "desc": "rect lower-left inner red" },
+        { "x": 4, "y": 4, "want": [255, 255, 255, 255], "tol": 0, "desc": "outside top-left white" },
+        { "x": 120, "y": 120, "want": [255, 255, 255, 255], "tol": 0, "desc": "outside bottom-right white" }
+      ]
+    },
+    {
+      "name": "solid_rect_4x_large",
+      "note": "同场景放大到真窗内容区尺寸（1868x1021，p39b 快照同尺寸），防尺寸相关回归",
+      "canvas": [1868, 1021],
+      "background": [1, 1, 1, 1],
+      "fill": [0, 0, 1, 1],
+      "rect": [16, 16, 1836, 989],
+      "probes": [
+        { "x": 934, "y": 510, "want": [0, 0, 255, 255], "tol": 0, "desc": "rect center blue" },
+        { "x": 4, "y": 4, "want": [255, 255, 255, 255], "tol": 0, "desc": "outside top-left white" }
+      ]
+    }
+  ]
+}

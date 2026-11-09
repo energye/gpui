@@ -1,0 +1,19 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/ui_wr_p41_evenodd_msaa/testdata/p41_evenodd_msaa_final.png
+ui_wr_p41_evenodd_msaa: logic cards_drawn      ok=true drawn=[714 714 714 2]
+ui_wr_p41_evenodd_msaa: logic msaa_setting     ok=true msaa=4 want=4
+ui_wr_p41_evenodd_msaa: logic break_inactive   ok=false GPUI_P41E_BREAK="nonzero"
+ui_wr_p41_evenodd_msaa: pixel A_hole_center        FAIL A_hole_center at (452,218) got=(229,38,38) want=(255,255,255)
+ui_wr_p41_evenodd_msaa: pixel A_hole_inner         FAIL A_hole_inner at (452,178) got=(229,38,38) want=(255,255,255)
+ui_wr_p41_evenodd_msaa: pixel A_ring               ok
+ui_wr_p41_evenodd_msaa: pixel A_outside            ok
+ui_wr_p41_evenodd_msaa: pixel B_center_filled      ok
+ui_wr_p41_evenodd_msaa: pixel B_ring               ok
+ui_wr_p41_evenodd_msaa: pixel B_outside            ok
+ui_wr_p41_evenodd_msaa: pixel C_center_hole        FAIL C_center_hole at (452,530) got=(76,191,102) want=(255,255,255)
+ui_wr_p41_evenodd_msaa: pixel C_point_top          ok
+ui_wr_p41_evenodd_msaa: pixel D_hole_stripe        FAIL D_hole_stripe at (780,530) got=(217,128,25) want=(64,115,217)
+ui_wr_p41_evenodd_msaa: pixel D_ring               ok
+{"ability_id":"P41-evenodd-msaa","scenario":"ui_wr_p41_evenodd_msaa","backend":"wayland","present_policy":"full_paint","target_hz":60,"fps_wall":56.447931898239815,"fps_interval":59.53778106641602,"interval_avg_ms":16.796057597183086,"interval_p50_ms":16.845975,"interval_p95_ms":18.511532,"interval_p99_ms":19.259346999999998,"hitch_count":0,"hitch_rate_per_min":0,"vsync_source":"true","frame_build_ms":0.756032,"frame_raster_ms":141.913475,"pipeline_depth":0,"pipeline_max":2,"layout_count":1,"paint_count":356,"damage_area_px":960000,"damage_ratio":1,"present_mode":"full","present_count":357,"frame_count":356,"cpu_pct_avg":0,"cpu_ui_pct":26.979450008023885,"cpu_raster_pct":73.02054999197611,"rss_start_kb":0,"rss_end_kb":0,"rss_peak_kb":0,"rss_slope_kb_per_min":0,"rss_slope_valid":false,"rss_unavailable":true,"gpu_ops":23225,"cpu_fallback_ops":0,"frame_flushes":1,"last_cpu_fallback":"","gpu_backend":"integrated","gpu_fallbacks":0,"warmup":true,"time_to_first_present_ms":145.501748,"first_present_paint_count":1,"elapsed_sec":6.324412392,"boundary_rerecord":0,"boundary_skip":0,"filter_layer_count":0,"boundary_count":1,"boundary_max_depth":1,"picture_op_count":65,"measure_cache_hit":0,"measure_cache_miss":13,"debug_repaint_draws":0,"debug_repaint_on":false,"pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":2,"evictions":0,"purged":0,"entries":2,"idle":2,"bytes":65280000,"peak_bytes":65280000,"budget":134217728}],"ruler_name":null,"ruler_cpu_pct":null,"ruler_rss_mb":null,"ruler_ratio_cpu":null,"ruler_ratio_rss":null,"ability_extra":{"apis":"Clip path SetFillRule(EvenOdd) → depth_clip eoStencilFillPipeline (stencil INVERT, Skia gEOStencilPass) + desktop-GL depth clear/range fix","break_mode":"nonzero","fps_gate":"off_correctness","logic_01_cards_drawn":true,"logic_02_msaa_setting":true,"logic_03_break_inactive":false,"logic_failed":1,"logic_probes_ok":2,"logic_probes_total":3,"msaa_requested":4,"msaa_setting":4,"pixel_golden_diff_pct":3.553243650993211,"pixel_golden_first_run":false,"pixel_golden_total_px":763584,"slope_gate":"off"}}
+FAIL: logic probes 2/3 ok
+exit status 1

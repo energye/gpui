@@ -1,0 +1,8 @@
+J5TRACE Open device=0xc0001fe1e0 ctx=0xc000095440
+--- FAIL: TestClipEvenOddMSAACasesGPU (0.38s)
+    --- FAIL: TestClipEvenOddMSAACasesGPU/evenodd_ring_clip_msaa4 (0.25s)
+        clip_evenodd_msaa_test.go:130: probe[0] hole center shows background (even-odd hole carved) (64,64) = [255 0 0 255], want [0 255 0 255] tol 0
+        clip_evenodd_msaa_test.go:130: probe[1] inside inner circle r=16: hole shows background (64,48) = [255 0 0 255], want [0 255 0 255] tol 0
+FAIL
+FAIL	github.com/energye/gpui/render	0.401s
+FAIL

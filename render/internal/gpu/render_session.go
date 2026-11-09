@@ -1972,7 +1972,7 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 		// GPU-CLIP-003a: depth clip resources for arbitrary path clipping.
 		// Each call creates per-group owned buffers to avoid cross-group overwrites.
 		if groups[i].ClipPath != nil && s.depthClipPipeline != nil {
-			res, dcErr := s.depthClipPipeline.BuildClipResources(groups[i].ClipPath, w, h)
+			res, dcErr := s.depthClipPipeline.BuildClipResources(groups[i].ClipPath, groups[i].ClipFillRule, w, h)
 			if dcErr == nil && res != nil {
 				grpRes[i].depthClipRes = res
 				grpRes[i].hasDepthClip = true
