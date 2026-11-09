@@ -81,6 +81,24 @@ DenseShortEdges acc=6 avg 1.001 / max 51 / over8 116（acc=2 为 1.016 / 62 / 17
 - 实测：黄色「accent」设备 x-range ours **440–499 = ref 440–499**（此前 ours 515–559）；
   svg 包全绿；**金图会移**（含缩进的多行文本布局统一校正），需重种。
 
+## 5. 挂起（需重写 pattern 填充）：tilePatt 混合单位 pattern 的格边竖缝
+
+- 现象：最下面 `<rect x=680 y=555 w=320 h=70 fill=url(#tilePatt)>` 两条绿带的**竖格边缝**：
+  ours 每 ~26.7px 一条暗缝（tile 边界列），resvg 参照**无缝**。
+  格边列差分：ours 绿带 [390,416,443,470,497,523,550]，ref **[]**。
+- 已验证根因：scale=1（1024×640）渲染**无缝**；fractional（570×357，scale≈0.5576）**有缝**。
+  「先烤 tile 位图 + 用户空间 Brush 按比例逐像素采样」在**非整数设备周期**
+  （tileW×scale=48×0.5576≈26.76px）下，格边必有亚像素缝。实测 6 种 contained 变体
+  （设备分辨率 / 真实浮点周期 / 内容按 tw/tileW 填满 / bilinear+wrap / 真 scale+整数周期 /
+  真周期归一）**全部残留**；差分方向恒为「ours 该列更暗」，ref 无该列 → 是位图平铺缝，
+  不是内容特征。
+- resvg（tiny-skia）不是采样 brush，而是「**整数尺寸 tile 位图 + 整数偏移平铺**」→ 无缝
+  （接受 ~0.9% 均匀缩放）。我们的用户空间 brush 架构做不到整数 1:1 平铺。
+- 唯一修法（较大，独立任务）：pattern 填充从「tile 位图 + 用户 brush」改为
+  「内容按**整数设备格**平铺渲染进设备尺寸离屏（整数偏移，无缝）→ 1:1 ImagePattern 填路径」。
+  落点 `render/svg/gradient.go` + `render/svg/renderer.go` 填充/描边接线；影响所有 pattern + 金图。
+- 状态：**挂起**（本会话多次 contained 尝试均失败、已全部回退；按 B 登记，A 作独立任务）。
+
 ## 复现
 
 - 真窗：`go run ./examples/ui_wr_p38_svg_showcase`（左 ours / 右 resvg 参照）。
