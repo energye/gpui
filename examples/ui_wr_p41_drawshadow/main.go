@@ -78,7 +78,10 @@ func drawBlockWithShadow(pc *rendering.PaintContext, x, y, w, h, elevation float
 	// 登记）；反转后 tier 顺序恰好还原语义（shadow 带叠在本体下缘=contact
 	// shadow 视觉，亦符合 Android/Material 的 elevation 阴影表现）。
 	dc.SetRGBA(0.05, 0.05, 0.08, 1)
-	dc.SetPath(rect)
+	// DrawPath（变换感知）：SetPath 是 raw 拷贝（不吃当前矩阵）——卡片
+	// Translate(origin) 下 SetPath 会把块画到窗口左上角（快照/live 同错，
+	// 旧金图为错位画面自洽种子，本批重种）。
+	dc.DrawPath(rect)
 	_ = dc.Fill()
 	if breakMode != "skip-shadow" {
 		if live, ok := pc.LiveContext(); ok {
@@ -136,7 +139,7 @@ func paintCardD(pc *rendering.PaintContext, sz rendering.Size) {
 		dc.Push()
 		dc.Translate(pc.OriginX, pc.OriginY)
 		dc.SetRGBA(col[0], col[1], col[2], 1)
-		dc.SetPath(rect)
+		dc.DrawPath(rect) // 变换感知（同上：SetPath raw 会错位到窗口原点）
 		_ = dc.Fill()
 		if live, ok := pc.LiveContext(); ok {
 			live.DrawShadow(rect, render.RGBA{R: col[0], G: col[1], B: col[2], A: 1}, 10, false)

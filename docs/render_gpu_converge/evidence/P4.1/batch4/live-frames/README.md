@@ -9,3 +9,12 @@
 
 修复：四扇 p41 窗 OnPaint 绘制从 pc.LiveContext()（录制画布上断言 *render.Context 失败
 静默跳过=live 全白根因）改为 pc.DC（render.Canvas 接口，live/录制两画布统一）。
+
+## 补记（2026-11-10 第二轮）：drawshadow 块错位修正
+
+- 用户人工窗第二轮报「四块白+黑红块叠窗口左上角」→ 实锤 `dc.SetPath(rect)`（raw，
+  不吃当前矩阵）在卡片 Translate(origin) 下错位到窗口原点，**快照/live 同错**，
+  旧金图为错位画面自洽种子（门禁绿=与错位基线一致）。
+- 修=两处 `SetPath`→`DrawPath`（变换感知）；双后端重种+verify 0.0000%；
+  go/GL live 抓帧（钩子已删）：左上角块残留 0、A 卡块位 (13,13,20)×2574 命中、
+  live-vs-golden 20.185%=阴影降级区（上条登记不变）。
