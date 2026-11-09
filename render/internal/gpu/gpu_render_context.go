@@ -2809,6 +2809,53 @@ func (rc *GPURenderContext) FlushOffscreenBase(target render.GPURenderTarget) er
 	return rc.FlushOffscreen(target)
 }
 
+// ensureSessionForAdvancedResolve builds the lazily-created session before
+// Flush's pending==0 / advanced-layer early return. resolvePendingAdvancedLayers
+// needs a live session for two things: replaying rc.seededViews via
+// MarkColorContent (so the effect RT's render pass LOADS the CPU-painted base
+// instead of clearing it) and enqueueing the dual-tex leading submit. Without
+// this, the F14 effect-publish path ran the entire resolve with session==nil:
+// the seed mark was dropped (LoadOpClear wiped the red base → black RT) and
+// the dual-tex blend command buffer was discarded (multiply never landed).
+func (rc *GPURenderContext) ensureSessionForAdvancedResolve() {
+	if rc == nil || rc.session != nil || rc.shared == nil {
+		return
+	}
+	rc.shared.mu.Lock()
+	device := rc.shared.device
+	queue := rc.shared.queue
+	reg := rc.shared.resReg
+	surface := rc.shared.surfaceCacheLocked()
+	direct := rc.shared.directSubmitLocked()
+	gen := rc.shared.deviceGen
+	sdf := rc.shared.sdfRenderPipeline
+	convex := rc.shared.convexRenderer
+	stencil := rc.shared.stencilRenderer
+	rc.shared.mu.Unlock()
+	if device == nil || queue == nil {
+		return
+	}
+	sc := rc.shared.SampleCount()
+	if rc.preferSampleCount1 {
+		sc = 1
+	}
+	rc.session = NewGPURenderSessionWithRegistry(device, queue, sc, reg, surface)
+	rc.session.SetDirectSubmit(direct)
+	for _, v := range rc.seededViews {
+		rc.session.MarkColorContent(v)
+	}
+	rc.session.SetTextureOOMHook(func() { rc.shared.RequestMSAADowngrade() })
+	rc.deviceGen = gen
+	if rc.preferSampleCount1 {
+		rc.session.MarkOwnsShapePipelines()
+	} else {
+		rc.session.SetSDFPipeline(sdf)
+		rc.session.SetConvexRenderer(convex)
+		rc.session.SetStencilRenderer(stencil)
+	}
+	rc.session.submitLock = &rc.shared.submitMu
+}
+
 func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolint:cyclop,gocognit,gocyclo,funlen // sequential resource setup + group dispatch
 	// Track View-nil flushes that consume pending into pixmap Data so filter
 	// graphs can seed from the full surface (advanced blend mid-flush / D140).
@@ -2845,6 +2892,10 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 
 	if pending == 0 {
 		if len(rc.pendingAdvancedLayers) > 0 {
+			// Advanced-only flush returns before the main path creates the
+			// session. Build it here so the resolve can replay seededViews
+			// and enqueue its dual-tex leading submit (F14 effect publish).
+			rc.ensureSessionForAdvancedResolve()
 			return rc.resolvePendingAdvancedLayers(target)
 		}
 		// rasterAtlas: CPU shapes already in pixmap, upload to offscreen texture.

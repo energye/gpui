@@ -155,3 +155,33 @@ K6 当时只抽样复验 2 枚就推广到 20 枚；本轮逐枚单跑证明不�
 - 回归：`./render` 带库全量顶层红 **12→10**（消失 PresentDamage/TextTransform）；剩余 10 个里 9 个是已确认的测试间干扰（S3c×7、R72、Rasterizer 全量 `wgpu: resource already released` 但单跑绿），**真红（单跑）只剩 1 个**。
 - **未修（如实回退）**：`TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend`。真因已定位到底（Go 复现，非推测）：`FlushGPU` 的 F14 effect-publish 路径里，`ClearWithColor` 的 `pixmapBaseContent=true` → `resolvePendingAdvancedLayersEnc` 的 seed 前置 `seedViewFromRGBA` **成功**（seed 后立即 `ReadbackViewRGBA(16,16)=(255,0,0,255)` 红底），但随后 dual-tex advanced blend 的 pass/blit 把整个 publish view 冲成黑（clip 内外都黑，实测 (0,0,0,255) vs 期望 (229,0,0,255)）。`render_session.go` 三处 load/clear 决策都正确响应 `hasColorContent`，说明问题在 dual-tex 自己的 render pass（`dualTexAdvancedBlendViewsMultiBundle` → `QueueGPUTextureDrawUV` 覆盖全屏），不在 seed。修它要动 GPU advanced-blend 合成链、牵动所有 advanced blend 与金图，属跨线大改 + 共享状态改动，按「不动绿代码行为 / 不交付半吊子」**已回退全部临时探针，等用户拍板**。
 - 环境红 `TestPresentDamageX11`（X11/NVIDIA partial present 未启用）未动，需隔离真 Xorg 复核。
+
+## 2026-11-09 修复批次 5（advanced blend 真修 + 测试间干扰定性）
+
+用户追问「测试间干扰怎么修 / 剩下那 1 个怎么修」，深挖后把「剩下那 1 个」**真修掉了**（不是上一轮估计的跨线大改），并把测试间干扰定性到具体机制。
+
+### advanced blend 真修（两层根因，均有 Go 复现实测）
+
+`TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend`：期望 (229,0,0,255) + clip 外红，实测全黑 (0,0,0,255)。
+
+**共同根因**：`Flush` 在 `pending==0 && len(pendingAdvancedLayers)>0` 时于 `gpu_render_context.go:2848` **提前 return** 到 `resolvePendingAdvancedLayers`，完全跳过了 2861 之后的 `ensureGPU` 和 2932 的 session 创建，导致整个 advanced resolve 在 `rc.session == nil` 下运行（探针实测 `seedViewFromRGBA: sessionNil=true`）。
+
+- **第一层**：`view_seed.go:93` 的 `seedViewFromRGBA` 只在 `rc.session != nil` 时调 `session.MarkColorContent(halView)`，漏了登记 `rc.seededViews`。session 为 nil 时标记丢失；后续 `Flush` 新建 session 时（`gpu_render_context.go:2939` 遍历 `rc.seededViews` 补标记）无标记可补 → render pass 用 LoadOpClear 把 CPU 红底 seed 清掉 → 全黑。
+  **修法**：改用项目自带的 `rc.MarkViewSeeded(view)`（gpu_render_context.go:1642，登记 seededViews + session 存在时标记）。修后实测 (0,0,0)→(255,0,0)，seed 保住。
+- **第二层**：dual-tex advanced blend 的 `dualTexAdvancedBlendViewsMultiBundle` 产出 leading CB，靠 `rc.session.EnqueueLeadingSubmit` 提交；session 为 nil 时该分支走 `else { bundle.Cleanup() }`，**CB 被丢弃**，multiply 从未落地 → (255,0,0) 而非 (229,0,0)。
+  **修法**：新增 `ensureSessionForAdvancedResolve()`（复用 `gpu_render_context.go:2932` 与 `filter_flush_coalesce.go:79` 已有的按需建 session 逻辑），在 2848 早退分支调 resolve 前先建 session。**不动 Flush 主路径**，只补早退分支。修后 (229,0,0) 达标。
+
+验证：`TestMiscDrawGPUPath` 8/8 子用例全绿；`./render/internal/gpu` 全量绿；带库全量 `./render` 顶层红 10 个**单跑逐个全绿**（确认全是测试间干扰），真红归零；showcase 真窗 logic 4/4 pixel 11/11 **golden 0.0000%（不需要重种金图）**；vet/apidoc rc=0。
+
+### 测试间干扰：定性 + 三档修法
+
+**实证**：带库全量 `./render` 有 10 个顶层红，`-run` 逐个单跑 **全部 rc=0**（本轮逐一验证）。按时间顺序解析 `-json` 日志：第一次 `wgpu: resource already released` 出现在 `TestQuadCPUGPUParity`（`gpu_textures.go:170` 的 depth 1x1 OOM fallback），之后 **88 个测试连锁**报同一错误、Auto/SDF 画空（`ink runs ... got=""`）。K6 证据（2026-11-07）早已判定「单跑全绿、全量红 = 测试间全局状态污染，非功能性失败」。
+
+**根因**：全量 `go test ./render` 把同包所有测试串在**同一进程**。多个测试通过 `SetDeviceProvider` 把**外部 device** 绑到进程级 `GPUShared`（`gpu_shared.go:455` 的 `externalDevice` 语义），Cleanup 里 `dev.Release()` + `ResetAccelerator()`；反复切换后全局 `GPUShared.device` / session 缓存残留已释放 device 的句柄，累积到 depth texture 创建时报错，stencil 退化 → Auto/SDF 路径画空。涉及文件（grep 实证）：`conformance_test.go:237-274`、`video_yuv_color_gpu_test.go:20-52`、`mem_gpu_lifecycle_test.go`（3× Reset）、`s6_8_window_present_x11_linux_test.go:32/184`、`device_open_test.go:149`、`mem_window_x11_linux_test.go`。注：`accelerator_test.go` 的 `resetAccelerator(t)` 与 `conformance_test.go` 的 `setupNativeDevice` **已有** `t.Cleanup` 恢复，不是元凶；`rasterizer_routing_test.go:28-40` 是「保存→清空→defer 还原」的已修范本。
+
+**三档修法**：
+1. **零代码（当前正式口径）**：AGENTS.md 第 155 行「回归按测试文件逐个跑，禁止一次全量」；K6「门禁口径以定向 -run + 触及面逐文件为准」。正式门禁本就不跑全量，这些红是违反门禁方式的产物，不是产品缺陷。
+2. **加固（推荐，改动中等）**：统一一个 helper 让「绑外部 device」的测试在 `t.Cleanup` 里把全局 `GPUShared` 的 device 引用清干净（而非只换 accelerator），覆盖上面 6 个文件；范本 `rasterizer_routing_test.go:28-40` / `s6_8_window_present_x11_linux_test.go:32-33`。修完可加一条「全量也绿」的额外门禁作为加固。
+3. **隔离**：把破坏性测试挪到独立 test binary（`//go:build` 分组或单独 package），不与普通 GPU 测试共享进程。代价是目录结构调整。
+
+本轮按档 1 口径确认「真红归零」，未改测试间干扰相关代码（待用户拍板是否做档 2）。

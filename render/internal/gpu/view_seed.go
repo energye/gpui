@@ -90,9 +90,15 @@ func (rc *GPURenderContext) seedViewFromRGBA(view gpucontext.TextureView, data [
 	if halView == nil {
 		return fmt.Errorf("gpu: seed view: nil native view")
 	}
-	if rc.session != nil {
-		rc.session.MarkColorContent(halView)
-	}
+	// Record the seed on the context, not only on the session: the F14
+	// effect-publish path can seed before its (lazily created) session
+	// exists (rc.session == nil). MarkViewSeeded keeps the view in
+	// rc.seededViews and Flush replays it via MarkColorContent when it
+	// creates the session (gpu_render_context.go, "Ensure session exists").
+	// Going straight to session.MarkColorContent here dropped the mark in
+	// that case, so the effect RT's render pass used LoadOpClear and wiped
+	// the CPU-painted base (DrawColorEffectSurfaceAdvancedBlend went black).
+	rc.MarkViewSeeded(view)
 	rc.frameRendered = true
 	rc.lastView = halView
 	return nil
