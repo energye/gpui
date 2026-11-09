@@ -1,0 +1,15 @@
+# github.com/energye/gpui/render [github.com/energye/gpui/render.test]
+render/mesh_gradient_test.go:90:31: undefined: MeshGradientVertex
+render/mesh_gradient_test.go:91:9: undefined: MeshGradientVertex
+render/mesh_gradient_test.go:107:44: undefined: MeshGradient
+render/mesh_gradient_test.go:109:15: undefined: MeshGradientVertex
+render/mesh_gradient_test.go:113:12: undefined: NewMeshGradient
+render/mesh_gradient_test.go:142:18: undefined: resolveMeshGradient
+render/mesh_gradient_test.go:168:18: undefined: resolveMeshGradient
+render/mesh_gradient_test.go:174:13: undefined: meshGradientCellPatch
+render/mesh_gradient_test.go:179:14: undefined: meshGradientCellPatch
+render/mesh_gradient_test.go:191:14: undefined: meshGradientCellPatch
+render/mesh_gradient_test.go:191:14: too many errors
+FAIL	github.com/energye/gpui/render [build failed]
+FAIL
+EXIT=1

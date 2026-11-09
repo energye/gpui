@@ -1,0 +1,30 @@
+=== RUN   TestMeshGradientTangentInference
+--- PASS: TestMeshGradientTangentInference (0.00s)
+=== RUN   TestMeshGradientC1SharedEdges
+--- PASS: TestMeshGradientC1SharedEdges (0.00s)
+=== RUN   TestMeshGradientBilinearMatchesPatches
+--- PASS: TestMeshGradientBilinearMatchesPatches (0.00s)
+=== RUN   TestMeshGradientCatmullRomColor
+--- PASS: TestMeshGradientCatmullRomColor (0.00s)
+=== RUN   TestMeshGradientBoundarySizes
+--- PASS: TestMeshGradientBoundarySizes (0.00s)
+=== RUN   TestMeshGradientNormalizedSpace
+--- PASS: TestMeshGradientNormalizedSpace (0.00s)
+=== RUN   TestMeshGradientInvalidShape
+=== RUN   TestMeshGradientInvalidShape/zero_rows
+=== RUN   TestMeshGradientInvalidShape/short_vertices
+=== RUN   TestMeshGradientInvalidShape/bad_color_model
+=== RUN   TestMeshGradientInvalidShape/bad_space
+=== RUN   TestMeshGradientInvalidShape/normalized_without_bounds
+--- PASS: TestMeshGradientInvalidShape (0.00s)
+    --- PASS: TestMeshGradientInvalidShape/zero_rows (0.00s)
+    --- PASS: TestMeshGradientInvalidShape/short_vertices (0.00s)
+    --- PASS: TestMeshGradientInvalidShape/bad_color_model (0.00s)
+    --- PASS: TestMeshGradientInvalidShape/bad_space (0.00s)
+    --- PASS: TestMeshGradientInvalidShape/normalized_without_bounds (0.00s)
+=== RUN   TestMeshGradientCTM
+--- PASS: TestMeshGradientCTM (0.00s)
+=== RUN   TestMeshGradientDrawCPUProbes
+--- PASS: TestMeshGradientDrawCPUProbes (0.01s)
+PASS
+ok  	github.com/energye/gpui/render	0.031s

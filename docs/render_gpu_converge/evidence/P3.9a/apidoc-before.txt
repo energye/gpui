@@ -1,0 +1,18 @@
+API 目录缺失 15 个符号（docs/RENDER_API_CATALOG.md 未出现）：
+  mainpkg ErrMeshGradientShape
+  mainpkg MeshGradient
+  mainpkg MeshGradientAbsolute
+  mainpkg MeshGradientBilinear
+  mainpkg MeshGradientCatmullRom
+  mainpkg MeshGradientColorModel
+  mainpkg MeshGradientNormalized
+  mainpkg MeshGradientSpace
+  mainpkg MeshGradientVertex
+  mainpkg NewMeshGradient
+  method DrawMeshGradient
+  method DrawMeshGradientEx
+  method ControlBounds
+  subpkg CmdDrawMeshGradient
+  subpkg DrawMeshGradientCommand
+→ 请在 docs/RENDER_API_CATALOG.md 对应分类表补齐（增/改/删 API 时同步更新）。
+exit status 1

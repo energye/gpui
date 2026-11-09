@@ -1,0 +1,2 @@
+CMD: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags nogpu ./render ./render/recording ./examples/ui_wr_p39a_meshgradient_grid
+EXIT=0

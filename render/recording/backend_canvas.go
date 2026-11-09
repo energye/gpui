@@ -420,6 +420,13 @@ func (b *CanvasBackend) DrawMeshPatch(patch render.MeshPatch, brush Brush) {
 	b.dc.DrawMeshPatch(patch)
 }
 
+// DrawMeshGradient replays a high-level grid under the paint it was recorded
+// with, for the same reason as DrawMeshPatch.
+func (b *CanvasBackend) DrawMeshGradient(g *render.MeshGradient, brush Brush) {
+	ApplyBrush(b.dc, brush, true)
+	b.dc.DrawMeshGradient(g)
+}
+
 // DrawGlyphs replays a shaped-glyph run.
 func (b *CanvasBackend) DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush) {
 	if len(glyphs) == 0 || face == nil {

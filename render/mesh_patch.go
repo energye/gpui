@@ -218,6 +218,15 @@ func meshPatchSurfacePoint(patch MeshPatch, u, v float64) (Point, bool) {
 // tessellateMeshPatch turns one patch into the colored vertex mesh Skia's
 // SkDevice::drawPatch feeds to drawVertices. Positions stay in user space.
 func tessellateMeshPatch(patch MeshPatch, lodX, lodY int) (Mesh, bool) {
+	return tessellateMeshPatchColors(patch, lodX, lodY, func(u, v float64) RGBA {
+		return meshPatchColorAt(patch, u, v)
+	})
+}
+
+// tessellateMeshPatchColors is tessellateMeshPatch with a caller-supplied color
+// function. The high-level MeshGradient uses it for grid-level Catmull-Rom
+// colors while keeping the same Coons geometry/LOD/indices.
+func tessellateMeshPatchColors(patch MeshPatch, lodX, lodY int, colorAt func(u, v float64) RGBA) (Mesh, bool) {
 	if lodX < 1 || lodY < 1 || lodX > meshPatchMaxLOD || lodY > meshPatchMaxLOD {
 		return Mesh{}, false
 	}
@@ -246,7 +255,11 @@ func tessellateMeshPatch(patch MeshPatch, lodX, lodY int) (Mesh, bool) {
 			}
 			di := x*stride + y
 			positions[di] = pos
-			colors[di] = meshPatchColorAt(patch, u, v)
+			if colorAt != nil {
+				colors[di] = colorAt(u, v)
+			} else {
+				colors[di] = meshPatchColorAt(patch, u, v)
+			}
 			if x < lodX && y < lodY {
 				i := 6 * (x*lodY + y)
 				indices[i+0] = uint16(di)

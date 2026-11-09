@@ -183,6 +183,10 @@ type Backend interface {
 	// four corner colors.
 	DrawMeshPatch(patch render.MeshPatch, brush Brush)
 
+	// DrawMeshGradient draws a high-level rows×columns mesh gradient grid
+	// (P3.9a); the grid carries its own vertex colors.
+	DrawMeshGradient(g *render.MeshGradient, brush Brush)
+
 	// DrawGlyphs draws a shaped-glyph run at the baseline origin. colored selects
 	// the per-glyph colour variant over the single-brush run, which uses brush.
 	DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush)

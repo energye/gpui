@@ -55,6 +55,8 @@ func (stubBackend) DrawMesh(_ render.Mesh, _ Brush) {
 }
 func (stubBackend) DrawMeshPatch(_ render.MeshPatch, _ Brush) {
 }
+func (stubBackend) DrawMeshGradient(_ *render.MeshGradient, _ Brush) {
+}
 func (stubBackend) DrawGlyphs(_ []text.ShapedGlyph, _ text.Face, _, _ float64, _ bool, _ Brush) {
 }
 func (stubBackend) DrawText(_ string, _, _ float64, _ text.Face, _ Brush) {}

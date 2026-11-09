@@ -232,6 +232,17 @@ type DrawMeshPatchCommand struct {
 // Type implements Command.
 func (DrawMeshPatchCommand) Type() CommandType { return CmdDrawMeshPatch }
 
+// DrawMeshGradientCommand is a high-level mesh gradient grid (P3.9a). The
+// grid is recorded, not pre-tessellated: playback re-evaluates tangents and
+// LOD against the playback CTM, matching SkPicture's drawPatch behavior.
+type DrawMeshGradientCommand struct {
+	Gradient *render.MeshGradient
+	Brush    BrushRef
+}
+
+// Type implements Command.
+func (DrawMeshGradientCommand) Type() CommandType { return CmdDrawMeshGradient }
+
 // --------------------------------------------------------------------------
 // Layers
 // --------------------------------------------------------------------------

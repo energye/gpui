@@ -307,6 +307,18 @@ func (r *Recorder) DrawMeshPatch(patch render.MeshPatch) {
 	})
 }
 
+// DrawMeshGradient records a high-level grid. The grid is deep-copied so a
+// caller that mutates its vertices per frame cannot rewrite the command.
+func (r *Recorder) DrawMeshGradient(g *render.MeshGradient) {
+	if g == nil {
+		return
+	}
+	r.commands = append(r.commands, DrawMeshGradientCommand{
+		Gradient: g.Clone(),
+		Brush:    r.resources.AddBrush(r.fillBrush),
+	})
+}
+
 func clonePoints(in []render.Point) []render.Point {
 	out := make([]render.Point, len(in))
 	copy(out, in)

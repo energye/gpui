@@ -166,6 +166,14 @@ func (w *contentWalk) step(cmd Command) {
 	case DrawMeshPatchCommand:
 		w.note(meshPatchCanPaint(c.Patch))
 		w.addPoints(c.Patch.Points)
+	case DrawMeshGradientCommand:
+		w.note(meshGradientCanPaint(c.Gradient))
+		if c.Gradient != nil {
+			br := c.Gradient.ControlBounds()
+			if br.Max.X > br.Min.X && br.Max.Y > br.Min.Y {
+				w.addRect(Rect{MinX: br.Min.X, MinY: br.Min.Y, MaxX: br.Max.X, MaxY: br.Max.Y}, 0)
+			}
+		}
 
 	case DrawTextCommand:
 		face := w.face(c.Font)
@@ -638,6 +646,21 @@ func finiteColor(c render.RGBA) bool {
 // meshPatchCanPaint mirrors Context.DrawMeshPatchEx: an unknown style or a
 // point count that does not match it draws nothing; non-finite points/colors
 // are rejected by DrawMeshPatchEx and therefore paint nothing here either.
+// meshGradientCanPaint mirrors Context.DrawMeshGradientEx: an invalid grid
+// draws nothing, and a grid whose vertices are all fully transparent paints
+// no pixel.
+func meshGradientCanPaint(g *render.MeshGradient) bool {
+	if g == nil || g.Validate() != nil {
+		return false
+	}
+	for _, v := range g.Vertices {
+		if v.Color.A != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func meshPatchCanPaint(p render.MeshPatch) bool {
 	n := 12
 	if p.Style == render.MeshPatchBicubic {

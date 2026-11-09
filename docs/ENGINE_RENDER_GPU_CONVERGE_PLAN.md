@@ -263,6 +263,7 @@ render/
 - P3.7 2.5D 透视相机、世界高度/精灵 z 序、自定义材质、HDR/泛光。
 - P3.8 SVG 完整语义、彩色字形、嵌套 Picture 引用。
 - **P3.9（2026-11-02 拍板 D2 新增）** mesh gradient：Skia 口径 2×2/3×3 patch 网格（角角色 + bicubic/coons 风格），与 P3.6 零技术交集，从 §5.1 单列成本项；建议排在 P3.8 之后，依赖 P3.0。**2026-11-09 标准落地修正**：Coons=Skia `drawPatch` 12 控制点（`include/core/SkCanvas.h:2154`），TensorProduct/bicubic=PDF shading type 7 的 16 控制点（`src/pdf/SkPDFGradientShader.cpp:755-762`）；栅格落地复用 `SkPatchUtils::MakeVertices`→`drawVertices` 的彩色 mesh，本仓对应 `DrawMesh`，**无新 WGSL 管线**。
+- **P3.9a（2026-11-09 新增，阶段 1）** mesh gradient 高层网格：rows×columns 个 patch、(rows+1)×(columns+1) 顶点、每顶点位置/颜色/可选四切向量、自动 C1 推断（逐字对齐 AndroidX Compose `MeshGradientConfig.inferBezierControlPointsIfRequired`）、Bilinear/CatmullRom 颜色模型；高层默认 Coons 12 点，TensorProduct 16 点继续用低层 `MeshPatch`；一次绘制合成一个 indexed `Mesh`。**不并入本项**：纹理坐标/图片变形（阶段 3 按需另立通用 textured mesh）、paint alpha/blend（归 P4.1 接线）、AA/颜色精度/合批/缓存（阶段 4 先验证/基准，不先写代码）、kit/PDF/SVG/HDR/Spine renderer。依赖 P3.9。
 
 **P3.0 定稿（2026-11-01，用户拍板 D1–D4）**：依赖图正本在 `docs/render_gpu_converge/evidence/P3.0/dependency-graph.md`（现状证据 `assessment.md`）。依赖修订 5 条——P3.3 解除对 P3.1 的依赖、P3.4 对 P3.1 降为软依赖、P3.7 补硬依赖 P3.2 与软依赖 P3.6、P3.8 补硬依赖 P3.4（台账 §2 依赖列已同步）。实现顺序定稿（串行主序）：**P3.1 → P3.2 → P3.3 → P3.4 → P3.5 → P3.6 → P3.7 → P3.8**；P3.1/P3.3 前移项位置满足「不得挪回 P4」。§5 三表现状列、§6 半成品表三行已按 2026-11-01 实测刷新；P3 各项计划公开 API 的规划登记在 `RENDER_API_CATALOG.md` §13，各项实现时转正式登记。
 

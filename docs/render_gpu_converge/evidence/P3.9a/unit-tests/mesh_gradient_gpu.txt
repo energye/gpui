@@ -1,0 +1,8 @@
+=== RUN   TestMeshGradientGPUProbes
+--- PASS: TestMeshGradientGPUProbes (0.26s)
+=== RUN   TestMeshGradientGPUMatchesCPU
+--- PASS: TestMeshGradientGPUMatchesCPU (0.01s)
+=== RUN   TestMeshGradientGPUSeams
+--- PASS: TestMeshGradientGPUSeams (0.01s)
+PASS
+ok  	github.com/energye/gpui/render	0.319s

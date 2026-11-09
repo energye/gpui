@@ -162,6 +162,9 @@ type Canvas interface {
 	// DrawMeshPatch draws one colored Bezier patch (Skia drawPatch shape):
 	// Coons 12 control points or tensor-product/bicubic 16 control points.
 	DrawMeshPatch(patch MeshPatch)
+	// DrawMeshGradient draws a rows×columns patch grid with per-vertex colors,
+	// optional Bezier tangents and bilinear/Catmull-Rom color interpolation.
+	DrawMeshGradient(g *MeshGradient)
 
 	// Text
 	SetFont(face text.Face)

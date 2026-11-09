@@ -1,0 +1,2 @@
+CMD: go vet ./render ./render/recording ./examples/ui_wr_p39a_meshgradient_grid
+EXIT=0
