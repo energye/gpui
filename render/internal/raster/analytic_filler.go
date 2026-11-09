@@ -766,11 +766,14 @@ func (af *AnalyticFiller) hasEdgeCrossing(yTopFixed, yBotFixed, aaScale int32) b
 // within a pixel row. Coverage is added to the existing coverage buffer.
 // All Y parameters are in SkFixed (16.16) — no float32 conversion.
 //
-// Implements the edges_too_close optimization:
-// when the right edge of a trapezoid is within 1 pixel of the next edge, the
-// winding-to-zero transition is suppressed, merging adjacent trapezoids. This
-// prevents double-subtraction of partial coverage at shared pixels where edges
-// cross within a sub-strip (e.g., star vertex intersections at y=68).
+// Legacy paired-edge walk. Production uses processSubStripIncremental; this
+// variant is kept for the fixed/fallback path.
+// NOTE: the edges_too_close optimization (suppress the winding-to-zero
+// transition when a right edge is within 1px of the next edge, so adjacent
+// trapezoids merge instead of double-subtracting at shared pixels) is NOT
+// implemented here nor in the incremental path. An earlier comment claimed it
+// was; coverage correctness is pinned by the numeric-integration golden tests
+// instead.
 func (af *AnalyticFiller) processSubStripFixed(
 	aaScale int32, stripTopFixed, stripBotFixed int32,
 	fillRule FillRule,

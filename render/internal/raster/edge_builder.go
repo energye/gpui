@@ -235,10 +235,11 @@ func NewEdgeBuilder(aaShift int) *EdgeBuilder {
 		velloLines:     make([]VelloLine, 0, 64),
 		aaShift:        aaShift,
 		bounds:         newEmptyBounds(),
-		// 批②：默认钉 Skia kDefaultAccuracy——既有 Skia 逐位回归网
+		// 批②：默认钉 Skia kDefaultAccuracy（acc=2）——既有 Skia 逐位回归网
 		// （golden/compositing/trace 钉测）在此粒度下逐位有效。生产入口
-		// （NewSoftwareRenderer）显式 SetPixelAccuracy(0) 切自适应
-		// （稀疏 acc=6 / 稠密回 2）。
+		// NewSoftwareRenderer 并未切自适应（acc=6 全局启用按用户决定暂挂），
+		// 细精度只在显式 SetPixelAccuracy(>0) 的测试/钉测里生效；见
+		// effectivePixelAccuracy 的 explicit>0 分支。
 		explicitPixelAccuracy: DefaultPixelAccuracy,
 		pixelAccuracy:         DefaultPixelAccuracy,
 	}
