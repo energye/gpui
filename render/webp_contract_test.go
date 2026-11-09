@@ -87,8 +87,11 @@ func TestLoadWebP_LosslessPixels(t *testing.T) {
 	if webpBuf.Width() != 96 || webpBuf.Height() != 64 {
 		t.Fatalf("dimensions = %dx%d, want 96x64", webpBuf.Width(), webpBuf.Height())
 	}
-	if webpBuf.Format() != FormatRGBA8 {
-		t.Fatalf("format = %v, want RGBA8", webpBuf.Format())
+	// FromStdImage returns FormatRGBAPremul (52859bc5): stdlib *image.NRGBA
+	// is straight and must be premultiplied into the buffer. The old RGBA8
+	// expectation predates that fix.
+	if webpBuf.Format() != FormatRGBAPremul {
+		t.Fatalf("format = %v, want RGBAPremul", webpBuf.Format())
 	}
 	refBuf, err := LoadImage("testdata/webp/lossless_ref.png")
 	if err != nil {

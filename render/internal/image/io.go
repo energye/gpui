@@ -334,18 +334,13 @@ func FromStdImage(img image.Image) *ImageBuf {
 		return buf
 	}
 
-	// Fast path for NRGBA images
-	if nrgba, ok := img.(*image.NRGBA); ok {
-		if nrgba.Stride == buf.Stride() {
-			copy(buf.Data(), nrgba.Pix)
-			return buf
-		}
-		for y := range height {
-			srcStart := y * nrgba.Stride
-			copy(buf.RowBytes(y), nrgba.Pix[srcStart:srcStart+width*4])
-		}
-		return buf
-	}
+	// *image.NRGBA is STRAIGHT (non-premultiplied), while buf is
+	// FormatRGBAPremul. Copying nrgba.Pix verbatim would violate the premul
+	// invariant (RGB <= A): fully transparent pixels would keep hidden RGB
+	// and partial-alpha pixels would be too bright when blitters treat the
+	// bytes as premultiplied. Let NRGBA fall through to the generic path,
+	// whose At().RGBA() applies stdlib's premultiplication. This is the same
+	// fix 52859bc5 applied to the *image.RGBA and generic paths.
 
 	// Generic slow path for any image type: At() is premul 16-bit — store
 	// the 8-bit premul bytes verbatim in the premul buffer.

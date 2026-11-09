@@ -38,9 +38,12 @@ func TestFromStdImage_NRGBA(t *testing.T) {
 		t.Errorf("Dimensions = (%d, %d), want (10, 10)", buf.Width(), buf.Height())
 	}
 
+	// FromStdImage returns FormatRGBAPremul (52859bc5): GetRGBA reads the
+	// premultiplied bytes, so expect R*A/255 etc, not the straight source.
+	// NRGBA{128,64,32,200} premultiplied = (100,50,25,200).
 	r, g, b, a := buf.GetRGBA(3, 3)
-	if r != 128 || g != 64 || b != 32 || a != 200 {
-		t.Errorf("Pixel = (%d, %d, %d, %d), want (128, 64, 32, 200)", r, g, b, a)
+	if r != 100 || g != 50 || b != 25 || a != 200 {
+		t.Errorf("Pixel = (%d, %d, %d, %d), want (100, 50, 25, 200)", r, g, b, a)
 	}
 }
 
@@ -314,9 +317,13 @@ func TestSavePNG_LoadPNG(t *testing.T) {
 		t.Errorf("Loaded dimensions = (%d,%d), want (20,20)", loaded.Width(), loaded.Height())
 	}
 
+	// LoadPNG goes through FromStdImage → FormatRGBAPremul, so GetRGBA reads
+	// premultiplied bytes. The PNG stores straight (255,128,64,200); the
+	// round-tripped logical colour is unchanged, premul bytes are
+	// (200,100,50,200). Unpremultiply is not part of GetRGBA's contract.
 	r, g, b, a := loaded.GetRGBA(10, 10)
-	if r != 255 || g != 128 || b != 64 || a != 200 {
-		t.Errorf("Loaded pixel = (%d,%d,%d,%d), want (255,128,64,200)", r, g, b, a)
+	if r != 200 || g != 100 || b != 50 || a != 200 {
+		t.Errorf("Loaded pixel = (%d,%d,%d,%d), want (200,100,50,200)", r, g, b, a)
 	}
 }
 

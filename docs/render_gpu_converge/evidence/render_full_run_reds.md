@@ -118,5 +118,18 @@ K6 当时只抽样复验 2 枚就推广到 20 枚；本轮逐枚单跑证明不�
 
 ### 剩余单跑红
 
-- **`TestLoadWebP_LosslessPixels`：需用户拍板，已回退实验改动。** 真因是 52859bc5 把 `FromStdImage` 改成 `FormatRGBAPremul` 后，`*image.NRGBA` fast path 仍把 straight 字节原样 copy 进 premul buffer（缺 premultiply），透明像素携带隐藏 RGB；WebP 与 PNG 两个数据源在 alpha=0 处隐藏 RGB 不同（0,0,0 vs 240,200,40），被 `ToStdImage()` 暴露为 max=240 / 1137 样本差异。实验证明修 NRGBA premultiply 可让像素对比 **0/0**、alpha 直方图精确 **379/64/5701**，但会让 2 个原本绿的 `io_test.go` 契约过期、showcase 金图 diff **0.0023%**（需重种）——属「图片管线 premul 语义」跨线大改 + 共享状态改动，按「不动绿代码行为 / 不交付半吊子」已回退。
+- **`TestLoadWebP_LosslessPixels`：已修（用户拍板「真修洞 + 重种金图」，见下「修复批次 2」；以下为当时的定位记录）。** 真因是 52859bc5 把 `FromStdImage` 改成 `FormatRGBAPremul` 后，`*image.NRGBA` fast path 仍把 straight 字节原样 copy 进 premul buffer（缺 premultiply），透明像素携带隐藏 RGB；WebP 与 PNG 两个数据源在 alpha=0 处隐藏 RGB 不同（0,0,0 vs 240,200,40），被 `ToStdImage()` 暴露为 max=240 / 1137 样本差异。实验证明修 NRGBA premultiply 可让像素对比 **0/0**、alpha 直方图精确 **379/64/5701**，但会让 2 个原本绿的 `io_test.go` 契约过期、showcase 金图 diff **0.0023%**（需重种）——属「图片管线 premul 语义」跨线大改 + 共享状态改动，按「不动绿代码行为 / 不交付半吊子」已回退。
 - 其余待下一批：`TestP1_Capability_CS03_LinearBlendMidGPU`（linear 渐变中点 131，基线 189）、`TestMiscDrawGPUPath` 两子用例（advanced blend / DrawShadow 1 LSB）、`TestTextTransformAutoRoutesOutlines`、`TestPresentDamage_ImageMatchesView`、`TestRasterizerValueMatchesAnalytic/菱形`；环境红 `TestPresentDamageX11`。
+
+
+## 2026-11-09 修复批次 2（WebP 真修洞 + 金图重种，用户拍板）
+
+- 方向（用户拍板）：真修 `FromStdImage` 的 NRGBA 漏预乘 + 同步过期契约 + 重种金图。
+- 修法：`render/internal/image/io.go` 的 `FromStdImage` 删掉 `*image.NRGBA` fast path——它把 **straight** 的 `nrgba.Pix` 原样 copy 进声明为 `FormatRGBAPremul` 的 buffer，违反 premul 不变量（RGB≤A）：透明像素携带隐藏 RGB、部分透明像素偏亮。改为让 NRGBA 落到 generic path 的 `At().RGBA()`（stdlib 自带 premultiply）。这是 52859bc5 修 `*image.RGBA` 与 generic 两条路径时漏掉的第三条。
+- 契约同步 3 处（都是「引擎格式契约变了、测试没跟上」，不是放宽断言）：
+  - `webp_contract_test.go`：`Format()` 期望 `RGBA8` → `RGBAPremul`
+  - `io_test.go:TestFromStdImage_NRGBA`：`(128,64,32,200)` → premul `(100,50,25,200)`
+  - `io_test.go:TestSavePNG_LoadPNG`：`(255,128,64,200)` → premul `(200,100,50,200)`
+- 验证：`TestLoadWebP_LosslessPixels` 完整绿（像素逐位 **0/0**、alpha 直方图精确 **379/64/5701**）；`./render/internal/image` 全绿；带库全量 `./render` 顶层红 **15→14**、无新增红。
+- **金图重种（像素位移真实，非 PNG 编码噪音）**：NRGBA 修复让半透明图片从「straight 被当 premul 用」（偏冷绿）变成正确 premul（偏暖橙）。逐窗对账只有 `ui_wr_p38_svg_showcase`（0.0023%）与 `ui_wr_p38_svg_structure`（0.0039%）两窗的 base 过期且 diff 稳定复现 4 次（排除 GPU 非确定性）；两窗删 base 重种后复验 **golden 0.0000%**，探针 logic 6/6 + pixel 20/20（structure）、logic 4/4 + pixel 11/11（showcase）。HEAD base vs 新 base 可见像素差 **75 / 355 px**。其余 6 扇 + color_font 双后端 + picture 双后端像素逐位不变，运行时 PNG 字节差异已全部还原。
+- **判据教训（客观判据不可短路）**：第一轮用 PIL `ImageChops.difference(...).getbbox()` 判「相同」被短路——RGBA 差值图的 alpha 通道恒 0，`getbbox()` 返回 None，于是误判「重种没改像素」并把正确的 base 回滚了。改用逐像素 `any(c != 0 for c in p)` 计数 + Go `image.Decode/At().RGBA()` 复现（459 个可见像素差）才定位到真实变化。**结论：像素判据不能用 getbbox 短路，必须逐像素数；mean / 近似同样禁用。**
