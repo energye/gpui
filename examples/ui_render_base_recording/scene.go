@@ -570,6 +570,14 @@ func (s *recordingSpyBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ 
 	s.hit("DrawVertices")
 }
 func (s *recordingSpyBackend) DrawMesh(_ render.Mesh, _ recording.Brush) { s.hit("DrawMesh") }
+
+func (s *recordingSpyBackend) DrawMeshGradient(_ *render.MeshGradient, _ recording.Brush) {
+	s.hit("DrawMeshGradient")
+}
+
+func (s *recordingSpyBackend) DrawMeshPatch(_ render.MeshPatch, _ recording.Brush) {
+	s.hit("DrawMeshPatch")
+}
 func (s *recordingSpyBackend) DrawGlyphs(_ []text.ShapedGlyph, _ text.Face, _, _ float64, _ bool, _ recording.Brush) {
 	s.hit("DrawGlyphs")
 }
