@@ -3325,16 +3325,19 @@ func TestP1_Capability_CS03_LinearBlendMidGPU(t *testing.T) {
 	if stats.GPUOps == 0 {
 		t.Fatalf("CS.03 requires GPUOps>0")
 	}
-	// Mid pixel ~x=32. Linear-space midpoint → ~0.735 sRGB ≈ 187.
-	// Accept broad band that is clearly above pure sRGB 128 midpoint and below white.
+	// Mid pixel ~x=32. Stop interpolation uses premultiplied sRGB — the SVG
+	// color-interpolation default and Skia/tiny-skia stop-lerp space (batch
+	// 4c-4, 16ad6895). The black→white midpoint is 0.5 sRGB ≈ 128, NOT the
+	// linear-light 0.735 ≈ 187 this test used to expect (that was ruled a
+	// misreading; gradient_test.go / COLRv1 were re-pinned to 0.5/128).
+	// Assert a narrow band around 128 so a silent return to linear-light
+	// mid (≈187) is caught, not just "brighter than 128".
 	r, g, b, _ := sampleRGBA(dc, w/2, h/2)
 	t.Logf("CS.03 mid=%d,%d,%d", r, g, b)
 	avg := (int(r) + int(g) + int(b)) / 3
-	if avg < 150 {
-		t.Fatalf("CS.03 expected linear mid brighter than sRGB 0.5 (~128), got avg=%d rgba=%d,%d,%d", avg, r, g, b)
-	}
-	if avg > 245 {
-		t.Fatalf("CS.03 mid too close to white (gradient broken?): avg=%d", avg)
+	if avg < 118 || avg > 145 {
+		t.Fatalf("CS.03 expected sRGB-stop midpoint ≈128, got avg=%d rgba=%d,%d,%d; "+
+			"a value ≈187 means interpolation slipped back to linear-light", avg, r, g, b)
 	}
 	// Ends roughly black/white
 	r0, g0, b0, _ := sampleRGBA(dc, 2, h/2)
@@ -3348,7 +3351,7 @@ func TestP1_Capability_CS03_LinearBlendMidGPU(t *testing.T) {
 		t.Fatalf("right end not light: %d,%d,%d", r1, g1, b1)
 	}
 	if int(r0)+int(g0)+int(b0) >= avg {
-		t.Fatalf("left should be darker than linear mid")
+		t.Fatalf("left should be darker than sRGB mid")
 	}
 }
 
