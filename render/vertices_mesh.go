@@ -23,6 +23,11 @@ import (
 //
 // Preferred path: GPU convex tier with per-vertex colors (QueueColoredMesh).
 // CPU fallback is true Gouraud.
+//
+// P4.1 批 1：Paint alpha/blend 接线——实色 paint 的 alpha 乘进顶点色（Skia 口径
+// paint alpha 在 primitive blend 后乘，premul 线性插值下顶点级乘法等价）；Paint.BlendMode
+// 的 Porter-Duff 族经命令 BlendMode 走固定函数管线，advanced 族隔离进层（同
+// fillClipWithPaint 模式，不为 mesh 新建混合管线）。
 func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode) {
 	if c == nil || len(positions) < 3 {
 		return
@@ -53,11 +58,68 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 		}
 	}
 
-	solid, _ := solidColorFromPaint(c.paint)
-	useVC := len(colors) == len(positions)
+	c.drawVerticesWired(dev, colors, mode)
+}
+
+// withMeshBlend runs body with the paint's effective mesh blend resolved:
+// BlendNormal passes through; every other mode is isolated in a layer
+// composited with the requested mode — same pattern as fillClipWithPaint.
+//
+// P4.1 批 1（实测发现，登记不修）：固定函数 blend 管线（pipelineForBlend）对
+// packed mesh 命令不生效——fill 命令同链同管线生效（TestP12GPUFixedPixel_BlendPlus
+// PASS），mesh 命令管线链逐环实证正确（build→pipelineForBlend→SetPipeline→Draw）
+// 但画面=纯 src；组合洞未定位到行号，按动手修门槛不猜着修。mesh 的非 Normal
+// blend 一律走层封装：层内以 BlendNormal 累积，PopLayer 按请求 mode 合成
+// （GPU dual-tex / CPU 软件层，premul 语义与固定函数直传等价；对实际调用面
+// 性能无影响——现状 blend 对 mesh 本就无效，无人依赖）。固定函数直传留待
+// 定位组合洞后恢复（性能项，归 P4.3 线跟踪）。
+func (c *Context) withMeshBlend(body func(effectiveBlend BlendMode)) {
+	blend, space := BlendNormal, BlendSpaceSRGB
+	if c.paint != nil {
+		blend = c.paint.BlendMode
+		space = c.paint.BlendSpace
+	}
+	if blend == BlendNormal {
+		body(BlendNormal)
+		return
+	}
+	c.pushLayerSurface(blend, space, 1.0, true, false)
+	saved := c.paint
+	if saved != nil {
+		q := saved.Clone()
+		q.BlendMode = BlendNormal
+		c.paint = q
+	}
+	body(BlendNormal)
+	c.paint = saved
+	c.PopLayer()
+}
+
+// drawVerticesWired queues/renders an already device-space mesh honoring the
+// current paint alpha and blend.
+func (c *Context) drawVerticesWired(dev []Point, colors []RGBA, mode VertexMode) {
+	c.withMeshBlend(func(effectiveBlend BlendMode) {
+		c.queueVertices(dev, colors, mode, effectiveBlend)
+	})
+}
+
+// queueVertices packs and queues (GPU) or rasterizes (CPU) one mesh.
+func (c *Context) queueVertices(dev []Point, colors []RGBA, mode VertexMode, blend BlendMode) {
+	solid, solidOK := solidColorFromPaint(c.paint)
+	useVC := len(colors) == len(dev)
 	meshColors := colors
 	if !useVC {
 		meshColors = nil
+	} else {
+		// 实色 paint 的 alpha 乘进每顶点色（premul 插值下与 blend 后乘等价）。
+		// 非实色 Brush 无单一 paint alpha，顶点色保持原样（能力边界，见台账）。
+		paintAlpha := 1.0
+		if solidOK {
+			paintAlpha = solid.A
+		}
+		if paintAlpha != 1 {
+			meshColors = c.scaleMeshColorsAlpha(colors, paintAlpha)
+		}
 	}
 
 	if rc := c.gpuCtxOps(); rc != nil && !CPUOnlyMode() {
@@ -65,6 +127,7 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 		target := c.gpuRenderTarget()
 		triangleList := mode != VertexModeTriangleFan
 		if meshColors == nil {
+			n := len(dev)
 			if cap(c.meshSolidScratch) < n {
 				c.meshSolidScratch = make([]RGBA, n)
 			} else {
@@ -74,9 +137,9 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 			for i := range solidColors {
 				solidColors[i] = solid
 			}
-			rc.QueueColoredMesh(target, dev, solidColors, triangleList)
+			rc.QueueColoredMesh(target, dev, solidColors, triangleList, blend)
 		} else {
-			rc.QueueColoredMesh(target, dev, meshColors, triangleList)
+			rc.QueueColoredMesh(target, dev, meshColors, triangleList, blend)
 		}
 		c.recordGPUOp()
 		// Device-space AABB → layer damage so PopLayer can damage-flush
@@ -91,6 +154,24 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 	// CPU path needs its own copy if scratch will be reused later in the frame.
 	devCopy := append([]Point(nil), dev...)
 	c.drawVerticesCPU(devCopy, meshColors, solid, mode)
+}
+
+// scaleMeshColorsAlpha returns colors scaled by alpha in a grow-only scratch.
+func (c *Context) scaleMeshColorsAlpha(colors []RGBA, alpha float64) []RGBA {
+	n := len(colors)
+	if cap(c.meshAlphaScratch) < n {
+		c.meshAlphaScratch = make([]RGBA, n)
+	}
+	out := c.meshAlphaScratch[:n]
+	for i := range colors {
+		out[i] = RGBA{
+			R: colors[i].R,
+			G: colors[i].G,
+			B: colors[i].B,
+			A: colors[i].A * alpha,
+		}
+	}
+	return out
 }
 
 func (c *Context) drawVerticesCPU(positions []Point, colors []RGBA, solid RGBA, mode VertexMode) {
@@ -555,12 +636,17 @@ func (c *Context) DrawMesh(mesh Mesh) {
 					c.meshSolidScratch[i] = solid
 				}
 				meshColors = c.meshSolidScratch
+			} else if solid, solidOK := solidColorFromPaint(c.paint); solidOK && solid.A != 1 {
+				// P4.1 批 1：实色 paint 的 alpha 乘进每顶点色（同 DrawVertices）。
+				meshColors = c.scaleMeshColorsAlpha(colors, solid.A)
 			}
-			defer c.setGPUClipRect()()
-			target := c.gpuRenderTarget()
-			rc.QueueColoredMeshIndexed(target, dev, meshColors, mesh.Indices)
-			c.recordGPUOp()
-			c.trackDamageDevicePoints(dev)
+			c.withMeshBlend(func(effectiveBlend BlendMode) {
+				defer c.setGPUClipRect()()
+				target := c.gpuRenderTarget()
+				rc.QueueColoredMeshIndexed(target, dev, meshColors, mesh.Indices, effectiveBlend)
+				c.recordGPUOp()
+				c.trackDamageDevicePoints(dev)
+			})
 			return
 		}
 		// CPU / no-GPU: expand indices then triangle list.

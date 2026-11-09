@@ -1104,13 +1104,15 @@ func (rc *GPURenderContext) QueueConvex(target render.GPURenderTarget, cmd Conve
 // via the convex fast-path.
 // positions are pixel-space points; colors are straight RGBA (premultiplied here).
 // triangleList=true groups positions as independent triangles; false = fan.
+// blendMode rides ConvexDrawCommand.BlendMode so the flush picks the matching
+// fixed-function pipeline (P4.1 batch1); advanced modes are isolated upstream.
 //
 // Hot path (DrawMesh / 3D): ONE TriangleList command for the whole mesh
 // (not N tri-commands), backed by reusable scratch. SkipAA solid verts.
 //
 // pack GPU vertex bytes once here (PackedVerts). Flush only WriteBuffers
 // the pre-packed blob — no second Points/VertexColors → stride walk.
-func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, triangleList bool) {
+func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, triangleList bool, blendMode render.BlendMode) {
 	if len(positions) < 3 {
 		return
 	}
@@ -1221,6 +1223,7 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 
 	cmd := ConvexDrawCommand{
 		Color:        solidColor,
+		BlendMode:    blendMode,
 		SkipAA:       true,
 		TriangleList: true,
 		PackedVerts:  pk[pkBase : pkBase+nBytes : pkBase+nBytes],
@@ -1234,10 +1237,12 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 // QueueColoredMeshIndexed queues a mesh with unique vertices + uint16 indices
 // . Avoids CPU expand of indexed DrawMesh (disc fans etc.) so WriteBuffer
 // uploads only unique verts. Indices are copied into convexMeshIdx scratch.
+// blendMode rides ConvexDrawCommand.BlendMode (P4.1 batch1); advanced modes
+// are isolated upstream.
 //
 // hot path drops O(n) pre-validation (DrawMesh supplies in-range indices),
 // uses a tight pack loop (coverage=1 fixed), and keeps grow-only scratch.
-func (rc *GPURenderContext) QueueColoredMeshIndexed(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, indices []uint16) {
+func (rc *GPURenderContext) QueueColoredMeshIndexed(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, indices []uint16, blendMode render.BlendMode) {
 	if len(positions) < 3 || len(indices) < 3 {
 		return
 	}
@@ -1284,6 +1289,7 @@ func (rc *GPURenderContext) QueueColoredMeshIndexed(target render.GPURenderTarge
 
 	cmd := ConvexDrawCommand{
 		Color:        solidColor,
+		BlendMode:    blendMode,
 		SkipAA:       true,
 		TriangleList: true,
 		PackedVerts:  rc.convexMeshPacked[pkBase : pkBase+nBytes : pkBase+nBytes],
@@ -1764,6 +1770,27 @@ func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, v
 		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		U0: 0, V0: 0, U1: 1, V1: 1,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+	})
+	rc.pendingTarget = target
+	rc.hasPendingTarget = true
+}
+
+// QueueGPUTextureDrawBlend is QueueGPUTextureDraw with a fixed-function
+// compositing operator (P4.1 batch1): Porter-Duff layer composites blit the
+// layer RT onto the parent with the paint's blend mode instead of the
+// implicit SourceOver. BlendNormal callers should use QueueGPUTextureDraw.
+func (rc *GPURenderContext) QueueGPUTextureDrawBlend(target render.GPURenderTarget, view gpucontext.TextureView,
+	dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32, blendMode render.BlendMode,
+) {
+	if err := rc.prepareTarget(target); err != nil {
+		slogger().Warn("auto-flush failed", "err", err)
+	}
+	rc.ensureDrawOrder(drawTierGPUTex)
+	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
+		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
+		U0: 0, V0: 0, U1: 1, V1: 1,
+		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+		BlendMode: blendMode,
 	})
 	rc.pendingTarget = target
 	rc.hasPendingTarget = true

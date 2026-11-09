@@ -1,0 +1,6 @@
+=== RUN   TestDrawShadowDrawsBlurredOffsetSilhouetteOnly
+--- PASS: TestDrawShadowDrawsBlurredOffsetSilhouetteOnly (0.02s)
+=== RUN   TestDrawShadowProjectionLiftIsDeviceSpace
+--- PASS: TestDrawShadowProjectionLiftIsDeviceSpace (0.26s)
+PASS
+ok  	github.com/energye/gpui/render	0.295s

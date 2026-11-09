@@ -181,6 +181,9 @@ type Context struct {
 	meshExpPosScratch []Point
 	meshExpColScratch []RGBA
 	meshSolidScratch  []RGBA
+	// meshAlphaScratch holds vertex colors scaled by the paint alpha (P4.1
+	// batch1, Skia "paint alpha applied after the primitive color blend").
+	meshAlphaScratch []RGBA
 
 	// GPU filter publish (F.03 zero-readback effect RT).
 	// After ApplyBlur/ApplyImageFilterGraph on the GPU texture path, result

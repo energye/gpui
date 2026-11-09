@@ -1,0 +1,2 @@
+01b3b721b3096063fb30536158ec7118dda507638e6487d5585ea33947136027  examples/ui_wr_p41_drawshadow/testdata/goldens/p41_drawshadow_final_go.png
+8b5a3fc1b84df384a9ccf19459869d37ad156238c671a79318a9713c1e7e1108  examples/ui_wr_p41_drawshadow/testdata/goldens/p41_drawshadow_final.png

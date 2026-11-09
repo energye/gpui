@@ -545,6 +545,33 @@ func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y 
 	c.recordGPUOp()
 }
 
+// drawGPUTextureWithOpacityBlend is DrawGPUTextureWithOpacity with a
+// fixed-function compositing operator (P4.1 batch1): Porter-Duff layer
+// composites blit the layer RT with the paint's blend mode. No clip: the
+// PopLayer composite owns the layer bounds (same contract as the backdrop
+// full-surface blit).
+func (c *Context) drawGPUTextureWithOpacityBlend(view gpucontext.TextureView, x, y float64, width, height int, opacity float32, blendMode BlendMode) {
+	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
+	if !ok {
+		return
+	}
+	defer c.setGPUClipRect()()
+	if mul := c.layerOpacityMul(); mul < 1 {
+		opacity *= float32(mul)
+	}
+	type blendDrawer interface {
+		QueueGPUTextureDrawBlend(target GPURenderTarget, view gpucontext.TextureView,
+			dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32, blendMode BlendMode)
+	}
+	if bd, ok2 := g.rc.(blendDrawer); ok2 {
+		bd.QueueGPUTextureDrawBlend(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH,
+			opacity, g.vpW, g.vpH, blendMode)
+	} else {
+		g.rc.QueueGPUTextureDraw(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH, opacity, g.vpW, g.vpH)
+	}
+	c.recordGPUOp()
+}
+
 // DrawGPUTextureBase composites a GPU texture view as the compositor base layer.
 // The base layer is drawn BEFORE all GPU tiers (SDF, convex, stencil, text) in
 // the render pass, making it the background for zero-readback rendering.
@@ -553,14 +580,11 @@ func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y 
 // rendered on top in the same render pass. Last call per frame wins.
 //
 // See ADR-015 (Compositor Base Layer), Flutter OffsetLayer pattern.
-// DrawGPUTextureBase composites a GPU texture view as the compositor base layer.
-// The base layer is drawn BEFORE all GPU tiers (SDF, convex, stencil, text) in
-// the render pass, making it the background for zero-readback rendering.
-//
-// Use this to composite a CPU pixmap texture as the background, with GPU shapes
-// rendered on top in the same render pass. Last call per frame wins.
-//
-// See ADR-015 (Compositor Base Layer), Flutter OffsetLayer pattern.
+// drawGPUTextureWithOpacityBlend is DrawGPUTextureWithOpacity with a
+// fixed-function compositing operator (P4.1 batch1): Porter-Duff layer
+// composites blit the layer RT with the paint's blend mode. No clip: the
+// PopLayer composite owns the layer bounds (same contract as the backdrop
+// full-surface blit).
 func (c *Context) DrawGPUTextureBase(view gpucontext.TextureView, x, y float64, width, height int) {
 	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
 	if !ok {

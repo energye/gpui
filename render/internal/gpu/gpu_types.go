@@ -76,6 +76,10 @@ type GPUTextureDrawCommand struct {
 	Opacity        float32
 	ViewportWidth  uint32
 	ViewportHeight uint32
+	// BlendMode is the fixed-function compositing operator for this blit
+	// (P4.1 batch1 Porter-Duff layer composite). Zero renders as BlendNormal;
+	// blend draws never merge with Normal draws (canMergeGPUTextureDraw).
+	BlendMode render.BlendMode
 	// YUV planes variant (P3-A layer 4): when IsYUV is set this command
 	// draws an NV12 frame (View = Y=R8 full height, UVView = RG8
 	// interleaved half height, same normalized UVs) through the YUV

@@ -14,6 +14,7 @@ import (
 	"image"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	intBlend "github.com/energye/gpui/render/internal/blend"
 	intImage "github.com/energye/gpui/render/internal/image"
 )
 
@@ -100,6 +101,17 @@ func (c *Context) compositeLayer(layer *Layer, parent *Pixmap) {
 		return
 	}
 
+	// Porter-Duff family (B.02 fixed-function modes): composite straight in
+	// premultiplied bytes via the shared blend package — the same operator
+	// table the direct-fill fixed-function path uses. intImage.blend() has no
+	// Porter-Duff branches and used to fall through to SourceOver here (P4.1
+	// batch1 engine hole #2): a Plus/Xor/Clear layer silently degraded to
+	// SourceOver on the CPU composite path.
+	if !IsAdvancedBlendMode(layer.blendMode) && layer.blendMode != BlendModulate {
+		compositePremulPorterDuff(layer.pixmap, parent, r, layer.blendMode, layer.opacity)
+		return
+	}
+
 	// Convert pixmaps to ImageBuf for blending
 	srcImg := c.pixmapToImageBuf(layer.pixmap)
 	dstImg := c.pixmapToImageBuf(parent)
@@ -176,6 +188,60 @@ func compositePremulSourceOver(src, dst *Pixmap, r image.Rectangle, opacity floa
 			dd[di+1] = uint8(sg + int(dd[di+1])*inv/255)
 			dd[di+2] = uint8(sb + int(dd[di+2])*inv/255)
 			dd[di+3] = uint8(sa + int(dd[di+3])*inv/255)
+		}
+	}
+}
+
+// compositePremulPorterDuff composites a layer with a Porter-Duff blend via
+// the shared blend package (premul 0-255 bytes — the same operator table as
+// the direct-fill fixed-function path). Layer content and the parent pixmap
+// are both premultiplied; layer opacity scales the source premul channels
+// before the operator, matching compositePremulSourceOver.
+func compositePremulPorterDuff(src, dst *Pixmap, r image.Rectangle, mode BlendMode, opacity float64) {
+	if src == nil || dst == nil {
+		return
+	}
+	fn := intBlend.GetBlendFunc(mode)
+	if fn == nil {
+		compositePremulSourceOver(src, dst, r, opacity)
+		return
+	}
+	if opacity < 0 {
+		opacity = 0
+	}
+	if opacity > 1 {
+		opacity = 1
+	}
+	sw, sh := src.Width(), src.Height()
+	dw, dh := dst.Width(), dst.Height()
+	r = r.Intersect(image.Rect(0, 0, sw, sh)).Intersect(image.Rect(0, 0, dw, dh))
+	if r.Empty() {
+		return
+	}
+	sd, dd := src.Data(), dst.Data()
+	op := int(opacity*255 + 0.5)
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		srow := y * sw * 4
+		drow := y * dw * 4
+		for x := r.Min.X; x < r.Max.X; x++ {
+			si := srow + x*4
+			di := drow + x*4
+			sa := int(sd[si+3])
+			sr := int(sd[si])
+			sg := int(sd[si+1])
+			sb := int(sd[si+2])
+			if op < 255 {
+				sa = sa * op / 255
+				sr = sr * op / 255
+				sg = sg * op / 255
+				sb = sb * op / 255
+			}
+			or, og, ob, oa := fn(byte(sr), byte(sg), byte(sb), byte(sa),
+				dd[di], dd[di+1], dd[di+2], dd[di+3])
+			dd[di+0] = or
+			dd[di+1] = og
+			dd[di+2] = ob
+			dd[di+3] = oa
 		}
 	}
 }
@@ -508,8 +574,43 @@ func (c *Context) noteLayerCPUDraw() {
 	}
 }
 
+// drawGPUPorterDuffLayer blits a Porter-Duff layer RT onto the parent GPU
+// target with the layer's fixed-function blend operator (P4.1 batch1, engine
+// hole #3 GPU path). Returns false when no GPU session is available — callers
+// fall back to the CPU materialize + premul-operator composite.
+func (c *Context) drawGPUPorterDuffLayer(layer *Layer, parent *Pixmap) bool {
+	if c == nil || layer == nil || parent == nil || layer.gpuView.IsNil() {
+		return false
+	}
+	type blendBlitter interface {
+		drawGPUTextureWithOpacityBlend(view gpucontext.TextureView, x, y float64, width, height int, opacity float32, blendMode BlendMode)
+	}
+	_ = blendBlitter(nil) //nolint:staticcheck // method on *Context, called directly below
+	if c.pixmap != parent {
+		return false
+	}
+	op := float32(layer.opacity)
+	if op < 0 {
+		op = 0
+	}
+	if op > 1 {
+		op = 1
+	}
+	c.drawGPUTextureWithOpacityBlend(layer.gpuView, 0, 0, layer.gpuW, layer.gpuH, op, layer.blendMode)
+	// Keep the texture alive until the composite command is flushed.
+	if layer.gpuRelease != nil {
+		c.layerGPUReleases = append(c.layerGPUReleases, layer.gpuRelease)
+		layer.gpuRelease = nil
+	}
+	layer.gpuView = gpucontext.TextureView{}
+	return true
+}
+
 // materializeLayerGPUToPixmap readbacks a layer GPU RT into its pixmap.
-// materializeLayerGPUToPixmap readbacks a layer GPU RT into its pixmap.
+// drawGPUPorterDuffLayer blits a Porter-Duff layer RT onto the parent GPU
+// target with the layer's fixed-function blend operator (P4.1 batch1, engine
+// hole #3 GPU path). Returns false when no GPU session is available — callers
+// fall back to the CPU materialize + premul-operator composite.
 func (c *Context) materializeLayerGPUToPixmap(layer *Layer) bool {
 	if c == nil || layer == nil || layer.gpuView.IsNil() || layer.pixmap == nil {
 		return false

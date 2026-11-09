@@ -398,6 +398,15 @@ func (c *Context) PopLayer() {
 	canGPUComposite := canGPUTexture &&
 		(layer.blendMode == BlendNormal || layer.blendMode == BlendCopy)
 	canGPUAdvanced := canGPUTexture && IsAdvancedBlendMode(layer.blendMode)
+	// P4.1 batch1 (engine hole #3): Porter-Duff non-normal layers (Plus/Xor/
+	// Clear/…) had neither GPU composite nor a CPU readback — content drawn on
+	// the layer RT was silently dropped. Materialize the RT into the pixmap and
+	// composite with the shared premul Porter-Duff operators; a GPU texture
+	// blit with blend (QueueGPUTextureDraw has no blend variant) stays a
+	// follow-up optimization.
+	canGPUPorterDuff := canGPUTexture &&
+		layer.blendMode != BlendNormal && layer.blendMode != BlendCopy &&
+		!IsAdvancedBlendMode(layer.blendMode) && layer.blendMode != BlendModulate
 
 	if canGPUAdvanced {
 		// P0-3: defer dual-tex to Present Flush (keep layer RT until resolve).
@@ -474,6 +483,30 @@ func (c *Context) PopLayer() {
 		// the next FlushGPU / Image / PresentFrame — single submit per frame.
 		// Callers that sample pixmap.GetPixel without Flush must FlushGPU first
 		// (Image() already flushes). Nested GPU parents already batch.
+	} else if canGPUPorterDuff {
+		// P4.1 batch1 (engine hole #3): Porter-Duff non-normal layers composite
+		// via CPU materialize + the shared premul Porter-Duff operators (the
+		// same path the mask branch uses). Verified headless; the GPU texture
+		// blend blit (ensureBlitBlendPipeline + QueueGPUTextureDrawBlend) is
+		// scaffolded but its composite is NOT yet verified on the windowed
+		// present chain — enabling it here dropped the layer content, so it
+		// stays disabled until that is diagnosed (tracked in the P4.1 ledger,
+		// engine hole #3 GPU path).
+		_ = c.materializeLayerGPUToPixmap(layer)
+		if layer.gpuRelease != nil {
+			layer.gpuRelease()
+			layer.gpuRelease = nil
+		}
+		layer.gpuView = gpucontext.TextureView{}
+		c.compositeLayer(layer, parentPixmap)
+		r := image.Rect(0, 0, layer.pixmap.Width(), layer.pixmap.Height())
+		if !layer.fullComposite && !layer.damage.Empty() {
+			const pad = 2
+			r = r.Intersect(layer.damage.Inset(-pad))
+		}
+		if !r.Empty() {
+			c.noteParentCompositeDamage(r)
+		}
 	} else if !maskedGPUDone {
 		// CPU composite (advanced blend, mask, CPU-drawn content, or no GPU).
 		if layer.gpuRelease != nil {

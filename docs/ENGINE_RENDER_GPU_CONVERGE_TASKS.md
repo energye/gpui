@@ -47,7 +47,73 @@
 
 ### 2.1 当前焦点
 
-**当前任务验证载体（P3.9b 1x/4x 真实窗口动画性能基准，2026-11-09 开工登记 → 同日测量收口 ✅）**
+**当前任务验证载体（P4.1 正确性，2026-11-10 拍板 D1a/D2a/D3a 后按批开工；本块=批 1 登记）**
+
+- 任务：P4.1 **批 1（子项③）顶点网格 paint alpha/blend 接线**——`DrawVertices`/`DrawMesh`
+  把 Paint 的 alpha（实色 paint 时）与 BlendMode 接进 mesh 路径：Porter-Duff 走现有
+  `pipelineForBlend` 固定函数（`convex_renderer.go:511`，`gpuBlendStateForPaint` 映射），
+  高级 blend 走现有层封装（同 `fillClipWithPaint:81-90` 模式，不为 mesh 新建管线）；
+  useVC+实色 paint 时顶点色乘 paint alpha（Skia 口径 blend 后乘，`SkGr.cpp:452-478`）；
+  CPU 路径同步；非实色 Brush+mesh 维持现状跳过并加具名降级计数（边界声明，D0 拍板范围外）。
+  后续批：批 2=②分数裁剪 AA、批 3=④DrawShadow（对齐 Impeller，口径已回写 PLAN §6）、
+  批 4=①MSAA even-odd stencil-invert + go4x 修进（D1a）。
+- 能力单测：`render/vertices_paint_blend_test.go` :: `TestVerticesPaintAlphaGouraudCPU` /
+  `TestVerticesPaintPorterDuffBlend` / `TestVerticesPaintAdvancedBlendLayer` /
+  `TestVerticesPaintSolidNoVCAlpha`（不回归锁定）/ `TestVerticesPaintCPUMatchesGPU`（新增，
+  先红后绿；GPU 断言无设备 skip）。
+- 真窗：`examples/ui_wr_p41_mesh_paint_blend`（`-auto-only` 自动判 + 常驻人工窗二合一）：
+  卡 A=Gouraud mesh+paint alpha 0.5、卡 B=Porter-Duff（BlendPlus）mesh、
+  卡 C=advanced（BlendMultiply）mesh 层封装、卡 D=实色无 VC alpha 0.5。
+- 金图：`examples/ui_wr_p41_mesh_paint_blend/testdata/goldens/p41_mesh_paint_blend_final.png`
+  （go/GL 为 `..._go.png`），容差 0（P0.1 逐位）。
+- 双后端：webgpu（native）待跑；gwgpu-gles（`GPUI_BACKEND=go`）待跑；gwgpu-metal 不可验
+  （无 macOS 真机，交叉编译只算编译通过）。
+- 负向对照：`GPUI_P41_BREAK=no-alpha`（去掉顶点色 alpha 乘法）→ 预期像素/金图门禁红；
+  `GPUI_P41_BREAK=normal-blend`（mesh blend 强制 Normal）→ 预期 BlendPlus/Multiply 卡红；
+  红了还原复绿。
+- 证据：`evidence/P4.1/batch1/`（assessment.md 在上级目录）。
+- 拍板（2026-11-10 用户确认）：D1a go4x 洞修进子项①（批 4）；D2a DrawShadow 对齐
+  Impeller spot 单 pass（PLAN §6 已回写）；D3a 拆批 ③→②→④→①。
+- **批 2 载体（子项② 分数裁剪 AA，2026-11-10 开工登记）**：
+  能力单测 `render/clip_fractional_test.go`（新增，先红后绿；数据
+  `render/testdata/clip_fractional_cases.json`）:: TestClipFractionalCasesCPU /
+  TestClipFractionalCasesGPU / TestClipFractionalCPUMatchesGPU / TestClipIntegerRectLock；
+  真窗 `examples/ui_wr_p41_fractional_clip`（-auto-only + 常驻人工）四卡：A 分数矩形
+  clip 半覆盖边、B 整数矩形锁定（硬边语义零变化）、C 分数 clip+旋转内容、D 嵌套
+  分数+整数；金图 `testdata/goldens/p41_fractional_clip_final.png`（go 后缀），容差 0
+  （P0.1 逐位）；双后端 webgpu/gwgpu-gles 待跑、metal 不可验（无真机）；负向
+  `GPUI_P41C_BREAK=hard-edge`（分数 clip 强制走纯 scissor 硬边）→ 预期半覆盖探针红；
+  证据 `evidence/P4.1/batch2/`。修法：clip 包新增 PushRectFractional（rrect entry
+  Radius=0，rrectCoverage/GPU WGSL 对 r=0 自然退化已验证无除法）+ ClipRectOp 设备
+  矩形整数检测分流 + setGPUClipRect 非整数 bounds 走 SetClipRRect(radius=0)；
+  Intersect+Replace 两 op，Difference 登记边界（mask 路独立）。
+- **批 3 状态：✅ 语义收口（2026-11-10，CPU 路径像素收口）**——红绿对实证缺陷
+  （真透视 W←y 下现状用户空间抬升=期望语义 79.4%）→ 修法（非仿射分支
+  projTransformPath 设备化 + translatePathDev 设备 y 抬升 + withProjectedPathScope
+  恒等 doFillUnprojected 绕二次投影）→ 红转绿（CPU 稳定）；真窗
+  `ui_wr_p41_drawshadow` 9/9 探针（A 平射/B 仿射 CTM/C elevation 阶梯/D tonal
+  色）+ 双后端金图各自 0.0000%/763584px + 负向 skip-shadow 红 rc=1 + 回归零新增
+  + race/vet/apidoc 绿 + 人工窗 rc=0。**新登记三洞**：#4 投影×层×blur×GPU
+  readback 时序（同 #3 族，测试锁 CPU、真窗透视演示挂收口后补）；#5 tier 顺序
+  洞（层合成 gpuTex 末尾统一重放盖住后画直接绘制；真窗本体先画绕过）；
+  #6 卡片内局部 SetProjection×dpr×GPU 层组合域丢内容（真窗避开）。证据
+  `evidence/P4.1/batch3/`。
+- **批 2 状态：✅ 全量收口（2026-11-10）**——单测 9/9 先红后绿 + 真窗 10 探针
+  （A 半覆盖 AA/B 整数锁定/C 分数+内容/D 嵌套形状）+ 双后端金图各自 verify
+  0.0000%/763584px + 负向 hard-edge 红 rc=1 + 回归零新增 + race/vet/apidoc 绿 +
+  人工窗 rc=0。GPU 侧零改动（rrect entry 自动流入既有 SDF 通路）。边界登记：
+  Difference op 未分流、DPR≠1 整数 clip 设备分数化（AA 化）、嵌套多 rrect GPU
+  单表达（既有）。证据 `evidence/P4.1/batch2/`。
+- 状态：⬜→🟡 开工 → **批 1 收口中（2026-11-10）**：子项③核心落地——paint alpha 接线
+  （真窗 A/D 卡像素断言 ✓）、advanced blend 层封装（C 卡 ✓）、CPU Porter-Duff（单测
+  12/12 ✓ + 引擎洞 #2 修复）；**真窗 B 卡（GPU 窗面 Porter-Duff 层合成）双后端一致 FAIL
+  =引擎洞 #3 的 GPU 路径未收口**（CPU materialize 已修已验；GPU blit 方案落码启用时丢
+  内容已回退禁用待诊断）；mesh×固定函数组合洞登记不修（层封装规避，直传归 P4.3）。
+  双后端金图逐位 0（含 B 卡已知缺口）、负向两路红、回归零新增失败、race/vet/apidoc 绿。
+  证据 `evidence/P4.1/batch1/`（summary.md 三洞登记表）。批 1 不标 ✅，B 卡收口后补验
+  （B 卡探针 + 重出金图）。批 2（子项②）按 D3a 顺序可开工。
+
+**上一任务验证载体（P3.9b 1x/4x 真实窗口动画性能基准，2026-11-09 开工登记 → 同日测量收口 ✅）**
 
 - 任务：P3.9b **测量补充（非新能力）**——回答「开 4x 到底占多少显存/掉多少帧」；满窗即内容的混合通用动画场景，每帧全量重绘。
 - 能力/逻辑单测（随真窗逻辑探针）：`runLogicProbes` 断言场景图元计数、`mesh_triangles > 0`、`msaa_setting == msaa_requested`、`device_surface_bytes > 0`、`phase_advanced == (mode==measure)`、`cpu_fallback == 0`；像素探针（冻结相位）断言 `anchor_magenta`/`anchor_cyan`/`background_not_clear`。
@@ -389,7 +455,7 @@
 | P3.9 | mesh gradient（Skia `drawPatch` 口径 Coons 12 控制点 / PDF type 7 TensorProduct(bicubic) 16 控制点：4 角角色色 TL/TR/BR/BL + 2×2/3×3 个 patch 网格；**2026-11-02 拍板 D2 从 P3.6 剔出单列**，依赖图 §3b 第 7 条 + PLAN §5.1/§7.4 已同步） | P3.0 | ✅ 2026-11-09 像素收口（native + go/GL 各自金图 0.0000% / 763584 px、logic 6/6、pixel 16/16；负向 `GPUI_P39_BREAK=swap-corners` 与 GL `baseVertex` 摘除两路红→还原绿；**同批修 GLES `DrawIndexed` 忽略 `baseVertex`**；单测/录制/vet/apidoc/五目标构建全绿；D1-D3=单 patch 原语 / 16 点 TensorProduct / paint alpha-blend 留 P4.1；标准：Skia `SkPatchUtils::MakeVertices`→`drawVertices`，复用现有彩色 mesh，无新 WGSL；证据 `evidence/P3.9/summary.md`） | `evidence/P3.9/`（assessment.md、design.md 已落） |
 | P3.9a | mesh gradient 高层网格（阶段 1）：rows×columns 个 patch、(rows+1)×(columns+1) 顶点、每顶点位置/颜色/可选四切向量、自动 C1 推断（逐字对齐 AndroidX Compose `MeshGradientConfig.inferBezierControlPointsIfRequired`）、Bilinear/CatmullRom 颜色模型；高层默认 Coons 12 点，TensorProduct 16 点继续用低层 `MeshPatch`；一次绘制合成一个 indexed `Mesh`；**不做纹理/paint alpha-blend/AA/HDR/kit/PDF/SVG/Spine**（阶段 2 归 P4.1，阶段 3 按需另立，阶段 4 先验证/基准） | P3.9 | ✅ 2026-11-09 像素收口（native + go/GL 各自金图 0.0000% / 763584 px、logic 3/3、pixel 8/8、跨后端 changed=0；负向 swap-color-model 15.3974% / zero-tangents 38.1758% 红→还原绿；单测 9+3+2、vet/apidoc/五目标构建/race 全绿；证据 `evidence/P3.9a/summary.md`） | `evidence/P3.9a/` |
 | P3.9b | 1x/4x MSAA 真实窗口动画性能基准（**测量补充，非新能力**）：满窗混合通用动画场景（文字/圆角/曲线/渐变/图片/半透明层/旋转缩放/粒子 + mesh gradient 一起每帧动），指标浮在内容上；分辨率可配（默认满屏 1920×1080，留 3840×2160 档本机不跑）、MSAA 可配（开窗前 `SetMSAASampleCount`）；三模式（`-auto-only` 冻结相位门禁 / `-measure` 动画测量 / 常驻人工窗）；**零引擎改动、零新增公开 API** | P3.9a | ✅ 2026-11-09 测量收口（满屏 1080p 混合通用动画真窗；native 1x/4x + go 1x 三组合门禁金图 0.0000%/logic 6/6、18s 测量有效；**抓到并如实落位 go/GL+4x 整窗全黑既有引擎洞**，用户拍板不修/登记不可验/不标绿；native 1x→4x 显存峰值 2.35×、fps −24.9%、p95 破线；证据 `evidence/P3.9b/summary.md`、`compare.md`、`findings-go4x-black.md`） | `evidence/P3.9b/` |
-| P4.1 | 正确性：MSAA>1 even-odd 裁剪、分数裁剪 AA、顶点网格 alpha/blend、DrawShadow | P3.4、P3.8 | ⬜ | `evidence/P4.1/` |
+| P4.1 | 正确性：MSAA>1 even-odd 裁剪、分数裁剪 AA、顶点网格 alpha/blend、DrawShadow | P3.4、P3.8 | 🟡 拆四批（③→②→④→①）：批 1（③alpha/blend 接线）核心交付、B 卡挂 #3 GPU 路待诊断；**批 2（②分数裁剪 AA）✅ 全量收口（2026-11-10）**；**批 3（④ DrawShadow 设备空间抬升）✅ 语义收口（2026-11-10，#4/#5/#6 三洞登记）**；批 4（①+go4x）待开工（D1a/D2a/D3a 拍板，PLAN §6 已回写） | `evidence/P4.1/` |
 | P4.2 | 一致性：GPU/CPU 模糊对齐 | P4.1、P3.4 | ⬜ | `evidence/P4.2/` |
 | P4.3 | 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化 | P4.1、P3.4 | ⬜ | `evidence/P4.3/` |
 | P4.4 | 文本：COLRv1 完整层（若 P3.8 未覆盖） | P3.3、P3.8 | ⬜ | `evidence/P4.4/` |
@@ -872,6 +938,12 @@ docs/render_gpu_converge/
 | 2026-11-09 | P3.9a | **🟡→✅ 像素收口（2026-11-09）**：高层 mesh gradient 落地——`MeshGradientColorModel`（Bilinear/CatmullRom）+ `MeshGradientSpace`（Absolute/Normalized）+ `MeshGradientVertex`（位置/颜色/四 `*Point` 切向量，nil=自动推断、零向量=尖点）+ `MeshGradient` + `NewMeshGradient` + `ErrMeshGradientShape` + `MeshGradient.Validate/Clone/ControlBounds` + `Context.DrawMeshGradient/DrawMeshGradientEx` + `Canvas.DrawMeshGradient` + `recording.DrawMeshGradientCommand/CmdDrawMeshGradient/Backend.DrawMeshGradient`；rows×columns 个 Coons patch、自动 C1 切向量（逐字对齐 AndroidX Compose `MeshGradientConfig.inferBezierControlPointsIfRequired`）、CatmullRom 网格级颜色、一次绘制合成一个 indexed `Mesh`；复用 P3.9 `meshPatchLOD/SurfacePoint/ColorAt` 与 `DrawMesh`，**无新 GPU 管线/无新 WGSL**。**真窗** `examples/ui_wr_p39a_meshgradient_grid` 四卡（1×1 Bilinear/CatmullRom、2×2 自动切向量、3×3 自动+尖点、4×4 CatmullRom）：native + go/GL 各自 **0.0000% / 763584 px**、logic 3/3、pixel 8/8、跨后端内容区 changed=0/max=0；负向 `swap-color-model` 金图 15.3974%、`zero-tangents` 金图 38.1758%，两路 `break_inactive` 逻辑红→还原绿。**单测**：`render/mesh_gradient_test.go` 9 PASS、`render/mesh_gradient_gpu_test.go` 3 PASS、`render/recording/mesh_gradient_test.go` 2 PASS；先红 `unit-tests/red.txt`。**门禁**：vet rc=0、apidoc rc=0、linux/amd64（默认+nogpu）/linux/arm64/windows/darwin 构建 rc=0、`-race` 两份 ok、P3.9 回归 ok。**边界**：阶段 3 纹理/图片变形按拍板暂不做；paint alpha/blend 归 P4.1；AA 用全局 MSAA 不新增；HDR/kit/PDF/SVG/Spine 不做；TensorProduct 16 点继续低层 `MeshPatch`；metal 不可验。证据 `evidence/P3.9a/summary.md` | `evidence/P3.9a/summary.md`（+ `unit-tests/`、`gates/`、`window/`、`negative-*.txt`、`golden-diff.txt`） |
 | 2026-11-09 | P3.9b | **⬜→🟡 开工登记（零代码）**：用户问「4x 很占内存和性能吧 / mesh 和 4x 使用场景」，需真实窗口通用复杂动画下的 1x/4x 对照。全量勘察：本机 Wayland/1920×1080@59.88Hz/940MX **1024MiB**/NVIDIA 580；字面 4K(3840×2160)+4x 按 P3.9a 实测推算 device-surface 约 564MB 必触发 `RequestMSAADowngrade` 退回 1x，**测不到 4x**；仓库 `P2.6/e-perf/.../backdrop/{msaa1,msaa4}` 四份已有记录全 FAIL、fps≈9~11、1x/4x 显存字节相同（15,360,000），不可用作性能结论（修正上一轮「没有成体系证据」为「有文件无有效数据」）；唯一干净对照是 P3.9a 临时诊断（静态 1200×800：显存 11.5→65.3MB=5.67×、首帧 113→135ms、帧时基本不变因 CPU 侧瓶颈 90%）。三项拍板（用户确认）：满屏 1080p 留 4K 档 / 混合通用动画+mesh / 当前桌面单窗串行。P3.9b 只做测量补充：零引擎改动、零新增公开 API、catalog 不改。证据/方案/四项载体落盘 | `evidence/P3.9b/assessment.md`、`design.md` |
 | 2026-11-09 | P3.9b | **🟡→✅ 测量收口（2026-11-09）**：交付 `examples/ui_wr_p39b_msaa_anim` 满屏 1080p 混合通用动画真窗（mesh gradient 3×3 背景 + 贝塞尔曲线 + 旋转圆角卡片带文字 + 旋转缩放图片 + 半透明 SaveLayer + 40 粒子 + 渐变带，每帧 FullPaint 全量重绘、相位推进），分辨率/MSAA 可配、三模式（冻结相位门禁/动画测量/常驻人工窗）；**零引擎改动、零新增公开 API**（catalog 未改、apidoc rc=0）。串行脚本一轮一窗、每轮健康检查、程序自己正常退出、不并发不硬杀。**门禁**：native 1x/4x + go 1x 三组合金图逐位 0.0000%、logic 6/6、非黑 23504/23504；负向 `freeze` → phase_advanced 红、`window_not_black` 防假绿探针 → go4x 全黑红。**测量（18s 四轮）**：native 1x→4x 显存峰值 62.8→147.8MB（2.35×、超 128MiB 预算触发 5 次淘汰）、fps 55.95→42.01（−24.9%）、p95 22.3→27.45ms（破 22ms 红线）、hitch 2→8、首帧 +4.6%、RSS +0.1%，4x FAIL FPS 门禁；无 OOM 降级日志证明 4x 真生效。**抓到并如实落位既有引擎洞**：go/GL + 4x MSAA 整窗全黑（gpu_ops>0/present>0 但快照 0% 非黑；native4x 与 go1x 均正常、显存压力相同；疑 GLES 4x resolve/readback，本库首次认真测 GLES 4x 才暴露）→ 用户二次拍板「不修洞、继续测完、如实登记不可验、不标绿」，删被误 seed 的黑金图、标 INVALID、数字排除结论。**与静态小窗诊断差异**：满屏动画把 GPU 填满，4x 代价才暴露（静态小窗帧时不变不能外推）。4K 档本机不跑（1GiB 显存 OOM 风险）、metal 不可验。vet/apidoc/五目标构建全绿。证据 `evidence/P3.9b/summary.md`、`compare.md`、`findings-go4x-black.md` | `evidence/P3.9b/summary.md` |
+| 2026-11-09 | P4.1 | **⬜ 开工核对 + 影响面评估完成，停在「停下报告」待拍板（零代码）**：四子项现状 file:line 实测全部成立——①`depth_clip.go:625` BuildClipMask 在 sampleCount>1 跳过 + stencil 管线 winding-only → even-odd 孔洞在 MSAA 4x 不被挖出；②`context_clip.go:519-522` scissor Floor/Ceil 外扩 → 非整数矩形硬边无 AA（RRect SDF AA 已有、CPU Coverage 有 AA → GPU/CPU 不一致）；③`gpu_render_context.go:1113/1240` mesh 命令从不填 BlendMode + useVC 时 paint alpha 被忽略（pipelineForBlend/分发底座在 = 接线，P3.9a 复核同口径）；④`shadowSpotColor`(:275-297) 已逐字对齐 Impeller tonal spot 模型，PLAN §6「按 Skia 补 ambient+透视剪影」的修法口径过时（Flutter 3.47 Impeller 主路=spot 单 pass 无 ambient，dl_dispatcher.cc:869-928 实证）。标准对齐：Skia MSAA even-odd=stencil INVERT（GrPathStencilSettings.h:18-26）、hal StencilOperationInvert+GLES gl.INVERT 映射均在；mesh paint alpha=blend 后乘（SkGr.cpp:452-478）。**待拍板三事项挂起：D1 go4x 黑洞处置（推荐修进子项①）/ D2 DrawShadow 口径（推荐对齐 Impeller、回写 PLAN §6）/ D3 拆批（推荐 ③→②→④→① 每批独立红绿+证据）**；载体四项等 D3 定后按 §4.2 填写，填齐前保持 ⬜。评估报告 `evidence/P4.1/assessment.md`；遗留文件按交接默认「不动不提交不清理」 | `evidence/P4.1/assessment.md` |
+| 2026-11-10 | P4.1 | **⬜→🟡 开工（用户拍板 D1a/D2a/D3a）**：D1a go4x 黑洞修进子项①（批 4，修时照常先定位到行号+对齐标准方案再动手）；D2a DrawShadow 对齐 Impeller spot 单 pass——PLAN §6 该行已回写（口径修正：本库现状已是 Impeller tonal 模型，只补非仿射投影剪影精确化/显式降级，Skia ambient 双 pass 不做）；D3a 拆批 ③→②→④→① 每批独立先红后绿+证据。批 1（子项③顶点网格 alpha/blend 接线）开工：Porter-Duff 走现有 pipelineForBlend、高级 blend 走现有层封装（fillClipWithPaint 同款，不为 mesh 新建管线）、useVC+实色 paint 顶点色乘 alpha（Skia blend 后乘口径）、CPU 同步、非实色 Brush+mesh 维持跳过+具名降级计数（D0 范围外边界声明）。载体登记见 §2.1；PLAN 回写 + 台账同批落盘 | `evidence/P4.1/assessment.md` |
+| 2026-11-10 | P3.9a 遗留（P4.1 开工发现） | **✅ 销账（编译错误修复）**：`examples/ui_render_base_recording/scene.go` recordingSpyBackend 补 `DrawMeshGradient`/`DrawMeshPatch` 两方法（P3.9a 53752a51 全量切换漏掉的 spy 实现，stash 验证为存量）——`go build ./...` 全仓绿、`go vet` 该包绿；按「非当前线问题切换解决完再回来」当轮销账（一行级测试缝补齐，不改行为） | — |
+| 2026-11-10 | P4.1 批 1 | **🟡 收口中（子项③核心交付，B 卡挂 #3 GPU 路径）**：先红后绿能力单测 12/12（alpha/Plus/Multiply 三场景实现前红、实现后绿 + solid 锁定；数据 verts_paint_blend_cases.json）；真窗 `ui_wr_p41_mesh_paint_blend` 四卡——A alpha ✓ / C Multiply ✓ / D solid alpha ✓ 双后端探针过，**B BlendPlus 双后端一致 FAIL**（got=纯蓝、mesh 层内容丢）。**顺带抓到并归位三个引擎洞**：#2 层合成 Porter-Duff 全家族退化 SourceOver（intImage.blend 无该族分支）→ **已修已验**（render 层 compositePremulPorterDuff 接 intBlend.GetBlendFunc 同一标准实现，blend→image 依赖方向不许反向）；#3 PopLayer 分派缺口（Porter-Duff 非 Normal GPU 层内容静默丢失）→ **CPU 路已修已验**（materialize+premul 合成，headless 过），GPU 路（ensureBlitBlendPipeline+QueueGPUTextureDrawBlend 已落码）启用时真窗/headless 均丢内容已回退禁用**待诊断**；M=mesh×固定函数管线组合洞（fill 同链生效、mesh 逐环正确但画面=纯 src，未定位到行）→ 登记不修、层封装规避（premul 等价）、直传归 P4.3。双后端金图各自 verify 0.0000%/763584px（含 B 卡已知缺口，收口后重出）；负向 no-alpha/normal-blend 两路红 exit1；回归 render 包基线 stash 对比零新增失败；race/vet/apidoc(rc=0) 绿；人工窗 rc=0 正常退出。**零公开 API 变化**（gpuContextOps 内部接口加 QueueGPUTextureDrawBlend）。证据 `evidence/P4.1/batch1/`（summary.md 三洞登记表+五份证据） | `evidence/P4.1/batch1/summary.md` |
+| 2026-11-10 | P4.1 批 2 | **✅ 全量收口（子项② 分数裁剪 AA）**：修法=设备矩形带分数时升级 Radius=0 rrect entry（`clip.PushRectFractional`/`ReplaceRectFractional` 新增，绕过 PushRRect 的 r<=0 退化；rrectCoverage/cover_aa WGSL 对 r=0 自然退化实证无除法）+ `ClipRectOp` 整数检测分流（Intersect+Replace 两 op；Difference 登记边界走 mask 路独立）；**GPU 侧零改动**（rrect entry 自动流入 IsRRectOnly→RRectBounds→SetClipRRect 既有 SDF 通路，RRectBounds 无 radius 下限）。先红后绿 9/9（fractional_rect_clip/replace 实现前红：半覆盖缺失+scissor 溢出；integer_rect_lock 锁零变化；CPU 与 GPU 逐位一致 max<=6）；真窗 `ui_wr_p41_fractional_clip` 10 探针双后端全过（A 半覆盖 AA、B 整数锁定、C 分数+内容、D 嵌套形状）；双后端金图各自 verify 0.0000%/763584px（sha256 落盘；门禁画面静态化——旋转演示属人工窗，P3.9b 冻结思路）；负向 hard-edge（分数强制整数化=旧行为）红 exit1 还原复绿；回归零新增（基线逐名一致）+ clip 包 ok + race/vet/apidoc(rc=0) 绿 + 人工窗 rc=0。**零公开 API 变化**。边界登记：DPR≠1 整数 clip 设备分数化（→AA 化，行为更好；硬边语义 dpr=1 锁定）；嵌套多 rrect GPU 单表达（RRectBounds 单返回，既有边界非本批引入，多 rrect 精确表达归后续）。证据 `evidence/P4.1/batch2/` | `evidence/P4.1/batch2/summary.md` |
+| 2026-11-10 | P4.1 批 3 | **✅ 语义收口（子项④ DrawShadow 设备空间抬升，CPU 路径像素收口）**：红绿对单测实证缺陷（真透视 W←y 下现状用户空间抬升 → 剪影可见带墨水=期望语义 79.4%，`drawshadow_projection_test.go` 锁 CPU）→ 修法=非仿射投影分支剪影 `projTransformPath` 设备化（doFill 同款：曲线展平逐点映射、behind-eye 整笔拒绝）+ `translatePathDev` 抬升直接加设备 y（verbs 保真拷贝、conic 权重不动）+ `withProjectedPathScope` 恒等 `doFillUnprojected`（绕开二次投影——首版走 c.Fill() 被投影分支再投影，画面掉到 51% 复查抓出）→ 红转绿 CPU 稳定。真窗 `ui_wr_p41_drawshadow` 9/9 探针双后端过（A 平射 tonal/抬升锁定、B 仿射 CTM 换算、C elevation 阶梯、D 黑/红 tonal 色对比；本体先画 shadow 后画绕 #5）；双后端金图各自 verify 0.0000%/763584px；负向 skip-shadow 红 exit1 还原复绿；回归零新增 + race/vet/apidoc(rc=0) 绿 + 人工窗 rc=0。**零公开 API 变化**。**新登记三洞**：#4「投影×隔离层×blur×GPU readback」内容不同步（场景一墨水 183k~125k 摆动、race 恒 51.8%，与 #3 同族；测试锁 CPU、真窗透视 shadow 演示挂收口后补）；#5 tier 顺序洞（层合成统一 gpuTex tier 末尾重放、盖住后画直接绘制；架构修法=按 Pop 位置插序归后续）；#6 卡片内局部 SetProjection×dpr×GPU 层组合域丢内容（P3.7 真窗均整窗投影未覆盖；真窗已避开）。**四洞同族（#3/#4/#5/#6=GPU 层链同步/顺序/组合），建议归并一个诊断批次**。证据 `evidence/P4.1/batch3/` | `evidence/P4.1/batch3/summary.md` |
 
 ## 8 修订记录
 

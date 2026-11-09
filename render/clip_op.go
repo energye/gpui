@@ -68,9 +68,20 @@ func (c *Context) ClipRectOp(x, y, w, h float64, op ClipOp) {
 	rect := clip.NewRect(devX, devY, devW, devH)
 	canvas := clip.NewRect(0, 0, float64(c.pixmap.Width()), float64(c.pixmap.Height()))
 
+	// P4.1 批 2：设备矩形带分数（CTM 缩放/用户坐标落到像素格之间）时升级为
+	// Radius=0 的 rrect entry——纯 scissor 只能整数栅格（Floor/Ceil 外扩会把
+	// 溢出内容硬边显示），SDF 通路给出 0.75px analytic AA（Skia 对非整数矩形
+	// 裁剪走 analytic FP 的同款策略）。整数矩形保持纯 scissor 快路零变化。
+	fractional := devX != math.Floor(devX) || devY != math.Floor(devY) ||
+		devW != math.Floor(devW) || devH != math.Floor(devH)
+
 	switch op {
 	case ClipOpReplace:
-		c.clipStack.ReplaceRect(canvas, rect)
+		if fractional {
+			c.clipStack.ReplaceRectFractional(canvas, rect)
+		} else {
+			c.clipStack.ReplaceRect(canvas, rect)
+		}
 		c.gpuClipPath = nil
 		c.gpuClipFillRule = FillRuleNonZero
 	case ClipOpDifference:
@@ -79,7 +90,11 @@ func (c *Context) ClipRectOp(x, y, w, h float64, op ClipOp) {
 		c.gpuClipPath = nil
 		c.gpuClipFillRule = FillRuleNonZero
 	default:
-		c.clipStack.PushRect(rect)
+		if fractional {
+			c.clipStack.PushRectFractional(rect)
+		} else {
+			c.clipStack.PushRect(rect)
+		}
 	}
 	c.bumpClipMaskGPUGen()
 }

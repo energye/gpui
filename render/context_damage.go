@@ -280,11 +280,18 @@ type gpuContextOps interface {
 		tlX, tlY, trX, trY, brX, brY, blX, blY, tlW, trW, brW, blW, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, nearest bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
-	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
+	// blendMode is the paint's Porter-Duff blend for this mesh (P4.1 batch1);
+	// advanced modes never reach here — the context isolates them in a layer
+	// with BlendNormal (same pattern as fillClipWithPaint).
+	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool, blendMode BlendMode)
 	// QueueColoredMeshIndexed draws unique verts + uint16 indices.
-	QueueColoredMeshIndexed(target GPURenderTarget, positions []Point, colors []RGBA, indices []uint16)
+	QueueColoredMeshIndexed(target GPURenderTarget, positions []Point, colors []RGBA, indices []uint16, blendMode BlendMode)
 	QueueGPUTextureDraw(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
+	// QueueGPUTextureDrawBlend is QueueGPUTextureDraw with a fixed-function
+	// blend operator (P4.1 batch1 Porter-Duff layer composite).
+	QueueGPUTextureDrawBlend(target GPURenderTarget, view gpucontext.TextureView,
+		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32, blendMode BlendMode)
 	// QueueGPUTextureDrawQuad is QueueGPUTextureDraw with explicit CTM quad
 	// corners (TL/TR/BR/BL in device pixels). Same as QueueImageDraw corner
 	// handling: axis-aligned is the special case, rotation/scale/shear ride

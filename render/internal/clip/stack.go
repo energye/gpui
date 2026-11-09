@@ -537,6 +537,29 @@ func (cs *ClipStack) PushRectDifference(r Rect) error {
 	return nil
 }
 
+// PushRectFractional pushes a fractional (non-integer device rect) rectangle
+// clip as a Radius=0 rrect entry. PushRRect degrades r<=0 back to PushRect, so
+// the fractional case needs its own entry: the analytic SDF coverage (CPU
+// rrectCoverage / GPU cover_aa WGSL) degrades naturally to a box at r=0 and
+// provides the 0.75px smoothstep AA that the integer scissor cannot express
+// (P4.1 batch2; Skia analytic-FP strategy for non-integer rect clips).
+func (cs *ClipStack) PushRectFractional(r Rect) {
+	newBounds := cs.bounds.Intersect(r)
+	cs.entries = append(cs.entries, clipEntry{
+		prevBounds: cs.bounds,
+		rrect:      &RRectClip{Rect: r, Radius: 0},
+	})
+	cs.bounds = newBounds
+}
+
+// ReplaceRectFractional is ReplaceRect for a fractional rectangle: it resets
+// the stack to canvas and pushes the fractional entry.
+func (cs *ClipStack) ReplaceRectFractional(canvas, r Rect) {
+	cs.entries = cs.entries[:0]
+	cs.bounds = canvas
+	cs.PushRectFractional(r)
+}
+
 // ReplaceRect replaces the entire clip stack with a single rectangular clip
 // relative to the original canvas bounds (bottom of stack / max area).
 func (cs *ClipStack) ReplaceRect(canvas, r Rect) {

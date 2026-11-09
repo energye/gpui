@@ -5575,6 +5575,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		isYUV                bool
 		firstVertex, vertCnt uint32
 		cmdStart, cmdCount   uint32 // span in the GPU-texture command list (group slicing)
+		blendMode            render.BlendMode
 	}
 	slots := make([]gpuTexSlot, 0, len(cmds))
 	for i := 0; i < len(cmds); {
@@ -5607,6 +5608,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			vertCnt:     uint32((j - i) * 6), //nolint:gosec
 			cmdStart:    uint32(i),           //nolint:gosec
 			cmdCount:    uint32(j - i),       //nolint:gosec
+			blendMode:   cmd.BlendMode,
 		}
 		if cmd.IsYUV {
 			uvView, ok := s.ResolveCommandView(&cmd.UVView)
@@ -5741,6 +5743,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			firstVertex: slot.firstVertex,
 			vertexCount: slot.vertCnt,
 			yuv:         isYUV,
+			blendMode:   slot.blendMode,
 			cmdStart:    slot.cmdStart,
 			cmdCount:    slot.cmdCount,
 		})

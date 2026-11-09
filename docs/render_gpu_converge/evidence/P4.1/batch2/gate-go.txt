@@ -1,0 +1,17 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0063920f0 ctx=0xc00013c400
+snapshot: examples/ui_wr_p41_fractional_clip/testdata/p41_fractional_clip_final.png
+ui_wr_p41_fractional_clip: logic cards_drawn      ok=true drawn=[704 704 704 2]
+ui_wr_p41_fractional_clip: logic break_inactive   ok=true GPUI_P41C_BREAK=""
+ui_wr_p41_fractional_clip: pixel A_edge_half            ok
+ui_wr_p41_fractional_clip: pixel A_outside_white        ok
+ui_wr_p41_fractional_clip: pixel A_inside               ok
+ui_wr_p41_fractional_clip: pixel A_edge_top_half        ok
+ui_wr_p41_fractional_clip: pixel B_inside               ok
+ui_wr_p41_fractional_clip: pixel B_outside_white        ok
+ui_wr_p41_fractional_clip: pixel C_edge_half            ok
+ui_wr_p41_fractional_clip: pixel C_outside_white        ok
+ui_wr_p41_fractional_clip: pixel D_inside_nested        ok
+ui_wr_p41_fractional_clip: pixel D_outside_all_white    ok
+{"ability_id":"P41-fractional-clip","scenario":"ui_wr_p41_fractional_clip","backend":"wayland","present_policy":"full_paint","target_hz":60,"fps_wall":54.47908843228061,"fps_interval":58.69646755060566,"interval_avg_ms":17.036800368571438,"interval_p50_ms":16.755982,"interval_p95_ms":20.826941,"interval_p99_ms":28.774842,"hitch_count":0,"hitch_rate_per_min":0,"vsync_source":"true","frame_build_ms":1.383854,"frame_raster_ms":110.475278,"pipeline_depth":0,"pipeline_max":2,"layout_count":1,"paint_count":351,"damage_area_px":960000,"damage_ratio":1,"present_mode":"full","present_count":352,"frame_count":351,"cpu_pct_avg":0,"cpu_ui_pct":34.01309575322744,"cpu_raster_pct":65.98690424677255,"rss_start_kb":0,"rss_end_kb":0,"rss_peak_kb":0,"rss_slope_kb_per_min":0,"rss_slope_valid":false,"rss_unavailable":true,"gpu_ops":34151,"cpu_fallback_ops":0,"frame_flushes":1,"last_cpu_fallback":"","gpu_backend":"integrated","gpu_fallbacks":0,"warmup":true,"time_to_first_present_ms":287.118548,"first_present_paint_count":1,"elapsed_sec":6.461194747,"boundary_rerecord":0,"boundary_skip":0,"filter_layer_count":0,"boundary_count":1,"boundary_max_depth":1,"picture_op_count":97,"measure_cache_hit":0,"measure_cache_miss":13,"debug_repaint_draws":0,"debug_repaint_on":false,"pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":2,"evictions":0,"purged":0,"entries":2,"idle":2,"bytes":11520000,"peak_bytes":11520000,"budget":134217728}],"ruler_name":null,"ruler_cpu_pct":null,"ruler_rss_mb":null,"ruler_ratio_cpu":null,"ruler_ratio_rss":null,"ability_extra":{"apis":"ClipRect fractional rect -\u003e clip.PushRectFractional (rrect entry Radius=0, SDF analytic AA), ReplaceRectFractional","break_mode":"","fps_gate":"off_correctness","logic_01_cards_drawn":true,"logic_02_break_inactive":true,"logic_failed":0,"logic_probes_ok":2,"logic_probes_total":2,"pixel_golden_diff_pct":0,"pixel_golden_first_run":false,"pixel_golden_total_px":763584,"slope_gate":"off"}}
+ui_wr_p41_fractional_clip: OK presents=352 logic=2/2 golden=0.0000% seeded=false gate=true elapsed=6.5s

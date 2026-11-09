@@ -1,0 +1,32 @@
+=== RUN   TestVerticesPaintBlendCasesCPU
+=== RUN   TestVerticesPaintBlendCasesCPU/alpha_gouraud
+=== RUN   TestVerticesPaintBlendCasesCPU/porter_duff_plus
+=== RUN   TestVerticesPaintBlendCasesCPU/advanced_multiply
+=== RUN   TestVerticesPaintBlendCasesCPU/solid_no_vc_alpha
+--- PASS: TestVerticesPaintBlendCasesCPU (0.00s)
+    --- PASS: TestVerticesPaintBlendCasesCPU/alpha_gouraud (0.00s)
+    --- PASS: TestVerticesPaintBlendCasesCPU/porter_duff_plus (0.00s)
+    --- PASS: TestVerticesPaintBlendCasesCPU/advanced_multiply (0.00s)
+    --- PASS: TestVerticesPaintBlendCasesCPU/solid_no_vc_alpha (0.00s)
+=== RUN   TestVerticesPaintBlendCasesGPU
+=== RUN   TestVerticesPaintBlendCasesGPU/alpha_gouraud
+=== RUN   TestVerticesPaintBlendCasesGPU/porter_duff_plus
+=== RUN   TestVerticesPaintBlendCasesGPU/advanced_multiply
+=== RUN   TestVerticesPaintBlendCasesGPU/solid_no_vc_alpha
+--- PASS: TestVerticesPaintBlendCasesGPU (0.31s)
+    --- PASS: TestVerticesPaintBlendCasesGPU/alpha_gouraud (0.00s)
+    --- PASS: TestVerticesPaintBlendCasesGPU/porter_duff_plus (0.01s)
+    --- PASS: TestVerticesPaintBlendCasesGPU/advanced_multiply (0.01s)
+    --- PASS: TestVerticesPaintBlendCasesGPU/solid_no_vc_alpha (0.00s)
+=== RUN   TestVerticesPaintBlendCPUMatchesGPU
+=== RUN   TestVerticesPaintBlendCPUMatchesGPU/alpha_gouraud
+=== RUN   TestVerticesPaintBlendCPUMatchesGPU/porter_duff_plus
+=== RUN   TestVerticesPaintBlendCPUMatchesGPU/advanced_multiply
+=== RUN   TestVerticesPaintBlendCPUMatchesGPU/solid_no_vc_alpha
+--- PASS: TestVerticesPaintBlendCPUMatchesGPU (0.04s)
+    --- PASS: TestVerticesPaintBlendCPUMatchesGPU/alpha_gouraud (0.00s)
+    --- PASS: TestVerticesPaintBlendCPUMatchesGPU/porter_duff_plus (0.01s)
+    --- PASS: TestVerticesPaintBlendCPUMatchesGPU/advanced_multiply (0.01s)
+    --- PASS: TestVerticesPaintBlendCPUMatchesGPU/solid_no_vc_alpha (0.00s)
+PASS
+ok  	github.com/energye/gpui/render	0.441s

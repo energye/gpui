@@ -238,12 +238,20 @@ func (c *Context) DrawShadow(path *Path, col RGBA, elevation float64, transparen
 	// elevation*dpr device pixels and blur with the same device-space scale.
 	// Convert the lift back to local units so the current CTM (including DPR)
 	// produces that device offset.
-	// P3.7 批 1d：投影层非恒等 ⇒ 抬升/模糊比例按 2×3 层（不含投影）计算
-	// + 具名计数（剪影仍经 doFill 的投影映射绘制，参数近似，登记）。
+	// P4.1 批 3（D2a）：Impeller 的抬升/模糊都是**屏幕空间**量
+	//（dl_dispatcher.cc:906-924：Translate(0,-occluder_z*light.y) 在 CTM 之后、
+	// sigma=kLightRadius*occluder_z/CTM.y-scale）。仿射链下用户平移换算
+	//（offsetY=elevation*dpr/scaleY）与之精确等价；**非仿射投影**下用户平移
+	// 被透视再变形——剪影可见带只有期望语义的 79.4%（红测
+	// TestDrawShadowProjectionLiftIsDeviceSpace 实测）。分支处理：剪影先投影
+	// 成设备形状（doFill 同款 projTransformPath：曲线展平逐点映射、behind-eye
+	// 整笔拒绝），抬升直接加在设备 y 上，withProjectedPathScope 恒等链填充。
 	tm := c.totalMatrix()
+	projLift := false
 	if c.projActive() {
 		if _, aff := c.projTotalAffine(); !aff {
-			c.projShadowDegrades++
+			projLift = true
+			c.projShadowDegrades++ // 具名 census：非仿射投影走设备化支路
 		}
 	}
 	scaleY := math.Hypot(tm.B, tm.E)
@@ -252,6 +260,29 @@ func (c *Context) DrawShadow(path *Path, col RGBA, elevation float64, transparen
 	}
 	offsetY := elevation * dpr / scaleY
 	blur := (800.0 / 600.0) * elevation * dpr
+
+	if projLift {
+		dev, ok := c.projTransformPath(path, projFlattenTolerance)
+		if !ok {
+			return // behind-eye: refuse the whole shadow（与 doFill 同口径）
+		}
+		dev = translatePathDev(dev, elevation*dpr)
+		c.PushLayerIsolated(1.0)
+		savedPaint := c.paint
+		p := NewPaint()
+		p.SetBrush(Solid(spot))
+		p.BlendMode = BlendNormal
+		c.paint = p
+		_ = c.withProjectedPathScope(dev, func() error {
+			c.path = dev
+			_ = c.doFillUnprojected() // dev 已是设备坐标：不得再过投影分支
+			return nil
+		})
+		c.paint = savedPaint
+		c.ApplyBlur(blur)
+		c.PopLayer()
+		return
+	}
 
 	c.PushLayerIsolated(1.0)
 	c.Push()
@@ -268,6 +299,37 @@ func (c *Context) DrawShadow(path *Path, col RGBA, elevation float64, transparen
 
 	c.ApplyBlur(blur)
 	c.PopLayer()
+}
+
+// translatePathDev returns a copy of p with every y coordinate raised by lift
+// (device space; verbs preserved verbatim, conic weights untouched).
+func translatePathDev(p *Path, lift float64) *Path {
+	out := NewPath()
+	verbs := p.Verbs()
+	coords := p.Coords()
+	ci := 0
+	for _, v := range verbs {
+		n := verbCoordCount(v)
+		switch v {
+		case MoveTo:
+			out.MoveTo(coords[ci], coords[ci+1]+lift)
+		case LineTo:
+			out.LineTo(coords[ci], coords[ci+1]+lift)
+		case QuadTo:
+			out.QuadraticTo(coords[ci], coords[ci+1]+lift, coords[ci+2], coords[ci+3]+lift)
+		case CubicTo:
+			out.CubicTo(coords[ci], coords[ci+1]+lift, coords[ci+2], coords[ci+3]+lift,
+				coords[ci+4], coords[ci+5]+lift)
+		case ConicTo:
+			out.ConicTo(coords[ci], coords[ci+1]+lift, coords[ci+2], coords[ci+3]+lift, coords[ci+4])
+		case Close:
+			out.Close()
+		}
+		if n > 0 {
+			ci += n
+		}
+	}
+	return out
 }
 
 // shadowSpotColor ports Flutter Impeller's ComputeTonalColors spot color path

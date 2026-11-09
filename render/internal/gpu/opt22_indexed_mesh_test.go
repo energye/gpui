@@ -35,7 +35,7 @@ func TestOpt22_IndexedMesh_FewerUploadBytes(t *testing.T) {
 	indices := []uint16{0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1}
 
 	target := render.GPURenderTarget{Width: 64, Height: 64, Data: make([]byte, 64*64*4), Stride: 64 * 4}
-	rc.QueueColoredMeshIndexed(target, positions, colors, indices)
+	rc.QueueColoredMeshIndexed(target, positions, colors, indices, render.BlendNormal)
 	if len(rc.pendingConvexCommands) != 1 {
 		t.Fatalf("cmds=%d", len(rc.pendingConvexCommands))
 	}
@@ -76,7 +76,7 @@ func TestOpt22_StashPreservesPackedVerts(t *testing.T) {
 	parentTarget := render.GPURenderTarget{Width: 64, Height: 64, Data: make([]byte, 64*64*4), Stride: 64 * 4}
 	rc.QueueColoredMesh(parentTarget,
 		[]render.Point{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 0, Y: 10}},
-		[]render.RGBA{{R: 1, A: 1}, {R: 1, A: 1}, {R: 1, A: 1}}, true)
+		[]render.RGBA{{R: 1, A: 1}, {R: 1, A: 1}, {R: 1, A: 1}}, true, render.BlendNormal)
 	if len(rc.pendingConvexCommands) != 1 || len(rc.pendingConvexCommands[0].PackedVerts) == 0 {
 		t.Fatal("expected packed parent mesh")
 	}
@@ -101,7 +101,7 @@ func TestOpt22_StashPreservesPackedVerts(t *testing.T) {
 	// Overwrite rc packed scratch as a subsequent layer mesh would.
 	rc.QueueColoredMesh(parentTarget,
 		[]render.Point{{X: 1, Y: 1}, {X: 20, Y: 1}, {X: 1, Y: 20}},
-		[]render.RGBA{{G: 1, A: 1}, {G: 1, A: 1}, {G: 1, A: 1}}, true)
+		[]render.RGBA{{G: 1, A: 1}, {G: 1, A: 1}, {G: 1, A: 1}}, true, render.BlendNormal)
 	stashed := rc.presentStash.convex[0].PackedVerts
 	if !bytes.Equal(stashed, parentCopy) {
 		t.Fatalf("stash packed corrupted after layer queue (len stash=%d parent=%d)", len(stashed), len(parentCopy))

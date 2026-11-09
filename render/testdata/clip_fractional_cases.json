@@ -1,0 +1,305 @@
+{
+  "note": "P4.1 batch2 (subitem 2): fractional clip rect must get analytic AA coverage (Skia: non-integer rect clips ride the analytic FP, not the integer scissor). Integer rect clips keep the hard scissor semantics (pixel-grid aligned, zero regression). Probes use pixel centers: clip edge 10.5 half-covers pixel 10, pixel 9 stays outside, pixel 11 is fully inside.",
+  "cases": [
+    {
+      "name": "fractional_rect_clip",
+      "canvas": [
+        64,
+        64
+      ],
+      "background": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "clip": [
+        10.5,
+        10.5,
+        43.0,
+        43.0
+      ],
+      "fill": [
+        1,
+        0,
+        0,
+        1
+      ],
+      "probes": [
+        {
+          "desc": "pixel 9 center 9.5 outside clip edge 10.5 stays white (GPU scissor used to bleed it red)",
+          "tol": 2,
+          "want": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "x": 9,
+          "y": 30
+        },
+        {
+          "desc": "pixel 10 center 10.5 sits on clip edge -> half coverage red-over-white",
+          "tol": 3,
+          "want": [
+            255,
+            127,
+            127,
+            255
+          ],
+          "x": 10,
+          "y": 30
+        },
+        {
+          "desc": "pixel 11 center 11.5 fully inside -> solid red",
+          "tol": 2,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 11,
+          "y": 30
+        },
+        {
+          "desc": "interior solid red",
+          "tol": 0,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 30,
+          "y": 30
+        },
+        {
+          "desc": "top fractional edge pixel 10 half coverage vertically",
+          "tol": 3,
+          "want": [
+            255,
+            127,
+            127,
+            255
+          ],
+          "x": 30,
+          "y": 10
+        },
+        {
+          "desc": "outside top stays white",
+          "tol": 2,
+          "want": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "x": 30,
+          "y": 9
+        }
+      ]
+    },
+    {
+      "name": "integer_rect_lock",
+      "note": "regression lock: integer clip keeps the pixel-aligned hard scissor semantics (no AA ramp) — zero behavior change.",
+      "canvas": [
+        64,
+        64
+      ],
+      "background": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "clip": [
+        10,
+        10,
+        43,
+        43
+      ],
+      "fill": [
+        1,
+        0,
+        0,
+        1
+      ],
+      "probes": [
+        {
+          "desc": "pixel 9 outside integer clip stays white",
+          "tol": 0,
+          "want": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "x": 9,
+          "y": 30
+        },
+        {
+          "desc": "pixel 10 inside (clip starts at 10.0, pixel 10 center 10.5 within) solid red",
+          "tol": 0,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 10,
+          "y": 30
+        },
+        {
+          "desc": "interior solid red",
+          "tol": 0,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 30,
+          "y": 30
+        },
+        {
+          "desc": "last inside row solid red (clip ends 53.0, pixel 52 center 52.5 within)",
+          "tol": 0,
+          "want": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "x": 30,
+          "y": 52
+        },
+        {
+          "desc": "pixel 53 outside stays white",
+          "tol": 0,
+          "want": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "x": 30,
+          "y": 53
+        }
+      ]
+    },
+    {
+      "name": "fractional_clip_replace",
+      "note": "Replace op with a fractional rect rides the same fractional entry path.",
+      "canvas": [
+        64,
+        64
+      ],
+      "background": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "clip": [
+        20.5,
+        8.5,
+        30.0,
+        47.0
+      ],
+      "fill": [
+        0,
+        0.5,
+        0,
+        1
+      ],
+      "op": "replace",
+      "probes": [
+        {
+          "desc": "pixel 20 center 20.5 sits on left edge -> half coverage premul green over white",
+          "tol": 3,
+          "want": [
+            127,
+            191,
+            127,
+            255
+          ],
+          "x": 20,
+          "y": 30
+        },
+        {
+          "desc": "pixel 21 fully inside -> solid green",
+          "tol": 2,
+          "want": [
+            0,
+            128,
+            0,
+            255
+          ],
+          "x": 21,
+          "y": 30
+        },
+        {
+          "desc": "interior green",
+          "tol": 2,
+          "want": [
+            0,
+            128,
+            0,
+            255
+          ],
+          "x": 35,
+          "y": 30
+        },
+        {
+          "desc": "pixel 50 center 50.5 on right edge -> half coverage",
+          "tol": 3,
+          "want": [
+            127,
+            191,
+            127,
+            255
+          ],
+          "x": 50,
+          "y": 30
+        },
+        {
+          "desc": "pixel 51 outside right edge stays white",
+          "tol": 2,
+          "want": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "x": 51,
+          "y": 30
+        },
+        {
+          "desc": "top fractional edge pixel 8 half coverage vertically",
+          "tol": 3,
+          "want": [
+            127,
+            191,
+            127,
+            255
+          ],
+          "x": 35,
+          "y": 8
+        },
+        {
+          "desc": "above top edge stays white",
+          "tol": 2,
+          "want": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "x": 35,
+          "y": 7
+        }
+      ]
+    }
+  ]
+}

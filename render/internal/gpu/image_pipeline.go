@@ -222,6 +222,10 @@ type TexturedQuadPipeline struct {
 	// pipelines.
 	blendPipelines          map[render.BlendMode]hal.RenderPipeline
 	blendDepthClipPipelines map[render.BlendMode]hal.RenderPipeline
+	// blitBlendPipelines are Porter-Duff variants compatible with the blit
+	// pass: SampleCount=1, no depth/stencil attachment, blit layout (P4.1
+	// batch1 gpu-tex layer composite).
+	blitBlendPipelines map[render.BlendMode]hal.RenderPipeline
 	blendPipeLayout         hal.PipelineLayout
 
 	// Non-MSAA blit pipeline for compositor fast path (ADR-016).
@@ -768,6 +772,58 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 	return nil
 }
 
+// ensureBlitBlendPipeline builds the blit-pass-compatible blend variant for a
+// fixed-function mode: SampleCount=1, no depth/stencil, blit layout. The main
+// blend pipelines carry depth/stencil + MSAA and are incompatible with the
+// blit pass (draw validation drops them silently).
+func (p *TexturedQuadPipeline) ensureBlitBlendPipeline(mode render.BlendMode) (hal.RenderPipeline, error) {
+	if err := p.ensureBlitPipeline(); err != nil {
+		return nil, err
+	}
+	bs, ok := gpuBlendStateForPaint(mode)
+	if !ok {
+		return nil, fmt.Errorf("no fixed-function image blend state for mode %v", mode)
+	}
+	if p.blitBlendPipelines != nil {
+		if pipe := p.blitBlendPipelines[mode]; pipe != nil {
+			return pipe, nil
+		}
+	}
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Label:  fmt.Sprintf("textured_quad_blit_pipeline_blend_%d", mode),
+		Layout: p.blitLayout,
+		Vertex: hal.VertexState{
+			Module:     p.shader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    imageVertexLayout(),
+		},
+		Fragment: &hal.FragmentState{
+			Module:     p.shader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					Blend:     &bs,
+					WriteMask: types.ColorWriteMaskAll,
+				},
+			},
+		},
+		Primitive: triangleListPrimitive(),
+		Multisample: types.MultisampleState{
+			Count: 1,
+			Mask:  0xFFFFFFFF,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create blit blend pipeline %v: %w", mode, err)
+	}
+	if p.blitBlendPipelines == nil {
+		p.blitBlendPipelines = make(map[render.BlendMode]hal.RenderPipeline)
+	}
+	p.blitBlendPipelines[mode] = pipeline
+	return pipeline, nil
+}
+
 // RecordBlitDraws records draw calls using the non-MSAA blit pipeline.
 // Used for compositor fast path when no vector shapes need MSAA.
 // YUV draws switch per call to the YUV blit variant (same switch shape
@@ -787,6 +843,15 @@ func (p *TexturedQuadPipeline) RecordBlitDraws(rp hal.RenderPassEncoder, res *im
 		var pipe hal.RenderPipeline
 		if dc.yuv {
 			pipe = p.yuvPipelineForDraw(false, true)
+		} else if dc.blendMode != render.BlendNormal {
+			// P4.1 batch1: Porter-Duff layer composite rides the image
+			// pipeline's fixed-function blend table (same operators as the
+			// direct-fill path), on the blit-pass-compatible variant.
+			blendPipe, pipeErr := p.ensureBlitBlendPipeline(dc.blendMode)
+			if pipeErr != nil {
+				slogger().Warn("gpu-tex blend pipeline", "mode", dc.blendMode, "err", pipeErr)
+			}
+			pipe = blendPipe
 		} else {
 			pipe = p.blitPipeline
 		}
@@ -1291,6 +1356,9 @@ func canMergeGPUTextureDraw(a, b *GPUTextureDrawCommand) bool {
 		return false
 	}
 	if a.Opacity != b.Opacity {
+		return false
+	}
+	if a.BlendMode != b.BlendMode {
 		return false
 	}
 	if a.ViewportWidth != b.ViewportWidth || a.ViewportHeight != b.ViewportHeight {

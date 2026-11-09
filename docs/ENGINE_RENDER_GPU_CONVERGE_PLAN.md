@@ -187,7 +187,7 @@ render/
 | MSAA>1 even-odd 裁剪 | 退化跳过 | `internal/gpu/depth_clip.go:596-618` | 补 sampleCount>1 路径 | 真窗 + 金图 |
 | 非整数裁剪矩形 | 整数 scissor 无 AA | `internal/clip/stack.go:421` | 走路径裁剪或分数 scissor | 金图 |
 | 顶点网格 paint alpha/blend | 忽略，GPU 硬边 | `vertices_mesh.go:18-95`、`gpu_render_context.go:1058-1183` | 透传 blend/alpha，补 AA 或声明 | 真窗 + 金图 |
-| DrawShadow | 无环境光/透视剪影 | `context_misc_draw.go:184-195` | 按 Skia 模型补 | 金图 |
+| DrawShadow | spot 单 pass 已对齐 Impeller tonal 模型（2026-11-09 复核：`context_misc_draw.go:222-297`，`shadowSpotColor` 逐字移植 `dl_dispatcher.cc:879-904`）；真缺=非仿射投影下剪影精确化（`projShadowDegrades` 只计数仍按 2×3 近似照画） | `context_misc_draw.go:222-297` | 按 Skia 模型补 **→ 口径修正（2026-11-09 P4.1 开工拍板 D2a）：Flutter 3.47 主路 Impeller 已是 spot 单 pass 无 ambient（`dl_dispatcher.cc:869-928`），本库 `shadowSpotColor`/抬升/模糊公式已逐字对齐该模型——标准口径改为对齐 Impeller spot 单 pass，只补真缺的：非仿射投影下剪影精确化（或显式降级）；Skia 回退路径的 ambient(0.039)+spot(0.25) 双 pass 不做（`dl_sk_dispatcher.cc:338-357` 仅回退路）** | 金图 |
 | GPU/CPU 模糊一致 | 两套实现靠容差 | — | 对齐容差或统一算法 | 金图逐位 |
 | mask 弹层临时纹理 | 每次 2–3 张 | `mask_r8_modulate.go:305-350` | 池化复用 | 预算/帧时 |
 | backdrop 全表面快照 | RT→RT 全量 + 全量合成 | `m4_quadimage.go:251-301` | 裁剪到损伤区 | 预算/帧时 |

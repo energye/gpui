@@ -1,0 +1,19 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_wr_p41_mesh_paint_blend: logic mesh_shape         ok=true 3 vertices / 3 colors (true Gouraud, non-uniform)
+ui_wr_p41_mesh_paint_blend: logic break_inactive     ok=false GPUI_P41_BREAK="normal-blend"
+snapshot: examples/ui_wr_p41_mesh_paint_blend/testdata/p41_mesh_paint_blend_final.png
+ui_wr_p41_mesh_paint_blend: logic card_alpha_a       ok=true A alpha=0.5 drawn=1
+ui_wr_p41_mesh_paint_blend: logic card_blend_b       ok=false B blend=Normal
+ui_wr_p41_mesh_paint_blend: logic card_blend_c       ok=false C blend=Normal
+ui_wr_p41_mesh_paint_blend: logic card_alpha_d       ok=true D alpha=0.5 drawn=1
+ui_wr_p41_mesh_paint_blend: pixel A_alpha_centroid       ok
+ui_wr_p41_mesh_paint_blend: pixel A_outside_white        ok
+ui_wr_p41_mesh_paint_blend: pixel B_plus_centroid        FAIL B_plus_centroid at (964,251) got=(85,85,85) want=(85,85,255)
+ui_wr_p41_mesh_paint_blend: pixel B_outside_blue         ok
+ui_wr_p41_mesh_paint_blend: pixel C_multiply_centroid    FAIL C_multiply_centroid at (512,563) got=(85,85,85) want=(43,43,43)
+ui_wr_p41_mesh_paint_blend: pixel C_outside_gray         ok
+ui_wr_p41_mesh_paint_blend: pixel D_solid_alpha          ok
+ui_wr_p41_mesh_paint_blend: pixel D_outside_white        ok
+{"ability_id":"P41-mesh-paint-blend","scenario":"ui_wr_p41_mesh_paint_blend","backend":"wayland","present_policy":"full_paint","target_hz":60,"fps_wall":56.17326140582002,"fps_interval":59.0851306341719,"interval_avg_ms":16.924731980226,"interval_p50_ms":16.686406,"interval_p95_ms":17.682591000000002,"interval_p99_ms":20.332302,"hitch_count":2,"hitch_rate_per_min":20.02885784209218,"vsync_source":"true","frame_build_ms":0.7516550000000001,"frame_raster_ms":143.057134,"pipeline_depth":0,"pipeline_max":2,"layout_count":1,"paint_count":355,"damage_area_px":960000,"damage_ratio":1,"present_mode":"full","present_count":356,"frame_count":355,"cpu_pct_avg":0,"cpu_ui_pct":5.01626798597325,"cpu_raster_pct":94.98373201402674,"rss_start_kb":0,"rss_end_kb":0,"rss_peak_kb":0,"rss_slope_kb_per_min":0,"rss_slope_valid":false,"rss_unavailable":true,"gpu_ops":22435,"cpu_fallback_ops":0,"frame_flushes":1,"last_cpu_fallback":"","gpu_backend":"integrated","gpu_fallbacks":0,"warmup":true,"time_to_first_present_ms":123.305126,"first_present_paint_count":1,"elapsed_sec":6.337534818,"boundary_rerecord":0,"boundary_skip":0,"filter_layer_count":0,"boundary_count":1,"boundary_max_depth":1,"picture_op_count":63,"measure_cache_hit":0,"measure_cache_miss":13,"debug_repaint_draws":0,"debug_repaint_on":false,"pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":2,"evictions":0,"purged":0,"entries":2,"idle":2,"bytes":11520000,"peak_bytes":11520000,"budget":134217728}],"ruler_name":null,"ruler_cpu_pct":null,"ruler_rss_mb":null,"ruler_ratio_cpu":null,"ruler_ratio_rss":null,"ability_extra":{"apis":"DrawVertices/DrawMesh paint alpha wiring, Paint.BlendMode on mesh (layer path for non-normal), compositePremulPorterDuff, PopLayer Porter-Duff materialize","break_mode":"normal-blend","fps_gate":"off_correctness","logic_01_mesh_shape":true,"logic_02_break_inactive":false,"logic_03_card_alpha_a":true,"logic_04_card_blend_b":false,"logic_05_card_blend_c":false,"logic_06_card_alpha_d":true,"logic_failed":3,"logic_probes_ok":3,"logic_probes_total":6,"pixel_golden_diff_pct":9.42921800352024,"pixel_golden_first_run":false,"pixel_golden_total_px":763584,"render_stats_ok":true,"slope_gate":"off"}}
+FAIL: logic probes 3/6 ok
+exit status 1
