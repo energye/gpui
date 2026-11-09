@@ -1,0 +1,2 @@
+CMD: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build ./render ./render/recording ./gpu/gwgpu/gles ./examples/ui_wr_p39_meshgradient
+EXIT=0

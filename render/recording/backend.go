@@ -178,6 +178,11 @@ type Backend interface {
 	// vertex colours.
 	DrawMesh(mesh render.Mesh, brush Brush)
 
+	// DrawMeshPatch draws one colored Bezier patch (P3.9 mesh gradient).
+	// brush is the fill paint recorded with it; the patch carries its own
+	// four corner colors.
+	DrawMeshPatch(patch render.MeshPatch, brush Brush)
+
 	// DrawGlyphs draws a shaped-glyph run at the baseline origin. colored selects
 	// the per-glyph colour variant over the single-brush run, which uses brush.
 	DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush)

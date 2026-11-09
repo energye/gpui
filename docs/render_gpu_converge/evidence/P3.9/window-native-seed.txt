@@ -1,0 +1,26 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_wr_p39_meshgradient: logic patch_counts                 ok=true 2x2=4 3x3=9 bicubic=4
+ui_wr_p39_meshgradient: logic coons_grid_corner_roles      ok=true 52 corners TL/TR/BR/BL match the shared node grid
+ui_wr_p39_meshgradient: logic bicubic_lattice_16           ok=true 4 patches x 16 control points (4x4 lattice)
+ui_wr_p39_meshgradient: logic coons_lod_bounds             ok=true all patch LODs >=8 and index count <=60000
+ui_wr_p39_meshgradient: logic alpha_center_distinct        ok=true alpha patch center A=0.650 (premul bilerp)
+ui_wr_p39_meshgradient: logic break_inactive               ok=true GPUI_P39_BREAK="" (negative control must be run with it set)
+snapshot: examples/ui_wr_p39_meshgradient/testdata/p39_meshgradient_final.png
+ui_wr_p39_meshgradient: pixel A_tl_corner              ok
+ui_wr_p39_meshgradient: pixel A_tr_corner              ok
+ui_wr_p39_meshgradient: pixel A_br_corner              ok
+ui_wr_p39_meshgradient: pixel A_bl_corner              ok
+ui_wr_p39_meshgradient: pixel A_center_node            ok
+ui_wr_p39_meshgradient: pixel B_center_node            ok
+ui_wr_p39_meshgradient: pixel C_patch_center           ok
+ui_wr_p39_meshgradient: pixel C_corner                 ok
+ui_wr_p39_meshgradient: pixel D_tl_corner              ok
+ui_wr_p39_meshgradient: pixel D_tr_corner              ok
+ui_wr_p39_meshgradient: pixel D_br_corner              ok
+ui_wr_p39_meshgradient: pixel D_bl_corner              ok
+ui_wr_p39_meshgradient: pixel D_alpha_tl               ok
+ui_wr_p39_meshgradient: pixel D_alpha_center           ok
+ui_wr_p39_meshgradient: pixel A_seam_left              ok
+ui_wr_p39_meshgradient: pixel A_seam_right             ok
+{"ability_id":"P39-mesh-gradient","scenario":"ui_wr_p39_meshgradient","backend":"wayland","present_policy":"full_paint","target_hz":60,"fps_wall":55.72223841603341,"fps_interval":59.922315668858495,"interval_avg_ms":16.68827362290503,"interval_p50_ms":16.820800000000002,"interval_p95_ms":18.586828999999998,"interval_p99_ms":19.461640999999997,"hitch_count":0,"hitch_rate_per_min":0,"vsync_source":"true","frame_build_ms":0.7187180000000001,"frame_raster_ms":278.08117599999997,"pipeline_depth":0,"pipeline_max":2,"layout_count":1,"paint_count":359,"damage_area_px":960000,"damage_ratio":1,"present_mode":"full","present_count":360,"frame_count":359,"cpu_pct_avg":0,"cpu_ui_pct":16.748962472031543,"cpu_raster_pct":83.25103752796846,"rss_start_kb":0,"rss_end_kb":0,"rss_peak_kb":0,"rss_slope_kb_per_min":0,"rss_slope_valid":false,"rss_unavailable":true,"gpu_ops":59043,"cpu_fallback_ops":0,"frame_flushes":1,"last_cpu_fallback":"","gpu_backend":"integrated","gpu_fallbacks":0,"warmup":true,"time_to_first_present_ms":139.527018,"first_present_paint_count":1,"elapsed_sec":6.460616268,"boundary_rerecord":0,"boundary_skip":0,"filter_layer_count":0,"boundary_count":1,"boundary_max_depth":1,"picture_op_count":164,"measure_cache_hit":0,"measure_cache_miss":13,"debug_repaint_draws":0,"debug_repaint_on":false,"pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":2,"evictions":0,"purged":0,"entries":2,"idle":2,"bytes":11520000,"peak_bytes":11520000,"budget":134217728}],"ruler_name":null,"ruler_cpu_pct":null,"ruler_rss_mb":null,"ruler_ratio_cpu":null,"ruler_ratio_rss":null,"ability_extra":{"apis":"MeshPatch{Coons 12, Bicubic 16}, Context.DrawMeshPatch/DrawMeshPatchEx, Canvas.DrawMeshPatch, recording.CmdDrawMeshPatch","break_mode":"","card_triangles":[1366,1710,1366,1564],"card_triangles_want":[1366,1710,1366,1564],"fps_gate":"off_correctness","logic_01_patch_counts":true,"logic_02_coons_grid_corner_roles":true,"logic_03_bicubic_lattice_16":true,"logic_04_coons_lod_bounds":true,"logic_05_alpha_center_distinct":true,"logic_06_break_inactive":true,"logic_failed":0,"logic_probes_ok":6,"logic_probes_total":6,"pixel_golden_diff_pct":0,"pixel_golden_first_run":true,"pixel_golden_total_px":0,"render_stats_ok":true,"slope_gate":"off"}}
+ui_wr_p39_meshgradient: OK presents=360 logic=6/6 golden=0.0000% seeded=true gate=true elapsed=6.5s

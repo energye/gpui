@@ -1,0 +1,9 @@
+API 目录缺失 6 个符号（docs/RENDER_API_CATALOG.md 未出现）：
+  mainpkg ErrMeshPatchShape
+  mainpkg MeshPatchBicubic
+  mainpkg MeshPatchCoons
+  method DrawMeshPatchEx
+  subpkg CmdDrawMeshPatch
+  subpkg DrawMeshPatchCommand
+→ 请在 docs/RENDER_API_CATALOG.md 对应分类表补齐（增/改/删 API 时同步更新）。
+exit status 1

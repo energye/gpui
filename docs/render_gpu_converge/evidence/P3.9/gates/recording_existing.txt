@@ -1,0 +1,2 @@
+ok  	github.com/energye/gpui/render/recording	0.024s
+EXIT=0

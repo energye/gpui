@@ -756,7 +756,7 @@ func (c *SetVertexBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 		attrOffset := uintptr(c.offset) + uintptr(attr.Offset)
 		en, ptr, div := st.setAttrib(loc, attribState{
 			enabled: true, size: size, typ: typ, normalized: normalized,
-			stride: stride, offset: attrOffset, buf: c.buffer.id, divisor: divisor,
+			stride: stride, offset: attrOffset, baseOffset: attrOffset, buf: c.buffer.id, divisor: divisor,
 		})
 		// The buffer above is bound (or already was); the pointer captures it.
 		if en {
@@ -866,6 +866,9 @@ type DrawCommand struct {
 }
 
 func (c *DrawCommand) Execute(ctx *gl.Context, st *glExecState) {
+	// A non-indexed draw always reads from the buffer base; undo any
+	// baseVertex shift left by a previous indexed draw.
+	st.applyBaseVertex(ctx, 0)
 	mode := primitiveTopologyToGL(c.topology)
 	if c.instanceCount <= 1 {
 		ctx.DrawArrays(mode, int32(c.firstVertex), int32(c.vertexCount))
@@ -894,6 +897,8 @@ func (c *DrawIndexedCommand) Execute(ctx *gl.Context, st *glExecState) {
 
 	offset := uintptr(c.firstIndex) * indexSize
 	mode := primitiveTopologyToGL(c.topology)
+	// WebGPU's baseVertex applies to the vertex fetch, not the index value.
+	st.applyBaseVertex(ctx, c.baseVertex)
 
 	if c.instanceCount <= 1 {
 		ctx.DrawElements(mode, int32(c.indexCount), indexType, offset)

@@ -1,0 +1,2 @@
+CMD: CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build ./render ./render/recording ./examples/ui_wr_p39_meshgradient
+EXIT=0

@@ -126,7 +126,8 @@ type attribState struct {
 	typ        uint32
 	normalized bool
 	stride     int32
-	offset     uintptr
+	offset     uintptr // current glVertexAttribPointer offset (baseOffset + baseVertex*stride)
+	baseOffset uintptr // offset configured by SetVertexBuffer (baseVertex = 0)
 	buf        uint32
 	divisor    uint32
 }
@@ -423,6 +424,43 @@ func (s *glExecState) markStencilWMask(front bool, mask uint32) {
 		return
 	}
 	s.stBackWMask = mask
+}
+
+// baseVertexAttribOffset folds WebGPU's baseVertex into a GL vertex attribute
+// offset. Negative baseVertex is not emitted by this renderer (DrawIndexed
+// ranges always start at or after the buffer base); stride 0 reads one vertex
+// for every index, so baseVertex has nothing to add.
+func baseVertexAttribOffset(baseOffset uintptr, baseVertex int32, stride int32) uintptr {
+	if baseVertex <= 0 || stride <= 0 {
+		return baseOffset
+	}
+	return baseOffset + uintptr(baseVertex)*uintptr(stride)
+}
+
+// applyBaseVertex re-points per-vertex attributes at baseOffset +
+// baseVertex*stride. WebGPU's DrawIndexed has a baseVertex argument; GLES has
+// no portable glDrawElementsBaseVertex (GLES 3.2 / EXT only), so the backend
+// folds it into the attribute offsets instead. Per-instance attributes
+// (divisor != 0) are not affected by baseVertex.
+func (s *glExecState) applyBaseVertex(ctx *gl.Context, baseVertex int32) {
+	if s == nil || len(s.attribs) == 0 {
+		return
+	}
+	for loc, a := range s.attribs {
+		if !a.enabled || a.divisor != 0 || a.stride <= 0 {
+			continue
+		}
+		off := baseVertexAttribOffset(a.baseOffset, baseVertex, a.stride)
+		if off == a.offset {
+			continue
+		}
+		if s.bindArray(a.buf) {
+			ctx.BindBuffer(gl.ARRAY_BUFFER, a.buf)
+		}
+		ctx.VertexAttribPointer(loc, a.size, a.typ, a.normalized, a.stride, off)
+		a.offset = off
+		s.attribs[loc] = a
+	}
 }
 
 // setAttrib gates one vertex-attrib slot setup.

@@ -1,0 +1,15 @@
+# github.com/energye/gpui/render [github.com/energye/gpui/render.test]
+render/mesh_patch_test.go:79:55: undefined: MeshPatchStyle
+render/mesh_patch_test.go:83:10: undefined: MeshPatchCoons
+render/mesh_patch_test.go:85:10: undefined: MeshPatchBicubic
+render/mesh_patch_test.go:92:55: undefined: MeshPatch
+render/mesh_patch_test.go:102:9: undefined: MeshPatch
+render/mesh_patch_test.go:161:20: undefined: meshPatchLOD
+render/mesh_patch_test.go:165:14: undefined: tessellateMeshPatch
+render/mesh_patch_test.go:195:20: undefined: meshPatchLOD
+render/mesh_patch_test.go:199:14: undefined: tessellateMeshPatch
+render/mesh_patch_test.go:226:20: undefined: meshPatchLOD
+render/mesh_patch_test.go:226:20: too many errors
+FAIL	github.com/energye/gpui/render [build failed]
+FAIL
+EXIT=1

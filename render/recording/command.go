@@ -93,11 +93,12 @@ const (
 
 	// Canvas parity, second family (S2b): clip operations, text quality state and
 	// indexed meshes.
-	CmdClipRectOp   // Rectangular clip with a SkClipOp
-	CmdClipPathOp   // Path clip with a SkClipOp
-	CmdSetTextMode  // Text rendering strategy
-	CmdSetLCDLayout // LCD subpixel order for ClearType
-	CmdDrawMesh     // Indexed or triangle-list mesh
+	CmdClipRectOp    // Rectangular clip with a SkClipOp
+	CmdClipPathOp    // Path clip with a SkClipOp
+	CmdSetTextMode   // Text rendering strategy
+	CmdSetLCDLayout  // LCD subpixel order for ClearType
+	CmdDrawMesh      // Indexed or triangle-list mesh
+	CmdDrawMeshPatch // One colored Bezier patch (P3.9 mesh gradient)
 
 	// Layer and effect commands
 	CmdPushLayer         // Save-layer with blend/opacity
@@ -166,11 +167,12 @@ var commandTypeNames = [...]string{
 	CmdDrawGlyphs:        "DrawGlyphs",
 	CmdDrawGPUTexture:    "DrawGPUTexture",
 
-	CmdClipRectOp:   "ClipRectOp",
-	CmdClipPathOp:   "ClipPathOp",
-	CmdSetTextMode:  "SetTextMode",
-	CmdSetLCDLayout: "SetLCDLayout",
-	CmdDrawMesh:     "DrawMesh",
+	CmdClipRectOp:    "ClipRectOp",
+	CmdClipPathOp:    "ClipPathOp",
+	CmdSetTextMode:   "SetTextMode",
+	CmdSetLCDLayout:  "SetLCDLayout",
+	CmdDrawMesh:      "DrawMesh",
+	CmdDrawMeshPatch: "DrawMeshPatch",
 
 	CmdPushLayer:         "PushLayer",
 	CmdPushLayerIsolated: "PushLayerIsolated",

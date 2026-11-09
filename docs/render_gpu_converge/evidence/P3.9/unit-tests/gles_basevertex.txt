@@ -1,0 +1,14 @@
+=== RUN   TestBaseVertexAttribOffset
+=== RUN   TestBaseVertexAttribOffset/zero
+=== RUN   TestBaseVertexAttribOffset/one_vertex
+=== RUN   TestBaseVertexAttribOffset/offset_plus_two
+=== RUN   TestBaseVertexAttribOffset/negative_is_not_folded
+=== RUN   TestBaseVertexAttribOffset/zero_stride
+--- PASS: TestBaseVertexAttribOffset (0.00s)
+    --- PASS: TestBaseVertexAttribOffset/zero (0.00s)
+    --- PASS: TestBaseVertexAttribOffset/one_vertex (0.00s)
+    --- PASS: TestBaseVertexAttribOffset/offset_plus_two (0.00s)
+    --- PASS: TestBaseVertexAttribOffset/negative_is_not_folded (0.00s)
+    --- PASS: TestBaseVertexAttribOffset/zero_stride (0.00s)
+PASS
+ok  	github.com/energye/gpui/gpu/gwgpu/gles	0.005s

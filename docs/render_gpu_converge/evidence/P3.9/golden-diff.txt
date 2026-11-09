@@ -1,0 +1,28 @@
+P3.9 mesh gradient 金图 diff（2026-11-09）
+
+native:
+  backend=wayland
+  pixel_golden_diff_pct=0.000000
+  pixel_golden_total_px=763584
+  pixel_golden_first_run=false
+  gpu_ops=58387 cpu_fallback_ops=0
+  logic_probes=6/6
+  card_triangles=[1366 1710 1366 1564] want=[1366 1710 1366 1564]
+
+gwgpu-gles (GPUI_BACKEND=go):
+  backend=wayland
+  pixel_golden_diff_pct=0.000000
+  pixel_golden_total_px=763584
+  pixel_golden_first_run=false
+  gpu_ops=58223 cpu_fallback_ops=0
+  logic_probes=6/6
+  card_triangles=[1366 1710 1366 1564] want=[1366 1710 1366 1564]
+
+基线：
+  native 金图 SHA256 = dd26b4bedc4a29bdf512f79ce575d2cb5e7e5f08979f71f38cf4453ed686fb9a
+  go/GL 金图 SHA256 = dd26b4bedc4a29bdf512f79ce575d2cb5e7e5f08979f71f38cf4453ed686fb9a
+  → 两后端金图逐字节相同（同一基线即可）；快照整体字节不同只来自底部 HUD 文本，
+    ShellContentRects 已把 HUD 排除，比对区 763584 px 内差 0。
+
+容差口径：P0.1 金图逐位（0 容忍）；像素探针通道容差 16-45/255，
+用于角点/中心/接缝的语义断言，最终以金图逐位为准。

@@ -23,7 +23,7 @@ func (stubBackend) Concat(_ Matrix)      {}
 
 func (stubBackend) Projection(_ render.ProjectionMode, _ render.Matrix4) {}
 func (stubBackend) RenderScene(ScenePayload) error                       { return nil }
-func (stubBackend) DrawPicture(render.Picture) error                  { return nil }
+func (stubBackend) DrawPicture(render.Picture) error                     { return nil }
 func (stubBackend) SetClip(_ *render.Path, _ FillRule) {
 }
 func (stubBackend) ClearClip()                          {}
@@ -52,6 +52,8 @@ func (stubBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.DepthSprite) 
 func (stubBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ Brush) {
 }
 func (stubBackend) DrawMesh(_ render.Mesh, _ Brush) {
+}
+func (stubBackend) DrawMeshPatch(_ render.MeshPatch, _ Brush) {
 }
 func (stubBackend) DrawGlyphs(_ []text.ShapedGlyph, _ text.Face, _, _ float64, _ bool, _ Brush) {
 }

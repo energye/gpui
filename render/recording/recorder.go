@@ -329,6 +329,8 @@ func (r *Recording) Playback(backend Backend) error {
 				Colors:    c.Colors,
 				Indices:   c.Indices,
 			}, r.resources.GetBrush(c.Brush))
+		case DrawMeshPatchCommand:
+			backend.DrawMeshPatch(c.Patch, r.resources.GetBrush(c.Brush))
 		case DrawGlyphsCommand:
 			backend.DrawGlyphs(c.Glyphs, r.faceFor(c.Face), c.X, c.Y, c.Colored, r.resources.GetBrush(c.Brush))
 		case DrawGPUTextureCommand:

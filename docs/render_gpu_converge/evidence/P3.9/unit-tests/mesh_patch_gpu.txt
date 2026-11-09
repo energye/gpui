@@ -1,0 +1,8 @@
+=== RUN   TestMeshPatchGPUCornerColors
+--- PASS: TestMeshPatchGPUCornerColors (0.26s)
+=== RUN   TestMeshPatchGPUMatchesCPU
+--- PASS: TestMeshPatchGPUMatchesCPU (0.01s)
+=== RUN   TestMeshPatchGPUIndexedSeams
+--- PASS: TestMeshPatchGPUIndexedSeams (0.01s)
+PASS
+ok  	github.com/energye/gpui/render	0.354s

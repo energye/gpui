@@ -159,6 +159,9 @@ type Canvas interface {
 	DrawVerticesEx(positions []Point, colors []RGBA, mode VertexMode, opts VertDrawOptions) (VertDrawResult, error)
 	DrawMesh(mesh Mesh)
 	DrawMeshEx(mesh Mesh, opts VertDrawOptions) (VertDrawResult, error)
+	// DrawMeshPatch draws one colored Bezier patch (Skia drawPatch shape):
+	// Coons 12 control points or tensor-product/bicubic 16 control points.
+	DrawMeshPatch(patch MeshPatch)
 
 	// Text
 	SetFont(face text.Face)

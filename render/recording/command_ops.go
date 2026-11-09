@@ -220,6 +220,18 @@ type DrawMeshCommand struct {
 // Type implements Command.
 func (DrawMeshCommand) Type() CommandType { return CmdDrawMesh }
 
+// DrawMeshPatchCommand is one colored Bezier patch. It is recorded as the
+// patch primitive, not as pre-tessellated triangles: the subdivision level
+// depends on the playback canvas's CTM, exactly as SkCanvas::drawPatch records
+// the 12 control points and SkDevice tessellates at playback.
+type DrawMeshPatchCommand struct {
+	Patch render.MeshPatch
+	Brush BrushRef
+}
+
+// Type implements Command.
+func (DrawMeshPatchCommand) Type() CommandType { return CmdDrawMeshPatch }
+
 // --------------------------------------------------------------------------
 // Layers
 // --------------------------------------------------------------------------

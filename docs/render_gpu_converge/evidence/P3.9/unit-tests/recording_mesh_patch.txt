@@ -1,0 +1,6 @@
+=== RUN   TestRecorderDrawMeshPatchRoundTrip
+--- PASS: TestRecorderDrawMeshPatchRoundTrip (0.00s)
+=== RUN   TestRecorderDrawMeshPatchBounds
+--- PASS: TestRecorderDrawMeshPatchBounds (0.00s)
+PASS
+ok  	github.com/energye/gpui/render/recording	0.013s

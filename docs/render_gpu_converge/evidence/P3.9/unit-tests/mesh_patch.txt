@@ -1,0 +1,28 @@
+=== RUN   TestMeshPatchCoonsControlOrder
+--- PASS: TestMeshPatchCoonsControlOrder (0.00s)
+=== RUN   TestMeshPatchCoonsPlanarIdentity
+--- PASS: TestMeshPatchCoonsPlanarIdentity (0.00s)
+=== RUN   TestMeshPatchCoonsPremulCornerColors
+--- PASS: TestMeshPatchCoonsPremulCornerColors (0.00s)
+=== RUN   TestMeshPatchLOD
+--- PASS: TestMeshPatchLOD (0.00s)
+=== RUN   TestMeshPatchTensorSurface
+--- PASS: TestMeshPatchTensorSurface (0.00s)
+=== RUN   TestMeshPatchTensorPlanarIdentity
+--- PASS: TestMeshPatchTensorPlanarIdentity (0.00s)
+=== RUN   TestMeshPatchGridSharedCorners
+--- PASS: TestMeshPatchGridSharedCorners (0.00s)
+=== RUN   TestMeshPatchInvalidShape
+=== RUN   TestMeshPatchInvalidShape/coons_short
+=== RUN   TestMeshPatchInvalidShape/bicubic_short
+=== RUN   TestMeshPatchInvalidShape/unknown_style
+--- PASS: TestMeshPatchInvalidShape (0.00s)
+    --- PASS: TestMeshPatchInvalidShape/coons_short (0.00s)
+    --- PASS: TestMeshPatchInvalidShape/bicubic_short (0.00s)
+    --- PASS: TestMeshPatchInvalidShape/unknown_style (0.00s)
+=== RUN   TestMeshPatchCTMLOD
+--- PASS: TestMeshPatchCTMLOD (0.00s)
+=== RUN   TestMeshPatchDrawCPUProbes
+--- PASS: TestMeshPatchDrawCPUProbes (0.00s)
+PASS
+ok  	github.com/energye/gpui/render	0.028s

@@ -413,6 +413,13 @@ func (b *CanvasBackend) DrawMesh(mesh render.Mesh, brush Brush) {
 	b.dc.DrawMesh(mesh)
 }
 
+// DrawMeshPatch replays one colored Bezier patch under the paint it was
+// recorded with, for the same reason as DrawMesh.
+func (b *CanvasBackend) DrawMeshPatch(patch render.MeshPatch, brush Brush) {
+	ApplyBrush(b.dc, brush, true)
+	b.dc.DrawMeshPatch(patch)
+}
+
 // DrawGlyphs replays a shaped-glyph run.
 func (b *CanvasBackend) DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush) {
 	if len(glyphs) == 0 || face == nil {

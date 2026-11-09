@@ -163,6 +163,9 @@ func (w *contentWalk) step(cmd Command) {
 	case DrawMeshCommand:
 		w.note(vertexRunCanPaint(c.Positions, c.Colors, w.paintBrush(c.Brush)) && indicesCanDraw(c.Indices))
 		w.addPoints(c.Positions)
+	case DrawMeshPatchCommand:
+		w.note(meshPatchCanPaint(c.Patch))
+		w.addPoints(c.Patch.Points)
 
 	case DrawTextCommand:
 		face := w.face(c.Font)
@@ -625,6 +628,37 @@ func spriteRect(s render.AtlasSprite) (Rect, bool) {
 func finitePoint(p render.Point) bool {
 	return !math.IsNaN(p.X) && !math.IsNaN(p.Y) &&
 		!math.IsInf(p.X, 0) && !math.IsInf(p.Y, 0)
+}
+
+func finiteColor(c render.RGBA) bool {
+	return !math.IsNaN(c.R) && !math.IsNaN(c.G) && !math.IsNaN(c.B) && !math.IsNaN(c.A) &&
+		!math.IsInf(c.R, 0) && !math.IsInf(c.G, 0) && !math.IsInf(c.B, 0) && !math.IsInf(c.A, 0)
+}
+
+// meshPatchCanPaint mirrors Context.DrawMeshPatchEx: an unknown style or a
+// point count that does not match it draws nothing; non-finite points/colors
+// are rejected by DrawMeshPatchEx and therefore paint nothing here either.
+func meshPatchCanPaint(p render.MeshPatch) bool {
+	n := 12
+	if p.Style == render.MeshPatchBicubic {
+		n = 16
+	} else if p.Style != render.MeshPatchCoons {
+		return false
+	}
+	if len(p.Points) != n {
+		return false
+	}
+	for _, pt := range p.Points {
+		if !finitePoint(pt) {
+			return false
+		}
+	}
+	for _, c := range p.Colors {
+		if !finiteColor(c) {
+			return false
+		}
+	}
+	return true
 }
 
 // floorInt/ceilInt clamp before converting, so a runaway coordinate cannot wrap

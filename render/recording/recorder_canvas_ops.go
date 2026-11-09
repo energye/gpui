@@ -296,6 +296,17 @@ func (r *Recorder) DrawMeshEx(mesh render.Mesh, opts render.VertDrawOptions) (re
 	return render.VertDrawResult{}, nil
 }
 
+// DrawMeshPatch records one colored Bezier patch. The control points are
+// copied, so a caller that rebuilds its patch buffers per frame cannot rewrite
+// an already-recorded command.
+func (r *Recorder) DrawMeshPatch(patch render.MeshPatch) {
+	patch.Points = clonePoints(patch.Points)
+	r.commands = append(r.commands, DrawMeshPatchCommand{
+		Patch: patch,
+		Brush: r.resources.AddBrush(r.fillBrush),
+	})
+}
+
 func clonePoints(in []render.Point) []render.Point {
 	out := make([]render.Point, len(in))
 	copy(out, in)

@@ -1,0 +1,27 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_wr_p39_meshgradient: logic patch_counts                 ok=true 2x2=4 3x3=9 bicubic=4
+ui_wr_p39_meshgradient: logic coons_grid_corner_roles      ok=true 52 corners TL/TR/BR/BL match the shared node grid
+ui_wr_p39_meshgradient: logic bicubic_lattice_16           ok=true 4 patches x 16 control points (4x4 lattice)
+ui_wr_p39_meshgradient: logic coons_lod_bounds             ok=true all patch LODs >=8 and index count <=60000
+ui_wr_p39_meshgradient: logic alpha_center_distinct        ok=true alpha patch center A=0.650 (premul bilerp)
+ui_wr_p39_meshgradient: logic break_inactive               ok=false GPUI_P39_BREAK="swap-corners" (negative control must be run with it set)
+snapshot: examples/ui_wr_p39_meshgradient/testdata/p39_meshgradient_final.png
+ui_wr_p39_meshgradient: pixel A_tl_corner              FAIL A_tl_corner at (371,96) got=(57,252,195) want=(255,71,46)
+ui_wr_p39_meshgradient: pixel A_tr_corner              ok
+ui_wr_p39_meshgradient: pixel A_br_corner              FAIL A_br_corner at (650,325) got=(52,242,214) want=(255,46,160)
+ui_wr_p39_meshgradient: pixel A_bl_corner              ok
+ui_wr_p39_meshgradient: pixel A_center_node            FAIL A_center_node at (514,227) got=(242,52,170) want=(46,255,210)
+ui_wr_p39_meshgradient: pixel B_center_node            FAIL B_center_node at (1013,246) got=(46,249,152) want=(119,46,255)
+ui_wr_p39_meshgradient: pixel C_patch_center           ok
+ui_wr_p39_meshgradient: pixel C_corner                 FAIL C_corner at (371,416) got=(244,47,71) want=(46,192,255)
+ui_wr_p39_meshgradient: pixel D_tl_corner              FAIL D_tl_corner at (780,426) got=(57,98,230) want=(242,38,31)
+ui_wr_p39_meshgradient: pixel D_tr_corner              ok
+ui_wr_p39_meshgradient: pixel D_br_corner              FAIL D_br_corner at (948,644) got=(237,48,32) want=(51,89,242)
+ui_wr_p39_meshgradient: pixel D_bl_corner              ok
+ui_wr_p39_meshgradient: pixel D_alpha_tl               FAIL D_alpha_tl at (985,426) got=(55,84,192) want=(142,41,41)
+ui_wr_p39_meshgradient: pixel D_alpha_center           ok
+ui_wr_p39_meshgradient: pixel A_seam_left              FAIL A_seam_left at (514,163) got=(254,141,47) want=(150,233,128)
+ui_wr_p39_meshgradient: pixel A_seam_right             FAIL A_seam_right at (517,163) got=(48,209,230) want=(150,233,128)
+{"ability_id":"P39-mesh-gradient","scenario":"ui_wr_p39_meshgradient","backend":"wayland","present_policy":"full_paint","target_hz":60,"fps_wall":55.25278435690839,"fps_interval":59.1429776446516,"interval_avg_ms":16.908178110481586,"interval_p50_ms":16.748788,"interval_p95_ms":19.010889,"interval_p99_ms":20.149345,"hitch_count":0,"hitch_rate_per_min":0,"vsync_source":"true","frame_build_ms":1.2535669999999999,"frame_raster_ms":277.09304299999997,"pipeline_depth":0,"pipeline_max":2,"layout_count":1,"paint_count":354,"damage_area_px":960000,"damage_ratio":1,"present_mode":"full","present_count":355,"frame_count":354,"cpu_pct_avg":0,"cpu_ui_pct":21.912163034094938,"cpu_raster_pct":78.08783696590507,"rss_start_kb":0,"rss_end_kb":0,"rss_peak_kb":0,"rss_slope_kb_per_min":0,"rss_slope_valid":false,"rss_unavailable":true,"gpu_ops":58223,"cpu_fallback_ops":0,"frame_flushes":1,"last_cpu_fallback":"","gpu_backend":"integrated","gpu_fallbacks":0,"warmup":true,"time_to_first_present_ms":111.66245099999999,"first_present_paint_count":1,"elapsed_sec":6.425015574,"boundary_rerecord":0,"boundary_skip":0,"filter_layer_count":0,"boundary_count":1,"boundary_max_depth":1,"picture_op_count":164,"measure_cache_hit":0,"measure_cache_miss":13,"debug_repaint_draws":0,"debug_repaint_on":false,"pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":2,"evictions":0,"purged":0,"entries":2,"idle":2,"bytes":11520000,"peak_bytes":11520000,"budget":134217728}],"ruler_name":null,"ruler_cpu_pct":null,"ruler_rss_mb":null,"ruler_ratio_cpu":null,"ruler_ratio_rss":null,"ability_extra":{"apis":"MeshPatch{Coons 12, Bicubic 16}, Context.DrawMeshPatch/DrawMeshPatchEx, Canvas.DrawMeshPatch, recording.CmdDrawMeshPatch","break_mode":"swap-corners","card_triangles":[1366,1710,1366,1564],"card_triangles_want":[1366,1710,1366,1564],"fps_gate":"off_correctness","logic_01_patch_counts":true,"logic_02_coons_grid_corner_roles":true,"logic_03_bicubic_lattice_16":true,"logic_04_coons_lod_bounds":true,"logic_05_alpha_center_distinct":true,"logic_06_break_inactive":false,"logic_failed":1,"logic_probes_ok":5,"logic_probes_total":6,"pixel_golden_diff_pct":41.635628824071745,"pixel_golden_first_run":false,"pixel_golden_total_px":763584,"render_stats_ok":true,"slope_gate":"off"}}
+FAIL: logic probes 5/6 ok
+exit status 1

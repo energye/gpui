@@ -1,0 +1,2 @@
+ok  	github.com/energye/gpui/render	0.343s
+EXIT=0
