@@ -1,0 +1,19 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0063b4000 ctx=0xc006398040
+ui_wr_p39b_msaa_anim: event #1 type=resize
+ui_wr_p39b_msaa_anim: event #2 type=resize
+ui_wr_p39b_msaa_anim: event #3 type=state-changed
+ui_wr_p39b_msaa_anim: event #4 type=focus
+ui_wr_p39b_msaa_anim: event #5 type=pointer
+ui_wr_p39b_msaa_anim: event #6 type=pointer
+ui_wr_p39b_msaa_anim: event #7 type=pointer
+ui_wr_p39b_msaa_anim: event #8 type=pointer
+ui_wr_p39b_msaa_anim: event #9 type=focus
+snapshot: examples/ui_wr_p39b_msaa_anim/testdata/p39b_anim_final.png
+ui_wr_p39b_msaa_anim: logic scene_primitives         ok=true primitives=124338 (want >60)
+ui_wr_p39b_msaa_anim: logic mesh_triangles           ok=true mesh tris=78778
+ui_wr_p39b_msaa_anim: logic msaa_setting             ok=true requested=1 effective=1
+ui_wr_p39b_msaa_anim: logic device_surface_bytes     ok=true bytes=62840480
+ui_wr_p39b_msaa_anim: logic phase_advanced           ok=true mode=measure advancing=true lastPhase(x1000)=18457 freeze=false break=""
+ui_wr_p39b_msaa_anim: logic window_not_black         ok=true nonblack=23504/23504 (want >10%)
+ui_wr_p39b_msaa_anim: OK mode=measure msaa=1x backend=go res=1920x1080 presents=901 logic=6/6 golden=0.0000% seeded=false surface=62840480B elapsed=18.9s

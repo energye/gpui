@@ -1,0 +1,16 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0063a0000 ctx=0xc006384040
+ui_wr_p39b_msaa_anim: event #1 type=resize
+ui_wr_p39b_msaa_anim: event #2 type=resize
+ui_wr_p39b_msaa_anim: event #3 type=state-changed
+ui_wr_p39b_msaa_anim: event #4 type=focus
+ui_wr_p39b_msaa_anim: event #5 type=pointer
+snapshot: examples/ui_wr_p39b_msaa_anim/testdata/p39b_anim_final.png
+ui_wr_p39b_msaa_anim: logic scene_primitives         ok=true primitives=32016 (want >60)
+ui_wr_p39b_msaa_anim: logic mesh_triangles           ok=true mesh tris=79054
+ui_wr_p39b_msaa_anim: logic msaa_setting             ok=true requested=4 effective=4
+ui_wr_p39b_msaa_anim: logic device_surface_bytes     ok=true bytes=76289120
+ui_wr_p39b_msaa_anim: logic phase_advanced           ok=true mode=gate advancing=false lastPhase(x1000)=1234 freeze=true break=""
+ui_wr_p39b_msaa_anim: pixel anchor_magenta     FAIL anchor_magenta at (1728,904) got=(0,0,0) want=(255,0,255)
+ui_wr_p39b_msaa_anim: pixel anchor_cyan        FAIL anchor_cyan at (1728,965) got=(0,0,0) want=(0,255,255)
+FAIL: pixel probes: anchor_magenta at (1728,904) got=(0,0,0) want=(255,0,255)

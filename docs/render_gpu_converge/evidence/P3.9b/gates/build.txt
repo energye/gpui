@@ -1,0 +1,2 @@
+CMD: go build
+EXIT=0

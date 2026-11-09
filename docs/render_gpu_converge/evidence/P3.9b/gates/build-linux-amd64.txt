@@ -1,0 +1,2 @@
+CMD: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags '' ./examples/ui_wr_p39b_msaa_anim
+EXIT=0

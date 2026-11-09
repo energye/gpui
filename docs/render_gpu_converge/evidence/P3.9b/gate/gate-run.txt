@@ -1,0 +1,13 @@
+=== [gate/native_msaa1_verify] backend=native msaa=1 secs=6 mode=-auto-only extra= ===
+    exit=0 json_lines=1
+    verify golden_diff=0.000000% first_run=False logic=6/6 nonblack=23504/23504
+=== [gate/native_msaa4_verify] backend=native msaa=4 secs=6 mode=-auto-only extra= ===
+    exit=0 json_lines=1
+    verify golden_diff=0.000000% first_run=False logic=6/6 nonblack=23504/23504
+=== [gate/go_msaa1_verify] backend=go msaa=1 secs=6 mode=-auto-only extra= ===
+    exit=0 json_lines=1
+    verify golden_diff=0.000000% first_run=False logic=6/6 nonblack=23504/23504
+=== [gate/go_msaa4_invalid] backend=go msaa=4 secs=6 mode=-auto-only extra= ===
+    exit=1 json_lines=1
+    go4x INVALID (expected RED): nonblack=0/23504 logic=5/6
+=== DONE stage=gate rounds=4 rc=0 ===

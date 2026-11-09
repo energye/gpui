@@ -1,0 +1,4 @@
+=== [negative/freeze] backend=native msaa=1 secs=6 mode=-measure extra=GPUI_P39B_BREAK=freeze ===
+    exit=1 json_lines=1
+    freeze RED (expected): phase_advanced=False logic=5/6
+=== DONE stage=negative rounds=1 rc=0 ===

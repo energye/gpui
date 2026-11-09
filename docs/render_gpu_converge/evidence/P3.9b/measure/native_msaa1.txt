@@ -1,0 +1,95 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_wr_p39b_msaa_anim: event #1 type=resize
+ui_wr_p39b_msaa_anim: event #2 type=resize
+ui_wr_p39b_msaa_anim: event #3 type=state-changed
+ui_wr_p39b_msaa_anim: event #4 type=focus
+ui_wr_p39b_msaa_anim: event #5 type=pointer
+ui_wr_p39b_msaa_anim: event #6 type=pointer
+ui_wr_p39b_msaa_anim: event #7 type=pointer
+ui_wr_p39b_msaa_anim: event #8 type=pointer
+ui_wr_p39b_msaa_anim: event #9 type=pointer
+ui_wr_p39b_msaa_anim: event #10 type=pointer
+ui_wr_p39b_msaa_anim: event #11 type=pointer
+ui_wr_p39b_msaa_anim: event #12 type=pointer
+ui_wr_p39b_msaa_anim: event #13 type=pointer
+ui_wr_p39b_msaa_anim: event #14 type=pointer
+ui_wr_p39b_msaa_anim: event #15 type=pointer
+ui_wr_p39b_msaa_anim: event #16 type=pointer
+ui_wr_p39b_msaa_anim: event #17 type=pointer
+ui_wr_p39b_msaa_anim: event #18 type=pointer
+ui_wr_p39b_msaa_anim: event #19 type=pointer
+ui_wr_p39b_msaa_anim: event #20 type=pointer
+ui_wr_p39b_msaa_anim: event #21 type=pointer
+ui_wr_p39b_msaa_anim: event #22 type=pointer
+ui_wr_p39b_msaa_anim: event #23 type=pointer
+ui_wr_p39b_msaa_anim: event #24 type=pointer
+ui_wr_p39b_msaa_anim: event #25 type=pointer
+ui_wr_p39b_msaa_anim: event #26 type=pointer
+ui_wr_p39b_msaa_anim: event #27 type=pointer
+ui_wr_p39b_msaa_anim: event #28 type=pointer
+ui_wr_p39b_msaa_anim: event #29 type=pointer
+ui_wr_p39b_msaa_anim: event #30 type=pointer
+ui_wr_p39b_msaa_anim: event #31 type=pointer
+ui_wr_p39b_msaa_anim: event #32 type=pointer
+ui_wr_p39b_msaa_anim: event #33 type=pointer
+ui_wr_p39b_msaa_anim: event #34 type=pointer
+ui_wr_p39b_msaa_anim: event #35 type=pointer
+ui_wr_p39b_msaa_anim: event #36 type=pointer
+ui_wr_p39b_msaa_anim: event #37 type=pointer
+ui_wr_p39b_msaa_anim: event #38 type=pointer
+ui_wr_p39b_msaa_anim: event #39 type=pointer
+ui_wr_p39b_msaa_anim: event #40 type=pointer
+ui_wr_p39b_msaa_anim: event #41 type=pointer
+ui_wr_p39b_msaa_anim: event #42 type=pointer
+ui_wr_p39b_msaa_anim: event #43 type=pointer
+ui_wr_p39b_msaa_anim: event #44 type=pointer
+ui_wr_p39b_msaa_anim: event #45 type=pointer
+ui_wr_p39b_msaa_anim: event #46 type=pointer
+ui_wr_p39b_msaa_anim: event #47 type=pointer
+ui_wr_p39b_msaa_anim: event #48 type=pointer
+ui_wr_p39b_msaa_anim: event #49 type=pointer
+ui_wr_p39b_msaa_anim: event #50 type=pointer
+ui_wr_p39b_msaa_anim: event #51 type=pointer
+ui_wr_p39b_msaa_anim: event #52 type=pointer
+ui_wr_p39b_msaa_anim: event #53 type=pointer
+ui_wr_p39b_msaa_anim: event #54 type=pointer
+ui_wr_p39b_msaa_anim: event #55 type=pointer
+ui_wr_p39b_msaa_anim: event #56 type=pointer
+ui_wr_p39b_msaa_anim: event #57 type=pointer
+ui_wr_p39b_msaa_anim: event #58 type=pointer
+ui_wr_p39b_msaa_anim: event #59 type=pointer
+ui_wr_p39b_msaa_anim: event #60 type=pointer
+ui_wr_p39b_msaa_anim: event #61 type=pointer
+ui_wr_p39b_msaa_anim: event #62 type=pointer
+ui_wr_p39b_msaa_anim: event #63 type=pointer
+ui_wr_p39b_msaa_anim: event #64 type=pointer
+ui_wr_p39b_msaa_anim: event #65 type=pointer
+ui_wr_p39b_msaa_anim: event #66 type=pointer
+ui_wr_p39b_msaa_anim: event #67 type=pointer
+ui_wr_p39b_msaa_anim: event #68 type=pointer
+ui_wr_p39b_msaa_anim: event #69 type=pointer
+ui_wr_p39b_msaa_anim: event #70 type=pointer
+ui_wr_p39b_msaa_anim: event #71 type=pointer
+ui_wr_p39b_msaa_anim: event #72 type=pointer
+ui_wr_p39b_msaa_anim: event #73 type=pointer
+ui_wr_p39b_msaa_anim: event #74 type=pointer
+ui_wr_p39b_msaa_anim: event #75 type=pointer
+ui_wr_p39b_msaa_anim: event #76 type=pointer
+ui_wr_p39b_msaa_anim: event #77 type=pointer
+ui_wr_p39b_msaa_anim: event #78 type=pointer
+ui_wr_p39b_msaa_anim: event #79 type=pointer
+ui_wr_p39b_msaa_anim: event #80 type=pointer
+ui_wr_p39b_msaa_anim: event #81 type=pointer
+ui_wr_p39b_msaa_anim: event #82 type=pointer
+ui_wr_p39b_msaa_anim: event #83 type=pointer
+ui_wr_p39b_msaa_anim: event #84 type=pointer
+ui_wr_p39b_msaa_anim: event #85 type=pointer
+ui_wr_p39b_msaa_anim: event #86 type=focus
+snapshot: examples/ui_wr_p39b_msaa_anim/testdata/p39b_anim_final.png
+ui_wr_p39b_msaa_anim: logic scene_primitives         ok=true primitives=138828 (want >60)
+ui_wr_p39b_msaa_anim: logic mesh_triangles           ok=true mesh tris=78778
+ui_wr_p39b_msaa_anim: logic msaa_setting             ok=true requested=1 effective=1
+ui_wr_p39b_msaa_anim: logic device_surface_bytes     ok=true bytes=62840480
+ui_wr_p39b_msaa_anim: logic phase_advanced           ok=true mode=measure advancing=true lastPhase(x1000)=18391 freeze=false break=""
+ui_wr_p39b_msaa_anim: logic window_not_black         ok=true nonblack=23504/23504 (want >10%)
+ui_wr_p39b_msaa_anim: OK mode=measure msaa=1x backend=native res=1920x1080 presents=1006 logic=6/6 golden=0.0000% seeded=false surface=62840480B elapsed=18.7s

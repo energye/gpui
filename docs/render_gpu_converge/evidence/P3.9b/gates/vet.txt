@@ -1,0 +1,2 @@
+CMD: go vet ./examples/ui_wr_p39b_msaa_anim
+EXIT=0

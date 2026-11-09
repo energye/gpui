@@ -1,0 +1,10 @@
+=== [measure/native_msaa1] backend=native msaa=1 secs=18 mode=-measure extra= ===
+    exit=0 json_lines=1
+=== [measure/native_msaa4] backend=native msaa=4 secs=18 mode=-measure extra= ===
+    exit=0 json_lines=1
+=== [measure/go_msaa1] backend=go msaa=1 secs=18 mode=-measure extra= ===
+    exit=0 json_lines=1
+=== [measure/go_msaa4_invalid] backend=go msaa=4 secs=18 mode=-measure extra= ===
+    exit=1 json_lines=1
+    go4x INVALID (expected RED), recorded
+=== DONE stage=measure rounds=4 rc=0 ===
