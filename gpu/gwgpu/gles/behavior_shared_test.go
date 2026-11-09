@@ -95,11 +95,12 @@ func TestH4B3_GlesUnmapIdempotent(t *testing.T) {
 func TestH4B3_GlesDeviceLostErrorScopeStubs(t *testing.T) {
 	d := &Device{}
 
-	// GL 暂无设备丢失跟踪与错误作用域捕获：恒 false/nil。
-	// 对照 webgpu：IsLost 走底层库状态，Push/Pop 进出真实错误作用域。
-	if d.IsLost() {
-		t.Fatal("IsLost() = true, want false (no device-lost tracking on GL)")
-	}
+	// 错误作用域恒不捕获（GL 无此能力）；对照 webgpu：Push/Pop 进出真实
+	// 错误作用域。IsLost 的具体值不再在此共享测试里硬断言：J5 campaign 后
+	// Linux 端按 lost/nil-ctx 报告（让 ensureGPU 重建已释放设备，见
+	// device_linux.go 的 IsLost），Windows 端仍恒 false（device.go）。两端
+	// 分歧由平台专有钉测各自锁住，共享测试只保证该调用不 panic。
+	_ = d.IsLost()
 	if got := d.Poll(hal.PollPoll); !got {
 		t.Fatal("Poll(PollPoll) = false, want true (synchronous backend)")
 	}

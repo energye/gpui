@@ -172,6 +172,7 @@
 ## 参考成熟框架设计与实现
 
 - /home/yanghy/app/projects/gogpu/flutter
+- /home/yanghy/app/projects/gogpu/skia
 
 ## 参考kit组件成熟框架设计与实现
 

@@ -1,7 +1,7 @@
 # P3.8 批②（精度批）挂起登记：acc=6 虚线圆单行内填 + 图像 2× 上采样差距
 
 - 日期：2026-11-09
-- 状态：**引擎修复已就位并自测绿；acc=6 全局启用按用户决定暂挂（生产回 acc=2 默认）**。
+- 状态：**引擎修复已就位并自测绿；单行内填已修（2026-11-09）；acc=6 全局启用仍按用户决定暂挂（生产回 acc=2 默认）**。
 - 触发：用户在真窗 `go run ./examples/ui_wr_p38_svg_showcase` 人工复验，报两处与
   resvg 参照不一致：① ②⑱ 蓝虚线圆「粗」、⑭ 蓝虚线×2；② ⑧ 橙色 logo（外链图）轮廓锯齿。
 
@@ -15,10 +15,10 @@
    BottomY 规则数学恒等**（LowerY/65536 ≡ (LastY+1)/aaScale），逐位不变。
 
 钉测 `render/internal/raster/pixel_accuracy_chord_test.go`：CrossingFan 双 acc PASS；
-DenseShortEdges acc=6 avg 1.001 / max 51 / over8 116（acc=2 为 1.016 / 62 / 170，作护栏）。
+DenseShortEdges acc=6 avg 1.001 / max 51 / over8 116（acc=2 为 1.016 / 62 / 170，作护栏）；**2026-11-09 短边修复后 acc=6 为 avg 0.388 / max 36 / over8 44，acc=2 不变**。
 `./render/internal/raster/`、`./render/svg/` 全绿。
 
-## 1. 挂起问题 A：acc=6 虚线圆「单行内填」（真·acc=6 回归）
+## 1. 已修复问题 A（2026-11-09）：acc=6 虚线圆「单行内填」（真·acc=6 回归）
 
 - 现象：acc=6 时，虚线圆（`<circle cx=540 cy=520 r=46 stroke-width=6 stroke-dasharray="30 14"
   stroke-linecap=round>`）在**恰好一行**把圆内部整条填满（输出 y=284，蓝连续 273→327，55px）；
@@ -37,6 +37,30 @@ DenseShortEdges acc=6 avg 1.001 / max 51 / over8 116（acc=2 为 1.016 / 62 / 17
   4e #2「延迟边 UpperY 入条带边界」。→ 指向「虚线描边轮廓（stroke outline）× 解析填充」
   在 acc=6 的更深处（疑点：`processSubStripIncremental` 无 `edges_too_close` 合并、
   近竖直/近切点边在 1/64 吸附下的配对次序）。**下一步需在隔离的最小虚线圆上逐条带 trace。**
+  > 上述「指向 filler」的疑点已被后续 trace 推翻：真正的洞在**边的入口**，见下节修复记录。
+
+### 修复记录（2026-11-09，终态）
+
+- 真因：`NewLineEdgeWithAccuracy` 用 `top == bottom`（`FDot6Round` 后同一子像素行）当
+  「水平线」跳过。虚线圆的 round-cap 轮廓里有一条很短、很陡的 cap 边
+  （设备 y≈284.668→284.835，|DX|≈9.9）；两端 `FDot6Round` 都落到 1139，被整条丢掉。
+  该行本来有 4 个轮廓交点（外左 -1、内左 +1、cap 内 -1、cap 内 +1），丢掉 cap 的 +1 后
+  只剩 3 个，winding 永远不回零，filler 把外左与外右配成一条横跨圆内的梯形 →
+  y=284 一行 55px 连片。实线圆同理，只是命中行在 y=281。
+- 为什么只在 acc=6 可见：acc=2 的像素空间吸附更粗，丢掉这条短边后 winding 序列仍能在
+  外/内边处回零（视觉正确）；acc=6 的 1/64 吸附把 cap 边与 inner 边分开，缺边才暴露。
+- 修法：只把**真正水平**（`y0 == y1`）的线判为退化；`top == bottom` 但 `y0 != y1` 的短陡边
+  在细精度下保留，`LastY = top` 给 AET 一个子像素行的生命周期（filler 用精确的像素空间
+  `UpperY/LowerY` 284.668..284.835）。**acc=2 仍走旧跳过分支**，保持生产逐位不变。
+- 验证：
+  - 隔离红测 `render/p38_acc6_stroke_inner_fill_test.go`（虚线 y=284/289、实线 y=281，
+    断言圆内 x=290..310 alpha≤8）：修前红、修后绿。
+  - acc=2 逐位：同一虚线/实线圆的 SHA256 修前修后完全一致
+    （`6d6719…` / `1922c4…`）。
+  - `render/internal/raster` 全绿；`DenseShortEdges` acc=6 从 avg 1.001 / over8 116
+    改善到 **0.388 / 44**，acc=2 护栏保持 1.016 / 170。
+  - `render/svg` 全绿；showcase 金图 `diff=0.0000%`（acc=2 生产不变）。
+  - 全量 `./render` 的已知单跑红名单不变（acc=6 修复不触碰 acc=2 路径）。
 
 ## 2. 已修复：图像 ⑧ 上采样锯齿（CPU bilinear 被丢弃 → nearest）
 

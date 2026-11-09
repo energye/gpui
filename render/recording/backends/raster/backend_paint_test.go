@@ -125,11 +125,19 @@ func TestPlaybackSaveRestoreClip(t *testing.T) {
 
 // TestPlaybackDrawImage pins source-aware image playback. The old backend only
 // emitted an unfilled rectangle, so every sample stayed transparent.
+//
+// Interpolation is pinned to nearest on purpose: the source is an 8x8 four-
+// colour quadrant map scaled up 4x, and the samples sit near a quadrant edge.
+// Since bbf04c4b the default is real bilinear (applyDeviceSpaceBrush used to
+// drop the mode and silently force nearest), which blends across that edge and
+// would break the pure-colour assertions below. The default bilinear behaviour
+// has its own case, TestPlaybackDrawImageBilinear.
 func TestPlaybackDrawImage(t *testing.T) {
 	img := loadTestImage(t)
 	rec := recording.NewRecorder(80, 80)
 	rec.DrawImageEx(render.ImageBufFromImage(img), render.DrawImageOptions{
 		X: 10, Y: 10, DstWidth: 32, DstHeight: 32,
+		Interpolation: render.InterpNearest,
 	})
 	out := playbackRGBA(t, rec.FinishRecording())
 
@@ -144,6 +152,31 @@ func TestPlaybackDrawImage(t *testing.T) {
 	}
 	if !pixelIs(out, 26, 26, render.RGBA{R: 1, G: 1, B: 1, A: 1}, 24) {
 		t.Fatalf("bottom-right = %v, want white", out.RGBAAt(26, 26))
+	}
+}
+
+// TestPlaybackDrawImageBilinear pins the default InterpBilinear path (bbf04c4b
+// restored real bilinear sampling; before that applyDeviceSpaceBrush dropped
+// the mode and forced nearest). At a 4x upscale, the sample at (26,14) lands
+// at source x≈3.625, blending the red and green quadrants ≈(95,159,0), while
+// a quadrant centre like (14,14) stays pure red. Pinning both keeps the
+// nearest case above honest and catches a silent regression back to nearest.
+func TestPlaybackDrawImageBilinear(t *testing.T) {
+	img := loadTestImage(t)
+	rec := recording.NewRecorder(80, 80)
+	rec.DrawImageEx(render.ImageBufFromImage(img), render.DrawImageOptions{
+		X: 10, Y: 10, DstWidth: 32, DstHeight: 32,
+		Interpolation: render.InterpBilinear,
+	})
+	out := playbackRGBA(t, rec.FinishRecording())
+
+	if !pixelIs(out, 14, 14, render.RGBA{R: 1, A: 1}, 24) {
+		t.Fatalf("bilinear quadrant centre = %v, want red", out.RGBAAt(14, 14))
+	}
+	// 0.375 red + 0.625 green ≈ (95,159,0).
+	want := render.RGBA{R: 95.0 / 255, G: 159.0 / 255, A: 1}
+	if !pixelIs(out, 26, 14, want, 4) {
+		t.Fatalf("bilinear quadrant boundary = %v, want ≈(95,159,0)", out.RGBAAt(26, 14))
 	}
 }
 

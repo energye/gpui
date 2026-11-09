@@ -176,9 +176,26 @@ func NewLineEdgeWithAccuracy(p0, p1 CurvePoint, shift int, accuracy int32) (Line
 	top := FDot6Round(y0)
 	bottom := FDot6Round(y1)
 
-	// Skip zero-height lines (horizontal)
-	if top == bottom {
+	// Skip truly horizontal lines. A very short steep segment can round both
+	// endpoints to the same sub-pixel row (top == bottom). At the default
+	// accuracy the old skip is part of the production/Skia bitwise baseline
+	// (acc=2 golden network), so keep it; at fine accuracy (acc=6) dropping it
+	// unbalances the stroke-contour winding and fills the whole chord for one
+	// row (batch ② single-row inner fill). Keep it there with one sub-pixel
+	// row of AET lifetime; the filler uses the precise pixel-space
+	// UpperY/LowerY (e.g. 284.668..284.835).
+	if y0 == y1 {
 		return LineEdge{}, false
+	}
+	lastY := bottom - 1
+	if top == bottom {
+		if accuracy <= DefaultPixelAccuracy {
+			return LineEdge{}, false
+		}
+		lastY = top
+	}
+	if lastY < top {
+		lastY = top
 	}
 
 	slope := FDot6Div(x1-x0, y1-y0)
@@ -223,7 +240,7 @@ func NewLineEdgeWithAccuracy(p0, p1 CurvePoint, shift int, accuracy int32) (Line
 		X:       FDot6ToFDot16(x0 + FDot16Mul(slope, dy)),
 		DX:      slope,
 		FirstY:  top,
-		LastY:   bottom - 1,
+		LastY:   lastY,
 		UpperY:  pxY0,
 		LowerY:  pxY1,
 		UpperX:  pxX0,

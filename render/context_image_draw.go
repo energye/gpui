@@ -11,6 +11,7 @@
 package render
 
 import (
+	"image"
 	"math"
 
 	intImage "github.com/energye/gpui/render/internal/image"
@@ -130,6 +131,29 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	// (textured_quad_bicubic.wgsl, Catmull-Rom kernel matching the CPU path);
 	// GPU failure falls back to the CPU bicubic samplers below.
 	if c.tryGPUDrawImage(img, opts, srcX, srcY, srcW, srcH, dstWidth, dstHeight) {
+		// The textured-quad path queues the draw directly and returns without
+		// going through Fill() — Fill() is where CPU image draws register their
+		// damage (context_draw.go: c.trackDamage(c.path.Bounds())). Register the
+		// equivalent CTM-mapped AABB here, otherwise incremental present never
+		// marks the GPU-drawn region dirty (video bridge / direct frame draws
+		// reported "left no damage" with a GPU session active).
+		ctm := c.totalMatrix()
+		corners := [4]Point{
+			ctm.TransformPoint(Pt(opts.X, opts.Y)),
+			ctm.TransformPoint(Pt(opts.X+dstWidth, opts.Y)),
+			ctm.TransformPoint(Pt(opts.X+dstWidth, opts.Y+dstHeight)),
+			ctm.TransformPoint(Pt(opts.X, opts.Y+dstHeight)),
+		}
+		minX, minY := corners[0].X, corners[0].Y
+		maxX, maxY := minX, minY
+		for _, p := range corners[1:] {
+			minX, maxX = math.Min(minX, p.X), math.Max(maxX, p.X)
+			minY, maxY = math.Min(minY, p.Y), math.Max(maxY, p.Y)
+		}
+		c.trackDamage(image.Rect(
+			int(math.Floor(minX)), int(math.Floor(minY)),
+			int(math.Ceil(maxX)), int(math.Ceil(maxY)),
+		))
 		return
 	}
 	// P3.7 批 3b：材质无 CPU 求值器（P3.2 契约）——GPU 路没接走的材质绘制在此
