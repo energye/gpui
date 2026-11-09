@@ -42,7 +42,10 @@ func RenderWithColor(data []byte, width, height int, c color.Color) (*image.RGBA
 // Render renders the document to an RGBA image at the specified size.
 // The SVG viewBox is scaled to fit the target dimensions.
 func (d *Document) Render(width, height int) *image.RGBA {
-	dc := render.NewContext(width, height)
+	// 批 4f：SVG 烘焙是离屏 CPU 场景——WithCPUOnly 钉死软件光栅化（含
+	// CPU SDF 解析覆盖），烘焙结果不再随进程的 GPU 会话漂移（窗口进程与
+	// 纯 CPU 进程的烘焙逐位一致，conformance/resvg 对比结论对生产生效）。
+	dc := render.NewContext(width, height, render.WithCPUOnly())
 	defer dc.Close()
 	d.RenderTo(dc, 0, 0, float64(width), float64(height))
 	return dc.Image().(*image.RGBA)

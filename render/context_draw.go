@@ -291,11 +291,14 @@ func (c *Context) doFillUnprojected() error {
 	} else if _, isSW := c.renderer.(*SoftwareRenderer); !isSW {
 		// Custom Renderer DI: never intercept with the global GPU accelerator.
 		ok, cpuMode = false, mode
-	} else if CPUOnlyMode() {
+	} else if CPUOnlyMode() || c.cpuOnly {
 		// GOGPU_RENDER_MODE=cpu: route shapes to the CPU rasterizer so the
 		// window present can upload the pixmap without the GPU session
 		// (window presents depend on the GPU session, which may fail on
-		// CPU-only setups — black window).
+		// CPU-only setups — black window). c.cpuOnly（WithCPUOnly，注释见
+		// context.go）：离屏 CPU 场景（svg 烘焙/color glyph 等）同规则钉死
+		// 软件光栅化——调查批 4f：此前只查全局环境变量，cpuOnly Context 的
+		// Fill/Stroke 仍被全局 accelerator 接单，烘焙质量随 GPU 会话漂移。
 		ok, cpuMode = false, mode
 	} else {
 		ok, cpuMode = c.tryGPUFillWithMode(mode)

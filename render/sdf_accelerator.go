@@ -220,11 +220,8 @@ func (a *SDFAccelerator) fillEllipseSDF(target GPURenderTarget, shape DetectedSh
 
 	for py := minY; py <= maxY; py++ {
 		for px := minX; px <= maxX; px++ {
-			// Scale to unit circle space.
-			dx := (float64(px) + 0.5 - cx) / rx
-			dy := (float64(py) + 0.5 - cy) / ry
-			dist := math.Sqrt(dx*dx+dy*dy)*math.Min(rx, ry) - math.Min(rx, ry)
-			coverage := smoothstepCoverage(dist)
+			// 批 4f 根修：解析行积分（切线区过渡不再被 smoothstep 陡化）。
+			coverage := SDFFilledEllipseCoverage(float64(px)+0.5, float64(py)+0.5, cx, cy, rx, ry)
 			if coverage > 0 {
 				blendPixel(target, px, py, color, coverage, paint)
 			}
