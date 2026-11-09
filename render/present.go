@@ -93,7 +93,9 @@ func preparePresent(c *Context, view gpucontext.TextureView, width, height uint3
 //	    return swapchain.EndFrame(frame)
 //	})
 //
-// Offscreen paths may pass a no-op present after FlushGPUWithView semantics.
+// Offscreen paths must pass a nil present: the view stays readable for
+// Image/SavePNG readback. A non-nil callback is a real swapchain present
+// (EndFrame releases the surface view), so view tracking is cleared.
 func (c *Context) PresentFrame(view gpucontext.TextureView, width, height uint32, present func() error) error {
 	if err := preparePresent(c, view, width, height); err != nil {
 		return err

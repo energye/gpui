@@ -77,7 +77,14 @@ func TestPresentDamage_ImageMatchesView(t *testing.T) {
 	}
 	defer rel()
 	rects := []image.Rectangle{image.Rect(30, 30, 80, 60)}
-	if err := dc.PresentFrameDamageRects(view, uint32(w), uint32(h), rects, func() error { return nil }); err != nil {
+	// A nil present is the offscreen/no-op contract: presentAfterFlush keeps
+	// the view readable and marks viewContentAheadOfPixmap, so Image() syncs
+	// the just-presented GPU content back into the pixmap. A NON-nil callback
+	// means a real swapchain present (EndFrame releases the surface view),
+	// where tracking must be cleared to avoid sampling a freed view — this
+	// offscreen regression must pass nil or Image() legitimately returns the
+	// pre-present (white) pixmap.
+	if err := dc.PresentFrameDamageRects(view, uint32(w), uint32(h), rects, nil); err != nil {
 		t.Fatalf("present: %v", err)
 	}
 	r, g, b, a := p1Sample(dc, 50, 45)
