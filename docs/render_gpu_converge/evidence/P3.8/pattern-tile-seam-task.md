@@ -1,8 +1,15 @@
 # 专项任务：SVG <pattern> 平铺格边竖缝（tilePatt 混合单位）
 
 - 立项：2026-11-09（自 P3.8 批② 收口时拆出，独立专项）
-- 状态：**立项 / 未修复**（本会话多次 contained 尝试均失败并回退，代码已恢复到已提交态）
+- 状态：**已修复（2026-11-09，终态见文末「修复记录」）**；立项时「位图平铺必然留缝」的结论已勘误
 - 归属：render/svg pattern 渲染（pattern 填充机制）
+
+> **勘误（2026-11-09 修复时实测）**：立项时的根因判断（tile 位图左右边缘内容不连续 →
+> 任何「烤位图再平铺」都必然现缝）**不成立**。同一 `doc.Render` 在纯 CPU 进程里
+> 570×357 与 1024×640 都完全无缝；把这些「位图家族 7 变体」逐个复核，它们全都仍在
+> **同一个未钉 CPU 的 tile 离屏 Context** 里光栅化，所以「全部残留」是实验混淆，不是
+> 机制必然。真正根因见文末「修复记录」：窗口进程里 tile 被 GPU 光栅化，画布左边缘
+> AA 覆盖只有 236/255（列 0 半透明），平铺采样到该列即每格一条暗缝。原文保留作历史。
 
 ## 现象
 showcase 最下面 `<rect x=680 y=555 w=320 h=70 fill=url(#tilePatt) stroke=#9aa4b0>` 的
@@ -42,3 +49,48 @@ showcase 最下面 `<rect x=680 y=555 w=320 h=70 fill=url(#tilePatt) stroke=#9aa
 - 真窗：`go run ./examples/ui_wr_p38_svg_showcase`（左 ours / 右 resvg）。
 - 定量：渲染 `doc.Render(570,357)`，裁设备区 x≈378–557/y≈309–349，检测绿带内「比左右邻列暗>20」
   的列（周期性即格边缝）；对照 `testdata/showcase_ref.png`。
+
+---
+
+## 修复记录（2026-11-09，终态）
+
+### 真因（决定性，GPU 设备实测）
+
+- pattern tile 的离屏 Context 建在 `render/svg/gradient.go`：`render.NewContext(tw, th)`，
+  **没有** `render.WithCPUOnly()`。`Document.Render` 的根 Context 是 CPUOnly，但子上下文
+  不继承，于是：
+  - 纯 CPU 进程（`render/svg` 普通单测）：无 GPU 加速器 → tile 走 CPU → 无缝（离线假绿）。
+  - 窗口进程（`render/gpu` 已注册 + 设备可用）：tile 被 GPU 光栅化，画布左边缘 AA 覆盖
+    实测 **alpha=236/255**（列 0），绿色带里该列 = 85% 绿 + 15% 暗底 → 一条暗缝。
+  - 570×357（scale≈0.5566）时采样相位使缝只落在部分格首（设备 x=416/443/523/550）；
+    1024×640（scale=1）时每 48px 一格全命中（x=700/748/…/988）。
+- 与 pattern 内容、tile 分辨率、周期取整、bilinear/wrap 均无关；把 tile 位图换成哪种
+  尺寸都留缝，因为缝来自「tile 位图本身列 0 的 alpha」。
+
+### 修法
+
+1. 新增 `render/svg/offscreen.go`：`newSVGOffscreen(w,h)` = `render.NewContext(w,h,
+   render.WithCPUOnly())`。SVG 内部全部离屏（pattern tile / mask / filter / text /
+   RenderWithColor）统一走它，保证「窗口内烘焙 == 离线烘焙」逐位一致。
+2. `render/filter_ops_gpu.go` 的 `tryApplyFilterGraphGPU` 补
+   `if CPUOnlyMode() || c.cpuOnly { return false }`：CPUOnly 离屏的滤镜不能再挂 GPU
+   滤镜图（pixmap 未上传，GPU 结果回贴后滤镜等于没应用）。与 4f/批② doFill/doStroke
+   的 cpuOnly 门同类。
+
+### 验证（禁用 mean）
+
+- 隔离红测 `render/svg/p38_pattern_seam_test.go::TestP38PatternTileSeamGPU`（需
+  `WGPU_NATIVE_PATH`，无设备 skip）：
+  - 修复前红：570×357 `[416 443 523]`、1024×640 `[700 748 … 988]`；
+  - 修复后绿：两档零列。
+- 真窗像素探针 `pixel_pattern_no_seam`（showcase 快照绿带逐列比左右邻列）：
+  修复前快照有 4 条暗列，修复后 PASS（pixel 11/11）。
+- 真窗快照格边列差分：570 绿带 ours `[]`、ref `[]`；两次窗口运行快照逐位一致。
+- `./render/svg` 全量绿（含 WGPU 设备可用档）；`render` 滤镜定向回归绿。
+
+### 影响面
+
+- 所有 SVG 内部离屏统一 CPU：窗口内 SVG 烘焙结果与离线/conformance/resvg 对拍同源，
+  不再随 GPU 会话漂移。滤镜/mask 边界细节随之改为离线基线（金图需重种）。
+- 性能：SVG 只烘焙一次；窗口启动路径无逐帧成本。
+- 公开 API 零变化（`newSVGOffscreen` 未导出），`RENDER_API_CATALOG.md` 无需改。

@@ -310,7 +310,7 @@ func main() {
 			"slope_gate":             "off",
 			"apis":                   "svg.ParseWithConfig,svg.ParseConfig.ResourcesDir,svg.Document.Render,DrawImageEx,ImageBufFromImage,ImageBufFromStdImage",
 			"panels":                 "ours+reference",
-			"bake_size":              "1024x640 (1:1)",
+			"bake_size":              "570x357 (1:1)",
 			"logic_pass":             logicPass,
 			"logic_probes_ok":        len(logicProbes) - len(logicFailed),
 			"logic_probes_total":     len(logicProbes),

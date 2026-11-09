@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="640" viewBox="0 0 1024 640">
+  <!-- P3.8 批② tilePatt 竖缝隔离样本：patternUnits=userSpaceOnUse tile 48×48 +
+       patternContentUnits=objectBoundingBox（四象限按被填 rect bbox 缩放）。
+       窗口（GPU 会话活跃）里 tile 离屏 Context 若被 GPU 光栅化，格首列 AA 覆盖
+       不足 → 每 26.7 设备 px 一条暗竖缝；resvg 参照无缝。 -->
+  <defs>
+    <pattern id="tilePatt" patternUnits="userSpaceOnUse" x="700" y="430" width="48" height="48"
+             patternContentUnits="objectBoundingBox">
+      <rect x="0" y="0" width="0.5" height="0.5" fill="#2c3542"/>
+      <rect x="0.5" y="0" width="0.5" height="0.5" fill="#e2b84a"/>
+      <rect x="0" y="0.5" width="0.5" height="0.5" fill="#3ccf7a"/>
+      <rect x="0.5" y="0.5" width="0.5" height="0.5" fill="#20272f"/>
+    </pattern>
+  </defs>
+  <rect x="680" y="555" width="320" height="70" fill="url(#tilePatt)"/>
+</svg>

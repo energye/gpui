@@ -205,7 +205,7 @@ func renderMasked(dc *render.Context, elem Element, a *Attrs, id string, parent 
 	}
 
 	// Offscreen A: mask content (luminance source).
-	ca := render.NewContext(int(rw), int(rh))
+	ca := newSVGOffscreen(int(rw), int(rh))
 	defer ca.Close()
 	ca.Translate(-rx, -ry)
 	maskProps := evalProps(parent, m.Attrs, st.doc)
@@ -219,7 +219,7 @@ func renderMasked(dc *render.Context, elem Element, a *Attrs, id string, parent 
 	}
 
 	// Offscreen B: the element content (clip and its own rendering inside).
-	cb := render.NewContext(int(rw), int(rh))
+	cb := newSVGOffscreen(int(rw), int(rh))
 	defer cb.Close()
 	cb.Translate(-rx, -ry)
 	childSt := *st

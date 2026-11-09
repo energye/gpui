@@ -54,7 +54,7 @@ func (d *Document) Render(width, height int) *image.RGBA {
 // RenderWithColor renders the document with all fill and stroke colors
 // replaced by the given color. Colors set to "none" are preserved.
 func (d *Document) RenderWithColor(width, height int, c color.Color) *image.RGBA {
-	dc := render.NewContext(width, height)
+	dc := newSVGOffscreen(width, height)
 	defer dc.Close()
 	d.RenderToWithColor(dc, 0, 0, float64(width), float64(height), c)
 	return dc.Image().(*image.RGBA)

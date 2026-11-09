@@ -220,6 +220,6 @@ func buildSVGScene(shell *wrkit.ShellChrome) {
 			panelAt[i][0], panelAt[i][1]-20)
 	}
 
-	panel(0, "本引擎渲染 (1024×640 → 570×356 缩放显示)", false)
+	panel(0, "本引擎渲染 (570×357 1:1)", false)
 	panel(1, "resvg 0.42 参照 (同文件 Ahem 钉死)", true)
 }

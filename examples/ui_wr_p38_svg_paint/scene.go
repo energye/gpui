@@ -97,11 +97,13 @@ const maskSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="344" height="252
 const patternImageSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="344" height="252" viewBox="0 0 344 252">
   <rect x="0" y="0" width="344" height="252" fill="#171a20"/>
   <defs>
+    <!-- 内容坐标按 tile 原点归零（x/y=10/16 只定义 tile 摆放；旧样本把内容也写成
+         10/16..26/32，整块落在 16×16 tile 外，resvg 同样是空白——P3.8 批②归因）。 -->
     <pattern id="chk" patternUnits="userSpaceOnUse" x="10" y="16" width="16" height="16">
-      <rect x="10" y="16" width="8" height="8" fill="#e24a4a"/>
-      <rect x="18" y="16" width="8" height="8" fill="#171a20"/>
-      <rect x="10" y="24" width="8" height="8" fill="#171a20"/>
-      <rect x="18" y="24" width="8" height="8" fill="#4a90e2"/>
+      <rect x="0" y="0" width="8" height="8" fill="#e24a4a"/>
+      <rect x="8" y="0" width="8" height="8" fill="#171a20"/>
+      <rect x="0" y="8" width="8" height="8" fill="#171a20"/>
+      <rect x="8" y="8" width="8" height="8" fill="#4a90e2"/>
     </pattern>
   </defs>
   <rect x="10" y="16" width="324" height="120" fill="url(#chk)"/>

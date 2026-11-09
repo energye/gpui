@@ -32,6 +32,12 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 	if c == nil || c.pixmap == nil || len(nodes) == 0 {
 		return false
 	}
+	// WithCPUOnly 契约：整条链只走软件光栅。与 doFill/doStroke 的 c.cpuOnly
+	// 门同类——CPUOnly 离屏（SVG 烘焙的 tile/mask/filter 腿）不能把滤镜图
+	// 交给 GPU：pixmap 从未上传，GPU 结果回贴后滤镜等于没应用。
+	if CPUOnlyMode() || c.cpuOnly {
+		return false
+	}
 	if gpuFilterGraphApplyTexture == nil && gpuFilterGraphApply == nil {
 		return false
 	}

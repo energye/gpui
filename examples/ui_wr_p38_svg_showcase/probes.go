@@ -68,6 +68,7 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 		"pixel_pattern_tile", "pixel_header_dark",
 		"pixel_chip_red", "pixel_chip_green", "pixel_band_top",
 		"pixel_title_grad", "pixel_body_text",
+		"pixel_pattern_no_seam",
 	}
 	if img == nil {
 		for _, k := range keys {
@@ -140,5 +141,52 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 	add("pixel_body_text", okB && gotB[0] > 0.6 && gotB[1] > 0.6 && gotB[2] > 0.6,
 		fmt.Sprintf("got=%v want light body text", gotB))
 
+	// pattern 格边竖缝（P3.8 批②）：tilePatt 绿带（rect 680,555 320×70 在
+	// 570×357 1:1 烘焙里的设备行 313..319）逐列与左右邻列比；tile 首列若被
+	// 半透明 AA 边污染会出现周期性暗列（修复前设备 x≈416,443,523,550）。
+	// 判据与隔离测 TestP38PatternTileSeamGPU 同：列和均值暗 >20/行。
+	seamOK, seamDetail := patternSeamFree(img, bx+panelAt[0][0], by+panelAt[0][1], dpr)
+	add("pixel_pattern_no_seam", seamOK, seamDetail)
+
 	return out
+}
+
+// patternSeamFree scans the tiled green band in the OUR panel for periodic
+// darker columns (tile-boundary seams). Coordinates are bake-image device
+// pixels inside the 570×357 panel; (ox, oy) is the panel image origin in the
+// snapshot (logical), dpr the snapshot scale.
+func patternSeamFree(img image.Image, ox, oy, dpr float64) (bool, string) {
+	const (
+		imgX0, imgX1 = 385, 551
+		imgY0, imgY1 = 313, 319
+	)
+	b := img.Bounds()
+	colSum := func(x int) int {
+		s := 0
+		for y := imgY0; y <= imgY1; y++ {
+			px := int(math.Round((ox + float64(x)) * dpr))
+			py := int(math.Round((oy + float64(y)) * dpr))
+			if px < b.Min.X || px >= b.Max.X || py < b.Min.Y || py >= b.Max.Y {
+				return -1
+			}
+			r, g, bl, _ := img.At(px, py).RGBA()
+			s += int(r>>8) + int(g>>8) + int(bl>>8)
+		}
+		return s
+	}
+	rows := imgY1 - imgY0 + 1
+	var bad []int
+	for x := imgX0 + 1; x <= imgX1-1; x++ {
+		c, l, r := colSum(x), colSum(x-1), colSum(x+1)
+		if c < 0 || l < 0 || r < 0 {
+			return false, "sample outside snapshot"
+		}
+		if l-c > 20*rows && r-c > 20*rows {
+			bad = append(bad, x)
+		}
+	}
+	if len(bad) > 0 {
+		return false, fmt.Sprintf("periodic seam columns=%v (want none)", bad)
+	}
+	return true, fmt.Sprintf("no periodic seam over x=%d..%d", imgX0, imgX1)
 }

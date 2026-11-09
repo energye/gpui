@@ -583,7 +583,7 @@ func renderTextMasked(dc *render.Context, combined *render.Path, bbox render.Rec
 	if rw <= 0 || rh <= 0 {
 		return false
 	}
-	ca := render.NewContext(int(rw), int(rh))
+	ca := newSVGOffscreen(int(rw), int(rh))
 	defer ca.Close()
 	ca.Translate(-rx, -ry)
 	maskProps := evalProps(p, m.Attrs, st.doc)
@@ -594,7 +594,7 @@ func renderTextMasked(dc *render.Context, combined *render.Path, bbox render.Rec
 	if lm == nil {
 		return false
 	}
-	cb := render.NewContext(int(rw), int(rh))
+	cb := newSVGOffscreen(int(rw), int(rh))
 	defer cb.Close()
 	cb.Translate(-rx, -ry)
 	// Content leg: run the span's own paint (fill color/gradient) so the

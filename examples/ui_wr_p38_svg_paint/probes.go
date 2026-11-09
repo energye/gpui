@@ -198,7 +198,7 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 	check("pixel_grad_pad_left", 0, 12, 46, [3]float64{0.835, 0.341, 0.435})
 	check("pixel_grad_pad_right", 0, 330, 46, colBlue)
 	check("pixel_grad_rep_restart", 0, 92, 126, [3]float64{0.883, 0.30, 0.32})
-	check("pixel_grad_ref_mirror", 0, 110, 206, hex01("#8277cc"))
+	check("pixel_grad_ref_mirror", 0, 110, 206, hex01("#6d80bf")) // resvg 0.42 实测（4c-4 sRGB stop 插值后；旧 #8277cc 为旧插值口径）
 
 	// 卡 2：热点 (110,90) 近白；右下角 (330,240) 近黑。
 	check("pixel_radial_hot", 1, 110, 90, hex01("#ffffff"))

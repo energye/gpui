@@ -13,7 +13,7 @@ stroke-dasharray）——左面板本引擎 1:1 渲染，右面板 **resvg 0.42 
 
 - logic 4/4：解析零警告、参照就位、**网格 grade ≤ 24**（conformance close
   口径；作者时实测 8.15，掩码区域修复后自 11.28 下降）、双面板就位。
-- pixel 5/5：文档分数位颜色断言（hero 暖白环/badge 绿/mask 蓝/pattern 绿/头带暗）。
+- pixel 11/11：文档分数位颜色断言（hero 暖白环/badge 绿/mask 蓝/pattern 绿/头带暗/chips/反射带/标题渐变/正文）+ **pattern 格边竖缝列差分**（pixel_pattern_no_seam，逐列比左右邻列，周期暗列=FAIL）。
 - golden 0.0000%：native 种子 → native + go/GL 复验逐位一致。
 
 ## 参照再生成

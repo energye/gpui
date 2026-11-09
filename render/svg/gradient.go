@@ -696,7 +696,11 @@ func (d *Document) buildPatternBrushDepth(p *PatternElement, bbox render.Rect, r
 	if tw < 1 || th < 1 {
 		return nil, false
 	}
-	tc := render.NewContext(tw, th)
+	// 离屏 tile 必须与 Document.Render 一样钉 CPU 光栅：窗口进程里
+	// render/gpu 注册了加速器，不带 WithCPUOnly 时 tile 会被 GPU 光栅化，
+	// 画布左边缘 AA 覆盖不足（实测列 0 alpha=236/255），平铺采样到该列
+	// 即每格首列一条暗竖缝（P3.8 批② tilePatt 专项）。
+	tc := render.NewContext(tw, th, render.WithCPUOnly())
 	defer tc.Close()
 	// Tile content renders 1:1 in tile space (resvg render_pattern_pixmap:
 	// content with scale only — no translate by (x,y); the tile is the

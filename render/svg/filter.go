@@ -368,7 +368,7 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 		}
 	}
 	clipToSubRegion := func(buf *render.ImageBuf, sr subRegion) *render.ImageBuf {
-		cw := render.NewContext(rw, rh)
+		cw := newSVGOffscreen(rw, rh)
 		defer cw.Close()
 		cw.ClipRect(sr.x-regX, sr.y-regY, sr.w, sr.h)
 		cw.DrawImage(buf, 0, 0)
@@ -379,7 +379,7 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 
 	// SourceGraphic offscreen: content shifted so the filter region origin
 	// is the offscreen origin (blur/offset spills land inside the region).
-	src := render.NewContext(rw, rh)
+	src := newSVGOffscreen(rw, rh)
 	defer src.Close()
 	src.Translate(-regX, -regY)
 	fillAndStroke(src, a, p, st, bbox, func() {
@@ -405,9 +405,10 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 
 	last := ""
 	// applyTo runs `apply` on a fresh offscreen over the input image and
-	// returns the result as an ImageBuf (Apply* rides the GPU filter path).
+	// returns the result as an ImageBuf (Apply* rides the CPU filter path; the
+	// offscreen is CPUOnly, matching the deterministic Document.Render bake).
 	applyTo := func(buf *render.ImageBuf, apply func(*render.Context)) *render.ImageBuf {
-		work := render.NewContext(rw, rh)
+		work := newSVGOffscreen(rw, rh)
 		defer work.Close()
 		work.DrawImage(buf, 0, 0)
 		apply(work)
@@ -462,7 +463,7 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			})
 		case "feOffset":
 			dx, dy := offsetDeltas(fp)
-			w := render.NewContext(rw, rh)
+			w := newSVGOffscreen(rw, rh)
 			defer w.Close()
 			w.DrawImage(inBuf, dx, dy)
 			out = render.ImageBufFromImage(w.Image())
@@ -480,7 +481,7 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 					colStr = "" // nested inherit on <filter>: simplification → black
 				}
 			}
-			w := render.NewContext(rw, rh)
+			w := newSVGOffscreen(rw, rh)
 			defer w.Close()
 			col := colorFromHexOr(colStr, render.RGBA{A: 1}) // opaque black
 			w.SetRGBA(col.R, col.G, col.B, col.A*fp.FloodOpacity)
@@ -522,14 +523,14 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 				disposeAll(images)
 				return false
 			}
-			w := render.NewContext(rw, rh)
+			w := newSVGOffscreen(rw, rh)
 			defer w.Close()
 			w.DrawImage(in2Buf, 0, 0) // destination
 			opts := render.DrawImageOptions{X: 0, Y: 0, BlendMode: mode}
 			w.DrawImageEx(inBuf, opts) // source with blend
 			out = render.ImageBufFromImage(w.Image())
 		case "feMerge":
-			w := render.NewContext(rw, rh)
+			w := newSVGOffscreen(rw, rh)
 			defer w.Close()
 			for _, name := range fp.MergeNodes {
 				if name == "" {
@@ -572,7 +573,7 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			if !okC {
 				cell = full
 			}
-			w := render.NewContext(rw, rh)
+			w := newSVGOffscreen(rw, rh)
 			defer w.Close()
 			w.DrawImage(inBuf, 0, 0)
 			w.ApplyTile([4]float32{
@@ -615,7 +616,7 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			if spec && (fp.SpecularExponent < 1 || fp.SpecularExponent > 128) {
 				// resvg usvg: specularExponent outside [1,128] → dummy
 				// primitive → transparent output.
-				w := render.NewContext(rw, rh)
+				w := newSVGOffscreen(rw, rh)
 				defer w.Close()
 				out = render.ImageBufFromImage(w.Image())
 			} else {
@@ -650,7 +651,7 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 			// at (pixel + region_offset) / canvas scale; this engine's
 			// filter buffers are user-space 1:1 (region origin subtracted at
 			// setup), so the sample coordinate is pixel + region origin.
-			w := render.NewContext(rw, rh)
+			w := newSVGOffscreen(rw, rh)
 			defer w.Close()
 			w.ApplySVGTurbulence(turbulenceParams(fp, regX, regY, f.LinearRGB))
 			out = render.ImageBufFromImage(w.Image())
@@ -663,7 +664,7 @@ func (d *Document) renderFilterElement(dc *render.Context, combined *render.Path
 				// usvg convert_convolve_matrix → None → dummy primitive
 				// (transparent black flood): divisor≈0, target out of
 				// [0,order), or kernelMatrix count ≠ order_x·order_y.
-				w := render.NewContext(rw, rh)
+				w := newSVGOffscreen(rw, rh)
 				defer w.Close()
 				out = render.ImageBufFromImage(w.Image())
 			}
@@ -1031,7 +1032,7 @@ func lutApply(tab []uint8, v float32) float32 {
 // the subregion origin (resvg apply_image). Missing/invalid href → a
 // transparent image (resvg dummy-primitive stance).
 func (d *Document) renderFeImagePrimitive(rw, rh int, regX, regY float64, fp *FilterPrimitive, sr subRegion, st *renderState) *render.ImageBuf {
-	w := render.NewContext(rw, rh)
+	w := newSVGOffscreen(rw, rh)
 	defer w.Close()
 	if fp.Img != nil {
 		if buf := fp.Img.renderBuf(); buf != nil {

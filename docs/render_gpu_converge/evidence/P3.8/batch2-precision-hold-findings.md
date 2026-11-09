@@ -81,7 +81,7 @@ DenseShortEdges acc=6 avg 1.001 / max 51 / over8 116（acc=2 为 1.016 / 62 / 17
 - 实测：黄色「accent」设备 x-range ours **440–499 = ref 440–499**（此前 ours 515–559）；
   svg 包全绿；**金图会移**（含缩进的多行文本布局统一校正），需重种。
 
-## 5. 挂起（需重写 pattern 填充）：tilePatt 混合单位 pattern 的格边竖缝
+## 5. 已修复（2026-11-09）：tilePatt 格边竖缝 = tile 离屏被 GPU 光栅化
 
 - 现象：最下面 `<rect x=680 y=555 w=320 h=70 fill=url(#tilePatt)>` 两条绿带的**竖格边缝**：
   ours 每 ~26.7px 一条暗缝（tile 边界列），resvg 参照**无缝**。
@@ -97,7 +97,18 @@ DenseShortEdges acc=6 avg 1.001 / max 51 / over8 116（acc=2 为 1.016 / 62 / 17
 - 唯一修法（较大，独立任务）：pattern 填充从「tile 位图 + 用户 brush」改为
   「内容按**整数设备格**平铺渲染进设备尺寸离屏（整数偏移，无缝）→ 1:1 ImagePattern 填路径」。
   落点 `render/svg/gradient.go` + `render/svg/renderer.go` 填充/描边接线；影响所有 pattern + 金图。
-- 状态：**挂起**（本会话多次 contained 尝试均失败、已全部回退；按 B 登记，A 作独立任务）。
+
+> **勘误（2026-11-09）**：以上三条「必然留缝 / 架构做不到 / 唯一修法是重写填充」均为
+> 离线观察被 GPU 路径污染后的误判；纯 CPU 进程 570/1024 两档都无缝。真因是 tile 离屏
+> Context 未钉 CPU（见下），修法只需统一 CPUOnly，不需重写 pattern 填充机制。原文保留作历史。
+
+- 状态：**已修复（2026-11-09）**。真因纠正：不是「位图平铺必然留缝」——纯 CPU 进程
+  570/1024 两档都无缝；窗口进程里 tile 离屏 Context 没带 `render.WithCPUOnly`，
+  tile 被 GPU 光栅化后画布左边缘 AA 覆盖 alpha=236/255，平铺采样到 tile 首列即每格
+  一条暗缝。修法=SVG 内部离屏统一 `newSVGOffscreen`（WithCPUOnly）+
+  `tryApplyFilterGraphGPU` 补 cpuOnly 门；验证=GPU 设备隔离红测
+  `TestP38PatternTileSeamGPU`（红→绿）+ 真窗 `pixel_pattern_no_seam` + 快照列差分 0。
+  详见 `pattern-tile-seam-task.md` §修复记录。
 
 ## 复现
 
