@@ -74,8 +74,8 @@ func breakClip(r [4]float64) [4]float64 {
 // drawClippedFill clips (card-local, Push/Pop restores clip depth) and fills
 // the whole card with a solid color through the clip.
 func drawClippedFill(pc *rendering.PaintContext, r [4]float64, rr, gg, bb float64, rot float64) {
-	dc, ok := pc.LiveContext()
-	if !ok {
+	dc := pc.DC
+	if dc == nil {
 		return
 	}
 	dc.Push()
@@ -122,8 +122,8 @@ func paintCardC(pc *rendering.PaintContext, sz rendering.Size) {
 func paintCardD(pc *rendering.PaintContext, sz rendering.Size) {
 	cardOrigin[3] = render.Pt(pc.OriginX, pc.OriginY)
 	rendering.FillRect(pc, 0, 0, sz.Width, sz.Height, 1, 1, 1, 1)
-	dc, ok := pc.LiveContext()
-	if !ok {
+	dc := pc.DC
+	if dc == nil {
 		return
 	}
 	// Nested: fractional clip, then integer clip inside it.

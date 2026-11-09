@@ -74,11 +74,12 @@ func fillRuleFor(evenOdd bool) render.FillRule {
 }
 
 // clipAndFill builds clipPath, clips with rule, fills the whole card.
+// 画在 pc.DC（render.Canvas）上而不是 LiveContext()：live 帧走
+// recordFullFrame→presentRecordedFrame（录制回放），OnPaint 拿到的是录制画布，
+// LiveContext 断言 *render.Context 失败会静默跳过整卡内容（白卡根因）；
+// Canvas 接口在 live/录制两种画布上都可用，回放后引擎流与快照一致。
 func clipAndFill(pc *rendering.PaintContext, clipPath *render.Path, rule render.FillRule, rr, gg, bb float64) {
-	dc, ok := pc.LiveContext()
-	if !ok {
-		return
-	}
+	dc := pc.DC
 	dc.Push()
 	dc.Translate(pc.OriginX, pc.OriginY)
 	if breakMode != "noclip" { // 负向诊断：跳过 clip 看 fill 本体是否画
@@ -150,10 +151,7 @@ func paintCardD(pc *rendering.PaintContext, sz rendering.Size) {
 	cardOrigin[3] = render.Pt(pc.OriginX, pc.OriginY)
 	// Striped underlay: the even-odd hole must expose it.
 	rendering.FillRect(pc, 0, 0, sz.Width, sz.Height, 1, 1, 1, 1)
-	dc, ok := pc.LiveContext()
-	if !ok {
-		return
-	}
+	dc := pc.DC
 	dc.Push()
 	dc.Translate(pc.OriginX, pc.OriginY)
 	for y := 0.0; y < 300; y += 24 {
