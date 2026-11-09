@@ -14,13 +14,15 @@ import (
 )
 
 // Two side-by-side panels: our 1:1 bake of testdata/showcase.svg and the
-// resvg 0.42 reference PNG generated from the same file. Panel geometry
-// preserves the 1024×640 document aspect (scale 570/1024).
+// resvg 0.42 reference PNG generated from the same file.
+// 批 4g：烘焙分辨率=面板显示分辨率（570×356）——1:1 呈现零缩放采样，
+// 消除 1024→570 单级 bilinear 的共同混叠（两侧对称模糊）。参照由 resvg
+// 以同尺寸重出（--width 570 --height 356），两栏同口径。
 const (
 	panelW  = 570.0
-	panelH  = 356.0
-	docW    = 1024.0
-	docH    = 640.0
+	panelH  = 357.0
+	docW    = 570.0
+	docH    = 357.0
 	panelY0 = 70.0
 )
 

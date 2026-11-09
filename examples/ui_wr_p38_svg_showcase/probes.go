@@ -104,9 +104,11 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 		add(key, okc, fmt.Sprintf("got=%v want≈%v", got, want))
 	}
 
-	// hero 花冠内、暗色叠加路径之外的暖白区（径向 t≈0.15）。
+	// hero 花冠内、暗色叠加路径之外的暖白区（径向 t≈0.15）。批 4g：烘焙
+	// 改 1:1（570×357）后该分数点的渐变采样有亚像素差（B 0.556→0.549），
+	// 下界 0.55→0.54（仍排除暗色叠加路径）。
 	gotHero, okHero := read(0.234, 0.203)
-	add("pixel_hero_radial", okHero && gotHero[0] > 0.85 && gotHero[1] > 0.70 && gotHero[2] > 0.55 && gotHero[2] < 0.95,
+	add("pixel_hero_radial", okHero && gotHero[0] > 0.85 && gotHero[1] > 0.70 && gotHero[2] > 0.54 && gotHero[2] < 0.95,
 		fmt.Sprintf("got=%v want warm-white hero", gotHero))
 	// badge 绿（use 实例：徽章圆外的绿角）。
 	check("pixel_badge_green", 0.371, 0.178, [3]float64{0.235, 0.812, 0.478})
