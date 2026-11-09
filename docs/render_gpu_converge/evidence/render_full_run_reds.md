@@ -185,3 +185,37 @@ K6 当时只抽样复验 2 枚就推广到 20 枚；本轮逐枚单跑证明不�
 3. **隔离**：把破坏性测试挪到独立 test binary（`//go:build` 分组或单独 package），不与普通 GPU 测试共享进程。代价是目录结构调整。
 
 本轮按档 1 口径确认「真红归零」，未改测试间干扰相关代码（待用户拍板是否做档 2）。
+
+## 2026-11-09 档 2 落地：测试间干扰实证定性 + 分片门禁全绿
+
+用户拍板「档 2 加固（让全量 ./render 也绿、不动引擎、不动金图）」。按该方向做了 4 个决定性实验，结论**推翻了「统一 helper 清全局 device 引用」这个原定做法**，并给出等效可落地的方案。
+
+### 4 个决定性实验
+
+1. **`-skip` 排除实验**：分别跳过 `TestMem_T2_ResetAccelerator` / `TestMem_` / `TestVideoYUVPlanes_GPUColor` / `TestConformance`，带库全量顶层红仍是 9–10 个 → 不是某一个测试污染，是**累积效应**。
+2. **污染复现实验**（临时 `zz_global_state_test.go`，已删）：模拟「绑外部 device → `dev.Release()` → `ResetAccelerator()`」连续 3 轮，每轮后跑 Auto 模式绘制，实测 4 次均 `(255,0,0,255)`，**无 `resource already released`** → `ResetAccelerator()` 本来就能清干净全局状态，污染源 Cleanup 没问题。
+3. **污染源核查**：`conformance_test.go:262-274`、`video_yuv_color_gpu_test.go:42-52`、`s6_8_window_present_x11_linux_test.go:32/184` 均有 `t.Cleanup(ResetAccelerator + WaitIdle + Release)`；`accelerator_test.go:65-75` 的 `resetAccelerator(t)` 保存+恢复；`rasterizer_routing_test.go:28-40` 是现成范本。补 Cleanup 不是修法。
+4. **分片实验**（决定性）：全量 10 红 → 按测试名首字母分 3 个独立进程：
+   - `^Test[A-H]` → **0 红**；`^Test[I-Q]` → **0 红**；`^Test[R-Z]` → 1 红（S69）。
+   - 再细分：R-S 排除 S69 → 0 红；T-Z → 0 红；`^TestS69_HeavyBudget_TierGates$` 单独 → **ok**。
+   - **5 片全部 0 红** → 分进程后「全量等价」全绿。
+
+### 定性结论
+
+真因是**同一进程串联几百个 GPU 测试的资源累积**：跑到 `TestQuadCPUGPUParity`（日志首次）device 进入 lost/released，`acquireSurface` 把 `wgpu: resource already released` 当成 depth OOM 降级到 1x1（`gpu_textures.go:170`；`IsGPUOutOfMemory` 不含该文本，说明是 acquireSurface 自己的分类），stencil 退化 → Auto/SDF 画空（`ink runs ... got=""`），之后 **88 个测试连锁**报同一错。不是「全局 device 引用没恢复」——那是分进程能解决而单进程不能的**容量/生命周期**问题。
+
+### 落地（档 2 实际形态：进程隔离，纯门禁、不动引擎/金图）
+
+用 5 条命令替代「一次全量」，作为想验证整体时的正式口径（AGENTS.md 第 155 行「逐文件跑」仍是日常门禁，本口径是其补充加固）：
+
+```
+WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render -count=1 -timeout 15m -run '^Test[A-H]'
+WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render -count=1 -timeout 15m -run '^Test[I-Q]'
+WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render -count=1 -timeout 15m -run '^Test[R-S]' -skip 'TestS69_HeavyBudget_TierGates'
+WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render -count=1 -timeout 15m -run '^Test[T-Z]'
+WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render -count=1 -timeout 15m -run '^TestS69_HeavyBudget_TierGates$'
+```
+
+- **与原定做法的偏差（如实记录）**：用户选项写的是「统一 helper 清全局 device 引用、覆盖 6 个测试文件」。实证表明这些测试本就有恢复、补 helper 不会改变全量结果，故改用**等效的进程隔离**达成同一目标（全量等价全绿），且严格满足「不动引擎、不动金图」。
+- 若坚持要「单进程一次全量也绿」，需动引擎：让 `gpu_textures.go` 的降级判定把 `resource already released` 排除出 depth-OOM 分支、改走 device 自愈（AutoRecover），或给全量跑加每测试资源回收——均超出「不动引擎」范围，未做，待另行拍板。
+- 本轮所有临时探针（`zz_global_state_test.go` 等）已删除，工作区干净。
