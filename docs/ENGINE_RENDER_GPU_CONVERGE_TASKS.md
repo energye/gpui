@@ -158,6 +158,26 @@
   ②③ 待用 `DrawTextureRef` 重新落地（命中走可录制命令而非 Context 旁路），
   P4.3 仍 🟡**。
 
+- **②③ 第二次尝试 → 没修好、按纪律全部回退（2026-11-10，正本
+  `evidence/P4.3/impl-attempt2.md`）**：按 `p43-rewire-design.md` 落地——
+  进程级紧致界阴影块缓存 + `Recorder.DrawShadow` 录制期命中录
+  `DrawTextureRefCommand` + `Context.DrawShadow` 原链后发布 tile +
+  `LookupShadowCache` 桥接 + `GPUI_P43_BREAK=no-cache` 反证。单元级先红后绿
+  4 测（parity **逐位 diff=0**、成本 ratio **0.2144<1/4**、失效与 mutation 反证），
+  真窗 **fps 恢复**（fps_interval 57.1 / p95 19.98ms<22ms / presents 344），
+  **但 golden diff 恒 33.0371%**。八组客观实验定位：`no-cache` 0.0000% 基线；
+  red-tile **292085 红像素 ⇒ 底层治根有效、贴图确实进 present 帧**（上一版仅 1272）；
+  gray-tile `(0,0,0,128)` 205→127 ⇒ alpha 混合正常；CPU tile 与上传后 GPU 读回
+  逐项一致 ⇒ 上传/内容正确；amp×6 非线性恶化 ⇒ 拒绝调倍数；整幅层内容与接管
+  `filterGPUView` 同为 15.0818%、层合成包裹 11.1802%（且 fps 掉到 29）。
+  **剩余根因未定位**：直接 GPU quad 贴缓存纹理与 `PopLayer` 层合成在纹理格式 /
+  premul / 颜色空间口径上不一致（差异特征：整幅偏亮、1–12 级、69010 px 变亮
+  vs 393 变暗）。按「搞不定如实说没修好并回退、禁半吊子」「拒绝将就」停止换贴法，
+  **②③ 实现全部回退、工作区零残留**；回退后双构建/`TestTextureRef*`/apidoc 全绿。
+  **新问题项**：阴影缓存纹理的 GPU 格式契约未对齐（现象/位置/差异/归属/待办见
+  `impl-attempt2.md` §4/§6），状态 🟡 待下会话影响面评估后拍板。**P4.3 仍 🟡，
+  原症状（330ms/帧 ≈3fps）仍在，金图双后端 0.0000% 未重种**。
+
 **以下为 P4.1 收口存档（焦点已切 P4.3，勿并入）**
 
 - **批 4 补正 3 状态：✅ 收口（2026-11-10，Canvas.DrawShadow 录制命令）**——先红
@@ -653,7 +673,7 @@
 | P3.9b | 1x/4x MSAA 真实窗口动画性能基准（**测量补充，非新能力**）：满窗混合通用动画场景（文字/圆角/曲线/渐变/图片/半透明层/旋转缩放/粒子 + mesh gradient 一起每帧动），指标浮在内容上；分辨率可配（默认满屏 1920×1080，留 3840×2160 档本机不跑）、MSAA 可配（开窗前 `SetMSAASampleCount`）；三模式（`-auto-only` 冻结相位门禁 / `-measure` 动画测量 / 常驻人工窗）；**零引擎改动、零新增公开 API** | P3.9a | ✅ 2026-11-09 测量收口（满屏 1080p 混合通用动画真窗；native 1x/4x + go 1x 三组合门禁金图 0.0000%/logic 6/6、18s 测量有效；**抓到并如实落位 go/GL+4x 整窗全黑既有引擎洞**，用户拍板不修/登记不可验/不标绿；native 1x→4x 显存峰值 2.35×、fps −24.9%、p95 破线；证据 `evidence/P3.9b/summary.md`、`compare.md`、`findings-go4x-black.md`） | `evidence/P3.9b/` |
 | P4.1 | 正确性：MSAA>1 even-odd 裁剪、分数裁剪 AA、顶点网格 alpha/blend、DrawShadow | P3.4、P3.8 | 🟡 拆四批（③→②→④→①）：批 1（③alpha/blend 接线）核心交付、B 卡挂 #3 GPU 路待诊断；**批 2（②分数裁剪 AA）✅ 全量收口（2026-11-10）**；**批 3（④ DrawShadow 设备空间抬升）✅ 语义收口（2026-11-10，#4/#5/#6 三洞登记）**；**批 4（①+go4x）✅ 收口（2026-11-10，三洞红绿对闭环 + 双后端 4x 真窗 0.0000% + 1x 全量金图零新增红 + P3.9b go4x 翻绿；PLAN §6 已回写）**——P4.1 四子项除批 1 B 卡（#3 在册）外全部收口 | `evidence/P4.1/` |
 | P4.2 | 一致性：GPU/CPU 模糊对齐 | P4.1、P3.4 | ⬜ | `evidence/P4.2/` |
-| P4.3 | 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化；**+2026-11-10 提前立项：DrawShadow 阴影模糊整画布成本+无跨帧缓存**（用户人工窗抓出 330ms/帧 ~3fps；探针数据+Skia 对齐差距+实现计划齐，动刀未开始，见 `evidence/P4.3/shadow-blur-perf-assessment.md`） | P4.1、P3.4 | 🟡 开工（阴影专项载体已登记，①分段归因进行中；裁剪方案待①后拍板） | `evidence/P4.3/` |
+| P4.3 | 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化；**+2026-11-10 提前立项：DrawShadow 阴影模糊整画布成本+无跨帧缓存**（用户人工窗抓出 330ms/帧 ~3fps；探针数据+Skia 对齐差距+实现计划齐，动刀未开始，见 `evidence/P4.3/shadow-blur-perf-assessment.md`） | P4.1、P3.4 | 🟡 ①分段归因✅ / 底层治根（Canvas 一等可录制设备纹理命令）✅ / **②③ 第二次尝试后按纪律回退（真窗 golden diff 未逐位对齐，见 `evidence/P4.3/impl-attempt2.md`）** / 原症状仍在 | `evidence/P4.3/` |
 | P4.4 | 文本：COLRv1 完整层（若 P3.8 未覆盖） | P3.3、P3.8 | ⬜ | `evidence/P4.4/` |
 
 **并行说明**：P0.1–P0.4 互相独立，可并行；P1.1/P1.2/P1.5 可在 P0.1–P0.3 完成后并行；P2.1–P2.3 互相独立，可并行；P3.2–P3.8 在 P3.0（及各自前置）完成后可分批并行，但每批合入前都要跑所属域回归。P2.4a–e 必须串行。P2.6 除 P2.5 外还必须等 P0.4 的一致性测试台就位。
@@ -1151,6 +1171,8 @@ docs/render_gpu_converge/
 | 2026-11-10 | P4.3 阴影专项 | **治根通用修法 ✅ 落地（用户拍板「通用修法」后）**：按 Skia `GrSurfaceProxy`/Flutter `ui.Image` 补 `render.TextureRef`（纯 id 可录制逻辑引用）+ `RegisterTextureRef`/`ReleaseTextureRef`/`ResolveTextureRef` + `Canvas.DrawTextureRef` 一等口 + recording 全链（`CmdDrawTextureRef`/`DrawTextureRefCommand`/`TextureRefBackend`/Recorder/Playback/CanvasBackend/bounds）。任何 Canvas 命令实现内部的设备纹理绘制都能进录制回放流，非特例补丁。先红后绿 3 测（parity 逐通道容差 1 显式声明、连跑 3 次稳定；命令折叠；释放跳过）；门禁双构建/apidoc(9 符号 rc=0)/vet/race(CGO_ENABLED=1)/双后端 native+go 全绿；**干净树 A/B（worktree @ `82a4985d`）FAIL 列表逐条一致 ⇒ 本会话零新增失败**（recording 3 条、render 10 条既有红按「别顺手修」不动）；负向 mutation 强制解析失败 → parity 红(max diff 19>1) → 还原绿 → git diff 零残留。`RENDER_API_CATALOG.md` §1/§3.23/§6 快照/§0 同步、`ENGINE_UI_WIDGET_RENDER.md` §10 修订。**底层治根 ✅，②③ 待用 `DrawTextureRef` 重新落地，P4.3 仍 🟡**。 | `evidence/P4.3/root-cause-fix.md` |
 
 | 2026-11-10 | P4.3 阴影专项 | **②③ 接线设计落盘（零代码，正本 `evidence/P4.3/p43-rewire-design.md`）**：底层 `TextureRef` 通用能力已绿后，②③ 消费该能力的关键结论——缓存查询/命中必须发生在**录制阶段**（`Recorder.DrawShadow` 查缓存，命中录 `DrawTextureRefCommand`，未命中录 `CmdDrawShadow` 由回放侧填充缓存），不能只在 `*Context.DrawShadow`（回放期）里旁路 queue，否则又绕过录制契约。附双实现共享缓存、键口径、资源谁建谁放、先红后绿与真窗验收拆解。`ENGINE_UI_WIDGET_RENDER.md` §10 修订表同步。**状态：① ✅ / 底层治根 ✅ / ②③ 待落地 / P4.3 🟡**。 | `evidence/P4.3/p43-rewire-design.md` |
+
+| 2026-11-10 | P4.3 阴影专项 | **②③ 第二次尝试 → 没修好、按纪律全部回退（正本 `evidence/P4.3/impl-attempt2.md`）**：按 `p43-rewire-design.md` 落地进程级紧致界阴影块缓存 + `Recorder.DrawShadow` 录制期命中录 `DrawTextureRefCommand` + `Context.DrawShadow` 原链后发布 tile + `LookupShadowCache` 桥接 + `no-cache` mutation 反证。单元级先红后绿 4 测（直画 vs 录制回放 parity **逐位 diff=0**、成本 ratio **0.2144<1/4**、失效与反证），真窗 **fps 恢复**（fps_interval 57.1 / p95 19.98ms<22ms / presents 344），但 **golden diff 恒 33.0371%**。八组客观实验：no-cache 0.0000% 基线；red-tile **292085 红像素 ⇒ 底层 `DrawTextureRefCommand` 治根有效、贴图确实进 present 帧**（上一版仅 1272）；gray-tile 半透明黑 205→127 ⇒ alpha 混合正常；CPU tile 与上传后 GPU 读回逐项一致 ⇒ 上传/内容正确；amp×6 非线性恶化 ⇒ 拒绝调倍数；整幅层内容与接管 `filterGPUView` 同为 15.0818%、层合成包裹 11.1802%（fps 掉 29）。**剩余根因未定位**：直接 GPU quad 贴缓存纹理与 `PopLayer` 层合成在纹理格式/premul/颜色空间口径不一致（整幅偏亮、1–12 级、69010 变亮 vs 393 变暗）。按「搞不定如实说没修好并回退、禁半吊子」「拒绝将就」停止换贴法，**②③ 实现全部回退、工作区零 ②③ 代码残留**；回退后双构建/`TestTextureRef*`/apidoc rc=0。**新问题项**：阴影缓存纹理 GPU 格式契约未对齐，状态 🟡 待下会话影响面评估后拍板。①✅ / 底层治根✅ / ②③ 未修好 / P4.3 仍 🟡；金图双后端 0.0000% 未重种。 | `evidence/P4.3/impl-attempt2.md` |
 
 ## 8 修订记录
 
