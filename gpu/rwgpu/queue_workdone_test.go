@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 	"time"
+	"unsafe"
 )
 
 // TestQueue_OnSubmittedWorkDone verifies the P6 fence primitive end to end:
@@ -50,6 +51,49 @@ func TestQueue_OnSubmittedWorkDone(t *testing.T) {
 	}
 	if err := WaitForFuture(inst, future); err != nil {
 		t.Fatalf("WaitForFuture: %v", err)
+	}
+}
+
+// TestQueueWorkDoneCallbackInfoV29Layout pins the memory layout of
+// queueWorkDoneCallbackInfo to the v29 webgpu.h header (D1, P2.4e). The
+// pre-v29 four-word layout (no Mode field) shifted every later field, so
+// wgpu read the record id as the callback pointer: null future at call time,
+// and a jump to address 1 (SIGSEGV PC=0x1) when Device.Release settled the
+// pending callback. Reproduction: docs/render_gpu_converge/evidence/P2.4e/
+// d1-repro-oldlayout.txt.
+func TestQueueWorkDoneCallbackInfoV29Layout(t *testing.T) {
+	word := unsafe.Sizeof(uintptr(0))
+	if word != 8 {
+		t.Skipf("layout pinned for 64-bit uintptr, got %d bytes", word)
+	}
+	var info queueWorkDoneCallbackInfo
+	if unsafe.Sizeof(info) != 40 {
+		t.Fatalf("queueWorkDoneCallbackInfo size: got %d want 40 (v29: 5 words)", unsafe.Sizeof(info))
+	}
+	checks := []struct {
+		name string
+		got  uintptr
+		want uintptr
+	}{
+		{"NextInChain", unsafe.Offsetof(info.NextInChain), 0},
+		{"Mode", unsafe.Offsetof(info.Mode), 8},
+		{"Callback", unsafe.Offsetof(info.Callback), 16},
+		{"Userdata1", unsafe.Offsetof(info.Userdata1), 24},
+		{"Userdata2", unsafe.Offsetof(info.Userdata2), 32},
+	}
+	for _, c := range checks {
+		if c.got != c.want {
+			t.Errorf("offset %s: got %d want %d (v29 header order: nextInChain/mode/callback/userdata1/userdata2)", c.name, c.got, c.want)
+		}
+	}
+	// The mode value handed to wgpu must stay a header-defined enum.
+	if CallbackModeAllowProcessEvents != 0x00000002 {
+		t.Errorf("CallbackModeAllowProcessEvents: got %#x want 0x2 (webgpu.h WGPUCallbackMode_AllowProcessEvents)", CallbackModeAllowProcessEvents)
+	}
+	// WGPUFuture is a single uint64; Future must stay ABI-compatible.
+	var f Future
+	if unsafe.Sizeof(f) != 8 || unsafe.Offsetof(f.ID) != 0 {
+		t.Errorf("Future: size %d offset %d, want 8/0 (webgpu.h WGPUFuture{uint64 id})", unsafe.Sizeof(f), unsafe.Offsetof(f.ID))
 	}
 }
 
