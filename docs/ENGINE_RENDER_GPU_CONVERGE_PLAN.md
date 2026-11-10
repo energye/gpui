@@ -276,7 +276,7 @@ render/
 
 - P4.1 正确性：MSAA>1 even-odd 裁剪、分数裁剪 AA、顶点网格 alpha/blend、DrawShadow。
 - P4.2 一致性：GPU/CPU 模糊对齐。
-- P4.3 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化。
+- P4.3 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化。**2026-11-10 提前立项 DrawShadow 阴影专项**（live 阴影上线后 330ms/帧≈3fps）：分段归因（`evidence/P4.3/stage1-timing/attribution.md`）实测成本大头 = **隔离层全画布 GPU↔CPU 往返**（`materializeFilterGPU` 回读 + `seedTopLayerGPUFromPixmap` 回种，1200² layer 段 66.4ms、占 91%、随面积线性），**不是 graph 全画布 ping-pong RT**（upload/encode/submit/map 稳态 <1ms 且与面积无关）；立项文档「1200²=1.15s、随面积线性」在真 GPU 路复现不了（实测 96.7ms，疑未接 GPU 的 CPU-only 探针）。⇒ 实现落点 = 按阴影设备紧致界（path 设备界 + offsetY + 3σ 边距）裁剪 filter 工作区（对齐 Skia `SkGpuBlurUtils` clipped bounds + σ pad）+ 跨帧缓存（键=path 内容哈希/elevation/color/CTM/dpr，禁指针键）；用户 2026-11-10 拍板 bounded layer RT 方向、裁剪+缓存方向不变。
 - P4.4 文本：COLRv1 完整层（若 P3 未覆盖）。
 
 说明：P4.1 的 MSAA/分数裁剪属正确性缺陷，若在 P3 的真窗里被阻塞，允许前移到 P3 对应项，并在 §7.7 记录调整。

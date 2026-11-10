@@ -1043,6 +1043,10 @@ func runGPUFilterGraphEx(
 	if device == nil || queue == nil || cache == nil || w <= 0 || h <= 0 {
 		return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: invalid args")
 	}
+	// P4.3 stage-1 timing (env-gated, off by default).
+	tRun := fgNow()
+	var tm fgTiming
+	defer func() { fgEmit(w, h, wantPixels, &tm, fgSince(tRun)) }()
 	if w*h > filterGPUMaxPixels {
 		return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: size")
 	}
@@ -1139,6 +1143,7 @@ func runGPUFilterGraphEx(
 	curTex, curView, curRef := texA, viewA, refA
 	nxtTex, nxtView, nxtRef := texB, viewB, refB
 	gate := cache.gateOf()
+	tm.Setup = fgSince(tRun)
 
 	// Seed content into A: either CPU upload or copy-sample from GPU view.
 	if srcView != nil {
@@ -1160,6 +1165,7 @@ func runGPUFilterGraphEx(
 			upload = cache.uploadPad
 			cache.mu.Unlock()
 		}
+		tU := fgNow()
 		if err := queue.WriteTexture(
 			&hal.ImageCopyTexture{Texture: texA, MipLevel: 0},
 			upload,
@@ -1168,6 +1174,7 @@ func runGPUFilterGraphEx(
 		); err != nil {
 			return nil, gpucontext.TextureView{}, nil, err
 		}
+		tm.Upload = fgSince(tU)
 	}
 
 	type passArgs struct {
@@ -1389,6 +1396,7 @@ func runGPUFilterGraphEx(
 		curRef, nxtRef = nxtRef, curRef
 	}
 
+	tE := fgNow()
 	for i := range nodes {
 		n := nodes[i]
 		switch n.Kind {
@@ -1649,6 +1657,8 @@ func runGPUFilterGraphEx(
 		cleanupPasses()
 		return nil, gpucontext.TextureView{}, nil, err
 	}
+	tm.Encode = fgSince(tE)
+	tS := fgNow()
 	cache.mu.Lock()
 	cache.lastGraphFinishes = 1
 	cache.mu.Unlock()
@@ -1687,6 +1697,7 @@ func runGPUFilterGraphEx(
 	}
 	device.FreeCommandBuffer(cmd)
 	cleanupPasses()
+	tm.Submit = fgSince(tS)
 
 	submitted = true
 	if !wantPixels {
@@ -1696,6 +1707,7 @@ func runGPUFilterGraphEx(
 	}
 
 	// Pixel path: readback from curTex with pooled staging (no publish slot).
+	tM := fgNow()
 	tightRow := uint32(w * 4) //nolint:gosec
 	alignedRow := alignTextureBytesPerRow(tightRow)
 	stagingSize := uint64(alignedRow) * uint64(h)
@@ -1748,5 +1760,6 @@ func runGPUFilterGraphEx(
 	}
 	cache.mu.Unlock()
 	_ = device.UnmapBuffer(staging)
+	tm.Map = fgSince(tM)
 	return out, gpucontext.TextureView{}, nil, nil
 }

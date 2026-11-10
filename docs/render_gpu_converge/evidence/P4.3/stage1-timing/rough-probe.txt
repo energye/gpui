@@ -1,0 +1,22 @@
+=== RUN   TestP43RoughProbe
+=== RUN   TestP43RoughProbe/200/blur-only
+    p43_rough_probe_test.go:66: P43ROUGH 200x200 blur-only total=12.8ms gpu_ops=1 cpu_fb=0 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/200/drawshadow
+    p43_rough_probe_test.go:66: P43ROUGH 200x200 drawshadow total=17.7ms gpu_ops=3 cpu_fb=0 gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/800/blur-only
+    p43_rough_probe_test.go:66: P43ROUGH 800x800 blur-only total=39.9ms gpu_ops=1 cpu_fb=0 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/800/drawshadow
+    p43_rough_probe_test.go:66: P43ROUGH 800x800 drawshadow total=58.0ms gpu_ops=3 cpu_fb=0 gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/1200/blur-only
+    p43_rough_probe_test.go:66: P43ROUGH 1200x1200 blur-only total=64.3ms gpu_ops=1 cpu_fb=0 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/1200/drawshadow
+    p43_rough_probe_test.go:66: P43ROUGH 1200x1200 drawshadow total=102.0ms gpu_ops=3 cpu_fb=0 gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestP43RoughProbe (0.58s)
+    --- PASS: TestP43RoughProbe/200/blur-only (0.01s)
+    --- PASS: TestP43RoughProbe/200/drawshadow (0.02s)
+    --- PASS: TestP43RoughProbe/800/blur-only (0.05s)
+    --- PASS: TestP43RoughProbe/800/drawshadow (0.06s)
+    --- PASS: TestP43RoughProbe/1200/blur-only (0.07s)
+    --- PASS: TestP43RoughProbe/1200/drawshadow (0.11s)
+PASS
+ok  	github.com/energye/gpui/render	0.637s

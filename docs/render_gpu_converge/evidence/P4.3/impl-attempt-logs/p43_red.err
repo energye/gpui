@@ -1,0 +1,14 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/ui_wr_p41_drawshadow/testdata/p41_drawshadow_final.png
+ui_wr_p41_drawshadow: logic cards_drawn      ok=true drawn=[714 714 714 714]
+ui_wr_p41_drawshadow: logic break_inactive   ok=true GPUI_P41S_BREAK=""
+ui_wr_p41_drawshadow: pixel A_shadow_below       ok
+ui_wr_p41_drawshadow: pixel A_right_white        ok
+ui_wr_p41_drawshadow: pixel B_shadow_below       ok
+ui_wr_p41_drawshadow: pixel B_corner_white       ok
+ui_wr_p41_drawshadow: pixel C_shadow1_below      ok
+ui_wr_p41_drawshadow: pixel C_shadow2_below      ok
+ui_wr_p41_drawshadow: pixel C_shadow3_below      ok
+ui_wr_p41_drawshadow: pixel D_shadow_black_below ok
+ui_wr_p41_drawshadow: pixel D_shadow_red_below   ok
+FAIL: golden diff 34.5708% want 0 over 763584 px

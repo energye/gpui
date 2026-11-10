@@ -1,0 +1,34 @@
+=== RUN   TestP43RoughProbe
+=== RUN   TestP43RoughProbe/200/blur-only
+P43TIMING graph w=200 h=200 wantPixels=false setup=2.838ms upload=0.000ms encode=0.264ms submit=0.313ms map=0.000ms total=3.442ms
+P43TIMING ops w=200 h=200 hasLayer=false layer=0.000ms total=5.176ms
+    p43_rough_probe_test.go:66: P43ROUGH 200x200 blur-only total=10.4ms gpu_ops=1 cpu_fb=0 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/200/drawshadow
+P43TIMING graph w=200 h=200 wantPixels=false setup=0.006ms upload=0.000ms encode=0.224ms submit=0.259ms map=0.000ms total=0.493ms
+P43TIMING ops w=200 h=200 hasLayer=true layer=5.336ms total=9.890ms
+    p43_rough_probe_test.go:66: P43ROUGH 200x200 drawshadow total=15.4ms gpu_ops=3 cpu_fb=0 gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/800/blur-only
+P43TIMING graph w=800 h=800 wantPixels=false setup=0.045ms upload=0.000ms encode=0.187ms submit=0.289ms map=0.000ms total=0.524ms
+P43TIMING ops w=800 h=800 hasLayer=false layer=0.000ms total=7.508ms
+    p43_rough_probe_test.go:66: P43ROUGH 800x800 blur-only total=44.4ms gpu_ops=1 cpu_fb=0 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/800/drawshadow
+P43TIMING graph w=800 h=800 wantPixels=false setup=0.009ms upload=0.000ms encode=0.279ms submit=0.356ms map=0.000ms total=0.648ms
+P43TIMING ops w=800 h=800 hasLayer=true layer=35.328ms total=46.170ms
+    p43_rough_probe_test.go:66: P43ROUGH 800x800 drawshadow total=60.8ms gpu_ops=3 cpu_fb=0 gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/1200/blur-only
+P43TIMING graph w=1200 h=1200 wantPixels=false setup=0.050ms upload=0.000ms encode=0.214ms submit=0.145ms map=0.000ms total=0.411ms
+P43TIMING ops w=1200 h=1200 hasLayer=false layer=0.000ms total=9.929ms
+    p43_rough_probe_test.go:66: P43ROUGH 1200x1200 blur-only total=69.0ms gpu_ops=1 cpu_fb=0 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+=== RUN   TestP43RoughProbe/1200/drawshadow
+P43TIMING graph w=1200 h=1200 wantPixels=false setup=0.008ms upload=0.000ms encode=0.196ms submit=0.150ms map=0.000ms total=0.357ms
+P43TIMING ops w=1200 h=1200 hasLayer=true layer=66.401ms total=73.249ms
+    p43_rough_probe_test.go:66: P43ROUGH 1200x1200 drawshadow total=96.7ms gpu_ops=3 cpu_fb=0 gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestP43RoughProbe (0.58s)
+    --- PASS: TestP43RoughProbe/200/blur-only (0.01s)
+    --- PASS: TestP43RoughProbe/200/drawshadow (0.02s)
+    --- PASS: TestP43RoughProbe/800/blur-only (0.05s)
+    --- PASS: TestP43RoughProbe/800/drawshadow (0.07s)
+    --- PASS: TestP43RoughProbe/1200/blur-only (0.08s)
+    --- PASS: TestP43RoughProbe/1200/drawshadow (0.10s)
+PASS
+ok  	github.com/energye/gpui/render	0.666s

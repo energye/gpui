@@ -64,6 +64,16 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 	}
 	hasLayer := c.layerStack != nil && len(c.layerStack.layers) > 0
 
+	// P4.3 stage-1 timing (env-gated, off by default).
+	tOps := p43Now()
+	tLayer := p43Since(tOps)
+	defer func() {
+		if p43TimingOn {
+			p43Log("ops w=%d h=%d hasLayer=%v layer=%.3fms total=%.3fms",
+				w, h, hasLayer, p43Ms(tLayer), p43Ms(p43Since(tOps)))
+		}
+	}()
+
 	finish := func(view gpucontext.TextureView, release func()) bool {
 		if view.IsNil() {
 			if release != nil {
@@ -74,6 +84,7 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 		c.attachFilterGPUResult(view, w, h, release)
 		c.pixmapFilterStale = true
 		if hasLayer {
+			tL0 := p43Now()
 			if c.materializeFilterGPU() {
 				// Skia crops a saveLayer filter's output to the layer bounds:
 				// restore the parent's pixels outside a bounded backdrop
@@ -85,6 +96,7 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 			} else {
 				c.noteLayerCPUDraw()
 			}
+			tLayer = p43Since(tL0)
 		}
 		c.recordGPUOp()
 		return true

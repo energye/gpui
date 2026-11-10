@@ -47,6 +47,81 @@
 
 ### 2.1 当前焦点
 
+**当前任务验证载体（P4.3 阴影专项：DrawShadow 模糊整画布成本 + 跨帧缓存，2026-11-10 开工登记）**
+
+> 焦点切换说明：本会话唯一目标 P4.3（用户拍板「现在就修」）；下方 P4.1 各批载体块与
+> 挂账（批 1 B 卡 #3 在册）保持原样不动，不并入本专项、不顺手修。
+
+- 任务：P4.3 提前立项专项，立项正本 `evidence/P4.3/shadow-blur-perf-assessment.md`
+  （探针数据 + Skia 对齐差距 + 四步计划全在）。症状：drawshadow 窗 live 帧阴影上线后
+  330ms/帧≈3fps（窗口 1200×800、6 阴影×55ms），最大化/最小化整窗跟慢；功能正确、
+  与金图一致，**纯性能问题**。成本源头：`tryApplyFilterGraphGPU`
+  （`filter_ops_gpu.go:31,61`）取全画布 `w,h=src.Width(),src.Height()`，三条路径整幅
+  处理 + `filterSrcScratch=w*h*4` CPU 暂存；`DrawShadow`（`context_misc_draw.go:222`）
+  =PushLayerIsolated→剪影 fill→`ApplyBlur((800/600)*elevation*dpr)`→PopLayer，layer
+  激活时 `finish()` 触发 `materializeFilterGPU` 全画布回读；graph 核心
+  `runGPUFilterGraphEx`（`filter_gpu_graph.go:1038`）全画布 ping-pong RT。对齐差距：
+  Skia `SkGpuBlurUtils` 模糊 RT 裁剪到「clipped bounds+σ 边距」+ blur 缓存，本实现
+  全画布、零跨帧缓存（每帧录制克隆路径、指针键必失效）。
+- 四步（立项文档 §3，按序）：**① 分段计时归因**（`runGPUFilterGraphEx` 内 env 门控
+  分段计时：staging 上传/编码/Submit/Map 回读/materialize，把 1.15s 钉到段——
+  **动刀前置**）→ ② 模糊区域裁剪（DrawShadow 先算阴影设备紧致界 path 设备界
+  +offsetY+3σ 边距，blur 输入与发布 RT 裁剪到该界）→ ③ 跨帧缓存（键=(path 内容
+  哈希, elevation, color, CTM, dpr)，**禁路径指针键**，缓存已发布阴影 view，命中走
+  DrawGPUTexture 合成，LRU+显存账本入池谁建谁放）→ ④ 红测+验收。
+  **停下报告节点（硬）**：①归因结果出来后、动 graph 核心前，用 question 拍板裁剪
+  方案（graph 子区域 vs bounded layer RT 二选一）；得到确认前不动 ②③。
+- 能力单测：`render/p43_shadow_blur_perf_test.go`（新增，先红后绿）::
+  `TestP43ShadowCostSecondFrameCached`（静态二帧第二帧 < 首帧 1/4 + mutation 反证）/
+  `TestP43ShadowPixelsBitwiseAfterCrop`（裁剪前后阴影像素逐位一致、双后端 0.0000%）/
+  `TestP43ShadowCacheHitMiss`（改 elevation/颜色必须重算）；步骤①分段计时诊断探针
+  `render/p43_shadow_timing_test.go`（读 `render/testdata/p43_timing_cases.json`）。
+- 真窗：`examples/ui_wr_p41_drawshadow`（沿用；`-auto-only` JSON 出 interval_p95/fps
+  + 常驻人工窗二合一）。**fps_gate=off 正确性窗语义不变**，性能验收只认 JSON
+  interval_p95/fps。live 抓帧验收走 `evidence/P4.1/batch4/live-frames/README.md`
+  临时钩子方案（验收完删钩子）：live vs 金图 ≈HUD 摆动级。
+- 金图：`examples/ui_wr_p41_drawshadow/testdata/goldens/p41_drawshadow_final.png`
+  （native）/ `..._final_go.png`（go），容差 0（P0.1 逐位），**锁定不重种**（裁剪实现
+  导致快照变=实现有洞，回查而非重种）；工作区 `testdata/p41_drawshadow_final.png`
+  是运行期 snapPath 产物、非金图。
+- 双后端：webgpu（native）+ gwgpu-gles（`GPUI_BACKEND=go`）门禁均验；metal 不可验
+  （无 macOS 真机，写明）。离屏分段归因走 native（go 端按 P0.4 口径无 surfaceless
+  独立设备，从窗内设备量）。
+- 负向对照：缓存不命中反证（每帧换 path 内容/elevation→帧时回落首帧量级）/
+  裁剪越界反证（阴影紧致界外多切 1px→阴影带像素断言红）；红了还原复绿。
+- 硬约束：先红后绿（成本断言+像素逐位一致+缓存命中失效三断言）；双后端 0.0000%
+  锁定；显存账本关窗快照无泄漏；recording/render 触及包全跑、race/vet/apidoc
+  rc=0；GPU 真窗安全（单窗、标准关闭、每轮查显示健康）；测试数据入 testdata/、
+  回归按测试文件逐个跑、数据缺失 t.Skipf。
+- 公开 API：预期零变化（若方案走到要加接口先停下问）；catalog/apidoc 仅在真有
+  变化时同步。
+- 证据：`evidence/P4.3/`（`stage1-timing/` 归因、`impl/` 实现、`gates/` 门禁）。
+
+- **① 分段归因结论（2026-11-10，✅ 完成，正本 `evidence/P4.3/stage1-timing/attribution.md`）**：
+  离屏真 GPU 路复现——1200² drawshadow 96.7ms（立项文档 1.15s **复现不了**，疑
+  未接 GPU 的 CPU-only 探针；窗口 55ms/阴影量级吻合）。分段实测：graph 核心
+  （upload/encode/submit/map）稳态 <1ms 且**与面积无关、不是大头**；**真大头 =
+  隔离层全画布 GPU↔CPU 往返**（`materializeFilterGPU` 回读 +
+  `seedTopLayerGPUFromPixmap` 回种，layer 段 200/800/1200² = 5.3/35.3/66.4ms，
+  占 54%/76%/91%，随面积线性）。⇒ 裁剪落点应为 **bounded layer RT**（隔离层
+  RT + 回读/回种裁到阴影紧致界），而非只改 graph 子区域；③跨帧缓存让静态帧
+  连这条往返都不付。**停在「停下报告」待用户拍板，②③未动、graph 核心零行为
+  改动**。计时点 env 门控默认关、零公开 API，诊断件留到④做成本基线后清理。
+
+- **②③ 实现尝试 → 没修好、按纪律全部回退（2026-11-10）**：用户拍板「DrawShadow
+  层合一」后落地（缓存紧致界阴影 GPU view + 命中贴图），单元级先红后绿全过、真窗
+  fps 恢复（fps_interval 59.3 / interval_p95 18.97ms < 22ms），**但 golden diff
+  恒定 ~33% FAIL**（六种贴图方式皆然）。客观定位：命中贴图无法可靠进 present 帧，
+  根因 = P4.1 批 3 **在册 GPU 层链洞 #4/#5 族**（gpuTex tier 重放/同步）；按
+  「别顺手修别线」「禁止猜着修」「搞不定如实说没修好并回退、禁半吊子」停止试错，
+  **②③ 实现全部回退**，只保留 ① 计时设施（env 门控默认关、零行为变化）。金图
+  双后端 0.0000% 未重种，P4.3 仍 🟡，原症状（330ms/帧 ≈3fps）仍在。详见
+  `evidence/P4.3/impl-attempt.md`。**下一步候选（均需先影响面评估 + 停下报告拍板）**：
+  ① 先修底层 GPU 层链洞再回来做 ②③；② 换 CPU 侧缓存 + `PopLayer` CPU composite
+  路径（需验双后端逐位 + 成本断言）。
+
+**以下为 P4.1 收口存档（焦点已切 P4.3，勿并入）**
+
 - **批 4 补正 3 状态：✅ 收口（2026-11-10，Canvas.DrawShadow 录制命令）**——先红
   （compile：render.Canvas 无 DrawShadow，`unit-tests/red-compile.txt`）后绿
   （`TestDrawShadowReplayParity` 非恒等 Translate 下录制→回放 vs 直画逐位一致 + 阴影带
@@ -540,7 +615,7 @@
 | P3.9b | 1x/4x MSAA 真实窗口动画性能基准（**测量补充，非新能力**）：满窗混合通用动画场景（文字/圆角/曲线/渐变/图片/半透明层/旋转缩放/粒子 + mesh gradient 一起每帧动），指标浮在内容上；分辨率可配（默认满屏 1920×1080，留 3840×2160 档本机不跑）、MSAA 可配（开窗前 `SetMSAASampleCount`）；三模式（`-auto-only` 冻结相位门禁 / `-measure` 动画测量 / 常驻人工窗）；**零引擎改动、零新增公开 API** | P3.9a | ✅ 2026-11-09 测量收口（满屏 1080p 混合通用动画真窗；native 1x/4x + go 1x 三组合门禁金图 0.0000%/logic 6/6、18s 测量有效；**抓到并如实落位 go/GL+4x 整窗全黑既有引擎洞**，用户拍板不修/登记不可验/不标绿；native 1x→4x 显存峰值 2.35×、fps −24.9%、p95 破线；证据 `evidence/P3.9b/summary.md`、`compare.md`、`findings-go4x-black.md`） | `evidence/P3.9b/` |
 | P4.1 | 正确性：MSAA>1 even-odd 裁剪、分数裁剪 AA、顶点网格 alpha/blend、DrawShadow | P3.4、P3.8 | 🟡 拆四批（③→②→④→①）：批 1（③alpha/blend 接线）核心交付、B 卡挂 #3 GPU 路待诊断；**批 2（②分数裁剪 AA）✅ 全量收口（2026-11-10）**；**批 3（④ DrawShadow 设备空间抬升）✅ 语义收口（2026-11-10，#4/#5/#6 三洞登记）**；**批 4（①+go4x）✅ 收口（2026-11-10，三洞红绿对闭环 + 双后端 4x 真窗 0.0000% + 1x 全量金图零新增红 + P3.9b go4x 翻绿；PLAN §6 已回写）**——P4.1 四子项除批 1 B 卡（#3 在册）外全部收口 | `evidence/P4.1/` |
 | P4.2 | 一致性：GPU/CPU 模糊对齐 | P4.1、P3.4 | ⬜ | `evidence/P4.2/` |
-| P4.3 | 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化；**+2026-11-10 提前立项：DrawShadow 阴影模糊整画布成本+无跨帧缓存**（用户人工窗抓出 330ms/帧 ~3fps；探针数据+Skia 对齐差距+实现计划齐，动刀未开始，见 `evidence/P4.3/shadow-blur-perf-assessment.md`） | P4.1、P3.4 | 🟡 立项（阴影专项数据齐） | `evidence/P4.3/` |
+| P4.3 | 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化；**+2026-11-10 提前立项：DrawShadow 阴影模糊整画布成本+无跨帧缓存**（用户人工窗抓出 330ms/帧 ~3fps；探针数据+Skia 对齐差距+实现计划齐，动刀未开始，见 `evidence/P4.3/shadow-blur-perf-assessment.md`） | P4.1、P3.4 | 🟡 开工（阴影专项载体已登记，①分段归因进行中；裁剪方案待①后拍板） | `evidence/P4.3/` |
 | P4.4 | 文本：COLRv1 完整层（若 P3.8 未覆盖） | P3.3、P3.8 | ⬜ | `evidence/P4.4/` |
 
 **并行说明**：P0.1–P0.4 互相独立，可并行；P1.1/P1.2/P1.5 可在 P0.1–P0.3 完成后并行；P2.1–P2.3 互相独立，可并行；P3.2–P3.8 在 P3.0（及各自前置）完成后可分批并行，但每批合入前都要跑所属域回归。P2.4a–e 必须串行。P2.6 除 P2.5 外还必须等 P0.4 的一致性测试台就位。
@@ -1027,6 +1102,11 @@ docs/render_gpu_converge/
 | 2026-11-10 | P4.1 批 1 | **🟡 收口中（子项③核心交付，B 卡挂 #3 GPU 路径）**：先红后绿能力单测 12/12（alpha/Plus/Multiply 三场景实现前红、实现后绿 + solid 锁定；数据 verts_paint_blend_cases.json）；真窗 `ui_wr_p41_mesh_paint_blend` 四卡——A alpha ✓ / C Multiply ✓ / D solid alpha ✓ 双后端探针过，**B BlendPlus 双后端一致 FAIL**（got=纯蓝、mesh 层内容丢）。**顺带抓到并归位三个引擎洞**：#2 层合成 Porter-Duff 全家族退化 SourceOver（intImage.blend 无该族分支）→ **已修已验**（render 层 compositePremulPorterDuff 接 intBlend.GetBlendFunc 同一标准实现，blend→image 依赖方向不许反向）；#3 PopLayer 分派缺口（Porter-Duff 非 Normal GPU 层内容静默丢失）→ **CPU 路已修已验**（materialize+premul 合成，headless 过），GPU 路（ensureBlitBlendPipeline+QueueGPUTextureDrawBlend 已落码）启用时真窗/headless 均丢内容已回退禁用**待诊断**；M=mesh×固定函数管线组合洞（fill 同链生效、mesh 逐环正确但画面=纯 src，未定位到行）→ 登记不修、层封装规避（premul 等价）、直传归 P4.3。双后端金图各自 verify 0.0000%/763584px（含 B 卡已知缺口，收口后重出）；负向 no-alpha/normal-blend 两路红 exit1；回归 render 包基线 stash 对比零新增失败；race/vet/apidoc(rc=0) 绿；人工窗 rc=0 正常退出。**零公开 API 变化**（gpuContextOps 内部接口加 QueueGPUTextureDrawBlend）。证据 `evidence/P4.1/batch1/`（summary.md 三洞登记表+五份证据） | `evidence/P4.1/batch1/summary.md` |
 | 2026-11-10 | P4.1 批 2 | **✅ 全量收口（子项② 分数裁剪 AA）**：修法=设备矩形带分数时升级 Radius=0 rrect entry（`clip.PushRectFractional`/`ReplaceRectFractional` 新增，绕过 PushRRect 的 r<=0 退化；rrectCoverage/cover_aa WGSL 对 r=0 自然退化实证无除法）+ `ClipRectOp` 整数检测分流（Intersect+Replace 两 op；Difference 登记边界走 mask 路独立）；**GPU 侧零改动**（rrect entry 自动流入 IsRRectOnly→RRectBounds→SetClipRRect 既有 SDF 通路，RRectBounds 无 radius 下限）。先红后绿 9/9（fractional_rect_clip/replace 实现前红：半覆盖缺失+scissor 溢出；integer_rect_lock 锁零变化；CPU 与 GPU 逐位一致 max<=6）；真窗 `ui_wr_p41_fractional_clip` 10 探针双后端全过（A 半覆盖 AA、B 整数锁定、C 分数+内容、D 嵌套形状）；双后端金图各自 verify 0.0000%/763584px（sha256 落盘；门禁画面静态化——旋转演示属人工窗，P3.9b 冻结思路）；负向 hard-edge（分数强制整数化=旧行为）红 exit1 还原复绿；回归零新增（基线逐名一致）+ clip 包 ok + race/vet/apidoc(rc=0) 绿 + 人工窗 rc=0。**零公开 API 变化**。边界登记：DPR≠1 整数 clip 设备分数化（→AA 化，行为更好；硬边语义 dpr=1 锁定）；嵌套多 rrect GPU 单表达（RRectBounds 单返回，既有边界非本批引入，多 rrect 精确表达归后续）。证据 `evidence/P4.1/batch2/` | `evidence/P4.1/batch2/summary.md` |
 | 2026-11-10 | P4.1 批 3 | **✅ 语义收口（子项④ DrawShadow 设备空间抬升，CPU 路径像素收口）**：红绿对单测实证缺陷（真透视 W←y 下现状用户空间抬升 → 剪影可见带墨水=期望语义 79.4%，`drawshadow_projection_test.go` 锁 CPU）→ 修法=非仿射投影分支剪影 `projTransformPath` 设备化（doFill 同款：曲线展平逐点映射、behind-eye 整笔拒绝）+ `translatePathDev` 抬升直接加设备 y（verbs 保真拷贝、conic 权重不动）+ `withProjectedPathScope` 恒等 `doFillUnprojected`（绕开二次投影——首版走 c.Fill() 被投影分支再投影，画面掉到 51% 复查抓出）→ 红转绿 CPU 稳定。真窗 `ui_wr_p41_drawshadow` 9/9 探针双后端过（A 平射 tonal/抬升锁定、B 仿射 CTM 换算、C elevation 阶梯、D 黑/红 tonal 色对比；本体先画 shadow 后画绕 #5）；双后端金图各自 verify 0.0000%/763584px；负向 skip-shadow 红 exit1 还原复绿；回归零新增 + race/vet/apidoc(rc=0) 绿 + 人工窗 rc=0。**零公开 API 变化**。**新登记三洞**：#4「投影×隔离层×blur×GPU readback」内容不同步（场景一墨水 183k~125k 摆动、race 恒 51.8%，与 #3 同族；测试锁 CPU、真窗透视 shadow 演示挂收口后补）；#5 tier 顺序洞（层合成统一 gpuTex tier 末尾重放、盖住后画直接绘制；架构修法=按 Pop 位置插序归后续）；#6 卡片内局部 SetProjection×dpr×GPU 层组合域丢内容（P3.7 真窗均整窗投影未覆盖；真窗已避开）。**四洞同族（#3/#4/#5/#6=GPU 层链同步/顺序/组合），建议归并一个诊断批次**。证据 `evidence/P4.1/batch3/` | `evidence/P4.1/batch3/summary.md` |
+| 2026-11-10 | P4.3 阴影专项 | **🟡 立项→🟡 开工登记（用户拍板「现在就修」，载体四项按 §4.2 填齐 + §3 P4 开工条件核对通过，零代码）**：本会话唯一目标=DrawShadow 模糊整画布成本+跨帧缓存（330ms/帧≈3fps，功能正确纯性能）。复核：分支 feat/p2-收敛整合 HEAD `8cdb7983` 领先 origin 13 提交全未推送；行号漂移复核 `runGPUFilterGraphEx` 在 `filter_gpu_graph.go:1038`（立项记 1085=函数体内位置）、`DrawShadow:222`/`filterSrcScratch:94` 一致；离屏 GPU 设备实测可用（`TestP04_ApplyBlurGPU` PASS，gpu_ops=2/cpu_fb=0 真走 GPU 图）——步骤①分段计时能取真数据、不假绿。四步按序：①env 门控分段计时归因（动刀前置）→②模糊区域裁剪→③跨帧缓存→④红测验收；**①归因出来、动 graph 核心前停下报告拍板裁剪方案（graph 子区域 vs bounded layer RT）**。工作区：别线文件（p38 金图/p37 三测试/c5 两文件/.atomcode/.qoder/.zcode）+ 多一枚 `ui_wr_p41_drawshadow/testdata/p41_drawshadow_final.png`（运行期 snapPath 产物、非门禁金图）一律不提交不清理；`goldens/` 双后端两张 07:55 基线未动、0.0000% 锁定不重种。公开 API 预期零变化。 | `evidence/P4.3/`（stage1-timing/ 待①回填） |
+| 2026-11-10 | P4.3 阴影专项 | **②③ 影响面评估完成（拍板后、动代码前，零代码）**：按 SKILL `gpui-wr-engine` §1 对 render/ 高风险改动做逐层评估，关键发现——① `tryApplyFilterGraphGPU` 三条路径里，layer 激活时 path-2/3 的 `foldPendingIntoPixmap` 遇 active layer RT 直接 return false（`filter_ops_gpu.go:328-332`），**阴影只能走 path-1 FromView**；② FromView 的 `srcView` 是整幅纹理（`ensureFilterSrcRT(w,h)`），要按紧致界子区域工作**必须给 graph 的 `fromExternal` 源采样加子区域参数（动 WGSL/uniform）**，正是立项「graph 子区域」那条、与拍板的 bounded layer RT 配套；③ `materializeFilterGPUTo`（`filter_ops_gpu.go:852`）回读写 pixmap 从 0 起、无目标偏移，`seedTopLayerGPUFromPixmap`（`context_layer_blend.go:658`）整幅上传，二者都要按界子区域化；④ 跨帧缓存需 GPU view 跨帧存活（`attachFilterGPUResult` 双缓冲只保 2 帧，`filter_ops_gpu.go:771`）、独立 `CreateOffscreenTexture` + `UploadRGBAToView` + Vram 记账 + LRU + 键(path 内容哈希/elevation/color/CTM/dpr)，并处理 clip/投影/录制回放/双后端逐位一致。**结论：②③ 是需分批红绿 + 全套双后端/live/显存验收的工程**；现有 `Path.Bounds()`/`clipDeviceBounds()`/`backdropBounds`/`damage`/`readTextureViewRegionRGBA(...,region,...)` 均为可复用底座，零公开 API 预期不变。**停在「停下报告」请用户拍板落地形态，②③ 代码未动，状态仍 🟡。** | `evidence/P4.3/stage1-timing/attribution.md`（§4 影响面） |
+| 2026-11-10 | P4.3 阴影专项 | **① 分段计时归因 ✅ 完成（动刀前置，停在「停下报告」待拍板）**：离屏 native 独立设备实测（`WGPU_NATIVE_PATH`，`TestP43RoughProbe` + `GPUI_P43_TIMING=1`），粗测+分段数据落 `evidence/P4.3/stage1-timing/`。三尺寸 `gpu_ops>0/cpu_fb=0` 确认真走 GPU 图（FromView、wantPixels=false）；**立项文档 1.15s 复现不了**（1200² drawshadow 实测 96.7ms，窗口 55ms/阴影量级吻合，疑立项探针为未接 GPU 的 CPU-only 路）。分段：graph 核心 upload/encode/submit/map 稳态 <1ms 且与面积无关=不是大头；**大头=隔离层全画布 GPU↔CPU 往返**（layer 段 5.3/35.3/66.4ms，占 54%/76%/91%，随面积线性，materializeFilterGPU 回读 + seedTopLayerGPUFromPixmap 回种）。⇒ 裁剪落点应是 bounded layer RT（隔离层 RT+回读/回种裁到阴影紧致界），非只改 graph 子区域；③缓存让静态帧不付这条往返。env 门控计时（12 处 + 2 helper）默认关、零行为变化、零公开 API，默认/nogpu 双构建 rc=0；诊断件留④做成本基线后清理。**②③未动、graph 核心零行为改动**，按硬约束停下报告拍板裁剪方案。 | `evidence/P4.3/stage1-timing/`（attribution.md / rough-probe.txt / segmented-timing.txt） |
+
+| 2026-11-10 | P4.3 阴影专项 | **②③ 实现尝试 → 没修好、按纪律全部回退（状态仍 🟡）**：用户拍板「DrawShadow 层合一」后落地——缓存紧致界阴影 GPU view（键=path 内容哈希/elevation/color/CTM/dpr，禁指针键，LRU + 独立 `CreateOffscreenTexture` 谁建谁放）、命中贴图跳过 blur 链、投影分支显式不缓存。单元级先红后绿全过（成本 0.227<1/4、像素逐位 0、mutation `no-cache` 反证红）、默认/nogpu 双构建 rc=0；真窗 native 单窗标准关闭：缓存真命中（2492 hit / 7 store）、**fps 恢复**（fps_interval 59.3、interval_p95 18.97ms<22ms、presents 356 vs 原 24），但 **golden diff 33.0371% FAIL**。A/B：`no-cache`/`store-only` 均 0.0000% ⇒ 差异来自命中贴图；逐像素客观判据（白底 1-4 级、非白底 5-12 级、canvas dump=premul 黑 `(0,0,0,a)` 内容正确、red-tile 仅 1272/58800 生效、gpu_ops +1 但不呈现）；六种贴图方式（子区域 / UV inset / 全画布整层 blit / 绕 clip / 层包裹 / red-tile）恒定 ~33% ⇒ 根因 = **P4.1 批 3 在册 GPU 层链洞 #4/#5 族**（DrawShadow 内直接 queue 的 GPU texture draw 无法可靠进 present 帧）。按 AGENTS「禁止猜着修」「别顺手修别线」+ memory「搞不定如实说没修好并回退、禁半吊子」停止试错。**回退**：删 `shadow_cache.go`/`p43_shadow_blur_perf_test.go`，checkout `context.go`/`context_construct.go`/`context_misc_draw.go`；保留 ① 计时设施（env 门控默认关）；回退后双构建 rc=0、`TestP43RoughProbe` 仍绿；金图双后端 0.0000% 未重种。**新问题落位**：命中贴图受在册 GPU 层链洞阻塞，下一步候选（先修底层洞 / 换 CPU composite 路径）均需先影响面评估 + 停下报告拍板。 | `evidence/P4.3/impl-attempt.md`、`impl-attempt-logs/` |
 
 ## 8 修订记录
 
