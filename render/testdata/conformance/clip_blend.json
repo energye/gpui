@@ -213,7 +213,7 @@
     }
   ],
   "expect": {
-    "min_gpu_ops": 1,
+    "min_gpu_ops": 3,
     "max_cpu_fallback_ops": 0
   },
   "resource": {

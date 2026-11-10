@@ -131,7 +131,7 @@ func (t *hudTicker) Tick(dt float64) bool {
 		}
 		t.hud.presents.Store(t.app.PresentCount())
 		t.hud.refusals.Store(t.app.Metrics().Snapshot().BudgetRefusals)
-		t.hud.liveMB.Store(uint64(float64(render.VramLiveBytes())/(1024*1024) * 100))
+		t.hud.liveMB.Store(uint64(float64(render.VramLiveBytes()) / (1024 * 1024) * 100))
 	}
 	t.box.MarkNeedsPaint()
 	t.app.ScheduleFrame()
@@ -173,7 +173,7 @@ func openWindow(idx, cards int, snapPath string, gateMode bool, eventsTotal *ato
 	}
 	w, err := platform.Open(platform.Options{
 		Width: winW, Height: winH,
-		Title: fmt.Sprintf("gpui ui_base_vram_cap %d/%d", idx+1, ladderSteps),
+		Title:    fmt.Sprintf("gpui ui_base_vram_cap %d/%d", idx+1, ladderSteps),
 		Position: pos, Decorations: true, Resizable: false,
 		Backend: backend,
 	})
@@ -614,31 +614,31 @@ func main() {
 		}
 	}
 	extra := map[string]any{
-		"mode":                     "budget_ladder",
-		"windows_ladder":           []int{2, 4, 8},
-		"phases":                   gotPhases,
-		"cards_per_window":         cardsPerWin,
-		"card_px":                  fmt.Sprintf("%dx%d", cardW, cardH),
-		"vram_budget_mb":           budgetMB,
-		"ledger_waterline_pct":     ledgerWaterlinePct,
-		"ledger_peak_mb":           livePeakMB,
-		"refusals_total":           refusalsTotal,
-		"refusal_curve":            refusalCurve(gotPhases),
-		"fair_share_rule":          "budget / windows / 4 (render.PictureCacheFairMax) clamps automatic picture-texture cache growth",
-		"presents_total":           totalPresents,
-		"events_total":             eventsTotal.Load(),
-		"crash_free":               !timedOut,
-		"evidence_mode":            map[bool]string{true: "gate", false: "manual"}[gateMode],
-		"pixel_probes_ok":          pixelOK,
-		"pixel_probes_total":       pixelTotal,
-		"pixel_bad":                pixelBad,
-		"pixel_golden_diff_pct":    pixelGoldenValue,
-		"pixel_golden_max_pct":     goldenMax,
-		"pixel_golden_per_window":  goldenPer,
-		"pixel_golden_total_px":    goldenTotalPx,
-		"pixel_golden_first_run":   goldenFirst,
-		"golden_mask":              "per-window card content below the HUD band",
-		"golden_tolerance_pct":     0,
+		"mode":                      "budget_ladder",
+		"windows_ladder":            []int{2, 4, 8},
+		"phases":                    gotPhases,
+		"cards_per_window":          cardsPerWin,
+		"card_px":                   fmt.Sprintf("%dx%d", cardW, cardH),
+		"vram_budget_mb":            budgetMB,
+		"ledger_waterline_pct":      ledgerWaterlinePct,
+		"ledger_peak_mb":            livePeakMB,
+		"refusals_total":            refusalsTotal,
+		"refusal_curve":             refusalCurve(gotPhases),
+		"fair_share_rule":           "budget / windows / 4 (render.PictureCacheFairMax) clamps automatic picture-texture cache growth",
+		"presents_total":            totalPresents,
+		"events_total":              eventsTotal.Load(),
+		"crash_free":                !timedOut,
+		"evidence_mode":             map[bool]string{true: "gate", false: "manual"}[gateMode],
+		"pixel_probes_ok":           pixelOK,
+		"pixel_probes_total":        pixelTotal,
+		"pixel_bad":                 pixelBad,
+		"pixel_golden_diff_pct":     pixelGoldenValue,
+		"pixel_golden_max_pct":      goldenMax,
+		"pixel_golden_per_window":   goldenPer,
+		"pixel_golden_total_px":     goldenTotalPx,
+		"pixel_golden_first_run":    goldenFirst,
+		"golden_mask":               "per-window card content below the HUD band",
+		"golden_tolerance_pct":      0,
 		"rss_slope_valid":           snap.RSSSlopeValid,
 		"rss_slope_scope":           "whole-run slope is structural (incremental ladder adds windows+caches); the health line judges the hold segment below",
 		"rss_slope_line_kb_per_min": 30000,
@@ -747,12 +747,19 @@ type oomVerdict struct {
 	Spec        string  `json:"inject_spec"`
 	After       int64   `json:"inject_after_submit"`
 	Count       int64   `json:"inject_count"`
+	EarlyMB     float64 `json:"early_baseline_live_mb"`
 	PreMB       float64 `json:"pre_inject_live_mb"`
 	PostMB      float64 `json:"post_recovery_live_mb"`
 	DeltaMB     float64 `json:"delta_mb"`
 	ToleranceMB float64 `json:"tolerance_mb"`
-	Recovered   bool    `json:"ledger_recovered"`
-	Survived    bool    `json:"app_survived"`
+	// Recovered compares the two windows around the injection (F2 弱点：
+	// 「整体抬底」型泄漏把 pre/post 一起抬高时恒真 —— P1.8 skipforget
+	// 第一方案实测)。BaselineStable 是补上的绝对量锚：注入前的水平必须
+	// 没有高出启动后早期基线（同款容差），否则整体抬底必红。
+	EarlyN         int  `json:"early_baseline_samples"`
+	BaselineStable bool `json:"ledger_baseline_stable"`
+	Recovered      bool `json:"ledger_recovered"`
+	Survived       bool `json:"app_survived"`
 }
 
 func runOOMProbe(gateMode bool) {
@@ -911,6 +918,11 @@ func runOOMProbe(gateMode bool) {
 	}
 	preMB, preN := medianBetween(after-preLo, after-preHi)
 	postMB, postN := medianBetween(after+postLo, after+postHi)
+	// F2（P1.8 skipforget 第一方案实测）：pre/post 相对比较对「整体抬底」型
+	// 泄漏不敏感——全局少释放把两个窗一起抬高，pre==post 恒成立。加一个
+	// 注入点之前的早期基线窗（present 16~48 帧之前），注入前水平高出基线
+	// 超容差即红。窗口宽度 32 帧，50ms 采样 ≈ 10 样本，要求 ≥5。
+	earlyMB, earlyN := medianBetween(after-preLo-32, after-preLo-16)
 	presents := w.app.PresentCount()
 	tolMB := preMB * 0.05
 	if tolMB < 4 {
@@ -918,10 +930,12 @@ func runOOMProbe(gateMode bool) {
 	}
 	verdict := oomVerdict{
 		Spec: spec, After: after, Count: count,
+		EarlyMB: earlyMB, EarlyN: earlyN,
 		PreMB: preMB, PostMB: postMB,
 		DeltaMB: postMB - preMB, ToleranceMB: tolMB,
-		Recovered: preN >= 5 && postN >= 5 && abs(postMB-preMB) <= tolMB,
-		Survived:  presents >= after+postHi,
+		BaselineStable: earlyN >= 5 && preN >= 5 && preMB-earlyMB <= tolMB,
+		Recovered:      preN >= 5 && postN >= 5 && abs(postMB-preMB) <= tolMB,
+		Survived:       presents >= after+postHi,
 	}
 
 	// Golden over the single window (content below the HUD band).
@@ -938,7 +952,7 @@ func runOOMProbe(gateMode bool) {
 
 	extra := map[string]any{
 		"mode":                   "oom_recovery_probe",
-		"oom":                     verdict,
+		"oom":                    verdict,
 		"presents_total":         presents,
 		"events_total":           eventsTotal.Load(),
 		"timed_out":              timedOut,
@@ -986,11 +1000,17 @@ func runOOMProbe(gateMode bool) {
 		if preN < 5 || postN < 5 {
 			fail("ledger samples pre=%d post=%d want >=5 each (sampler starved?)", preN, postN)
 		}
+		if earlyN < 5 {
+			fail("ledger early baseline samples=%d want >=5 (raise GPUI_FAULT_OOM inject point or lower startup churn)", earlyN)
+		}
 		if !verdict.Survived {
 			fail("app did not survive the single injected OOM (presents=%d)", presents)
 		}
 		if !verdict.Recovered {
 			fail("ledger did not return to pre-injection level: pre=%.2fMB post=%.2fMB delta=%.2fMB tol=%.2fMB (资源谁建谁放)", preMB, postMB, verdict.DeltaMB, tolMB)
+		}
+		if !verdict.BaselineStable {
+			fail("ledger baseline lifted before the injection: early=%.2fMB pre=%.2fMB tol=%.2fMB — 整体抬底型泄漏（F2，资源谁建谁放）", earlyMB, preMB, tolMB)
 		}
 		if !goldenFirst && goldenMax != 0 {
 			fail("golden max=%.4f%% want 0", goldenMax)
@@ -1000,8 +1020,8 @@ func runOOMProbe(gateMode bool) {
 	if gateMode && goldenFirst {
 		status = "SEEDED"
 	}
-	fmt.Fprintf(os.Stderr, "ui_base_vram_cap oom-probe: %s spec=%s presents=%d pre=%.2fMB post=%.2fMB delta=%.2fMB recovered=%v survived=%v mode=%s elapsed=%.1fs\n",
-		status, spec, presents, preMB, postMB, verdict.DeltaMB, verdict.Recovered, verdict.Survived,
+	fmt.Fprintf(os.Stderr, "ui_base_vram_cap oom-probe: %s spec=%s presents=%d early=%.2fMB pre=%.2fMB post=%.2fMB delta=%.2fMB recovered=%v stable=%v survived=%v mode=%s elapsed=%.1fs\n",
+		status, spec, presents, earlyMB, preMB, postMB, verdict.DeltaMB, verdict.Recovered, verdict.BaselineStable, verdict.Survived,
 		map[bool]string{true: "gate", false: "manual"}[gateMode], elapsed)
 }
 
