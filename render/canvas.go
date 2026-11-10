@@ -124,6 +124,14 @@ type Canvas interface {
 	FillPath(p *Path) error
 	StrokePath(p *Path) error
 
+	// DrawShadow draws the tonal contact shadow for an occluder path
+	// (Impeller spot single-pass model; the shadow color derives from the
+	// occluder color, elevation drives lift+blur). The path is interpreted
+	// in the current transform, like Fill. Skia parity: SkCanvas's
+	// privateDrawShadow. Context implements it; the recording layer records
+	// CmdDrawShadow so display-list replay carries shadows (P4.1 批 4 补正 3).
+	DrawShadow(path *Path, col RGBA, elevation float64, transparentOccluder bool)
+
 	// Clip
 	Clip()
 	ClipPreserve()

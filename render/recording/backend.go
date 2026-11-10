@@ -217,6 +217,10 @@ type Backend interface {
 	ApplyColorMatrix(matrix [20]float32)
 
 	// ApplyDropShadow attaches a drop-shadow post-effect.
+	// DrawShadow draws the tonal contact shadow (Context.DrawShadow
+	// semantics; path in user space under the playback CTM). P4.1 批 4 补正 3.
+	DrawShadow(path *render.Path, col render.RGBA, elevation float64, transparentOccluder bool)
+
 	ApplyDropShadow(offsetX, offsetY, blurRadius float64, color render.RGBA)
 
 	// ApplyGrayscale desaturates subsequent draws.

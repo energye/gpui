@@ -1,0 +1,6 @@
+=== RUN   TestDrawShadowReplayParity
+--- PASS: TestDrawShadowReplayParity (0.06s)
+=== RUN   TestDrawShadowRasterBackendReplay
+--- PASS: TestDrawShadowRasterBackendReplay (0.03s)
+PASS
+ok  	github.com/energye/gpui/render/recording	0.098s

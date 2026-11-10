@@ -49,11 +49,9 @@ var cardOrigin [4]render.Point
 var cardDrawn [4]int
 
 func drawBlockWithShadow(pc *rendering.PaintContext, x, y, w, h, elevation float64, scaleXY ...float64) {
-	// 几何画在 pc.DC（Canvas 接口）：live 帧走录制回放，OnPaint 拿到的是录制
-	// 画布，LiveContext 断言 *render.Context 失败会静默跳过（白卡根因）。
-	// DrawShadow 无录制命令（render.Canvas 不含，recording 无该命令）——只能
-	// 在快照 repaint 的 live dc 上画：live 回放帧显示无阴影的色块（显式降级，
-	// 边界登记；Canvas 级 DrawShadow 录制命令归后续能力批）。
+	// 全部画在 pc.DC（Canvas 接口）：live 帧走录制回放，OnPaint 拿到的是录制
+	// 画布；DrawShadow 已入 Canvas 接口 + CmdDrawShadow 录制命令（P4.1 批 4
+	// 补正 3），live 回放与快照同一路径、同画面。
 	dc := pc.DC
 	if dc == nil {
 		return
@@ -84,9 +82,7 @@ func drawBlockWithShadow(pc *rendering.PaintContext, x, y, w, h, elevation float
 	dc.DrawPath(rect)
 	_ = dc.Fill()
 	if breakMode != "skip-shadow" {
-		if live, ok := pc.LiveContext(); ok {
-			live.DrawShadow(rect, render.RGBA{R: 0, G: 0, B: 0, A: 1}, elevation, false)
-		}
+		dc.DrawShadow(rect, render.RGBA{R: 0, G: 0, B: 0, A: 1}, elevation, false)
 	}
 	dc.Pop()
 }
@@ -141,9 +137,7 @@ func paintCardD(pc *rendering.PaintContext, sz rendering.Size) {
 		dc.SetRGBA(col[0], col[1], col[2], 1)
 		dc.DrawPath(rect) // 变换感知（同上：SetPath raw 会错位到窗口原点）
 		_ = dc.Fill()
-		if live, ok := pc.LiveContext(); ok {
-			live.DrawShadow(rect, render.RGBA{R: col[0], G: col[1], B: col[2], A: 1}, 10, false)
-		}
+		dc.DrawShadow(rect, render.RGBA{R: col[0], G: col[1], B: col[2], A: 1}, 10, false)
 		dc.Pop()
 	}
 	cardDrawn[3]++

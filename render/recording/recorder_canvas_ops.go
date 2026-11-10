@@ -309,6 +309,22 @@ func (r *Recorder) DrawMeshPatch(patch render.MeshPatch) {
 
 // DrawMeshGradient records a high-level grid. The grid is deep-copied so a
 // caller that mutates its vertices per frame cannot rewrite the command.
+// DrawShadow records the tonal contact shadow (Context.DrawShadow semantics:
+// transform-aware, the path is in the caller's user space — playback
+// re-applies the recorded CTM, same resource pattern as FillPath).
+// P4.1 批 4 补正 3.
+func (r *Recorder) DrawShadow(p *render.Path, col render.RGBA, elevation float64, transparentOccluder bool) {
+	if p == nil || p.NumVerbs() == 0 {
+		return
+	}
+	r.commands = append(r.commands, DrawShadowCommand{
+		Path:                r.resources.AddPath(p),
+		Col:                 col,
+		Elevation:           elevation,
+		TransparentOccluder: transparentOccluder,
+	})
+}
+
 func (r *Recorder) DrawMeshGradient(g *render.MeshGradient) {
 	if g == nil {
 		return

@@ -333,6 +333,8 @@ func (r *Recording) Playback(backend Backend) error {
 			backend.DrawMeshPatch(c.Patch, r.resources.GetBrush(c.Brush))
 		case DrawMeshGradientCommand:
 			backend.DrawMeshGradient(c.Gradient, r.resources.GetBrush(c.Brush))
+		case DrawShadowCommand:
+			backend.DrawShadow(r.resources.GetPath(c.Path), c.Col, c.Elevation, c.TransparentOccluder)
 		case DrawGlyphsCommand:
 			backend.DrawGlyphs(c.Glyphs, r.faceFor(c.Face), c.X, c.Y, c.Colored, r.resources.GetBrush(c.Brush))
 		case DrawGPUTextureCommand:

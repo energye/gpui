@@ -243,6 +243,25 @@ type DrawMeshGradientCommand struct {
 // Type implements Command.
 func (DrawMeshGradientCommand) Type() CommandType { return CmdDrawMeshGradient }
 
+// DrawShadowCommand draws the tonal contact shadow for an occluder path
+// (Impeller spot single-pass; Context.DrawShadow semantics — the path is in
+// the caller's user space and playback re-applies the recorded CTM, same as
+// FillPath). P4.1 批 4 补正 3: lets display-list replay carry shadows.
+type DrawShadowCommand struct {
+	// Path references the occluder path in the resource pool.
+	Path PathRef
+	// Col is the occluder color (shadow tone derives from it).
+	Col render.RGBA
+	// Elevation drives lift+blur (Impeller occluder_z / kLightRadius model).
+	Elevation float64
+	// TransparentOccluder mirrors Context.DrawShadow's flag (currently
+	// reserved; recorded for forward compatibility).
+	TransparentOccluder bool
+}
+
+// Type implements Command.
+func (DrawShadowCommand) Type() CommandType { return CmdDrawShadow }
+
 // --------------------------------------------------------------------------
 // Layers
 // --------------------------------------------------------------------------

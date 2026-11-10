@@ -422,6 +422,12 @@ func (b *CanvasBackend) DrawMeshPatch(patch render.MeshPatch, brush Brush) {
 
 // DrawMeshGradient replays a high-level grid under the paint it was recorded
 // with, for the same reason as DrawMeshPatch.
+// DrawShadow forwards the tonal contact shadow onto the playback canvas
+// (dc carries the recorded CTM via the Concat stream). P4.1 批 4 补正 3.
+func (b *CanvasBackend) DrawShadow(path *render.Path, col render.RGBA, elevation float64, transparentOccluder bool) {
+	b.dc.DrawShadow(path, col, elevation, transparentOccluder)
+}
+
 func (b *CanvasBackend) DrawMeshGradient(g *render.MeshGradient, brush Brush) {
 	ApplyBrush(b.dc, brush, true)
 	b.dc.DrawMeshGradient(g)

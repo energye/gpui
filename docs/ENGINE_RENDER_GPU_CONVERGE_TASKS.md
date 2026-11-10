@@ -47,6 +47,45 @@
 
 ### 2.1 当前焦点
 
+- **批 4 补正 3 状态：✅ 收口（2026-11-10，Canvas.DrawShadow 录制命令）**——先红
+  （compile：render.Canvas 无 DrawShadow，`unit-tests/red-compile.txt`）后绿
+  （`TestDrawShadowReplayParity` 非恒等 Translate 下录制→回放 vs 直画逐位一致 + 阴影带
+  存在性双向断言、`TestDrawShadowRasterBackendReplay` raster 导出后端同验；用户拍板开批）。
+  实现：`render.Canvas` +DrawShadow（对齐 Skia SkCanvas.drawShadow）+ `CmdDrawShadow`/
+  `DrawShadowCommand` + Recorder/Playback/CanvasBackend/bounds（阴影外扩
+  elevation*(1+800/600)）+ 全实现者同笔（CanvasBackend 转发、raster 内嵌继承、示例
+  spy、测试桩）。窗面：drawshadow 窗去 LiveContext 降级恢复单一代码路径；**双后端
+  门禁 0.0000%（金图不重种，快照路径同对象同方法逐位不变）；go/GL live 抓帧
+  live-vs-golden 从 23.5%（阴影区）收敛到 0.174%（HUD 摆动级），阴影带采样逐位一致
+  （156/208 灰阶）**。诚实登记：live present 帧现在每帧真画阴影（Impeller tonal 模型
+  + 滤镜图模糊），帧耗时 330ms/帧、~3fps（本窗为正确性演示窗 fps_gate=off，帧成本
+  与快照 repaint 同源；阴影模糊的跨帧缓存归 P4.3 性能线）。catalog §2/§6.3 同步
+  （Canvas 116→117、Recorder 143→144、Backend 43→44、CanvasBackend 49→50、命令
+  49 类）+ apidoc rc=0；race/vet/recording 包全绿。证据
+  `evidence/P4.1/batch4/draw-shadow-recording/`（红绿对+live 帧更新）。
+**当前任务验证载体（P4.1 批 4 补正 3：Canvas.DrawShadow 录制命令，2026-11-10 开工登记）**
+
+- 任务：给 `render.Canvas` 接口补 `DrawShadow`（对齐 Skia `SkCanvas` 自带
+  drawShadow；用户拍板开批），recording 层加 `CmdDrawShadow` 命令 + Recorder +
+  Playback + CanvasBackend + bounds；消除 drawshadow 窗 live 回放帧无阴影的
+  登记降级。
+- 能力单测：`render/recording/draw_shadow_test.go`（新增，先红后绿）::
+  `TestDrawShadowReplayParity`（带非恒等 Translate 下录制→回放 vs 直画像素奇偶）/
+  `TestDrawShadowRasterBackendReplay`（raster 导出后端回放）；回放实现者编译器
+  兜底（Canvas 接口加方法后全仓 build 找全）。
+- 真窗：`examples/ui_wr_p41_drawshadow`（沿用，双后端 `-auto-only` 门禁 +
+  go/GL live 抓帧）：快照金图 **不重种**（快照路径同对象同方法逐位不变），
+  live 帧与金图差从 23.5%（阴影区）收到 ≈HUD 摆动级=收口。
+- 金图：`examples/ui_wr_p41_drawshadow/testdata/goldens/*.png`（已有，容差 0，
+  期望零变化；若变=实现有洞，回查）。
+- 双后端：webgpu（native）+ gwgpu-gles（`GPUI_BACKEND=go`）门禁均验；
+  metal 不可验（无真机）。负向：摘 Recorder 记录（DrawShadow no-op）→
+  live 帧阴影消失=parity 红还原能力（或单测负向：录制的命令回放后像素差红）。
+- 公开 API：`render.Canvas` +1 方法（接口全量切换制，一次改齐全部实现者）；
+  catalog + apidoc 同步 rc=0。
+- 证据：`evidence/P4.1/batch4/draw-shadow-recording/`。
+
+
 **当前任务验证载体（P4.1 正确性，2026-11-10 拍板 D1a/D2a/D3a 后按批开工；本块=批 1 登记）**
 
 - 任务：P4.1 **批 1（子项③）顶点网格 paint alpha/blend 接线**——`DrawVertices`/`DrawMesh`
@@ -1028,4 +1067,5 @@ docs/render_gpu_converge/
 | 2026-11-10 | P4.1 批 4 | **⬜→🟡 开工登记（子项① MSAA>1 even-odd 裁剪 + go4x 黑洞修复，D1a 口径）**：交接核对完成（四文档+assessment+findings 已读；git status 逐条归属——1 个已跟踪改动=P3.8 别线金图不提交、7 个未跟踪=别线遗留不动、根目录无 ELF 垃圾；未推送提交实测 8 个非交接所称 10 个，HEAD e4b5043f 一致）。行号复核全部成立：`depth_clip.go:625` BuildClipMask sampleCount>1 直接 return、`:269-318` stencil 管线 winding-only（IncrWrap/DecrWrap）、`RecordDraw` 不认 fillRule、fillRule 链路 clip op→`gpuClipFillRule`→`SetClipPath`→`group.ClipFillRule`（even-odd 只活在被跳过的 mask 路）；底座 `gpu/types/render.go:481` StencilOperationInvert + `gles/command_execute.go:1267` gl.INVERT 映射均在。载体四项已登记 §2.1（单测 `render/clip_evenodd_msaa_test.go` 先红后绿、真窗 `ui_wr_p41_evenodd_msaa` 四卡、金图容差 0、双后端 webgpu/gles 待跑+metal 不可验）。§3 开工条件核对：依赖 P3.4/P3.8 ✅、先红后绿按批 2/3 同款、go4x 修复前停在「停下报告」问用户。下一步：go4x 复现→行号→标准方案 → 停下报告 | `evidence/P4.1/batch4/`（收口时落盘） |
 | 2026-11-10 | P4.1 批 4 | **✅ 收口（三洞红绿对闭环）**：①go4x 定位「ensureResolveFBO 首用裸 FRAMEBUFFER bind 毁 READ=resolve 自拷贝→离屏读回全零」（插桩实锤 readFBO=drawFBO、无头 4x 探针确定性复现）→ 停下报告拍板 DRAW-only → 红绿对 `render/gles_msaa_resolve_test.go` + p39b 真窗 window_not_black 0/23504→23504/23504；②even-odd `eoStencilFillPipeline`（双面 Invert，BuildClipResources 携 fillRule，RecordDraw 分流，sampleCount==1/winding 零变化）→ 红测 `clip_evenodd_msaa_test.go` 红转绿；③实施中抓到深度门控从未生效（桌面 GL glClearDepth/glDepthRange double 签名按 float32 传参，判别实验链+缓冲直读实锤）→ 停下报告拍板按草案修 → isGLES 分派 double/float cif。**真窗 `ui_wr_p41_evenodd_msaa` 四卡双后端 4x 各自 0.0000%/763584px、pixel 12/12、负向 nonzero 红 exit1 还原绿、人工窗 rc=0**；引擎双负向红→还原绿；**1x 全量金图回归 15 窗×双后端零新增红**（p31 0.7278%/p41_mesh B 卡 HEAD 同败先在红已归属）；**P3.9b 四组合全绿 + go4x 金图补种翻绿**；race/vet/apidoc rc=0（零公开 API）。跨后端 433px AA 级差按后端分基线登记。metal 不可验。诊断插桩全还原。证据 `evidence/P4.1/batch4/`（summary.md+两诊断+五证据）；PLAN §6 已回写 | `evidence/P4.1/batch4/summary.md` |
 | 2026-11-10 | P4.1 批 4 补正 | **✅ live 回放帧白卡修正（用户人工窗验收抓出）**：用户人工跑四扇 p41 窗发现卡片全白——门禁只验了快照链（SavePNG=离屏 nil-view 直画），live present 走 `recordFullFrame→presentRecordedFrame`（录制回放），OnPaint 拿到的是**录制画布**，四扇窗的 `pc.LiveContext()` 断言 `*render.Context` 失败**静默跳过全部绘制**（白卡根因；批 1/2/3 窗同病，快照口径的验收从当时起就未覆盖 live 帧）。修复=绘制统一走 `pc.DC`（`render.Canvas` 接口，live/录制两画布同接口；Recorder 的 SetPath 有逆 CTM 预乘的 live-vs-replay 像素奇偶契约）。**go/GL live 帧捕获验收（临时钩子第 60 present 抓 FBO 0，已删）**：evenodd 0.139%/fractional 0.219%（=HUD 数字摆动，与快照一致）、drawshadow 23.5%（色块在，差异=DrawShadow 无录制命令的显式降级：live 回放无阴影，Canvas 级 DrawShadow 录制命令归后续能力批）、mesh 11.4%（内容在，差异=在册 B 卡 #3）。四窗门禁复验双后端快照 0.0000% 不变（Canvas 调用与 Context 同对象同方法）。批 1 B 卡 #3 与 drawshadow 阴影降级两项登记不变。证据 `evidence/P4.1/batch4/live-frames/`（四帧 PNG+README 对照表） | `evidence/P4.1/batch4/live-frames/README.md` |
+| 2026-11-10 | P4.1 批 4 补正 3 | **✅ 收口（Canvas.DrawShadow 录制命令，用户拍板开批）**：先红（compile：Canvas 无 DrawShadow）后绿（`TestDrawShadowReplayParity` 非恒等 Translate 下录制→回放 vs 直画逐位一致+阴影带双向断言、`TestDrawShadowRasterBackendReplay`）；实现=Canvas 接口 +DrawShadow（对齐 Skia SkCanvas.drawShadow）+ CmdDrawShadow/DrawShadowCommand + Recorder/Playback/CanvasBackend/bounds（外扩 elevation*(1+800/600)）+ 全实现者同笔。drawshadow 窗去 LiveContext 降级；**双后端门禁 0.0000%（金图不重种）；go/GL live 抓帧 23.5%→0.174%（阴影带采样逐位一致）**。登记：live present 每帧真画阴影 330ms/帧 ~3fps（fps_gate=off 正确性窗；阴影模糊跨帧缓存归 P4.3）。catalog §2/§6.3 同步 + apidoc rc=0；race/vet/recording 包全绿。证据 `evidence/P4.1/batch4/draw-shadow-recording/` | `evidence/P4.1/batch4/draw-shadow-recording/` |
 | 2026-11-10 | P4.1 批 4 补正 2 | **✅ drawshadow 窗块错位修正（用户人工窗第二轮抓出）**：窗内 `dc.SetPath(rect)`（raw 拷贝不吃当前矩阵）在卡片 Translate(origin) 下把色块画到窗口左上角——**批 3 起就错位，快照/live 同错，旧金图为错位画面自洽种子**（门禁绿=与错位基线逐位一致，用户肉眼抓出）；两处改 `dc.DrawPath(rect)`（变换感知），双后端重种+verify 0.0000%、左上角块残留 0、go/GL live 抓帧确认块本体落卡片位（2574 色命中）+ 20.2% 差异=阴影降级区（上条登记不变）。批 3 当时的 9/9 探针在错位画面上自洽成立、未覆盖绝对摆位——如实登记；「示例层带变换上下文必须 DrawPath」教训与 evenodd 窗首跑同款，两次合计在窗注释立照。证据：live 抓帧结论见 `evidence/P4.1/batch4/live-frames/README.md`（补记） | `evidence/P4.1/batch4/live-frames/README.md` |

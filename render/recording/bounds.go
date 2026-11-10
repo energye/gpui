@@ -175,6 +175,15 @@ func (w *contentWalk) step(cmd Command) {
 			}
 		}
 
+	case DrawShadowCommand:
+		// 阴影外扩：Impeller 模型下抬升=elevation、模糊=(800/600)*elevation
+		//（设备空间），边界按 elevation*(1+800/600) 四周外扩（与
+		// Context.DrawShadow 的 damage 口径同级，取整偏保守）。
+		if p := w.getPath(c.Path); p != nil && p.NumVerbs() > 0 {
+			pad := c.Elevation * (1.0 + 800.0/600.0)
+			w.addPath(c.Path, pad)
+		}
+
 	case DrawTextCommand:
 		face := w.face(c.Font)
 		w.note(c.Text != "" && face != nil && brushCanPaint(w.paintBrush(c.Brush)))

@@ -30,6 +30,9 @@ type captureBackend struct {
 
 func (b *captureBackend) Save() { b.saves++ }
 
+func (b *captureBackend) DrawShadow(_ *render.Path, _ render.RGBA, _ float64, _ bool) {
+}
+
 func (b *captureBackend) RenderScene(p ScenePayload) error {
 	b.scenes = append(b.scenes, p)
 	return nil

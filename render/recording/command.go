@@ -100,6 +100,7 @@ const (
 	CmdDrawMesh         // Indexed or triangle-list mesh
 	CmdDrawMeshPatch    // One colored Bezier patch (P3.9 mesh gradient)
 	CmdDrawMeshGradient // High-level mesh gradient grid (P3.9a)
+	CmdDrawShadow       // Tonal contact shadow (Impeller spot single-pass; P4.1 批 4 补正 3)
 
 	// Layer and effect commands
 	CmdPushLayer         // Save-layer with blend/opacity
@@ -175,6 +176,7 @@ var commandTypeNames = [...]string{
 	CmdDrawMesh:         "DrawMesh",
 	CmdDrawMeshPatch:    "DrawMeshPatch",
 	CmdDrawMeshGradient: "DrawMeshGradient",
+	CmdDrawShadow:       "DrawShadow",
 
 	CmdPushLayer:         "PushLayer",
 	CmdPushLayerIsolated: "PushLayerIsolated",

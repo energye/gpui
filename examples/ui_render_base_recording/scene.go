@@ -575,6 +575,10 @@ func (s *recordingSpyBackend) DrawMeshGradient(_ *render.MeshGradient, _ recordi
 	s.hit("DrawMeshGradient")
 }
 
+func (s *recordingSpyBackend) DrawShadow(_ *render.Path, _ render.RGBA, _ float64, _ bool) {
+	s.hit("DrawShadow")
+}
+
 func (s *recordingSpyBackend) DrawMeshPatch(_ render.MeshPatch, _ recording.Brush) {
 	s.hit("DrawMeshPatch")
 }

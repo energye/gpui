@@ -126,6 +126,9 @@ func (s *shaderSpyBackend) FillPath(_ *render.Path, _ Brush, _ FillRule, _ rende
 	s.fillShaders = append(s.fillShaders, shader)
 }
 
+
+func (s *shaderSpyBackend) DrawShadow(_ *render.Path, _ render.RGBA, _ float64, _ bool) {
+}
 func (s *shaderSpyBackend) StrokePath(_ *render.Path, _ Brush, _ Stroke, _ render.BlendMode, _ render.BlendSpace, shader *render.ShaderEffect) {
 	s.strokeShaders = append(s.strokeShaders, shader)
 }
