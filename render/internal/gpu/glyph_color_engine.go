@@ -108,7 +108,7 @@ func (e *ColorGlyphEngine) LayoutColorGlyphs(face text.Face, glyphs []text.Shape
 		// document may reference currentColor (conservative: the doc is not
 		// scanned per lookup, so var-free docs cost one atlas slot per
 		// text color).
-		img, err := e.raster.Image(parsed, uint16(glyph.GID), ppem, 0, fg)
+		img, err := e.raster.Image(parsed, uint16(glyph.GID), ppem, 0, fg, face.Variations())
 		if err != nil {
 			slogger().Warn("color glyph rasterize failed", "gid", uint16(glyph.GID), "err", err)
 			continue
@@ -121,7 +121,7 @@ func (e *ColorGlyphEngine) LayoutColorGlyphs(face text.Face, glyphs []text.Shape
 		if gt == text.GlyphTypeCOLR || gt == text.GlyphTypeSVG {
 			atlasFG = fg
 		}
-		key := ColorGlyphKey{FontID: fontID, GlyphID: uint16(glyph.GID), PPEM: ppem, Palette: 0, FG: atlasFG}
+		key := ColorGlyphKey{FontID: fontID, GlyphID: uint16(glyph.GID), PPEM: ppem, Palette: 0, FG: atlasFG, Vars: text.VariationKey(face.Variations())}
 		region, ok := e.atlas.Get(key)
 		if !ok {
 			var err error

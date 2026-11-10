@@ -48,6 +48,10 @@ type colorRasterKey struct {
 	vars uint64
 }
 
+// VariationKey folds an axis setting into a 64-bit key so caches (raster cache,
+// GPU color atlas) can tell two instances of the same face apart.
+func VariationKey(vars []FontVariation) uint64 { return hashVariations(vars) }
+
 // hashVariations folds the axis settings into the cache key so two instances
 // of the same face never share a raster.
 func hashVariations(vars []FontVariation) uint64 {

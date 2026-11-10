@@ -30,6 +30,9 @@ type ColorGlyphKey struct {
 	PPEM    uint16
 	Palette int
 	FG      color.RGBA
+	// Vars hashes the face's variation instance (text.VariationKey); zero for
+	// the default instance so existing keys are unchanged.
+	Vars uint64
 }
 
 // ColorGlyphRegion is a packed RGBA block with page-local normalized UVs.

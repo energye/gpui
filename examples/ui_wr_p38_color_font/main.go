@@ -41,7 +41,7 @@ import (
 	_ "github.com/energye/gpui/render/gpu"
 )
 
-const winW, winH = 1460, 800
+const winW, winH = 1460, 900
 
 const windowTitle = "gpui ui_wr_p38_color_font — P3.8 批 5 彩色字体四格式"
 
@@ -133,6 +133,7 @@ func main() {
 		"卡2 sbix strike（红方块，strike 缩放）",
 		"卡3 SVG 表（A 自色 / B currentColor+调色板）",
 		"卡4 COLRv1 paint graph（渐变+平移层+ClipList）",
+		"卡5 COLRv1 变量轴 SWPS -90/0/+90（P4.4）",
 		"logic: 四格式 GlyphType+扁平化 (CPU offscreen)",
 		"golden: 表头+图例+卡 逐位",
 		"gate: -auto-only / RUN_SECONDS",
@@ -264,6 +265,7 @@ func main() {
 	for _, ca := range cardAt {
 		goldenRects = append(goldenRects, rect{x: bx + ca[0], y: by + ca[1], w: cardW, h: cardH})
 	}
+	goldenRects = append(goldenRects, rect{x: bx + 12, y: by + 624, w: stripW, h: stripH})
 	goldenDiffPct, goldenTotalPx, goldenFirstRun := evaluateGolden(snapDir, goldenRects)
 
 	screenRes := screenCheckResult{}
@@ -298,7 +300,7 @@ func main() {
 			"fps_gate":               "off_correctness",
 			"slope_gate":             "off",
 			"apis":                   "text.ColorFont,GlyphType,ColorRasterCache,SetSVGTableRenderer,SetCOLRv1Renderer,DrawString",
-			"cards":                  4,
+			"cards":                  5,
 			"bake_size":              "live text (face 96px)",
 			"logic_pass":             logicPass,
 			"logic_probes_ok":        len(logicProbes) - len(logicFailed),

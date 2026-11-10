@@ -9,6 +9,7 @@ import (
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/svg"
 	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/render/text/emoji"
 )
 
 type probeResult struct {
@@ -36,6 +37,7 @@ var probeKeys = []string{
 	"svg_flags",
 	"colrv1_graph",
 	"colrv0_layers",
+	"colrv1_var_axes",
 }
 
 var (
@@ -44,7 +46,7 @@ var (
 	colGreenGlyph = [3]float64{60.0 / 255, 220.0 / 255, 60.0 / 255}
 	colSVGRed     = [3]float64{0xe2 / 255.0, 0x4a / 255.0, 0x4a / 255.0}
 	colSVGGreen   = [3]float64{0x3c / 255.0, 0xcf / 255.0, 0x7a / 255.0}
-	colV0Red      = [3]float64{226.0 / 255, 0, 0}     // generated CPAL entry 0
+	colV0Red      = [3]float64{226.0 / 255, 0, 0}          // generated CPAL entry 0
 	colV0Green    = [3]float64{60.0 / 255, 226.0 / 255, 0} // generated CPAL entry 1
 )
 
@@ -65,6 +67,7 @@ var probeFonts = []string{
 	"render/text/testdata/p38_color_svg.ttf",
 	"render/text/testdata/p38_color_colrv1.ttf",
 	"render/text/testdata/p38_color_colrv0.ttf",
+	"render/text/testdata/p44_colrv1_var.ttf",
 }
 
 func runLogicProbes() []probeResult {
@@ -78,7 +81,7 @@ func runLogicProbes() []probeResult {
 	svg.InstallSVGTableRenderer()
 	render.InstallCOLRv1Renderer()
 
-	var fonts [5]text.ParsedFont
+	var fonts [6]text.ParsedFont
 	for i, path := range probeFonts {
 		src, err := text.NewFontSourceFromFile(path)
 		if err != nil {
@@ -191,6 +194,43 @@ func runLogicProbes() []probeResult {
 	}
 	add("colrv0_layers", errG == nil && cg0 != nil && cg0.Paint == nil && v0Layers == 2,
 		fmt.Sprintf("err=%v layers=%d", errG, v0Layers))
+
+	// P4.4: the same COLRv1 glyph at SWPS = -90 / 0 / +90 must produce three
+	// different paint graphs (Var* deltas applied end to end).
+	if vf, ok := fonts[5].(interface {
+		COLRGlyphVar(uint16, int, []text.FontVariation) (*emoji.COLRGlyph, error)
+	}); ok {
+		var sum func(*emoji.PaintNode) float64
+		sum = func(n *emoji.PaintNode) float64 {
+			if n == nil {
+				return 0
+			}
+			v := n.Alpha + n.X0 + n.Y0 + n.X1 + n.Y1 + n.X2 + n.Y2 + n.R0 + n.R1 +
+				n.CenterX + n.CenterY + n.StartAngleDeg + n.EndAngleDeg +
+				n.XX + n.YX + n.XY + n.YY + n.DX + n.DY + float64(n.GlyphID)
+			for _, st := range n.Line.Stops {
+				v += st.Offset + st.Alpha
+			}
+			for _, c := range n.Children {
+				v += sum(c.Node)
+			}
+			return v + sum(n.Child) + sum(n.Source) + sum(n.Backdrop)
+		}
+		var sums [3]float64
+		okAll := true
+		for i, ax := range []float32{-90, 0, 90} {
+			g, err := vf.COLRGlyphVar(12, 0, []text.FontVariation{text.NewFontVariation("SWPS", ax)})
+			if err != nil || g == nil || g.Paint == nil {
+				okAll = false
+				break
+			}
+			sums[i] = sum(g.Paint)
+		}
+		distinct := okAll && sums[0] != sums[1] && sums[1] != sums[2] && sums[0] != sums[2]
+		add("colrv1_var_axes", distinct, fmt.Sprintf("sums=%.3f/%.3f/%.3f", sums[0], sums[1], sums[2]))
+	} else {
+		add("colrv1_var_axes", false, "COLRGlyphVar unavailable")
+	}
 
 	return out
 }

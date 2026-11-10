@@ -23,6 +23,8 @@ const (
 	innerX       = (cardW - innerW) / 2
 	innerY       = 40.0
 	glyphSize    = 96.0
+	stripW       = 1140.0
+	stripH       = 120.0
 )
 
 var cardAt = [4][2]float64{
@@ -36,9 +38,10 @@ var (
 )
 
 type baked struct {
-	faces [4]text.Face
-	err   string
-	closed bool
+	varFaces [3]text.Face
+	faces    [4]text.Face
+	err      string
+	closed   bool
 }
 
 var (
@@ -68,6 +71,14 @@ func ensureBaked() *baked {
 		// both hooks once (explicit, idempotent).
 		svg.InstallSVGTableRenderer()
 		render.InstallCOLRv1Renderer()
+		if src, err := text.NewFontSourceFromFile("render/text/testdata/p44_colrv1_var.ttf"); err == nil {
+			for k, v := range []float32{-90, 0, 90} {
+				b.varFaces[k] = src.Face(80, text.WithVariations(text.NewFontVariation("SWPS", v)))
+			}
+		} else {
+			b.err = "p44 variable font: " + err.Error()
+			return
+		}
 		for i, path := range cardFontFiles {
 			src, err := text.NewFontSourceFromFile(path)
 			if err != nil {
@@ -134,4 +145,28 @@ func buildColorFontScene(shell *wrkit.ShellChrome) {
 	for i := range cardAt {
 		card(i, cardTitles[i])
 	}
+
+	// 卡 5（P4.4）：COLRv1 变量轴——同一字形在 SWPS=-90/0/+90 三个实例下。
+	strip := rendering.NewRenderBox()
+	strip.FixedWidth, strip.FixedHeight = stripW, stripH
+	strip.OnPaint = func(pc *rendering.PaintContext, sz rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
+		cardBG(dc, ox, oy, sz.Width, sz.Height)
+		b := ensureBaked()
+		if b.err != "" {
+			return
+		}
+		for k := 0; k < 3; k++ {
+			if b.varFaces[k] == nil {
+				continue
+			}
+			dc.DrawShapedColorGlyphs([]text.ShapedGlyph{{GID: 12}}, b.varFaces[k],
+				ox+40+float64(k)*380, oy+stripH-30)
+		}
+	}
+	shell.Body.Place(strip, 12, 624)
+	shell.Body.Place(wrkit.Label("5 COLRv1 变量轴（同一字形 SWPS=-90 / 0 / +90，P4.4）", 12, 0.80, 0.86, 0.94), 12+12, 624+8)
 }
