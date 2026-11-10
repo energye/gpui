@@ -91,10 +91,12 @@ func drawGouraudMesh(pc *rendering.PaintContext, alpha float64, mode render.Blen
 	}
 	alpha = breakAlpha(alpha)
 	mode = breakBlend(mode)
-	dc, ok := pc.LiveContext()
-	if !ok {
-		return ""
-	}
+	// Draw through the Canvas interface: live frames hand OnPaint a Recorder
+	// (recordFullFrame → presentRecordedFrame), so LiveContext() aborts and the
+	// mesh disappears (white/blue/gray backgrounds only). pc.DC is the same
+	// live Context on the snapshot path and the recorder on live frames — the
+	// P4.1 batch4 live-frame contract used by the other p41 windows.
+	dc := pc.DC
 	dc.Push()
 	dc.Translate(pc.OriginX, pc.OriginY)
 	dc.SetRGBA(1, 1, 1, alpha)
@@ -115,10 +117,9 @@ func drawSolidMesh(pc *rendering.PaintContext, alpha float64) {
 		return
 	}
 	alpha = breakAlpha(alpha)
-	dc, ok := pc.LiveContext()
-	if !ok {
-		return
-	}
+	// Same contract as drawGouraudMesh: record through Canvas, never assert a
+	// live Context inside OnPaint.
+	dc := pc.DC
 	dc.Push()
 	dc.Translate(pc.OriginX, pc.OriginY)
 	dc.SetRGBA(1, 0, 0, alpha)
