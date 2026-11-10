@@ -42,8 +42,12 @@ import (
 // The Recorder is not safe for concurrent use.
 type Recorder struct {
 	width, height int
-	commands      []Command
-	resources     *ResourcePool
+	// deviceScale is the raster device scale used by cacheable device-space
+	// draws (shadow tiles). Set by the embedder at record time; 0/1 for
+	// layer-local recorders whose content is replayed inside a layer.
+	deviceScale float64
+	commands    []Command
+	resources   *ResourcePool
 
 	// Current path being built, stored in user space relative to pathBasis
 	currentPath *render.Path
@@ -115,6 +119,7 @@ func NewRecorder(width, height int) *Recorder {
 	return &Recorder{
 		width:       width,
 		height:      height,
+		deviceScale: 1,
 		commands:    make([]Command, 0, 256),
 		resources:   NewResourcePool(),
 		currentPath: render.NewPath(),
@@ -132,6 +137,16 @@ func NewRecorder(width, height int) *Recorder {
 		pathBasis:   Identity(),
 		stateStack:  make([]recorderState, 0, 8),
 	}
+}
+
+// SetDeviceScale tells the recorder the raster device scale used by cacheable
+// device-space draws (shadow tiles). The embedder passes the same scale it
+// hands the paint walk; layer-local recorders keep the 1 default.
+func (r *Recorder) SetDeviceScale(scale float64) {
+	if r == nil || scale <= 0 {
+		return
+	}
+	r.deviceScale = scale
 }
 
 // FinishRecording returns an immutable Recording containing all recorded
@@ -346,6 +361,20 @@ func (r *Recording) Playback(backend Backend) error {
 		case DrawTextureRefCommand:
 			// The ref is resolved by the backend on the raster thread; export
 			// backends without the capability skip the draw.
+			if c.Device {
+				// CanvasBackend handles both cases: live Context = draw, nested
+				// Recorder = keep the full command (device rect + damage bounds).
+				if b, ok := backend.(interface{ DrawTextureRefDeviceCmd(DrawTextureRefCommand) }); ok {
+					b.DrawTextureRefDeviceCmd(c)
+					break
+				}
+				if b, ok := backend.(interface {
+					DrawTextureRefDevice(render.TextureRef, float64, float64, int, int)
+				}); ok {
+					b.DrawTextureRefDevice(c.Ref, c.X, c.Y, c.W, c.H)
+				}
+				break
+			}
 			if b, ok := backend.(TextureRefBackend); ok {
 				b.DrawTextureRef(c.Ref, c.X, c.Y, c.W, c.H)
 			}

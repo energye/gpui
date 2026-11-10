@@ -385,6 +385,38 @@ func (b *CanvasBackend) DrawGPUTexture(view render.TextureView, x, y float64, wi
 // nested Recorder implements TextureRefBackend and owns resolution/re-recording;
 // other targets resolve the ref into the current device view and blit it, or
 // skip when they cannot bind a device texture.
+// DrawTextureRefDevice replays a device-space cached tile (shadow cache hit).
+// Only the live Context implements the device draw; export/nested backends skip
+// it (the tile is a device resource and has no vector form).
+func (b *CanvasBackend) DrawTextureRefDevice(ref render.TextureRef, x, y float64, width, height int) {
+	if !ref.Valid() || width <= 0 || height <= 0 {
+		return
+	}
+	if target, ok := b.dc.(interface {
+		DrawTextureRefDevice(render.TextureRef, float64, float64, int, int)
+	}); ok {
+		target.DrawTextureRefDevice(ref, x, y, width, height)
+	}
+}
+
+// DrawTextureRefDeviceCmd replays a device-space tile command. A live Context
+// draws it; a nested Recorder keeps the whole command (device rect + damage
+// bounds) for the outer playback. Export backends skip it.
+func (b *CanvasBackend) DrawTextureRefDeviceCmd(c DrawTextureRefCommand) {
+	if !c.Ref.Valid() || c.W <= 0 || c.H <= 0 {
+		return
+	}
+	if target, ok := b.dc.(interface{ DrawTextureRefDeviceCmd(DrawTextureRefCommand) }); ok {
+		target.DrawTextureRefDeviceCmd(c)
+		return
+	}
+	if target, ok := b.dc.(interface {
+		DrawTextureRefDevice(render.TextureRef, float64, float64, int, int)
+	}); ok {
+		target.DrawTextureRefDevice(c.Ref, c.X, c.Y, c.W, c.H)
+	}
+}
+
 func (b *CanvasBackend) DrawTextureRef(ref render.TextureRef, x, y float64, width, height int) {
 	if !ref.Valid() || width <= 0 || height <= 0 {
 		return

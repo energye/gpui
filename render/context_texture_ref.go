@@ -20,3 +20,25 @@ func (c *Context) DrawTextureRef(ref TextureRef, x, y float64, width, height int
 	}
 	c.DrawGPUTexture(view, x, y, width, height)
 }
+
+// DrawTextureRefDevice draws a device-space texture tile: the rect is already
+// in device pixels, so the user CTM, device scale, and projection are bypassed
+// for the quad (the clip stays in device space and still applies). Cached
+// shadow tiles use this on a hit; the recorded counterpart is
+// DrawTextureRefCommand{Device: true}.
+func (c *Context) DrawTextureRefDevice(ref TextureRef, x, y float64, width, height int) {
+	view, ok := ResolveTextureRef(ref)
+	if !ok {
+		return
+	}
+	savedMatrix := c.matrix
+	savedDevice := c.deviceMatrix
+	savedProj := c.projectionActive
+	c.matrix = Identity()
+	c.deviceMatrix = Identity()
+	c.projectionActive = false
+	c.DrawGPUTexture(view, x, y, width, height)
+	c.matrix = savedMatrix
+	c.deviceMatrix = savedDevice
+	c.projectionActive = savedProj
+}

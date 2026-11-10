@@ -211,6 +211,11 @@ func (c *Context) Close() error {
 		c.maskCompositeCopy = nil
 	}
 
+	// Drop this Context's cached shadow tiles before the GPU contexts go away
+	// (the cache is process-wide; the tiles are texture views owned by us).
+	releaseShadowCacheOwner(c.shadowCacheOwnerID)
+	c.shadowCacheOwnerID = 0
+
 	// Close both per-context GPU render contexts if they were created. The
 	// layer context is a separate 1x session; closing only the active pointer
 	// would leak its session/textures.

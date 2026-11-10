@@ -59,6 +59,9 @@ type Context struct {
 	// Zero value = identity ⇒ every consumer runs its historic path
 	// bit-identically. Push/Pop snapshot it together with the matrix
 	// (Skia SkM44-style save/restore participation, user拍板 D-1).
+	// shadowCacheOwnerID ties cached shadow tiles to this Context so Close can
+	// release them (process-wide cache; lazily assigned on first publish).
+	shadowCacheOwnerID  uint64
 	projection          Matrix4
 	projectionActive    bool // true = projection differs from identity (zero value = inactive = identity)
 	projectionStack     []Matrix4

@@ -2005,6 +2005,7 @@ func recordFullFrame(pipe *rendering.PipelineOwner, root rendering.RenderObject,
 		h = 0
 	}
 	rec := recording.NewRecorder(w, h)
+	rec.SetDeviceScale(scale)
 	snap := walkPresentTree(rec, scale, pipe, root, ov, force, compositeOnly, opts)
 	return rec.FinishRecording(), snap
 }

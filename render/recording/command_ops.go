@@ -161,6 +161,14 @@ type DrawTextureRefCommand struct {
 	Ref  render.TextureRef
 	X, Y float64
 	W, H int
+	// Device marks a device-space tile: X/Y/W/H are already in device pixels
+	// and playback must bypass the user CTM/device scale/projection. Cached
+	// shadow tiles use this (their content is device-space).
+	Device bool
+	// Bounds is the user-space damage footprint for a Device command (the
+	// walker transforms it like any other user-space rect). Zero for the plain
+	// user-space ref form, which uses X/Y/W/H.
+	Bounds Rect
 }
 
 func (DrawTextureRefCommand) Type() CommandType { return CmdDrawTextureRef }

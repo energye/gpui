@@ -323,9 +323,51 @@ func (r *Recorder) DrawMeshPatch(patch render.MeshPatch) {
 // transform-aware, the path is in the caller's user space — playback
 // re-applies the recorded CTM, same resource pattern as FillPath).
 // P4.1 批 4 补正 3.
+// DrawTextureRefDeviceCmd folds a device-space cached tile command into this
+// recorder (a nested recording replayed through CanvasBackend). The live
+// Context implements DrawTextureRefDevice; a nested Recorder must keep the
+// whole command (device rect + user-space damage Bounds) for the outer
+// playback, otherwise the cached shadow would be dropped inside pictures.
+func (r *Recorder) DrawTextureRefDeviceCmd(c DrawTextureRefCommand) {
+	if !c.Ref.Valid() || c.W <= 0 || c.H <= 0 {
+		return
+	}
+	r.commands = append(r.commands, c)
+}
+
 func (r *Recorder) DrawShadow(p *render.Path, col render.RGBA, elevation float64, transparentOccluder bool) {
 	if p == nil || p.NumVerbs() == 0 {
 		return
+	}
+	// P4.3 ②③: a static shadow tile is recorded as a device-space texture draw
+	// on a cache hit (the Context published it on a previous frame). The hit is
+	// decided here at record time, so the present replay carries the draw as a
+	// command instead of a non-recorded side-effect GPU blit. Projection layers
+	// never hit (device tile, 2x3 key).
+	if !r.projectionPush {
+		scale := r.deviceScale
+		if scale <= 0 {
+			scale = 1
+		}
+		dw := int(float64(r.width) * scale)
+		dh := int(float64(r.height) * scale)
+		if tile, ok := render.LookupShadowCache(p, r.transform, col, elevation, dw, dh, scale); ok {
+			b := p.Bounds()
+			pad := elevation * (1.0 + 800.0/600.0)
+			r.commands = append(r.commands, DrawTextureRefCommand{
+				Ref:    tile.Ref,
+				X:      float64(tile.X),
+				Y:      float64(tile.Y),
+				W:      tile.W,
+				H:      tile.H,
+				Device: true,
+				Bounds: NewRect(
+					float64(b.Min.X)-pad, float64(b.Min.Y)-pad,
+					float64(b.Dx())+2*pad, float64(b.Dy())+2*pad,
+				),
+			})
+			return
+		}
 	}
 	r.commands = append(r.commands, DrawShadowCommand{
 		Path:                r.resources.AddPath(p),

@@ -261,6 +261,22 @@ func (c *Context) DrawShadow(path *Path, col RGBA, elevation float64, transparen
 	offsetY := elevation * dpr / scaleY
 	blur := (800.0 / 600.0) * elevation * dpr
 
+	// P4.3 ②③: static shadow tiles are cached across frames. The recorder also
+	// looks this up at record time and records a DrawTextureRefCommand on a hit,
+	// so the present replay never depends on a side-effect GPU draw. Projection
+	// layers are not cached (the tile is device-space and the key is 2x3).
+	var cacheKey shadowCacheKey
+	var cacheBounds image.Rectangle
+	if !c.projActive() {
+		cacheKey = shadowKeyFor(path, c.matrix, col, elevation, c.pixmap.Width(), c.pixmap.Height(), dpr)
+		cacheBounds = c.shadowTileBounds(path, elevation)
+		if tile, ok := lookupShadowTile(cacheKey); ok {
+			c.DrawTextureRefDevice(tile.Ref, float64(tile.X), float64(tile.Y), tile.W, tile.H)
+			c.TrackDamageRect(image.Rect(tile.X, tile.Y, tile.X+tile.W, tile.Y+tile.H))
+			return
+		}
+	}
+
 	if projLift {
 		dev, ok := c.projTransformPath(path, projFlattenTolerance)
 		if !ok {
@@ -298,6 +314,9 @@ func (c *Context) DrawShadow(path *Path, col RGBA, elevation float64, transparen
 	c.Pop()
 
 	c.ApplyBlur(blur)
+	if !cacheBounds.Empty() {
+		c.publishShadowTile(cacheKey, cacheBounds)
+	}
 	c.PopLayer()
 }
 

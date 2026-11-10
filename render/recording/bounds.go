@@ -204,7 +204,13 @@ func (w *contentWalk) step(cmd Command) {
 	case DrawTextureRefCommand:
 		// Same footprint as a texture quad; validity is the ref, not texels.
 		w.note(c.Ref.Valid() && c.W > 0 && c.H > 0)
-		w.addRect(NewRect(c.X, c.Y, float64(c.W), float64(c.H)), 0)
+		if c.Device && c.Bounds.MaxX > c.Bounds.MinX && c.Bounds.MaxY > c.Bounds.MinY {
+			// Device-space tile: the recorder supplies the user-space footprint
+			// (X/Y/W/H are device pixels and must not be transformed again).
+			w.addRect(c.Bounds, 0)
+		} else {
+			w.addRect(NewRect(c.X, c.Y, float64(c.W), float64(c.H)), 0)
+		}
 
 	case ApplyBlurCommand:
 		if c.Radius > 0 {
