@@ -103,16 +103,35 @@ func (b *ParagraphBuilder) AddText(text string) {
 }
 
 // Build lays out the accumulated spans into a Paragraph.
+// normalizeLineBreaks mirrors text.splitParagraphs' line-ending normalization
+// (CRLF→LF, CR→LF): span boundaries are rune offsets into layout cluster
+// space, which is computed on normalized text (K4).
+func normalizeLineBreaks(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	return strings.ReplaceAll(s, "\r", "\n")
+}
+
 func (b *ParagraphBuilder) Build(opts text.LayoutOptions) *Paragraph {
+	// K4: layout's splitParagraphs normalizes CRLF→LF (each hard break = 1
+	// rune) before laying out, so layout clusters live in normalized-text
+	// space. Span boundaries must be computed on the same normalized text —
+	// counting the original text (CRLF = 2 runes) shifted every run→span
+	// boundary right by one rune per preceding CRLF and bled styles across
+	// hard breaks.
+	spans := make([]styledSpan, len(b.spans))
+	prev := 0
 	var full strings.Builder
-	for _, sp := range b.spans {
-		full.WriteString(sp.text)
+	for i, sp := range b.spans {
+		t := normalizeLineBreaks(sp.text)
+		spans[i] = styledSpan{text: t, style: sp.style, runeRuns: prev + len([]rune(t))}
+		prev = spans[i].runeRuns
+		full.WriteString(t)
 	}
 	paraText := full.String()
 
 	face := b.face
 	if len(b.spans) > 0 {
-		face = &styledFace{Face: b.face, family: b.family, spans: b.spans}
+		face = &styledFace{Face: b.face, family: b.family, spans: spans}
 	}
 
 	layout := text.LayoutText(paraText, face, opts)
@@ -126,8 +145,8 @@ func (b *ParagraphBuilder) Build(opts text.LayoutOptions) *Paragraph {
 				continue
 			}
 			c := run.Glyphs[0].Cluster
-			idx := len(b.spans) - 1
-			for i, end := range b.spans {
+			idx := len(spans) - 1
+			for i, end := range spans {
 				if c < end.runeRuns {
 					idx = i
 					break
@@ -136,9 +155,9 @@ func (b *ParagraphBuilder) Build(opts text.LayoutOptions) *Paragraph {
 			run.Style = idx
 		}
 	}
-	styles := make([]TextStyle, len(b.spans))
-	boundaries := make([]int, len(b.spans))
-	for i, sp := range b.spans {
+	styles := make([]TextStyle, len(spans))
+	boundaries := make([]int, len(spans))
+	for i, sp := range spans {
 		styles[i] = sp.style
 		boundaries[i] = sp.runeRuns
 	}
