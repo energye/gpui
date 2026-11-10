@@ -681,11 +681,11 @@ func imageFilterGraphGPUSupported(nodes []ImageFilterNode) bool {
 			ImageFilterLighting, ImageFilterTile, ImageFilterBloom:
 			any = true
 		case ImageFilterDisplacement:
-			// GPU-capable only when the node carries its map; the aux slot
-			// upload happens in the graph runner.
-			if n.DisplacementImage != nil {
-				any = true
-			}
+			// Registered gap (P3.4 follow-up): the GPU graph has no displacement
+			// mode — no shader branch and no aux-map upload — so claiming support
+			// here silently dropped the node. Fail closed to the CPU leg until the
+			// aux pass lands (the CPU kernel is the reference).
+			return false
 		default:
 			return false
 		}
