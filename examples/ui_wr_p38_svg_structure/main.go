@@ -7,7 +7,7 @@
 // use/symbol, the SVG2 transform-origin shift, and the pattern semantics
 // fixes (objectBoundingBox content units, x/y tile phase).
 //
-// All four cards are real SVG documents parsed and rendered at 1:1
+// All capability cards are real SVG documents parsed and rendered at 1:1
 // (viewBox == bake size), uploaded as ImageBufs and drawn through the normal
 // UI/GPU image path. Value-level CPU probes and GPU-snapshot pixel probes
 // share the same SVG sources and coordinate constants.
@@ -19,7 +19,7 @@
 //
 // Golden: seed once with GPUI_ACCEPT_GOLDEN=1, re-run to verify 0.0000%.
 //
-// All six cards are real SVG documents parsed and rendered at 1:1
+// All five cards are real SVG documents parsed and rendered at 1:1
 // (viewBox == bake size), uploaded as ImageBufs and drawn through the normal
 // UI/GPU image path. Value-level CPU probes and GPU-snapshot pixel probes
 // share the same SVG sources and coordinate constants.
@@ -56,7 +56,7 @@ import (
 	_ "github.com/energye/gpui/render/gpu"
 )
 
-const winW, winH = 1460, 800
+const winW, winH = 1460, 1000
 
 const windowTitle = "gpui ui_wr_p38_svg_structure — P3.8 批 4c SVG 语义"
 
@@ -148,6 +148,7 @@ func main() {
 		"卡2 CSS：#id/[attr]/g>rect/specificity/!important/type",
 		"卡3 image：外链 ResourcesDir/SVG 图像源/auto/零尺寸",
 		"卡4 use·symbol opacity 组层 + transform-origin + pattern",
+		"卡5 marker：start/mid/end + markerUnits/orient",
 		"logic: 值级契约 (CPU offscreen)",
 		"golden: 表头+图例+卡 逐位",
 		"gate: -auto-only / RUN_SECONDS",
@@ -255,8 +256,11 @@ func main() {
 	bx, by := shell.Body.Box.Offset().X, shell.Body.Box.Offset().Y
 	img := loadImage(snapPath)
 	dpr := 1.0
-	if img != nil {
-		dpr = float64(img.Bounds().Dx()) / winW
+	if img != nil && finalW > 0 {
+		// The WM may resize the requested client area; the snapshot is the
+		// actual surface, so derive the scale from the final client width
+		// (not the design constant).
+		dpr = float64(img.Bounds().Dx()) / float64(finalW)
 	}
 	snapImage, bxGlobal, byGlobal, dprGlobal = img, bx, by, dpr
 	pixelOK := 0
@@ -272,8 +276,12 @@ func main() {
 		{x: 0, y: 0, w: winW, h: 48},
 		{x: shell.Legend.X, y: shell.Legend.Y, w: shell.Legend.W, h: shell.Legend.H},
 	}
-	for _, ca := range cardAt {
-		goldenRects = append(goldenRects, rect{x: bx + ca[0], y: by + ca[1], w: cardW, h: cardH})
+	for i, ca := range cardAt {
+		h := cardH
+		if i == 4 {
+			h = markerCardH
+		}
+		goldenRects = append(goldenRects, rect{x: bx + ca[0], y: by + ca[1], w: cardW, h: h})
 	}
 	goldenDiffPct, goldenTotalPx, goldenFirstRun := evaluateGolden(snapDir, goldenRects)
 
@@ -309,8 +317,8 @@ func main() {
 			"fps_gate":               "off_correctness",
 			"slope_gate":             "off",
 			"apis":                   "svg.ParseWithConfig,svg.ParseConfig.ResourcesDir,svg.Document.Render,Document.ElementByID,UseElement.RefKind,ImageElement.SubDoc,GroupElement.Children,ImageBufFromImage,DrawImageEx",
-			"cards":                  4,
-			"bake_size":              "528x252 (1:1)",
+			"cards":                  5,
+			"bake_size":              "cards 1-4 528x252 / card 5 528x160 (1:1)",
 			"logic_pass":             logicPass,
 			"logic_probes_ok":        len(logicProbes) - len(logicFailed),
 			"logic_probes_total":     len(logicProbes),

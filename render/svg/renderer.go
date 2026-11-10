@@ -25,6 +25,16 @@ type renderState struct {
 	overrideColor color.Color // non-nil → replace all non-"none" colors
 	rs            RefSpace    // current viewport + inherited font-size
 
+	// root carries the document root props for reference content (markers
+	// defined under <defs>, whose inheritance starts at the document root).
+	root *props
+	// markerDepth bounds marker-in-marker recursion (a marker child shape
+	// may itself carry markers); fail-closed past the shared ceiling.
+	markerDepth int
+	// contextFill/contextStroke carry the referencing shape's paint tokens
+	// for SVG 2 context-fill/context-stroke inside marker content.
+	contextFill, contextStroke string
+
 	// Property-chain depths (P3.8 batch 6): mask/clip/filter content can
 	// reference elements that reference the same property again — resvg's
 	// suite has mask-on-mask reuse cases that recurse without a guard.
@@ -280,6 +290,8 @@ func renderElementBody(dc *render.Context, elem Element, a *Attrs, parent *props
 		// Rules are registered on the Document at parse.
 	case *SymbolElement:
 		// Only rendered through <use>.
+	case *MarkerElement:
+		// Reference-only template: painted at path vertices by renderMarkers.
 	case *UseElement:
 		renderUse(dc, e, p, &child)
 	case *ImageElement:
@@ -309,6 +321,7 @@ func renderPath(dc *render.Context, e *PathElement, a *Attrs, p *props, st *rend
 	fillAndStroke(dc, a, p, st, path.BoundingBox(), func() {
 		dc.DrawPath(path)
 	})
+	renderMarkers(dc, path, a, p, st)
 
 	dc.Pop()
 }
@@ -376,19 +389,21 @@ func renderEllipse(dc *render.Context, e *EllipseElement, a *Attrs, p *props, st
 // renderLine renders an SVG <line> element. Stroke-only: with no effective
 // stroke the element draws nothing (SVG semantics; fill has no area).
 func renderLine(dc *render.Context, e *LineElement, a *Attrs, p *props, st *renderState) {
-	if !effectiveStroke(a, p) {
-		return
-	}
+	x1, y1 := e.X1.Resolve(st.rs, LengthAxisX), e.Y1.Resolve(st.rs, LengthAxisY)
+	x2, y2 := e.X2.Resolve(st.rs, LengthAxisX), e.Y2.Resolve(st.rs, LengthAxisY)
 	dc.Push()
 	applyElementTransform(dc, a, st)
 
-	if !applyStrokeAttrs(dc, p, st, render.Rect{}) {
-		dc.Pop()
-		return
+	if effectiveStroke(a, p) && applyStrokeAttrs(dc, p, st, render.Rect{}) {
+		dc.DrawLine(x1, y1, x2, y2)
+		_ = dc.Stroke()
 	}
-	dc.DrawLine(e.X1.Resolve(st.rs, LengthAxisX), e.Y1.Resolve(st.rs, LengthAxisY),
-		e.X2.Resolve(st.rs, LengthAxisX), e.Y2.Resolve(st.rs, LengthAxisY))
-	_ = dc.Stroke()
+	// Markers paint even without a stroke (SVG marker properties are
+	// independent of stroke visibility).
+	linePath := render.NewPath()
+	linePath.MoveTo(x1, y1)
+	linePath.LineTo(x2, y2)
+	renderMarkers(dc, linePath, a, p, st)
 
 	dc.Pop()
 }
@@ -406,6 +421,7 @@ func renderPolygon(dc *render.Context, e *PolygonElement, a *Attrs, p *props, st
 		dc.ClearPath()
 		drawPointsPath(dc, e.Points, true, st.rs)
 	})
+	renderMarkers(dc, pointsBuilder(e.Points, st.rs, true).Path(), a, p, st)
 
 	dc.Pop()
 }
@@ -423,6 +439,7 @@ func renderPolyline(dc *render.Context, e *PolylineElement, a *Attrs, p *props, 
 		dc.ClearPath()
 		drawPointsPath(dc, e.Points, false, st.rs)
 	})
+	renderMarkers(dc, pointsBuilder(e.Points, st.rs, false).Path(), a, p, st)
 
 	dc.Pop()
 }
@@ -848,11 +865,21 @@ func applyFillAttrs(dc *render.Context, a *Attrs, p *props, st *renderState, bbo
 	}
 
 	// Set fill color (or paint server brush).
+	fill := p.fill
+	switch strings.ToLower(strings.TrimSpace(fill)) {
+	case "context-fill":
+		fill = st.contextFill
+	case "context-stroke":
+		fill = st.contextStroke
+	}
+	if fill == "" || strings.EqualFold(fill, "none") {
+		return false // unresolved SVG 2 context paint: fail-closed
+	}
 	if st.overrideColor != nil {
 		setColorWithOpacity(dc, st.overrideColor, p.fillOpacity*p.opacity)
 		return true
 	}
-	if id, isRef := paintRefID(p.fill); isRef {
+	if id, isRef := paintRefID(fill); isRef {
 		if st.paintDepth >= maxPropChainDepth {
 			return false // fail-closed: pattern recursion guard
 		}
@@ -870,7 +897,7 @@ func applyFillAttrs(dc *render.Context, a *Attrs, p *props, st *renderState, bbo
 		return true
 	}
 
-	c, err := parseColor(p.fill)
+	c, err := parseColor(fill)
 	if err != nil || c == nil {
 		// Default fill is black per SVG spec.
 		setColorWithOpacity(dc, color.Black, p.fillOpacity*p.opacity)
@@ -917,7 +944,17 @@ func applyStrokeAttrs(dc *render.Context, p *props, st *renderState, bbox render
 		setColorWithOpacity(dc, st.overrideColor, p.strokeOpacity*p.opacity)
 		return true
 	}
-	if id, isRef := paintRefID(p.stroke); isRef {
+	stroke := p.stroke
+	switch strings.ToLower(strings.TrimSpace(stroke)) {
+	case "context-fill":
+		stroke = st.contextFill
+	case "context-stroke":
+		stroke = st.contextStroke
+	}
+	if stroke == "" || strings.EqualFold(stroke, "none") {
+		return false // unresolved SVG 2 context paint: fail-closed
+	}
+	if id, isRef := paintRefID(stroke); isRef {
 		if st.paintDepth >= maxPropChainDepth {
 			return false // fail-closed: pattern recursion guard
 		}
@@ -931,7 +968,7 @@ func applyStrokeAttrs(dc *render.Context, p *props, st *renderState, bbox render
 		return true
 	}
 
-	c, err := parseColor(p.stroke)
+	c, err := parseColor(stroke)
 	if err != nil || c == nil {
 		return false
 	}

@@ -47,6 +47,9 @@ type props struct {
 	fontFamily       string  // inherited (usvg: font-family is a CSS inherited property; "" = resolver default)
 	opacity          float64 // element-level, never inherited
 	visibility       string
+	// Marker refs are not inherited (marker properties apply to the shape
+	// itself); the marker shorthand sets all three, longhands override.
+	markerStart, markerMid, markerEnd string
 }
 
 // rootProps returns the SVG initial property values.
@@ -158,6 +161,9 @@ func presentationDecls(a Attrs) []CSSDecl {
 	add("font-size", a.FontSize)
 	add("font-family", a.FontFamily)
 	add("visibility", a.Visibility)
+	add("marker-start", a.MarkerStart)
+	add("marker-mid", a.MarkerMid)
+	add("marker-end", a.MarkerEnd)
 	return out
 }
 
@@ -215,6 +221,15 @@ func applyDecl(p *props, d CSSDecl, parent *props, doc *Document) {
 		p.fontFamily = strings.TrimSpace(d.Value)
 	case "visibility":
 		p.visibility = strings.ToLower(strings.TrimSpace(d.Value))
+	case "marker-start":
+		p.markerStart = strings.TrimSpace(d.Value)
+	case "marker-mid":
+		p.markerMid = strings.TrimSpace(d.Value)
+	case "marker-end":
+		p.markerEnd = strings.TrimSpace(d.Value)
+	case "marker":
+		v := strings.TrimSpace(d.Value)
+		p.markerStart, p.markerMid, p.markerEnd = v, v, v
 	}
 	// Unknown property names are ignored (CSS forward compatibility).
 }

@@ -155,6 +155,12 @@ type Attrs struct {
 	ClipPath string
 	// Mask carries the raw mask="url(#id)" reference.
 	Mask string
+	// MarkerStart/MarkerMid/MarkerEnd carry marker-start/mid/end references
+	// (url(#id) | none). The marker shorthand fills all three in attribute
+	// order; later longhands override.
+	MarkerStart string
+	MarkerMid   string
+	MarkerEnd   string
 
 	// Raw snapshots every attribute by local name for CSS attribute
 	// selectors ([x], [x=1], …) — the typed fields above are the whitelist
@@ -179,6 +185,12 @@ type Attrs struct {
 	clipInvalid bool
 	// maskInvalid marks an unresolved mask reference: not rendered.
 	maskInvalid bool
+	// markerStartInvalid/markerMidInvalid/markerEndInvalid mark unresolved
+	// or wrong-type marker references: that position renders no marker
+	// (fail-closed), matching mask/clip.
+	markerStartInvalid bool
+	markerMidInvalid   bool
+	markerEndInvalid   bool
 	// fontInvalid marks a text element whose font did not resolve: not rendered.
 	fontInvalid bool
 	// filterInvalid marks an unresolved/wrong-type filter reference.
@@ -287,6 +299,27 @@ type SymbolElement struct {
 }
 
 func (e *SymbolElement) attrs() *Attrs { return &e.Attrs }
+
+// MarkerElement represents <marker>: a template painted at path vertices by
+// marker-start/mid/end. ViewBox maps to the marker viewport (markerWidth ×
+// markerHeight); RefX/RefY is the reference point in marker user units;
+// MarkerUnits is "strokeWidth" (default) or "userSpaceOnUse"; Orient is
+// "auto", "auto-start-reverse" or an angle; OverflowVisible disables the
+// marker viewport clip.
+type MarkerElement struct {
+	Attrs            Attrs
+	ViewBox          ViewBox
+	Par              PreserveAspectRatio
+	HasViewBox       bool
+	MarkerUnits      string
+	RefX, RefY       Length
+	MarkerW, MarkerH Length
+	Orient           string
+	OverflowVisible  bool
+	Children         []Element
+}
+
+func (e *MarkerElement) attrs() *Attrs { return &e.Attrs }
 
 // RefKind classifies what a <use> resolves to.
 type RefKind uint8

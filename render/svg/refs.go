@@ -41,6 +41,45 @@ func validateReferences(pc *parseCtx) {
 	detectUseCycles(pc, uses)
 	validatePaints(pc)
 	validateClips(pc)
+	validateMarkers(pc)
+}
+
+// validateMarkers checks marker-start/mid/end references on the whole tree
+// (defs included: marker content may carry its own markers). Unresolved or
+// wrong-type targets mark that position invalid (fail-closed) with a warning.
+func validateMarkers(pc *parseCtx) {
+	if pc == nil || pc.doc == nil {
+		return
+	}
+	check := func(a *Attrs, ref, attr string, invalid *bool) {
+		if a == nil || ref == "" || strings.EqualFold(strings.TrimSpace(ref), "none") {
+			return
+		}
+		id, ok := paintRefID(ref)
+		if !ok {
+			return // not a url(#id) token: SVG treats it as an invalid value (no marker)
+		}
+		tgt, exists := pc.doc.byID[id]
+		if !exists || tgt == nil {
+			*invalid = true
+			pc.warn(a.tag, attr, warnUnresolvedRef, "#"+id)
+			return
+		}
+		if _, isMarker := tgt.(*MarkerElement); !isMarker {
+			*invalid = true
+			pc.warn(a.tag, attr, warnUnsupportedRef, "#"+id)
+		}
+	}
+	walkElements(pc.doc.Elements, func(e Element) bool {
+		a := e.attrs()
+		if a == nil {
+			return true
+		}
+		check(a, a.MarkerStart, "marker-start", &a.markerStartInvalid)
+		check(a, a.MarkerMid, "marker-mid", &a.markerMidInvalid)
+		check(a, a.MarkerEnd, "marker-end", &a.markerEndInvalid)
+		return true
+	})
 }
 
 // validateTextFonts resolves every text span's font at parse time: an
@@ -186,6 +225,8 @@ func walkElements(elems []Element, visit func(Element) bool) {
 		case *DefsElement:
 			walkElements(t.Children, visit)
 		case *SymbolElement:
+			walkElements(t.Children, visit)
+		case *MarkerElement:
 			walkElements(t.Children, visit)
 		case *SVGElement:
 			walkElements(t.Children, visit)

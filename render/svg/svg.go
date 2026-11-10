@@ -120,6 +120,7 @@ func (d *Document) renderInternal(dc *render.Context, x, y, width, height float6
 		doc:           d,
 		overrideColor: overrideColor,
 		rs:            RefSpace{ViewportW: pw, ViewportH: ph, FontSize: rootP.fontSize},
+		root:          rootP,
 	}
 
 	renderElements(dc, d.Elements, rootP, state)

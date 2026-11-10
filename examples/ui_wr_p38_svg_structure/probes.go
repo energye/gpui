@@ -24,12 +24,13 @@ var (
 )
 
 var probeKeys = []string{
-	"parse_all_four",
+	"parse_all_five",
 	"switch_single_child",
 	"css_materialized_order",
 	"image_sources",
 	"use_symbol_targets",
 	"origin_pattern_attrs",
+	"marker_element",
 }
 
 var (
@@ -63,22 +64,22 @@ func runLogicProbes() []probeResult {
 
 	docs, err := parseCards()
 	if err != nil {
-		add("parse_all_four", false, err.Error())
+		add("parse_all_five", false, err.Error())
 		return out
 	}
 	// 卡 2 的 <style type="nope-css"> 跳过带一条具名警告（unsupported-selector
 	// 族）——预期恰一条，其余三卡零警告。
-	wantWarn := [4]int{0, 1, 0, 0}
+	wantWarn := [5]int{0, 1, 0, 0, 0}
 	warnOK := true
 	for i, d := range docs {
 		if len(d.Warnings) != wantWarn[i] {
 			warnOK = false
-			add("parse_all_four", false, fmt.Sprintf("card %d warnings=%d want %d (%v)",
+			add("parse_all_five", false, fmt.Sprintf("card %d warnings=%d want %d (%v)",
 				i, len(d.Warnings), wantWarn[i], d.Warnings))
 		}
 	}
 	if warnOK {
-		add("parse_all_four", true, "4 docs parsed, warnings as expected")
+		add("parse_all_five", true, "5 docs parsed, warnings as expected")
 	} else {
 		return out
 	}
@@ -143,6 +144,18 @@ func runLogicProbes() []probeResult {
 		fmt.Sprintf("use→symbol=%v sym_op=%v", okUse, okSym))
 	add("origin_pattern_attrs", okOrigin && okPatt, fmt.Sprintf("origin=%v patt_oBB=%v", okOrigin, okPatt))
 
+	// 5) marker：<marker> 解析为 MarkerElement（内容呈树），polyline 的
+	// start/mid/end 三个 ref 都挂在属性上。
+	ms, _ := docs[4].ElementByID("ms").(*svg.MarkerElement)
+	ml, _ := docs[4].ElementByID("marker_line").(*svg.PolylineElement)
+	okMarker := ms != nil && len(ms.Children) > 0 && ml != nil &&
+		ml.Attrs.MarkerStart == "url(#ms)" && ml.Attrs.MarkerMid == "url(#mm)" && ml.Attrs.MarkerEnd == "url(#me)"
+	markerDetail := "marker element missing"
+	if okMarker {
+		markerDetail = fmt.Sprintf("marker children=%d refs=start/mid/end", len(ms.Children))
+	}
+	add("marker_element", okMarker, markerDetail)
+
 	return out
 }
 
@@ -181,6 +194,7 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 		"pixel_img_ext", "pixel_img_svg_orange", "pixel_img_svg_white", "pixel_img_zero_skip",
 		"pixel_use_opacity", "pixel_sym_opacity", "pixel_origin_rotated",
 		"pixel_patt_grey", "pixel_patt_green", "pixel_patt_phase",
+		"pixel_marker_start", "pixel_marker_mid", "pixel_marker_end", "pixel_marker_units",
 	}
 	if img == nil {
 		for _, k := range keys {
@@ -190,8 +204,12 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 	}
 
 	read := func(card int, x, y float64) ([3]float64, bool) {
+		iy := innerY
+		if card == 4 {
+			iy = markerInnerY
+		}
 		ax := bx + cardAt[card][0] + innerX + x
-		ay := by + cardAt[card][1] + innerY + y
+		ay := by + cardAt[card][1] + iy + y
 		px, py := int(math.Round(ax*dpr)), int(math.Round(ay*dpr))
 		return pixelAt(img, px, py)
 	}
@@ -240,6 +258,13 @@ func runPixelProbes(img image.Image, bx, by, dpr float64) []probeResult {
 	check("pixel_patt_grey", 3, 340, 70, colGrey)
 	check("pixel_patt_green", 3, 380, 110, colGreen)
 	check("pixel_patt_phase", 3, 380, 70, colBG)
+
+	// 卡 5：marker-start/mid/end 在折线三顶点，markerUnits=strokeWidth 的
+	// 末端红方块按 stroke-width=4 放大（4×4 → 16×16）。
+	check("pixel_marker_start", 4, 60, 120, colGreen)
+	check("pixel_marker_mid", 4, 264, 40, colAmber)
+	check("pixel_marker_end", 4, 468, 120, colBlue)
+	check("pixel_marker_units", 4, 476, 28, hex01("#e24a4a"))
 
 	return out
 }

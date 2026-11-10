@@ -1,0 +1,406 @@
+{
+  "cases": [
+    {
+      "name": "line_start_mid_end",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"12\" markerHeight=\"12\" refX=\"6\" refY=\"6\" orient=\"auto\"><circle cx=\"6\" cy=\"6\" r=\"5\" fill=\"#ff0000\"/></marker></defs><polyline points=\"20,40 80,40 140,40\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2\" marker-start=\"url(#m)\" marker-mid=\"url(#m)\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 20,
+          "y": 40,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "start"
+        },
+        {
+          "x": 80,
+          "y": 40,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "mid"
+        },
+        {
+          "x": 140,
+          "y": 40,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "end"
+        }
+      ]
+    },
+    {
+      "name": "polygon_closed",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" orient=\"auto\"><rect width=\"8\" height=\"8\" fill=\"#ff0000\"/></marker></defs><polygon points=\"40,20 100,20 100,80 40,80\" fill=\"none\" stroke=\"#000000\" marker-start=\"url(#m)\" marker-mid=\"url(#m)\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 44,
+          "y": 24,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "start_end"
+        },
+        {
+          "x": 100,
+          "y": 26,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "mid1"
+        },
+        {
+          "x": 94,
+          "y": 80,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "mid2"
+        },
+        {
+          "x": 40,
+          "y": 74,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "mid3"
+        }
+      ]
+    },
+    {
+      "name": "orient_auto_start_reverse",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"12\" markerHeight=\"12\" refX=\"0\" refY=\"0\" orient=\"auto-start-reverse\"><rect width=\"10\" height=\"4\" fill=\"#ff0000\"/></marker></defs><line x1=\"20\" y1=\"60\" x2=\"100\" y2=\"60\" stroke=\"#000000\" marker-start=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 14,
+          "y": 58,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "reversed_start"
+        },
+        {
+          "x": 26,
+          "y": 58,
+          "a": "clear",
+          "label": "not_forward"
+        }
+      ]
+    },
+    {
+      "name": "units_stroke",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"4\" markerHeight=\"4\" refX=\"0\" refY=\"0\" markerUnits=\"strokeWidth\"><rect width=\"4\" height=\"4\" fill=\"#ff0000\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"#000000\" stroke-width=\"4\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 110,
+          "y": 48,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "scaled_by_stroke"
+        }
+      ]
+    },
+    {
+      "name": "units_user",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"4\" markerHeight=\"4\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\"><rect width=\"4\" height=\"4\" fill=\"#ff0000\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"#000000\" stroke-width=\"4\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 102,
+          "y": 42,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "user_units"
+        },
+        {
+          "x": 110,
+          "y": 48,
+          "a": "clear",
+          "label": "not_scaled"
+        }
+      ]
+    },
+    {
+      "name": "marker_viewbox",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"20\" markerHeight=\"20\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\" viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\" fill=\"#ff0000\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"#000000\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 110,
+          "y": 50,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "viewbox_scaled"
+        },
+        {
+          "x": 125,
+          "y": 50,
+          "a": "clear",
+          "label": "outside_viewport"
+        }
+      ]
+    },
+    {
+      "name": "marker_ref",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"5\" refY=\"5\" markerUnits=\"userSpaceOnUse\"><rect width=\"10\" height=\"10\" fill=\"#ff0000\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"#000000\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 96,
+          "y": 36,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "ref_centered"
+        },
+        {
+          "x": 108,
+          "y": 44,
+          "a": "clear",
+          "label": "not_beyond_ref"
+        }
+      ]
+    },
+    {
+      "name": "marker_overflow_hidden",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"4\" markerHeight=\"4\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\"><circle cx=\"2\" cy=\"2\" r=\"5\" fill=\"#ff0000\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"#000000\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 102,
+          "y": 42,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "inside"
+        },
+        {
+          "x": 106,
+          "y": 42,
+          "a": "clear",
+          "label": "clipped"
+        }
+      ]
+    },
+    {
+      "name": "marker_overflow_visible",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"4\" markerHeight=\"4\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\" overflow=\"visible\"><circle cx=\"2\" cy=\"2\" r=\"5\" fill=\"#ff0000\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"#000000\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 106,
+          "y": 42,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "overflow_visible"
+        }
+      ]
+    },
+    {
+      "name": "context_fill",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\"><rect width=\"8\" height=\"8\" fill=\"context-fill\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" fill=\"#ff0000\" stroke=\"#000000\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 104,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "context_fill"
+        }
+      ]
+    },
+    {
+      "name": "context_stroke",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\"><rect width=\"8\" height=\"8\" fill=\"context-stroke\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" fill=\"none\" stroke=\"#0000ff\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 104,
+          "y": 44,
+          "r": 0,
+          "g": 0,
+          "b": 255,
+          "tol": 40,
+          "label": "context_stroke"
+        }
+      ]
+    },
+    {
+      "name": "missing_ref",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"#000000\" marker-end=\"url(#missing)\"/></svg>",
+      "probes": [
+        {
+          "x": 104,
+          "y": 44,
+          "a": "clear",
+          "label": "missing_ref_no_marker"
+        }
+      ]
+    },
+    {
+      "name": "marker_shorthand",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\"><rect width=\"8\" height=\"8\" fill=\"#ff0000\"/></marker></defs><polyline points=\"20,40 80,40 140,40\" fill=\"none\" stroke=\"#000000\" marker=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 24,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "shorthand_start"
+        },
+        {
+          "x": 84,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "shorthand_mid"
+        },
+        {
+          "x": 144,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "shorthand_end"
+        }
+      ]
+    },
+    {
+      "name": "multi_subpath",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\"><rect width=\"8\" height=\"8\" fill=\"#ff0000\"/></marker></defs><path d=\"M20,40 L60,40 M100,40 L140,40\" fill=\"none\" stroke=\"#000000\" marker-start=\"url(#m)\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 24,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "subpath1_start"
+        },
+        {
+          "x": 64,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "subpath1_end"
+        },
+        {
+          "x": 104,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "subpath2_start"
+        },
+        {
+          "x": 144,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "subpath2_end"
+        }
+      ]
+    },
+    {
+      "name": "line_no_stroke",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\"><rect width=\"8\" height=\"8\" fill=\"#ff0000\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"none\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 104,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "marker_without_stroke"
+        }
+      ]
+    },
+    {
+      "name": "curve_end",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\" orient=\"auto\"><rect width=\"8\" height=\"8\" fill=\"#ff0000\"/></marker></defs><path d=\"M20,60 C60,0 100,120 140,60\" fill=\"none\" stroke=\"#000000\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 141,
+          "y": 59,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "curve_end_marker"
+        }
+      ]
+    },
+    {
+      "name": "curve_mid",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\" orient=\"auto\"><rect width=\"8\" height=\"8\" fill=\"#ff0000\"/></marker></defs><path d=\"M20,60 C30,30 60,30 80,60 C100,90 130,90 140,60\" fill=\"none\" stroke=\"#000000\" marker-mid=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 79,
+          "y": 66,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 50,
+          "label": "curve_mid_marker"
+        }
+      ]
+    },
+    {
+      "name": "use_in_marker",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><rect id=\"sq\" width=\"8\" height=\"8\" fill=\"#ff0000\"/><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\"><use href=\"#sq\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"#000000\" marker-end=\"url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 104,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "use_content"
+        }
+      ]
+    },
+    {
+      "name": "style_marker",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"120\" viewBox=\"0 0 160 120\"><defs><marker id=\"m\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"0\" markerUnits=\"userSpaceOnUse\"><rect width=\"8\" height=\"8\" fill=\"#ff0000\"/></marker></defs><line x1=\"20\" y1=\"40\" x2=\"100\" y2=\"40\" stroke=\"#000000\" style=\"marker-end:url(#m)\"/></svg>",
+      "probes": [
+        {
+          "x": 104,
+          "y": 44,
+          "r": 255,
+          "g": 0,
+          "b": 0,
+          "tol": 40,
+          "label": "style_marker_end"
+        }
+      ]
+    }
+  ]
+}

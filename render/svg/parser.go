@@ -282,6 +282,8 @@ func parseElementInner(pc *parseCtx, se xml.StartElement) (Element, error) {
 		return parseDefsElement(pc, se)
 	case "symbol":
 		return parseSymbolElement(pc, se)
+	case "marker":
+		return parseMarkerElement(pc, se)
 	case "use":
 		return parseUseElement(pc, se)
 	case "svg":
@@ -429,6 +431,16 @@ func parseAttrs(pc *parseCtx, se xml.StartElement) Attrs {
 			a.ClipPath = attr.Value
 		case "mask":
 			a.Mask = attr.Value
+		case "marker-start":
+			a.MarkerStart = attr.Value
+		case "marker-mid":
+			a.MarkerMid = attr.Value
+		case "marker-end":
+			a.MarkerEnd = attr.Value
+		case "marker":
+			// Shorthand: fills all three; later longhand attributes in the
+			// same start tag override in attribute order.
+			a.MarkerStart, a.MarkerMid, a.MarkerEnd = attr.Value, attr.Value, attr.Value
 		case "font-family":
 			a.FontFamily = attr.Value
 		case "font-weight":
@@ -702,6 +714,58 @@ func parseGroupElement(pc *parseCtx, se xml.StartElement) (*GroupElement, error)
 // and never rendered directly.
 func parseDefsElement(pc *parseCtx, se xml.StartElement) (*DefsElement, error) {
 	elem := &DefsElement{Attrs: parseAttrs(pc, se)}
+	children, err := parseChildren(pc)
+	if err != nil {
+		return nil, err
+	}
+	elem.Children = children
+	return elem, nil
+}
+
+// parseMarkerElement parses <marker>: a vertex template with its own
+// viewport/viewBox, reference point, markerUnits and orient.
+func parseMarkerElement(pc *parseCtx, se xml.StartElement) (*MarkerElement, error) {
+	// Defaults per SVG 1.1: markerUnits=strokeWidth, markerWidth/Height=3,
+	// refX/refY=0, orient=0.
+	elem := &MarkerElement{
+		Attrs:       parseAttrs(pc, se),
+		MarkerUnits: "strokeWidth",
+		MarkerW:     Length{Value: 3},
+		MarkerH:     Length{Value: 3},
+	}
+	if strings.TrimSpace(elem.Attrs.Overflow) == "visible" {
+		elem.OverflowVisible = true
+	}
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "viewBox":
+			vb, err := parseViewBox(attr.Value)
+			if err != nil {
+				pc.warn("marker", "viewBox", warnInvalidValue, err.Error())
+			} else {
+				elem.ViewBox = vb
+				elem.HasViewBox = true
+			}
+		case "preserveAspectRatio":
+			elem.Par = parsePreserveAspectRatio(attr.Value)
+		case "markerUnits":
+			if strings.TrimSpace(attr.Value) == "userSpaceOnUse" {
+				elem.MarkerUnits = "userSpaceOnUse"
+			} else {
+				elem.MarkerUnits = "strokeWidth"
+			}
+		case "refX":
+			elem.RefX = mustLength(pc, "marker", "refX", attr.Value)
+		case "refY":
+			elem.RefY = mustLength(pc, "marker", "refY", attr.Value)
+		case "markerWidth":
+			elem.MarkerW = mustLength(pc, "marker", "markerWidth", attr.Value)
+		case "markerHeight":
+			elem.MarkerH = mustLength(pc, "marker", "markerHeight", attr.Value)
+		case "orient":
+			elem.Orient = strings.TrimSpace(attr.Value)
+		}
+	}
 	children, err := parseChildren(pc)
 	if err != nil {
 		return nil, err

@@ -21,11 +21,19 @@ const (
 	innerH       = 252.0
 	innerX       = (cardW - innerW) / 2
 	innerY       = 40.0
+
+	// The marker card is shorter so it fits the body band above the HUD
+	// (body height = winH - top - HUD - gaps); a third full 300px row would
+	// slide under the HUD and make the golden text flap.
+	markerCardH  = 200.0
+	markerInnerH = 160.0
+	markerInnerY = 30.0
 )
 
-var cardAt = [4][2]float64{
+var cardAt = [5][2]float64{
 	{12, 8}, {592, 8},
 	{12, 316}, {592, 316},
+	{12, 630},
 }
 
 // 批 4c 卡 1：switch 条件处理（systemLanguage 命中/requiredFeatures 失败/
@@ -126,12 +134,37 @@ var (
 	bakedRes baked
 )
 
+// 批 4c 卡 5：marker-start/mid/end 四宿主语义 + markerUnits（strokeWidth 与
+// userSpaceOnUse）+ orient=auto；参考 SVG 1.1 §11.6，位置/朝向由引擎顶点切线
+// 计算（不是示例层摆放）。
+const markerSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="528" height="160" viewBox="0 0 528 160">
+  <rect x="0" y="0" width="528" height="160" fill="#171a20"/>
+  <defs>
+    <marker id="ms" markerWidth="36" markerHeight="36" refX="18" refY="18" orient="auto">
+      <circle cx="18" cy="18" r="14" fill="#3ccf7a"/>
+    </marker>
+    <marker id="mm" markerWidth="36" markerHeight="36" refX="18" refY="18" orient="auto">
+      <circle cx="18" cy="18" r="14" fill="#e2b84a"/>
+    </marker>
+    <marker id="me" markerWidth="36" markerHeight="36" refX="18" refY="18" orient="auto">
+      <circle cx="18" cy="18" r="14" fill="#4a90e2"/>
+    </marker>
+    <marker id="mu" markerWidth="4" markerHeight="4" refX="0" refY="0" markerUnits="strokeWidth" orient="auto">
+      <rect width="4" height="4" fill="#e24a4a"/>
+    </marker>
+  </defs>
+  <polyline id="marker_line" points="60,120 264,40 468,120" fill="none" stroke="#cccccc" stroke-width="3"
+    marker-start="url(#ms)" marker-mid="url(#mm)" marker-end="url(#me)"/>
+  <line id="marker_units" x1="60" y1="20" x2="468" y2="20" stroke="#cccccc" stroke-width="4"
+    marker-end="url(#mu)"/>
+</svg>`
+
 // colCardBG is the card body backdrop (dark, same as the other P3.8 windows).
 var colCardBG = render.RGBA{R: 0.10, G: 0.11, B: 0.13, A: 1}
 
 type baked struct {
-	docs   [4]*svg.Document
-	icons  [4]*render.ImageBuf
+	docs   [5]*svg.Document
+	icons  [5]*render.ImageBuf
 	err    string
 	closed bool
 }
@@ -141,18 +174,19 @@ const resourcesDir = "examples/ui_wr_p38_svg_structure/testdata"
 
 // cardSources returns the four card SVG sources with the runtime data-URI
 // placeholder expanded.
-func cardSources() [4]string {
-	return [4]string{
+func cardSources() [5]string {
+	return [5]string{
 		switchSVG,
 		cssSVG,
 		strings.ReplaceAll(imageSVG, "__SVG64__", svgImageURI()),
 		useOriginSVG,
+		markerSVG,
 	}
 }
 
-// parseCards parses the four cards with the batch 4c-6 config.
-func parseCards() ([4]*svg.Document, error) {
-	var docs [4]*svg.Document
+// parseCards parses all capability cards with the batch 4c-6 config.
+func parseCards() ([5]*svg.Document, error) {
+	var docs [5]*svg.Document
 	srcs := cardSources()
 	for i, srcText := range srcs {
 		doc, err := svg.ParseWithConfig([]byte(srcText), svg.ParseConfig{
@@ -177,7 +211,11 @@ func ensureBaked() *baked {
 		}
 		b.docs = docs
 		for i, doc := range docs {
-			img := doc.Render(int(innerW), int(innerH))
+			ih := innerH
+			if i == 4 {
+				ih = markerInnerH
+			}
+			img := doc.Render(int(innerW), int(ih))
 			if img == nil {
 				b.err = fmt.Sprintf("card %d: render nil", i)
 				return
@@ -214,8 +252,12 @@ func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 
 func buildSVGScene(shell *wrkit.ShellChrome) {
 	card := func(i int, title string) {
+		cw, ch, iy, ih := cardW, cardH, innerY, innerH
+		if i == 4 {
+			ch, iy, ih = markerCardH, markerInnerY, markerInnerH
+		}
 		box := rendering.NewRenderBox()
-		box.FixedWidth, box.FixedHeight = cardW, cardH
+		box.FixedWidth, box.FixedHeight = cw, ch
 		box.OnPaint = func(pc *rendering.PaintContext, sz rendering.Size) {
 			if pc == nil || pc.DC == nil {
 				return
@@ -225,11 +267,11 @@ func buildSVGScene(shell *wrkit.ShellChrome) {
 			b := ensureBaked()
 			if b.err != "" || b.icons[i] == nil {
 				dc.SetRGBA(0.35, 0.06, 0.08, 1)
-				dc.DrawRectangle(ox+innerX, oy+innerY, innerW, innerH)
+				dc.DrawRectangle(ox+innerX, oy+iy, innerW, ih)
 				_ = dc.Fill()
 				return
 			}
-			rendering.DrawImageBuf(pc, b.icons[i], innerX, innerY, innerW, innerH)
+			rendering.DrawImageBuf(pc, b.icons[i], innerX, iy, innerW, ih)
 		}
 		shell.Body.Place(box, cardAt[i][0], cardAt[i][1])
 		shell.Body.Place(wrkit.Label(title, 12, 0.80, 0.86, 0.94),
@@ -240,6 +282,7 @@ func buildSVGScene(shell *wrkit.ShellChrome) {
 	card(1, "2 CSS：#id/[attr]/组合器/specificity/!important/type")
 	card(2, "3 image：外链 ResourcesDir/SVG 图像源/auto/零尺寸")
 	card(3, "4 use·symbol opacity 组层 + transform-origin + pattern")
+	card(4, "5 marker：start/mid/end + markerUnits/orient/viewBox")
 }
 
 func imageColor(c render.RGBA) color.NRGBA {
