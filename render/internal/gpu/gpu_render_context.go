@@ -2110,6 +2110,15 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 // DrawShapedColorGlyphs renders pre-shaped color glyphs through the RGBA
 // color atlas path. Same queueing as mask batches; IsColor batches sample
 // color pages with the color pipeline at flush time.
+// MaskPlaneStats reports the mask plane/readback allocation ledger
+// (calls, plane allocations, plane bytes, readback bytes) for P4.3 measurement.
+func (rc *GPURenderContext) MaskPlaneStats() (uint64, uint64, uint64, uint64) {
+	if rc == nil {
+		return 0, 0, 0, 0
+	}
+	return rc.shared.maskR8.MaskPlaneStats()
+}
+
 func (rc *GPURenderContext) DrawShapedColorGlyphs(target render.GPURenderTarget, face any, glyphs []text.ShapedGlyph, x, y float64, color render.RGBA, matrix render.Matrix, deviceScale float64) error {
 	textFace, ok := face.(text.Face)
 	if !ok || textFace == nil {

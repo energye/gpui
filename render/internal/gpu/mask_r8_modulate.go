@@ -68,6 +68,31 @@ type maskR8Cache struct {
 	pipeLay  hal.PipelineLayout
 	pipeline hal.RenderPipeline
 	sampler  hal.Sampler
+
+	// Plane/readback allocation ledger (P4.3 measurement): the mask plane is
+	// rebuilt per masked draw today — these counters are the evidence used to
+	// decide whether pooling is worth it.
+	statCalls    uint64
+	statPlanes   uint64
+	statBytes    uint64
+	statReadback uint64
+}
+
+// notePlane records one per-call mask plane allocation.
+func (c *maskR8Cache) notePlane(n int) {
+	c.statCalls++
+	c.statPlanes++
+	c.statBytes += uint64(n)
+}
+
+// noteReadback records one RGBA readback buffer allocation.
+func (c *maskR8Cache) noteReadback(n int) { c.statReadback += uint64(n) }
+
+// MaskPlaneStats returns (calls, planeAllocs, planeBytes, readbackBytes).
+func (c *maskR8Cache) MaskPlaneStats() (uint64, uint64, uint64, uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.statCalls, c.statPlanes, c.statBytes, c.statReadback
 }
 
 func (c *maskR8Cache) release() {
@@ -415,6 +440,8 @@ func maskR8Modulate(
 	}
 	src := unsafe.Slice((*byte)(mapping.Ptr), stagingSize) //nolint:gosec // hal.BufferMapping opaque pointer
 	out := make([]byte, needRGBA)
+	cache.notePlane(0)
+	cache.noteReadback(len(out))
 	if alignedRow == tightRow {
 		copy(out, src[:needRGBA])
 	} else {

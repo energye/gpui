@@ -188,6 +188,7 @@ func (rc *GPURenderContext) CompositeMaskedLayer(
 	}
 	// Tight R8 from mask (region 0,0,bw,bh).
 	maskR8 := make([]byte, bw*bh)
+	rc.shared.maskR8.notePlane(len(maskR8))
 	for y := 0; y < bh; y++ {
 		for x := 0; x < bw; x++ {
 			maskR8[y*bw+x] = mask.At(x, y)
@@ -309,6 +310,7 @@ func (rc *GPURenderContext) ModulateMaskedLayerGPU(
 	w, h := srcW, srcH
 	// Full-size R8 plane; rows/cols beyond the mask stay 0 (modulated alpha 0).
 	maskR8 := make([]byte, w*h)
+	rc.shared.maskR8.notePlane(len(maskR8))
 	cols, rows := w, h
 	if mw := mask.Width(); mw < cols {
 		cols = mw
