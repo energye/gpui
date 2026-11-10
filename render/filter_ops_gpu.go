@@ -930,18 +930,38 @@ func (c *Context) releaseFilterSrcRT() {
 	c.filterSrcW, c.filterSrcH = 0, 0
 }
 
+// forgetFilterSourceContent marks the filter-source scratch as content-free
+// for the next pass. The scratch is a persistent Context-level RT reused by
+// every filter application in a frame; without this the session keeps it in
+// renderedViews/colorContentViews and picks LoadOpLoad, so the previous
+// filter's silhouette is carried into the next filter and PopLayer
+// re-composites it at its own position (frame-local stacking). The CPU leg
+// always starts from the clean layer pixmap; Skia isolates filter sources too.
+func forgetFilterSourceContent(rc gpuContextOps, view gpucontext.TextureView) {
+	if view.IsNil() {
+		return
+	}
+	type viewContentForgetter interface {
+		ForgetViewContent(view gpucontext.TextureView)
+	}
+	if f, ok := rc.(viewContentForgetter); ok && f != nil {
+		f.ForgetViewContent(view)
+	}
+}
+
 func (c *Context) ensureFilterSrcRT(w, h int) (gpucontext.TextureView, bool) {
 	if c == nil || w <= 0 || h <= 0 {
 		return gpucontext.TextureView{}, false
 	}
-	if !c.filterSrcView.IsNil() && c.filterSrcW == w && c.filterSrcH == h {
-		return c.filterSrcView, true
-	}
-	c.releaseFilterSrcRT()
 	type offscreenCreator interface {
 		CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func())
 	}
 	rc := c.gpuCtxOps()
+	if !c.filterSrcView.IsNil() && c.filterSrcW == w && c.filterSrcH == h {
+		forgetFilterSourceContent(rc, c.filterSrcView)
+		return c.filterSrcView, true
+	}
+	c.releaseFilterSrcRT()
 	oc, ok := rc.(offscreenCreator)
 	if !ok || oc == nil {
 		return gpucontext.TextureView{}, false
@@ -953,6 +973,7 @@ func (c *Context) ensureFilterSrcRT(w, h int) (gpucontext.TextureView, bool) {
 	c.filterSrcView = view
 	c.filterSrcW, c.filterSrcH = w, h
 	c.filterSrcRelease = rel
+	forgetFilterSourceContent(rc, view)
 	return view, true
 }
 

@@ -1667,6 +1667,30 @@ func (rc *GPURenderContext) MarkViewSeeded(view gpucontext.TextureView) {
 	}
 }
 
+// ForgetViewContent drops this frame's content tracking for a view that is
+// about to be reused as a filter-source scratch. The next pass then clears
+// instead of loading the previous filter's silhouette (LoadOpClear). A
+// persistent filter source must start clean for every application: the CPU leg
+// copies the clean layer pixmap, and Skia isolates the filter source too.
+func (rc *GPURenderContext) ForgetViewContent(view gpucontext.TextureView) {
+	if rc == nil || view.IsNil() {
+		return
+	}
+	v := extractTextureView(view)
+	if v == nil {
+		return
+	}
+	if rc.session != nil {
+		rc.session.forgetViewContent(v)
+	}
+	for i := range rc.seededViews {
+		if rc.seededViews[i] == v {
+			rc.seededViews = append(rc.seededViews[:i], rc.seededViews[i+1:]...)
+			break
+		}
+	}
+}
+
 // UnmarkViewSeeded drops the seed mark once a layer RT has been composited and
 // returned to the pool. Prevents a recycled view from loading stale content on
 // its next first pass.

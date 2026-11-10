@@ -1316,6 +1316,30 @@ func (s *GPURenderSession) MarkColorContent(view hal.TextureView) {
 	s.colorContentViews = append(s.colorContentViews, view)
 }
 
+// forgetViewContent drops a view from this frame's content tracking so the
+// next render pass clears it instead of loading stale pixels. Reusable filter
+// source scratches call this before every application: otherwise the previous
+// filter's silhouette (still marked rendered/content this frame) rides into the
+// next filter and PopLayer re-composites it at its own position (frame-local
+// stacking; DrawShadow and every layered filter are affected).
+func (s *GPURenderSession) forgetViewContent(view hal.TextureView) {
+	if s == nil || view == nil {
+		return
+	}
+	for i := range s.colorContentViews {
+		if s.colorContentViews[i] == view {
+			s.colorContentViews = append(s.colorContentViews[:i], s.colorContentViews[i+1:]...)
+			break
+		}
+	}
+	for i := range s.renderedViews {
+		if s.renderedViews[i] == view {
+			s.renderedViews = append(s.renderedViews[:i], s.renderedViews[i+1:]...)
+			break
+		}
+	}
+}
+
 func (s *GPURenderSession) hasColorContent(view hal.TextureView) bool {
 	if s == nil || view == nil {
 		return false

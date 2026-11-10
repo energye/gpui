@@ -178,6 +178,54 @@
   `impl-attempt2.md` §4/§6），状态 🟡 待下会话影响面评估后拍板。**P4.3 仍 🟡，
   原症状（330ms/帧 ≈3fps）仍在，金图双后端 0.0000% 未重种**。
 
+- **格式/premul 假设推翻 · 真根因=滤波源 RT 帧内跨阴影累积（2026-11-10，正本
+  `evidence/P4.3/root-cause2.md`）**：用户指派的「直接贴缓存纹理 vs PopLayer 层合成
+  纹理格式/premul 口径不一致」经 GPU 层契约逐项核查**不成立**——阴影是纯黑 premul
+  `(0,0,0,0.25)`，R↔B swizzle / premul↔straight 对可见像素无影响，只有 alpha 起作用；
+  缓存 tile 实测 α=0.251（=CPU 契约 25%），不是缓存偏亮，而是**标准路把同一笔阴影帧内
+  叠加了多次**。真根因（通用层）：`filterSrcView` 为 Context 级持久全画布滤波源，
+  `FlushAndFilterFromView` → `rc.Flush(srcView)` 时 session 因 `viewRendered(srcView)`
+  选 `LoadOpLoad`（`render_session.go:7060-7067`），上一笔阴影剪影被保留；后续每笔阴影
+  的滤波输出都含前面全部剪影，PopLayer 再各自原位重画 → 叠加次数=该阴影之后的阴影数
+  （实测 A≈5–6 / B≈5–6 / C1≈3–4 / D1≈1.8 / D2=1；1s 与 6s 快照逐像素同 ⇒ 帧内不跨帧；
+  双后端逐像素同 ⇒ 非后端特例）。CPU 路每次从干净 layer pixmap 起算=0.25
+  （`context_misc_draw_test.go:189`），属 GPU/CPU 不一致（P4.2 族）。**停在「停下报告」**：
+  修 A=滤镜源每次强制 Clear（治根、通用，但 drawshadow 金图会变→需重种 native+go，
+  与「0.0000% 不重种」冲突需批准）；B=保留现状、②③ 不落地；C=先加探针分离
+  「filter 源」与「layer RT 池复用」两候选。**代码零改动、金图未动、P4.3 仍 🟡**。
+
+- **滤波源帧内累积治根 ✅（2026-11-10 用户拍板 A 后落地，正本
+  `evidence/P4.3/root-cause2-fix.md`）**：`GPURenderSession.forgetViewContent` +
+  `GPURenderContext.ForgetViewContent` + `ensureFilterSrcRT` 每次返回源时清除本帧
+  rendered/colorContent 标记（seed 非空仍由 SeedFromData 重新标记）。先红后绿 2 测
+  （同帧两笔 DrawShadow 第一笔必须与对照逐位一致：修前 max diff 38 → 修后 0；
+  两次层内 ApplyBlur：27 → 0；mutation 直接 return 复红 38/27，还原绿零残留）。
+  真窗 drawshadow：9/9 probe 过、`cpu_fallback_ops=0`；**金图重种** native+go
+  （旧→新 278666/278677 px、门禁 35.2519%；新图 A 卡下缘 191=α0.251、本体 (11,11,17)），
+  二次运行双后端 **0.0000%**；新 go vs native 仅 HUD fps 173 px。影响面 A/B
+  （worktree @ `f799ce3a`）：drawshadow 唯一有意重种；miscdraw 既有红 12.5014%→11.4955%
+  （差异只在阴影带，回 25% 契约，未重种、登记）；filterops/recording 既有红逐位同；
+  backdrop/p34_filters/p38_svg_filter 0.0000% 不变。门禁：双构建/vet/apidoc rc=0、
+  race gpu 包 + 新增测试、18 个相关 render 测试文件 18/18、recording 3 条既有红零新增、
+  单窗标准关闭 + 显示健康。**②③ 缓存未重新落地，P4.3 仍 🟡**。
+
+- **根因修复批次（A，2026-11-10 用户拍板）：验证载体登记**：
+  - 能力单测（新增，先红后绿）：`render/p43_shadow_filter_source_test.go`::
+    `TestDrawShadowRepeatedFrameDoesNotStack`——同帧两笔不同位置的 DrawShadow，
+    第一笔阴影带的像素必须与「只画第一笔」的对照 Context 逐位一致（红=第二笔把第一笔
+    重画；绿=不回灌）。`TestApplyBlurRepeatedFrameSourceClean`（同文件）——同一
+    Context 连续两次层内 ApplyBlur，第二个滤镜输出不得包含第一个剪影。
+  - 真窗：`examples/ui_wr_p41_drawshadow`（`-auto-only` 双后端）；金图
+    `testdata/goldens/p41_drawshadow_final.png` / `_go.png` **批准重种**
+    （旧图+新图+sha256+diff 计数归档 `evidence/P4.3/golden-reseed/`），重种后
+    二次运行双后端 0.0000%。
+  - 负向：临时删掉滤镜源的 ForgetViewContent 调用 → 新单测红 / golden diff > 0；
+    还原复绿，git diff 零残留。
+  - 门禁：双构建、recording/render 逐文件、race、vet、apidoc rc=0、GPU 真窗单窗
+    标准关闭、显存账本关窗回落；canvas 双后端 live 抓帧（临时钩子，验收后删）。
+  - 公开 API：预期零变化（`ForgetViewContent` 为 `render/internal/gpu` 内部方法，
+    render 层用既有 type-assert 口调用）。
+
 **以下为 P4.1 收口存档（焦点已切 P4.3，勿并入）**
 
 - **批 4 补正 3 状态：✅ 收口（2026-11-10，Canvas.DrawShadow 录制命令）**——先红
@@ -673,7 +721,7 @@
 | P3.9b | 1x/4x MSAA 真实窗口动画性能基准（**测量补充，非新能力**）：满窗混合通用动画场景（文字/圆角/曲线/渐变/图片/半透明层/旋转缩放/粒子 + mesh gradient 一起每帧动），指标浮在内容上；分辨率可配（默认满屏 1920×1080，留 3840×2160 档本机不跑）、MSAA 可配（开窗前 `SetMSAASampleCount`）；三模式（`-auto-only` 冻结相位门禁 / `-measure` 动画测量 / 常驻人工窗）；**零引擎改动、零新增公开 API** | P3.9a | ✅ 2026-11-09 测量收口（满屏 1080p 混合通用动画真窗；native 1x/4x + go 1x 三组合门禁金图 0.0000%/logic 6/6、18s 测量有效；**抓到并如实落位 go/GL+4x 整窗全黑既有引擎洞**，用户拍板不修/登记不可验/不标绿；native 1x→4x 显存峰值 2.35×、fps −24.9%、p95 破线；证据 `evidence/P3.9b/summary.md`、`compare.md`、`findings-go4x-black.md`） | `evidence/P3.9b/` |
 | P4.1 | 正确性：MSAA>1 even-odd 裁剪、分数裁剪 AA、顶点网格 alpha/blend、DrawShadow | P3.4、P3.8 | 🟡 拆四批（③→②→④→①）：批 1（③alpha/blend 接线）核心交付、B 卡挂 #3 GPU 路待诊断；**批 2（②分数裁剪 AA）✅ 全量收口（2026-11-10）**；**批 3（④ DrawShadow 设备空间抬升）✅ 语义收口（2026-11-10，#4/#5/#6 三洞登记）**；**批 4（①+go4x）✅ 收口（2026-11-10，三洞红绿对闭环 + 双后端 4x 真窗 0.0000% + 1x 全量金图零新增红 + P3.9b go4x 翻绿；PLAN §6 已回写）**——P4.1 四子项除批 1 B 卡（#3 在册）外全部收口 | `evidence/P4.1/` |
 | P4.2 | 一致性：GPU/CPU 模糊对齐 | P4.1、P3.4 | ⬜ | `evidence/P4.2/` |
-| P4.3 | 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化；**+2026-11-10 提前立项：DrawShadow 阴影模糊整画布成本+无跨帧缓存**（用户人工窗抓出 330ms/帧 ~3fps；探针数据+Skia 对齐差距+实现计划齐，动刀未开始，见 `evidence/P4.3/shadow-blur-perf-assessment.md`） | P4.1、P3.4 | 🟡 ①分段归因✅ / 底层治根（Canvas 一等可录制设备纹理命令）✅ / **②③ 第二次尝试后按纪律回退（真窗 golden diff 未逐位对齐，见 `evidence/P4.3/impl-attempt2.md`）** / 原症状仍在 | `evidence/P4.3/` |
+| P4.3 | 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化；**+2026-11-10 提前立项：DrawShadow 阴影模糊整画布成本+无跨帧缓存**（用户人工窗抓出 330ms/帧 ~3fps；探针数据+Skia 对齐差距+实现计划齐，动刀未开始，见 `evidence/P4.3/shadow-blur-perf-assessment.md`） | P4.1、P3.4 | 🟡 ①分段归因✅ / 底层治根（Canvas 一等可录制设备纹理命令）✅ / 滤波源帧内累积治根✅（金图 native+go 已重种，二次 0.0000%，见 `evidence/P4.3/root-cause2-fix.md`） / **②③ 缓存待重落地（设备空间 tile 需新增公开符号，先停下问）** / 原症状仍在 | `evidence/P4.3/` |
 | P4.4 | 文本：COLRv1 完整层（若 P3.8 未覆盖） | P3.3、P3.8 | ⬜ | `evidence/P4.4/` |
 
 **并行说明**：P0.1–P0.4 互相独立，可并行；P1.1/P1.2/P1.5 可在 P0.1–P0.3 完成后并行；P2.1–P2.3 互相独立，可并行；P3.2–P3.8 在 P3.0（及各自前置）完成后可分批并行，但每批合入前都要跑所属域回归。P2.4a–e 必须串行。P2.6 除 P2.5 外还必须等 P0.4 的一致性测试台就位。
@@ -1185,6 +1233,8 @@ docs/render_gpu_converge/
 |---|---|
 | 2026-10-28 | 首版：从 PLAN §7 拆出可执行任务清单，补状态图例、开工协议、开工/完成标准、门禁口径、证据约定、即时同步规则 |
 | 2026-10-28 | 补新会话可续跑能力：§0 开场话术、§2.1 当前焦点、镜像允许按阶段聚合；同步规则改为同步 §2.1 与 PLAN |
+| 2026-11-10 | P4.3 阴影专项 | **格式/premul 假设推翻 · 真根因=滤波源 RT 帧内跨阴影累积（零代码，停在停下报告，正本 `evidence/P4.3/root-cause2.md`）**：GPU 层格式契约逐项核查——离屏 RT BGRA8Unorm（`gpu_render_context.go:4146`）、滤波 RT RGBA8Unorm（`:2752,2760`）、`UploadRGBAToView` 只换 R/B 不动 alpha（`layer_gpu_io.go:75-135`）、读回只 swizzle（`dual_tex_blend.go:1802,1917`）、shader/混合全 premul（`textured_quad.wgsl`、`image_pipeline.go:306/346/399/487`）⇒ 自洽；阴影为纯黑 premul `(0,0,0,0.25)`，R/B 与 premul 对可见像素无影响、只有 alpha 起作用，**格式假设数学上不可能成立**。客观数据：上会话失败快照 A 卡本体下缘 golden=53（α=0.792）vs 缓存=191（α=0.251，=CPU 契约 25%）；叠加次数 A≈5–6/B≈5–6/C1≈3–4/D1≈1.8/D2=1 = 该阴影之后的阴影数；1s 与 6s 标准路快照逐像素同（帧内不跨帧）、双后端 golden 逐像素同（非后端特例）。**真根因**：`filterSrcView` 为 Context 级持久全画布滤波源（`filter_ops_gpu.go:933-956`），`FlushAndFilterFromView`→`rc.Flush(srcView)`（`filter_flush_coalesce.go:95-112`）时 session 因 `viewRendered(srcView)` 选 LoadOpLoad（`render_session.go:7060-7067/7158-7165`），上一笔阴影剪影被保留，后续滤波输出含前面全部剪影、PopLayer 各自原位重画 → 帧内叠加；CPU 路每次从干净 layer pixmap 起算=0.25（`context_misc_draw_test.go:189`）⇒ GPU/CPU 不一致（P4.2 族）。六种贴法全败=单份 tile vs 1..N 份累积，差异是叠加次数差。**修法候选**：A 滤镜源每次应用前强制 Clear（治根通用；drawshadow 金图会变→需重种 native+go，与「不重种」冲突需批准）；B 保留现状、②③ 不落地；C 先加探针分离「filter 源」与「layer RT 池复用」候选。**代码零改动、金图未动、P4.3 仍 🟡，待拍板。** | `evidence/P4.3/root-cause2.md` |
+| 2026-11-10 | P4.3 阴影专项 | **滤波源帧内累积治根 ✅ + drawshadow 双后端金图重种（用户拍板 A，正本 `evidence/P4.3/root-cause2-fix.md`）**：`GPURenderSession.forgetViewContent` + `GPURenderContext.ForgetViewContent` + `ensureFilterSrcRT` 每次返回源清本帧 rendered/colorContent 标记（seed 非空仍 SeedFromData 重标）。先红后绿 2 测（同帧两笔 DrawShadow 第一笔 vs 对照 max diff 38→0；两次层内 ApplyBlur 27→0；mutation 复红还原绿零残留）。真窗 drawshadow 9/9 probe、cpu_fb=0；金图重种 native+go（旧→新 278666/278677 px、门禁 35.2519%；新 A 下缘 191=α0.251、本体 (11,11,17)；二次双后端 0.0000%；新 go vs native 仅 HUD 173 px；sha/逐图见 `golden-reseed/README.md`）。影响面 A/B（worktree @ `f799ce3a`）：drawshadow 唯一有意重种；miscdraw 既有红 12.5014%→11.4955%（仅阴影带变化、回 25% 契约，未重种登记）；filterops 0.4216%/recording 2.5893% 逐位同；backdrop/p34_filters/p38_svg_filter 0.0000% 不变。门禁：双构建/vet/apidoc rc=0、race gpu 包+新测、18 个相关 render 测试文件全绿、recording 3 条既有红零新增、单窗标准关闭+显示健康。**②③ 缓存未落地，P4.3 仍 🟡**；下一步设备空间 tile 需新增公开符号（LookupShadowCache / 设备空间 DrawTextureRef / Recorder scale），按「加接口先停下问」待拍板。 | `evidence/P4.3/root-cause2-fix.md`、`golden-reseed/` |
 | 2026-10-28 | 依赖校正：P1.4 补 P0.1；P2.6 补 P0.4；P3.7 补 P3.5；P3.8 补 P3.3/P3.5；P4.1/P4.2/P4.3 补 P3.4；P4.4 补 P3.3；P0.3 演练 tag 与正式基线 tag 分开，正式 tag 在 P1.8 通过后打 |
 | 2026-10-28 | 新增 §4.1 能力验证硬要求：每个任务必须带能力单测 + 真窗；开工前在 §2.1 登记四类载体，完成交五份证据；同步规则加第 9、10 条 |
 | 2026-10-28 | P0.4 收口：按 §4.1 一致性测试台口径（自带单测 + 3 场景双后端）标 ✅；资源断言以 K1 上界显式放宽（非静默跳过，已知差异表可见），收紧条件挂到 P1.6/P2.4c；修正「`GPUI_BACKEND` 切后端」「headless 不开窗」两处旧描述 |
