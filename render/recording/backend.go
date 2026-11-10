@@ -250,6 +250,15 @@ type GPUTextureBackend interface {
 	DrawGPUTexture(view render.TextureView, x, y float64, width, height int)
 }
 
+// TextureRefBackend is the optional capability of replaying a recordable
+// device-texture logical ref. The live context resolves the ref and queues the
+// quad; a nested Recorder re-records the command so the ref survives folding;
+// export backends that do not implement it skip the draw (same contract as
+// GPUTextureBackend).
+type TextureRefBackend interface {
+	DrawTextureRef(ref render.TextureRef, x, y float64, width, height int)
+}
+
 // MaskBackend is the optional capability of replaying device-space mask
 // post-processes (SetMask/ClearMask/InvertMask/ApplyMask/PushMaskLayer).
 //

@@ -120,6 +120,44 @@
   ① 先修底层 GPU 层链洞再回来做 ②③；② 换 CPU 侧缓存 + `PopLayer` CPU composite
   路径（需验双后端逐位 + 成本断言）。
 
+- **治根根因定位（2026-11-10，用户拍板「方案 1 治根」后，停在停下报告）**：
+  三组客观排除实验（正本 `evidence/P4.3/root-cause.md`）——① tier5 盖序 6/6 绿
+  ⇒ **推翻**在册洞 #5「gpuTex tier 末尾重放」为 P4.3 根因（首轮全红是测试构造
+  错误：`ClearWithColor` 只写 CPU pixmap、plate 空纹理，已补 GPU Fill + 读回校验）；
+  ② `UploadRGBAToView` 直传 vs GPU 渲染填充 A/B 双绿 ⇒ 排除纹理上传/layout/
+  `res.View` 解析；③ 失败只在窗口录制回放链出现。**真根因（通用架构缺口）**：
+  `render.Canvas` 无「设备自有纹理绘制」一等能力（`recording/command_ops.go:141`
+  明文），`DrawGPUTextureCommand` 只由 `*Recorder` 旁路追加且带裸
+  `render.TextureView`（`:147`），回放仅在 `b.dc.(GPUTextureBackend)` 时转发否则
+  静默丢（`backend_canvas.go:375-382`）⇒ Canvas 命令实现内部（如
+  `Context.DrawShadow`）旁路产生的纹理绘制不进录制流，live/present 丢内容。
+  与 P4.1 批 4 补正 3「DrawShadow 缺录制命令」**同构**（`draw_shadow_test.go:11-20`）。
+  **对齐标准**：Skia `SkImage`/`GrSurfaceProxyView`（GPU 纹理一等可录）、Flutter
+  `ui.Image` + Layer 树；本库已有 `res.View`（`res/types.go:17`「SourceKey + Ref
+  ≈ GrSurfaceProxy」）底座，缺的是把它接到 Canvas/Recorder 契约。
+  **新问题项登记**：现象=Canvas 命令内部 GPU 纹理绘制在录制回放帧静默丢失；
+  位置=`command_ops.go:141-150` / `backend_canvas.go:375-382` /
+  `recorder_canvas_ops.go:207-211`；与真值差异=离屏直画纹理能呈现、真窗录制回放
+  33% 像素缺失；归属=recording/Canvas 契约（**非** P4.1 #4/#5、**非** P4.3 特例）；
+  待办=停下报告拍板「Canvas 一等设备纹理命令」通用修法。状态 🟡 待拍板。
+  **两个通用常驻钉**（工作区，未提交）：`p43_tier5_draw_order_test.go`（把 P3.7
+  盖序契约扩到 tier 5，6/6 绿）、`p43_upload_plate_probe_test.go`（A/B 双绿）。
+
+- **治根通用修法 ✅ 落地（2026-11-10，正本 `evidence/P4.3/root-cause-fix.md`）**：
+  用户拍板「通用修法」后按 Skia `GrSurfaceProxy` / Flutter `ui.Image` 落地——新增
+  `render.TextureRef`（进程内 id、无设备指针、可录制）+ `RegisterTextureRef` /
+  `ReleaseTextureRef` / `ResolveTextureRef`，`render.Canvas` 加一等口
+  `DrawTextureRef`，recording 全链补 `CmdDrawTextureRef` / `DrawTextureRefCommand` /
+  `TextureRefBackend` / Recorder / Playback / CanvasBackend / bounds。**任何 Canvas
+  命令实现内部的缓存纹理绘制都能进录制回放流**，非 DrawShadow 特例，且 `Canvas`
+  「只收可描述参数」的设计边界不破（`texture_ref.go` 纯 id）。先红后绿 3 测
+  （parity 逐通道容差 1 显式声明 + 3 次稳定、命令折叠、释放跳过）；门禁：双构建 /
+  apidoc(9 符号同步 rc=0) / vet / race(CGO) / 双后端 native+go 全绿；**干净树 A/B
+  （worktree @ `82a4985d`）FAIL 列表逐条一致 ⇒ 零新增失败**，既有红按「别顺手修」
+  不动；负向 mutation 强制解析失败 → parity 红 → 还原绿 → 零残留。**底层治根 ✅；
+  ②③ 待用 `DrawTextureRef` 重新落地（命中走可录制命令而非 Context 旁路），
+  P4.3 仍 🟡**。
+
 **以下为 P4.1 收口存档（焦点已切 P4.3，勿并入）**
 
 - **批 4 补正 3 状态：✅ 收口（2026-11-10，Canvas.DrawShadow 录制命令）**——先红
@@ -1107,6 +1145,12 @@ docs/render_gpu_converge/
 | 2026-11-10 | P4.3 阴影专项 | **① 分段计时归因 ✅ 完成（动刀前置，停在「停下报告」待拍板）**：离屏 native 独立设备实测（`WGPU_NATIVE_PATH`，`TestP43RoughProbe` + `GPUI_P43_TIMING=1`），粗测+分段数据落 `evidence/P4.3/stage1-timing/`。三尺寸 `gpu_ops>0/cpu_fb=0` 确认真走 GPU 图（FromView、wantPixels=false）；**立项文档 1.15s 复现不了**（1200² drawshadow 实测 96.7ms，窗口 55ms/阴影量级吻合，疑立项探针为未接 GPU 的 CPU-only 路）。分段：graph 核心 upload/encode/submit/map 稳态 <1ms 且与面积无关=不是大头；**大头=隔离层全画布 GPU↔CPU 往返**（layer 段 5.3/35.3/66.4ms，占 54%/76%/91%，随面积线性，materializeFilterGPU 回读 + seedTopLayerGPUFromPixmap 回种）。⇒ 裁剪落点应是 bounded layer RT（隔离层 RT+回读/回种裁到阴影紧致界），非只改 graph 子区域；③缓存让静态帧不付这条往返。env 门控计时（12 处 + 2 helper）默认关、零行为变化、零公开 API，默认/nogpu 双构建 rc=0；诊断件留④做成本基线后清理。**②③未动、graph 核心零行为改动**，按硬约束停下报告拍板裁剪方案。 | `evidence/P4.3/stage1-timing/`（attribution.md / rough-probe.txt / segmented-timing.txt） |
 
 | 2026-11-10 | P4.3 阴影专项 | **②③ 实现尝试 → 没修好、按纪律全部回退（状态仍 🟡）**：用户拍板「DrawShadow 层合一」后落地——缓存紧致界阴影 GPU view（键=path 内容哈希/elevation/color/CTM/dpr，禁指针键，LRU + 独立 `CreateOffscreenTexture` 谁建谁放）、命中贴图跳过 blur 链、投影分支显式不缓存。单元级先红后绿全过（成本 0.227<1/4、像素逐位 0、mutation `no-cache` 反证红）、默认/nogpu 双构建 rc=0；真窗 native 单窗标准关闭：缓存真命中（2492 hit / 7 store）、**fps 恢复**（fps_interval 59.3、interval_p95 18.97ms<22ms、presents 356 vs 原 24），但 **golden diff 33.0371% FAIL**。A/B：`no-cache`/`store-only` 均 0.0000% ⇒ 差异来自命中贴图；逐像素客观判据（白底 1-4 级、非白底 5-12 级、canvas dump=premul 黑 `(0,0,0,a)` 内容正确、red-tile 仅 1272/58800 生效、gpu_ops +1 但不呈现）；六种贴图方式（子区域 / UV inset / 全画布整层 blit / 绕 clip / 层包裹 / red-tile）恒定 ~33% ⇒ 根因 = **P4.1 批 3 在册 GPU 层链洞 #4/#5 族**（DrawShadow 内直接 queue 的 GPU texture draw 无法可靠进 present 帧）。按 AGENTS「禁止猜着修」「别顺手修别线」+ memory「搞不定如实说没修好并回退、禁半吊子」停止试错。**回退**：删 `shadow_cache.go`/`p43_shadow_blur_perf_test.go`，checkout `context.go`/`context_construct.go`/`context_misc_draw.go`；保留 ① 计时设施（env 门控默认关）；回退后双构建 rc=0、`TestP43RoughProbe` 仍绿；金图双后端 0.0000% 未重种。**新问题落位**：命中贴图受在册 GPU 层链洞阻塞，下一步候选（先修底层洞 / 换 CPU composite 路径）均需先影响面评估 + 停下报告拍板。 | `evidence/P4.3/impl-attempt.md`、`impl-attempt-logs/` |
+
+| 2026-11-10 | P4.3 阴影专项 | **治根根因定位 ✅（用户拍板「方案 1 治根」后，停在停下报告）**：加载 `gpui-wr-engine` skill + 读真源（CODING_RULES §0.4/§5、RENDER_BASE §25.4、wr-close 高概率洞表），三组客观排除实验：① `p43_tier5_draw_order_test.go` 把 P3.7「盖序=提交序」钉扩到 tier 5（GPUTex），**6/6 绿 ⇒ 推翻在册洞 #5 为根因**（首轮全红系测试构造错误：ClearWithColor 只写 CPU pixmap、plate 空纹理，补 GPU Fill + ReadbackViewRGBA 校验后转绿，如实记录）；② `p43_upload_plate_probe_test.go` 二分 `UploadRGBAToView` 直传 vs `FlushGPUWithView` GPU 填充，A/B 双绿 ⇒ 排除纹理上传/layout/`viewToResView`；③ 失败只在窗口录制回放链。**真根因=通用架构缺口**：`render.Canvas` 无「设备自有纹理绘制」一等能力（`recording/command_ops.go:141` 明文），`DrawGPUTextureCommand` 仅 `*Recorder` 旁路可追加且带裸 `render.TextureView`（`:147`），回放仅 `b.dc.(GPUTextureBackend)` 时转发否则静默丢（`backend_canvas.go:375-382`）⇒ Canvas 命令实现内部旁路产生的纹理绘制不进录制流。与 P4.1 批 4 补正 3 同构（`draw_shadow_test.go:11-20`）。**对齐标准**：Skia `SkImage`/`GrSurfaceProxyView`、Flutter `ui.Image`+Layer 树；本库 `res.View`（`res/types.go:17`「SourceKey+Ref≈GrSurfaceProxy」）已有底座，缺的是接到 Canvas/Recorder 契约。**动手前两样齐**（真实问题结果 + 标准方案），影响面=Canvas 公开接口全量切换 + recording/render 逐文件回归 + 双后端 + catalog/apidoc。**停在停下报告请用户拍板方向，确认前零代码改动**；#5 证伪状态同步回 P4.1 批 3 登记。 | `evidence/P4.3/root-cause.md` |
+
+| 2026-11-10 | P4.3 阴影专项 | **治根通用修法 ✅ 落地（用户拍板「通用修法」后）**：按 Skia `GrSurfaceProxy`/Flutter `ui.Image` 补 `render.TextureRef`（纯 id 可录制逻辑引用）+ `RegisterTextureRef`/`ReleaseTextureRef`/`ResolveTextureRef` + `Canvas.DrawTextureRef` 一等口 + recording 全链（`CmdDrawTextureRef`/`DrawTextureRefCommand`/`TextureRefBackend`/Recorder/Playback/CanvasBackend/bounds）。任何 Canvas 命令实现内部的设备纹理绘制都能进录制回放流，非特例补丁。先红后绿 3 测（parity 逐通道容差 1 显式声明、连跑 3 次稳定；命令折叠；释放跳过）；门禁双构建/apidoc(9 符号 rc=0)/vet/race(CGO_ENABLED=1)/双后端 native+go 全绿；**干净树 A/B（worktree @ `82a4985d`）FAIL 列表逐条一致 ⇒ 本会话零新增失败**（recording 3 条、render 10 条既有红按「别顺手修」不动）；负向 mutation 强制解析失败 → parity 红(max diff 19>1) → 还原绿 → git diff 零残留。`RENDER_API_CATALOG.md` §1/§3.23/§6 快照/§0 同步、`ENGINE_UI_WIDGET_RENDER.md` §10 修订。**底层治根 ✅，②③ 待用 `DrawTextureRef` 重新落地，P4.3 仍 🟡**。 | `evidence/P4.3/root-cause-fix.md` |
+
+| 2026-11-10 | P4.3 阴影专项 | **②③ 接线设计落盘（零代码，正本 `evidence/P4.3/p43-rewire-design.md`）**：底层 `TextureRef` 通用能力已绿后，②③ 消费该能力的关键结论——缓存查询/命中必须发生在**录制阶段**（`Recorder.DrawShadow` 查缓存，命中录 `DrawTextureRefCommand`，未命中录 `CmdDrawShadow` 由回放侧填充缓存），不能只在 `*Context.DrawShadow`（回放期）里旁路 queue，否则又绕过录制契约。附双实现共享缓存、键口径、资源谁建谁放、先红后绿与真窗验收拆解。`ENGINE_UI_WIDGET_RENDER.md` §10 修订表同步。**状态：① ✅ / 底层治根 ✅ / ②③ 待落地 / P4.3 🟡**。 | `evidence/P4.3/p43-rewire-design.md` |
 
 ## 8 修订记录
 

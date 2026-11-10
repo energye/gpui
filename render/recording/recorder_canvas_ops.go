@@ -211,6 +211,16 @@ func (r *Recorder) DrawGPUTexture(view render.TextureView, x, y float64, width, 
 	r.commands = append(r.commands, DrawGPUTextureCommand{View: view, X: x, Y: y, W: width, H: height})
 }
 
+// DrawTextureRef records a device texture through its logical ref. The ref is
+// a plain id, so the command stays valid across playback and device rebuilds;
+// the raster thread resolves it when the draw executes.
+func (r *Recorder) DrawTextureRef(ref render.TextureRef, x, y float64, width, height int) {
+	if !ref.Valid() || width <= 0 || height <= 0 {
+		return
+	}
+	r.commands = append(r.commands, DrawTextureRefCommand{Ref: ref, X: x, Y: y, W: width, H: height})
+}
+
 // cloneDrawImageOptions deep-copies the SrcRect pointer so later mutation of
 // the caller's rectangle cannot rewrite an already-recorded command.
 func cloneDrawImageOptions(opts render.DrawImageOptions) render.DrawImageOptions {

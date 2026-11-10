@@ -27,12 +27,18 @@ import (
 // The surface is deliberately the *describable* part of Context. Methods whose
 // arguments only exist on the thread that owns the GPU, or whose result is a
 // raster-time fact, stay on *Context and are not part of this contract:
-// GPU texture handles (DrawGPUTexture*), flushing and presentation
+// raw GPU texture handles (DrawGPUTexture*), flushing and presentation
 // (FlushGPU/PresentFrame*), offscreen passes, encode/export, SetPixel,
 // WritePixels and damage tracking. Text outlines (TextPath) are live-only too:
 // they need the context's own glyph-outline extractor and mask cache, so a
 // display list cannot produce them. Device-space mask post-processes are a
 // separate capability: see MaskCanvas.
+//
+// A device texture can still be drawn through the display list: DrawTextureRef
+// takes a TextureRef — a recordable logical id with no device pointer (Skia
+// GrSurfaceProxy / Flutter ui.Image shape) — resolved to the live view at
+// playback time. This is what lets a cached offscreen texture be composited
+// from inside any Canvas command implementation without dropping the draw.
 //
 // All geometry is user space: the current transform applies to path verbs,
 // shapes, image destinations and text origins, and the device scale folds in
@@ -131,6 +137,11 @@ type Canvas interface {
 	// privateDrawShadow. Context implements it; the recording layer records
 	// CmdDrawShadow so display-list replay carries shadows (P4.1 批 4 补正 3).
 	DrawShadow(path *Path, col RGBA, elevation float64, transparentOccluder bool)
+
+	// DrawTextureRef composites a device texture through a recordable logical
+	// reference (see TextureRef). Unlike DrawGPUTexture (Context-only), this
+	// command can be recorded and replayed; export backends skip it.
+	DrawTextureRef(ref TextureRef, x, y float64, width, height int)
 
 	// Clip
 	Clip()

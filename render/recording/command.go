@@ -101,6 +101,7 @@ const (
 	CmdDrawMeshPatch    // One colored Bezier patch (P3.9 mesh gradient)
 	CmdDrawMeshGradient // High-level mesh gradient grid (P3.9a)
 	CmdDrawShadow       // Tonal contact shadow (Impeller spot single-pass; P4.1 批 4 补正 3)
+	CmdDrawTextureRef   // Recordable device-texture logical ref (P4.3 治根)
 
 	// Layer and effect commands
 	CmdPushLayer         // Save-layer with blend/opacity
@@ -168,6 +169,7 @@ var commandTypeNames = [...]string{
 	CmdDrawVertices:      "DrawVertices",
 	CmdDrawGlyphs:        "DrawGlyphs",
 	CmdDrawGPUTexture:    "DrawGPUTexture",
+	CmdDrawTextureRef:    "DrawTextureRef",
 
 	CmdClipRectOp:       "ClipRectOp",
 	CmdClipPathOp:       "ClipPathOp",

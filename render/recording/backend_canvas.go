@@ -381,6 +381,25 @@ func (b *CanvasBackend) DrawGPUTexture(view render.TextureView, x, y float64, wi
 	}
 }
 
+// DrawTextureRef replays a recordable device-texture ref. A live context or a
+// nested Recorder implements TextureRefBackend and owns resolution/re-recording;
+// other targets resolve the ref into the current device view and blit it, or
+// skip when they cannot bind a device texture.
+func (b *CanvasBackend) DrawTextureRef(ref render.TextureRef, x, y float64, width, height int) {
+	if !ref.Valid() || width <= 0 || height <= 0 {
+		return
+	}
+	if target, ok := b.dc.(TextureRefBackend); ok {
+		target.DrawTextureRef(ref, x, y, width, height)
+		return
+	}
+	if view, ok := render.ResolveTextureRef(ref); ok {
+		if target, ok := b.dc.(GPUTextureBackend); ok {
+			target.DrawGPUTexture(view, x, y, width, height)
+		}
+	}
+}
+
 // DrawAtlas replays a sprite batch. Context returns a degradation report that
 // only exists once rasterized, so the replay result is dropped here.
 func (b *CanvasBackend) DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSprite, opts render.AtlasDrawOptions) {

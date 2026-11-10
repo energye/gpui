@@ -343,6 +343,12 @@ func (r *Recording) Playback(backend Backend) error {
 			if b, ok := backend.(GPUTextureBackend); ok {
 				b.DrawGPUTexture(c.View, c.X, c.Y, c.W, c.H)
 			}
+		case DrawTextureRefCommand:
+			// The ref is resolved by the backend on the raster thread; export
+			// backends without the capability skip the draw.
+			if b, ok := backend.(TextureRefBackend); ok {
+				b.DrawTextureRef(c.Ref, c.X, c.Y, c.W, c.H)
+			}
 		case SetTextDecorationCommand:
 			backend.SetTextDecoration(c.Deco)
 		case SetTextModeCommand:

@@ -201,6 +201,10 @@ func (w *contentWalk) step(cmd Command) {
 		// opaque is a raster-time fact, so the footprint stays conservative.
 		w.note(!c.View.IsNil() && c.W > 0 && c.H > 0)
 		w.addRect(NewRect(c.X, c.Y, float64(c.W), float64(c.H)), 0)
+	case DrawTextureRefCommand:
+		// Same footprint as a texture quad; validity is the ref, not texels.
+		w.note(c.Ref.Valid() && c.W > 0 && c.H > 0)
+		w.addRect(NewRect(c.X, c.Y, float64(c.W), float64(c.H)), 0)
 
 	case ApplyBlurCommand:
 		if c.Radius > 0 {

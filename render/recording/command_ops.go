@@ -152,6 +152,19 @@ type DrawGPUTextureCommand struct {
 // Type implements Command.
 func (DrawGPUTextureCommand) Type() CommandType { return CmdDrawGPUTexture }
 
+// DrawTextureRefCommand composites a device texture through a recordable
+// logical ref (render.TextureRef). Unlike DrawGPUTextureCommand it carries no
+// device pointer, so it is safe to keep in a display list across frames and
+// device rebuilds; playback resolves the ref on the raster thread.
+// Backends that cannot reach the device (image/PDF/SVG export) skip it.
+type DrawTextureRefCommand struct {
+	Ref  render.TextureRef
+	X, Y float64
+	W, H int
+}
+
+func (DrawTextureRefCommand) Type() CommandType { return CmdDrawTextureRef }
+
 // --------------------------------------------------------------------------
 // Clipping with operations
 // --------------------------------------------------------------------------
