@@ -14284,10 +14284,82 @@ func (l *Lowerer) isTextureFunction(name string) bool {
 	return false
 }
 
+// globalDeclaredInnerType resolves an identifier expression to the inner type
+// of the module-scope variable it names. ok=false for anything else (locals,
+// parameters, complex expressions) — callers must not reject on unresolved.
+func (l *Lowerer) globalDeclaredInnerType(expr parser.Expr) (ir.TypeInner, bool) {
+	ident, ok := expr.(*parser.Ident)
+	if !ok {
+		return nil, false
+	}
+	for _, gv := range l.module.GlobalVariables {
+		if gv.Name == ident.Name && int(gv.Type) < len(l.module.Types) {
+			return l.module.Types[gv.Type].Inner, true
+		}
+	}
+	return nil, false
+}
+
+// describeTypeInner names a type inner for operand-mismatch diagnostics.
+func describeTypeInner(inner ir.TypeInner) string {
+	switch inner.(type) {
+	case ir.ImageType:
+		return "texture"
+	case ir.SamplerType:
+		return "sampler"
+	default:
+		return "non-texture type"
+	}
+}
+
+// checkTextureOperandTypes rejects texture builtin calls whose texture/sampler
+// operands are declared globals of the wrong kind — a sampler passed where a
+// texture belongs (or vice versa) must fail at lower time, never reach codegen
+// and blow up at draw time (M3; upstream naga rejects these at frontend/
+// validate time). Operands that cannot be resolved to a declared type (locals,
+// function parameters, complex expressions) are skipped — no false rejections.
+func (l *Lowerer) checkTextureOperandTypes(name string, args []parser.Expr) error {
+	if len(args) == 0 {
+		return nil
+	}
+	imageIdx, samplerIdx := 0, -1
+	switch name {
+	case "textureGather":
+		// textureGather(component, t, s, coord …)
+		imageIdx, samplerIdx = 1, 2
+	case "textureSample", "textureSampleBias", "textureSampleLevel", "textureSampleGrad",
+		"textureSampleCompare", "textureSampleCompareLevel", "textureSampleBaseClampToEdge",
+		"textureGatherCompare":
+		samplerIdx = 1
+	default:
+		// textureLoad/Store/Query*/Atomic* — image operand only.
+	}
+	if imageIdx < len(args) {
+		if inner, ok := l.globalDeclaredInnerType(args[imageIdx]); ok {
+			if _, isImage := inner.(ir.ImageType); !isImage {
+				return fmt.Errorf("%s: texture operand (argument %d) must be a texture, found %s",
+					name, imageIdx, describeTypeInner(inner))
+			}
+		}
+	}
+	if samplerIdx >= 0 && samplerIdx < len(args) {
+		if inner, ok := l.globalDeclaredInnerType(args[samplerIdx]); ok {
+			if _, isSampler := inner.(ir.SamplerType); !isSampler {
+				return fmt.Errorf("%s: sampler operand (argument %d) must be a sampler, found %s",
+					name, samplerIdx, describeTypeInner(inner))
+			}
+		}
+	}
+	return nil
+}
+
 // lowerTextureCall converts a texture function call to IR.
 func (l *Lowerer) lowerTextureCall(name string, args []parser.Expr, target *[]ir.Statement) (ir.ExpressionHandle, error) {
 	if len(args) < 1 {
 		return 0, fmt.Errorf("%s requires at least 1 argument", name)
+	}
+	if err := l.checkTextureOperandTypes(name, args); err != nil {
+		return 0, err
 	}
 
 	switch name {
