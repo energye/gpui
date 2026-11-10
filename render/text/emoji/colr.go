@@ -138,6 +138,10 @@ type COLRParser struct {
 	varIndexMapOffset        uint32
 	itemVariationStoreOffset uint32
 
+	// vars is the variation delta provider injected per PaintRootVar call
+	// (shallow parser copies; the shared parser stays immutable).
+	vars VarDeltas
+
 	// Parsed CPAL palette
 	palettes [][]Color
 }

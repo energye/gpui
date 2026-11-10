@@ -264,7 +264,7 @@ func (c *Context) drawShapedColorGlyphsCPU(glyphs []text.ShapedGlyph, face text.
 		if cf.GlyphType(uint16(glyph.GID)) == text.GlyphTypeOutline {
 			continue
 		}
-		img, err := cache.Image(parsed, uint16(glyph.GID), ppem, 0, fg)
+		img, err := cache.Image(parsed, uint16(glyph.GID), ppem, 0, fg, face.Variations())
 		if err != nil {
 			continue
 		}

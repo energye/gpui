@@ -72,7 +72,7 @@ func drawWithColorSupport(dst draw.Image, text string, face Face, x, y float64, 
 			// COLR (v0 layers / v1 paint graph) and SVG-table glyphs flatten
 			// through the shared ColorRasterCache — the same RGBA the GPU
 			// color engine uploads, drawn here at natural size.
-			drawColorRasterGlyph(dst, parsed, glyphID, ppem, currentX, y, col)
+			drawColorRasterGlyph(dst, parsed, glyphID, ppem, currentX, y, col, face.Variations())
 
 		default:
 			drawSingleOutlineGlyph(dst, text, face, glyphID, currentX, y, col)
@@ -97,12 +97,12 @@ func sharedColorRasterCache() *ColorRasterCache {
 // drawColorRasterGlyph draws one flattened color glyph (COLR v0/v1 or
 // SVG-table) at the baseline origin. Failures skip the glyph, matching the
 // bitmap path's behavior.
-func drawColorRasterGlyph(dst draw.Image, parsed ParsedFont, glyphID uint16, ppem uint16, x, y float64, col color.Color) {
+func drawColorRasterGlyph(dst draw.Image, parsed ParsedFont, glyphID uint16, ppem uint16, x, y float64, col color.Color, variations []FontVariation) {
 	fg := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	if c, ok := color.RGBAModel.Convert(col).(color.RGBA); ok {
 		fg = c
 	}
-	img, err := sharedColorRasterCache().Image(parsed, glyphID, ppem, 0, fg)
+	img, err := sharedColorRasterCache().Image(parsed, glyphID, ppem, 0, fg, variations)
 	if err != nil || img.Pix == nil {
 		return
 	}

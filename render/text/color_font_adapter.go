@@ -12,6 +12,7 @@ package text
 
 import (
 	"bytes"
+	"encoding/binary"
 
 	"github.com/energye/gpui/render/text/emoji"
 )
@@ -127,6 +128,59 @@ func (f *ownParsedFont) COLRGlyph(glyphID uint16, paletteIndex int) (*emoji.COLR
 		return nil, emoji.ErrNoCOLRTable
 	}
 	return backends.colr.GetGlyph(glyphID, paletteIndex)
+}
+
+// COLRGlyphVar is COLRGlyph at a variation instance (P4.4): the COLR table's
+// ItemVariationStore supplies deltas for every Var* paint field, resolved with
+// the face's normalized axis coordinates (fvar + avar).
+func (f *ownParsedFont) COLRGlyphVar(glyphID uint16, paletteIndex int, variations []FontVariation) (*emoji.COLRGlyph, error) {
+	backends := f.loadColor()
+	if backends == nil || backends.colr == nil {
+		return nil, emoji.ErrNoCOLRTable
+	}
+	if len(variations) == 0 {
+		return backends.colr.GetGlyph(glyphID, paletteIndex)
+	}
+	colr := f.tables["COLR"]
+	if len(colr) < 34 || binary.BigEndian.Uint16(colr[0:2]) != 1 {
+		return backends.colr.GetGlyph(glyphID, paletteIndex)
+	}
+	ivsOff := binary.BigEndian.Uint32(colr[30:34])
+	if ivsOff == 0 || int(ivsOff) >= len(colr) {
+		return backends.colr.GetGlyph(glyphID, paletteIndex)
+	}
+	ivs, err := parseItemVariationStore(colr[ivsOff:])
+	if err != nil || ivs == nil {
+		return backends.colr.GetGlyph(glyphID, paletteIndex)
+	}
+	coords := normalizeCoords(f.loadFvar(), variations)
+	if av := f.loadAvar(); av != nil {
+		av.apply(coords)
+	}
+	vars := colrVarDeltas{ivs: ivs, coords: coords}
+	root, err := backends.colr.PaintRootVar(glyphID, vars)
+	if err != nil || root == nil {
+		return backends.colr.GetGlyph(glyphID, paletteIndex)
+	}
+	g := &emoji.COLRGlyph{GlyphID: glyphID, Version: 1, Paint: root}
+	if cb, ok := backends.colr.ClipBoxFor(glyphID); ok {
+		g.Clip = &cb
+	}
+	return g, nil
+}
+
+// colrVarDeltas resolves a COLR varIndex (outer<<16|inner, HarfBuzz form) into
+// an integer delta at the face's normalized coordinates.
+type colrVarDeltas struct {
+	ivs    *itemVariationStore
+	coords []int16
+}
+
+func (d colrVarDeltas) Delta(varIndex uint32) int32 {
+	if d.ivs == nil {
+		return 0
+	}
+	return d.ivs.computeDelta(uint16(varIndex>>16), uint16(varIndex), d.coords)
 }
 
 // SVGGlyph returns the decoded SVG document for an SVG-table glyph.

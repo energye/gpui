@@ -43,6 +43,30 @@ type colorRasterKey struct {
 	ppem    uint16
 	palette int
 	fg      color.RGBA
+	// vars is the FNV-1a hash of the variation instance (axis tag + value in
+	// bits); zero when the face has no variations.
+	vars uint64
+}
+
+// hashVariations folds the axis settings into the cache key so two instances
+// of the same face never share a raster.
+func hashVariations(vars []FontVariation) uint64 {
+	if len(vars) == 0 {
+		return 0
+	}
+	h := uint64(1469598103934665603)
+	for _, v := range vars {
+		for i := 0; i < 4; i++ {
+			h ^= uint64(v.Tag[i])
+			h *= 1099511628211
+		}
+		bits := math.Float32bits(v.Value)
+		for i := 0; i < 4; i++ {
+			h ^= uint64(byte(bits >> (8 * i)))
+			h *= 1099511628211
+		}
+	}
+	return h
 }
 
 // ColorRasterCache rasterizes color glyphs once per (font, glyph, size,
@@ -69,7 +93,11 @@ func NewColorRasterCache(maxSize int) *ColorRasterCache {
 // Foreground (text-color) COLR layers resolve to fg; CBDT glyphs ignore it.
 // The mutex guards the map only: rasterization runs unlocked so concurrent
 // misses do not serialize behind PNG decode/scale/COLR flattening.
-func (c *ColorRasterCache) Image(font ParsedFont, glyphID uint16, ppem uint16, palette int, fg color.RGBA) (*ColorRasterImage, error) {
+func (c *ColorRasterCache) Image(font ParsedFont, glyphID uint16, ppem uint16, palette int, fg color.RGBA, variations ...[]FontVariation) (*ColorRasterImage, error) {
+	var vars []FontVariation
+	if len(variations) > 0 {
+		vars = variations[0]
+	}
 	cf, ok := font.(ColorFont)
 	if !ok {
 		return nil, ErrNotColorGlyph
@@ -82,14 +110,14 @@ func (c *ColorRasterCache) Image(font ParsedFont, glyphID uint16, ppem uint16, p
 	if cf.GlyphType(glyphID) == GlyphTypeBitmap {
 		keyFG = color.RGBA{}
 	}
-	key := colorRasterKey{font: font, glyphID: glyphID, ppem: ppem, palette: palette, fg: keyFG}
+	key := colorRasterKey{font: font, glyphID: glyphID, ppem: ppem, palette: palette, fg: keyFG, vars: hashVariations(vars)}
 	c.mu.Lock()
 	if img, ok := c.entries[key]; ok {
 		c.mu.Unlock()
 		return img, nil
 	}
 	c.mu.Unlock()
-	img, err := c.rasterize(cf, font, glyphID, ppem, palette, fg)
+	img, err := c.rasterize(cf, font, glyphID, ppem, palette, fg, vars)
 	if err != nil {
 		return nil, err
 	}
@@ -108,12 +136,12 @@ func (c *ColorRasterCache) Image(font ParsedFont, glyphID uint16, ppem uint16, p
 	return img, nil
 }
 
-func (c *ColorRasterCache) rasterize(cf ColorFont, font ParsedFont, glyphID uint16, ppem uint16, palette int, fg color.RGBA) (*ColorRasterImage, error) {
+func (c *ColorRasterCache) rasterize(cf ColorFont, font ParsedFont, glyphID uint16, ppem uint16, palette int, fg color.RGBA, vars []FontVariation) (*ColorRasterImage, error) {
 	switch cf.GlyphType(glyphID) {
 	case GlyphTypeBitmap:
 		return rasterizeColorBitmap(cf, font, glyphID, ppem)
 	case GlyphTypeCOLR:
-		return c.rasterizeCOLR(cf, font, glyphID, ppem, palette, fg)
+		return c.rasterizeCOLR(cf, font, glyphID, ppem, palette, fg, vars)
 	case GlyphTypeSVG:
 		return c.rasterizeSVG(cf, font, glyphID, ppem, palette, fg)
 	default:
@@ -172,8 +200,19 @@ func rasterizeColorBitmap(cf ColorFont, font ParsedFont, glyphID uint16, ppem ui
 	}, nil
 }
 
-func (c *ColorRasterCache) rasterizeCOLR(cf ColorFont, font ParsedFont, glyphID uint16, ppem uint16, palette int, fg color.RGBA) (*ColorRasterImage, error) {
-	cg, err := cf.COLRGlyph(glyphID, palette)
+func (c *ColorRasterCache) rasterizeCOLR(cf ColorFont, font ParsedFont, glyphID uint16, ppem uint16, palette int, fg color.RGBA, vars []FontVariation) (*ColorRasterImage, error) {
+	var cg *emoji.COLRGlyph
+	var err error
+	if len(vars) > 0 {
+		if vf, ok := font.(interface {
+			COLRGlyphVar(uint16, int, []FontVariation) (*emoji.COLRGlyph, error)
+		}); ok {
+			cg, err = vf.COLRGlyphVar(glyphID, palette, vars)
+		}
+	}
+	if cg == nil && err == nil {
+		cg, err = cf.COLRGlyph(glyphID, palette)
+	}
 	if err != nil {
 		return nil, err
 	}

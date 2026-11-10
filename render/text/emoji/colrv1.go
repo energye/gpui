@@ -20,82 +20,89 @@ import (
 // layout plus a varIndexBase; static evaluation (default axis instance)
 // reads them identically with deltas = 0.
 const (
-	PaintColrLayers              = 1
-	PaintSolid                   = 2
-	PaintVarSolid                = 3
-	PaintLinearGradient          = 4
-	PaintVarLinearGradient       = 5
-	PaintRadialGradient          = 6
-	PaintVarRadialGradient       = 7
-	PaintSweepGradient           = 8
-	PaintVarSweepGradient        = 9
-	PaintGlyph                   = 10
-	PaintColrGlyph               = 11
-	PaintTransform               = 12
-	PaintVarTransform            = 13
-	PaintTranslate               = 14
-	PaintVarTranslate            = 15
-	PaintScale                   = 16
-	PaintVarScale                = 17
-	PaintScaleAroundCenter       = 18
-	PaintVarScaleAroundCenter    = 19
-	PaintScaleUniform            = 20
-	PaintVarScaleUniform         = 21
-	PaintScaleUniformAroundCenter = 22
+	PaintColrLayers                  = 1
+	PaintSolid                       = 2
+	PaintVarSolid                    = 3
+	PaintLinearGradient              = 4
+	PaintVarLinearGradient           = 5
+	PaintRadialGradient              = 6
+	PaintVarRadialGradient           = 7
+	PaintSweepGradient               = 8
+	PaintVarSweepGradient            = 9
+	PaintGlyph                       = 10
+	PaintColrGlyph                   = 11
+	PaintTransform                   = 12
+	PaintVarTransform                = 13
+	PaintTranslate                   = 14
+	PaintVarTranslate                = 15
+	PaintScale                       = 16
+	PaintVarScale                    = 17
+	PaintScaleAroundCenter           = 18
+	PaintVarScaleAroundCenter        = 19
+	PaintScaleUniform                = 20
+	PaintVarScaleUniform             = 21
+	PaintScaleUniformAroundCenter    = 22
 	PaintVarScaleUniformAroundCenter = 23
-	PaintRotate                  = 24
-	PaintVarRotate               = 25
-	PaintRotateAroundCenter      = 26
-	PaintVarRotateAroundCenter   = 27
-	PaintSkew                    = 28
-	PaintVarSkew                 = 29
-	PaintSkewAroundCenter        = 30
-	PaintVarSkewAroundCenter     = 31
-	PaintComposite               = 32
+	PaintRotate                      = 24
+	PaintVarRotate                   = 25
+	PaintRotateAroundCenter          = 26
+	PaintVarRotateAroundCenter       = 27
+	PaintSkew                        = 28
+	PaintVarSkew                     = 29
+	PaintSkewAroundCenter            = 30
+	PaintVarSkewAroundCenter         = 31
+	PaintComposite                   = 32
 )
 
 // CompositeMode values (OT 1.9.1, from Compositing and Blending Level 1).
 const (
-	CompositeClear = 0
-	CompositeSrc = 1
-	CompositeDest = 2
-	CompositeSrcOver = 3
-	CompositeDestOver = 4
-	CompositeSrcIn = 5
-	CompositeDestIn = 6
-	CompositeSrcOut = 7
-	CompositeDestOut = 8
-	CompositeSrcAtop = 9
-	CompositeDestAtop = 10
-	CompositeXor = 11
-	CompositePlus = 12
-	CompositeScreen = 13
-	CompositeOverlay = 14
-	CompositeDarken = 15
-	CompositeLighten = 16
-	CompositeColorDodge = 17
-	CompositeColorBurn = 18
-	CompositeHardLight = 19
-	CompositeSoftLight = 20
-	CompositeDifference = 21
-	CompositeExclusion = 22
-	CompositeMultiply = 23
-	CompositeHSLHue = 24
+	CompositeClear         = 0
+	CompositeSrc           = 1
+	CompositeDest          = 2
+	CompositeSrcOver       = 3
+	CompositeDestOver      = 4
+	CompositeSrcIn         = 5
+	CompositeDestIn        = 6
+	CompositeSrcOut        = 7
+	CompositeDestOut       = 8
+	CompositeSrcAtop       = 9
+	CompositeDestAtop      = 10
+	CompositeXor           = 11
+	CompositePlus          = 12
+	CompositeScreen        = 13
+	CompositeOverlay       = 14
+	CompositeDarken        = 15
+	CompositeLighten       = 16
+	CompositeColorDodge    = 17
+	CompositeColorBurn     = 18
+	CompositeHardLight     = 19
+	CompositeSoftLight     = 20
+	CompositeDifference    = 21
+	CompositeExclusion     = 22
+	CompositeMultiply      = 23
+	CompositeHSLHue        = 24
 	CompositeHSLSaturation = 25
-	CompositeHSLColor = 26
+	CompositeHSLColor      = 26
 	CompositeHSLLuminosity = 27
 )
 
 // Color line extend modes (same behavior as SVG spreadMethod).
 const (
-	ExtendPad = 0
-	ExtendRepeat = 1
+	ExtendPad     = 0
+	ExtendRepeat  = 1
 	ExtendReflect = 2
 )
 
 // ForegroundPaletteIndex is the reserved CPAL index meaning "text
 // foreground color" (v0 LayerRecord and v1 color references).
 const ForegroundPaletteIndex = 0xFFFF
+
+// VarDeltas supplies integer deltas for COLRv1 variable fields. varIndexBase
+// is a 32-bit delta-set index pair (outer = high 16 bits, inner = low 16) per
+// HarfBuzz; a nil provider means the default axis instance (all deltas zero).
+type VarDeltas interface {
+	Delta(varIndex uint32) int32
+}
 
 // ColorStop is one COLRv1 color stop (static instance).
 type ColorStop struct {
@@ -136,12 +143,12 @@ type PaintNode struct {
 	// Gradients (4-9): shared color line, format-specific geometry in
 	// font design units (y-up), angles in counter-clockwise degrees
 	// (sweep angles carry the spec's +1.0 bias already resolved).
-	Line                      ColorLine
-	X0, Y0                    float64
-	X1, Y1                    float64
-	X2, Y2                    float64
-	R0, R1                    float64
-	CenterX, CenterY          float64
+	Line                       ColorLine
+	X0, Y0                     float64
+	X1, Y1                     float64
+	X2, Y2                     float64
+	R0, R1                     float64
+	CenterX, CenterY           float64
 	StartAngleDeg, EndAngleDeg float64
 
 	// Transform family (12-31): composed static 2×3 matrix
@@ -230,12 +237,34 @@ func (p *COLRParser) findBaseGlyphPaint(glyphID uint16) (uint32, bool) {
 // cycle-guarded; malformed sub-graphs yield nil children (spec: ignore and
 // render the remainder).
 func (p *COLRParser) PaintRoot(glyphID uint16) (*PaintNode, error) {
+	return p.PaintRootVar(glyphID, nil)
+}
+
+// PaintRootVar is PaintRoot at a variation instance. The provider is injected
+// through a shallow parser copy so the shared parser (and its lazy caches) stay
+// immutable and concurrent calls at different instances cannot race.
+func (p *COLRParser) PaintRootVar(glyphID uint16, vars VarDeltas) (*PaintNode, error) {
 	off, ok := p.findBaseGlyphPaint(glyphID)
 	if !ok {
 		return nil, ErrGlyphNotInCOLR
 	}
-	return p.parsePaint(p.baseGlyphListOffset+off, map[uint32]bool{}, 0)
+	q := *p
+	q.vars = vars
+	return q.parsePaint(q.baseGlyphListOffset+off, map[uint32]bool{}, 0)
 }
+
+// dv returns the raw integer delta at varIndexBase+i (0 at the default instance).
+func (p *COLRParser) dv(base, i uint32) int32 {
+	if p.vars == nil {
+		return 0
+	}
+	return p.vars.Delta(base + i)
+}
+
+// d14 is an F2DOT14 delta; dfw is a FONT-UNIT (FWORD) delta; dfx is F16DOT16.
+func (p *COLRParser) d14(base, i uint32) float64 { return float64(p.dv(base, i)) / 16384 }
+func (p *COLRParser) dfw(base, i uint32) float64 { return float64(p.dv(base, i)) }
+func (p *COLRParser) dfx(base, i uint32) float64 { return float64(p.dv(base, i)) / 65536 }
 
 // LayerPaint returns the paint at a LayerList index (standalone entry
 // point; graph traversal resolves layers through parsePaint's shared path).
@@ -364,6 +393,15 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		}
 		n.PaletteIndex = binary.BigEndian.Uint16(data[abs+1 : abs+3])
 		n.Alpha = f2dot14(data[abs+3 : abs+5])
+		if format == PaintVarSolid {
+			vb := binary.BigEndian.Uint32(data[abs+5 : abs+9])
+			n.Alpha += p.d14(vb, 0)
+			if n.Alpha < 0 {
+				n.Alpha = 0
+			} else if n.Alpha > 1 {
+				n.Alpha = 1
+			}
+		}
 
 	case PaintLinearGradient, PaintVarLinearGradient:
 		if int(abs)+14 > len(data) {
@@ -375,6 +413,15 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		n.X0, n.Y0 = fword(data[abs+4:abs+6]), fword(data[abs+6:abs+8])
 		n.X1, n.Y1 = fword(data[abs+8:abs+10]), fword(data[abs+10:abs+12])
 		n.X2, n.Y2 = fword(data[abs+12:abs+14]), fword(data[abs+14:abs+16])
+		if format == PaintVarLinearGradient {
+			vb := binary.BigEndian.Uint32(data[abs+16 : abs+20])
+			n.X0 += p.dfw(vb, 0)
+			n.Y0 += p.dfw(vb, 1)
+			n.X1 += p.dfw(vb, 2)
+			n.Y1 += p.dfw(vb, 3)
+			n.X2 += p.dfw(vb, 4)
+			n.Y2 += p.dfw(vb, 5)
+		}
 
 	case PaintRadialGradient, PaintVarRadialGradient:
 		if int(abs)+16 > len(data) {
@@ -387,6 +434,21 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		n.R0 = float64(binary.BigEndian.Uint16(data[abs+8 : abs+10]))
 		n.X1, n.Y1 = fword(data[abs+10:abs+12]), fword(data[abs+12:abs+14])
 		n.R1 = float64(binary.BigEndian.Uint16(data[abs+14 : abs+16]))
+		if format == PaintVarRadialGradient {
+			vb := binary.BigEndian.Uint32(data[abs+16 : abs+20])
+			n.X0 += p.dfw(vb, 0)
+			n.Y0 += p.dfw(vb, 1)
+			n.R0 += p.dfw(vb, 2)
+			n.X1 += p.dfw(vb, 3)
+			n.Y1 += p.dfw(vb, 4)
+			n.R1 += p.dfw(vb, 5)
+			if n.R0 < 0 {
+				n.R0 = 0
+			}
+			if n.R1 < 0 {
+				n.R1 = 0
+			}
+		}
 
 	case PaintSweepGradient, PaintVarSweepGradient:
 		if int(abs)+12 > len(data) {
@@ -399,13 +461,20 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		// Sweep angles carry a +1.0 bias: degrees = (value + 1.0) × 180.
 		n.StartAngleDeg = (f2dot14(data[abs+8:abs+10]) + 1.0) * 180.0
 		n.EndAngleDeg = (f2dot14(data[abs+10:abs+12]) + 1.0) * 180.0
+		if format == PaintVarSweepGradient {
+			vb := binary.BigEndian.Uint32(data[abs+12 : abs+16])
+			n.CenterX += p.dfw(vb, 0)
+			n.CenterY += p.dfw(vb, 1)
+			n.StartAngleDeg += p.d14(vb, 2) * 180
+			n.EndAngleDeg += p.d14(vb, 3) * 180
+		}
 
 	case PaintGlyph:
 		if int(abs)+6 > len(data) {
 			return nil, ErrInvalidCOLRv1Data
 		}
 		n.GlyphID = binary.BigEndian.Uint16(data[abs+4 : abs+6])
-		n.Child = resolveChild(abs+offset24(data[abs+1:abs+4]))
+		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
 
 	case PaintColrGlyph:
 		if int(abs)+3 > len(data) {
@@ -445,6 +514,15 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		n.YY = fixed(data[tOff+12 : tOff+16])
 		n.DX = fixed(data[tOff+16 : tOff+20])
 		n.DY = fixed(data[tOff+20 : tOff+24])
+		if format == PaintVarTransform {
+			vb := binary.BigEndian.Uint32(data[abs+7 : abs+11])
+			n.XX += p.dfx(vb, 0)
+			n.YX += p.dfx(vb, 1)
+			n.XY += p.dfx(vb, 2)
+			n.YY += p.dfx(vb, 3)
+			n.DX += p.dfx(vb, 4)
+			n.DY += p.dfx(vb, 5)
+		}
 
 	case PaintTranslate, PaintVarTranslate:
 		if int(abs)+8 > len(data) {
@@ -453,6 +531,11 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
 		n.XX, n.YY = 1, 1
 		n.DX, n.DY = fword(data[abs+4:abs+6]), fword(data[abs+6:abs+8])
+		if format == PaintVarTranslate {
+			vb := binary.BigEndian.Uint32(data[abs+8 : abs+12])
+			n.DX += p.dfw(vb, 0)
+			n.DY += p.dfw(vb, 1)
+		}
 
 	case PaintScale, PaintVarScale:
 		if int(abs)+8 > len(data) {
@@ -461,6 +544,11 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
 		n.XX = f2dot14(data[abs+4 : abs+6])
 		n.YY = f2dot14(data[abs+6 : abs+8])
+		if format == PaintVarScale {
+			vb := binary.BigEndian.Uint32(data[abs+8 : abs+12])
+			n.XX += p.d14(vb, 0)
+			n.YY += p.d14(vb, 1)
+		}
 
 	case PaintScaleAroundCenter, PaintVarScaleAroundCenter:
 		if int(abs)+12 > len(data) {
@@ -469,6 +557,13 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
 		sx, sy := f2dot14(data[abs+4:abs+6]), f2dot14(data[abs+6:abs+8])
 		cx, cy := fword(data[abs+8:abs+10]), fword(data[abs+10:abs+12])
+		if format == PaintVarScaleAroundCenter {
+			vb := binary.BigEndian.Uint32(data[abs+12 : abs+16])
+			sx += p.d14(vb, 0)
+			sy += p.d14(vb, 1)
+			cx += p.dfw(vb, 2)
+			cy += p.dfw(vb, 3)
+		}
 		n.XX, n.YY, n.DX, n.DY = scaleAroundCenter(sx, sy, cx, cy)
 
 	case PaintScaleUniform, PaintVarScaleUniform:
@@ -477,6 +572,10 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		}
 		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
 		s := f2dot14(data[abs+4 : abs+6])
+		if format == PaintVarScaleUniform {
+			vb := binary.BigEndian.Uint32(data[abs+6 : abs+10])
+			s += p.d14(vb, 0)
+		}
 		n.XX, n.YY = s, s
 
 	case PaintScaleUniformAroundCenter, PaintVarScaleUniformAroundCenter:
@@ -486,6 +585,12 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
 		s := f2dot14(data[abs+4 : abs+6])
 		cx, cy := fword(data[abs+6:abs+8]), fword(data[abs+8:abs+10])
+		if format == PaintVarScaleUniformAroundCenter {
+			vb := binary.BigEndian.Uint32(data[abs+10 : abs+14])
+			s += p.d14(vb, 0)
+			cx += p.dfw(vb, 1)
+			cy += p.dfw(vb, 2)
+		}
 		n.XX, n.YY, n.DX, n.DY = scaleAroundCenter(s, s, cx, cy)
 
 	case PaintRotate, PaintVarRotate:
@@ -493,7 +598,12 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 			return nil, ErrInvalidCOLRv1Data
 		}
 		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
-		theta := f2dot14(data[abs+4:abs+6]) * math.Pi // 180° counter-clockwise per 1.0
+		theta := f2dot14(data[abs+4 : abs+6])
+		if format == PaintVarRotate {
+			vb := binary.BigEndian.Uint32(data[abs+6 : abs+10])
+			theta += p.d14(vb, 0)
+		}
+		theta *= math.Pi // 180° counter-clockwise per 1.0
 		n.XX, n.YX = math.Cos(theta), math.Sin(theta)
 		n.XY, n.YY = -math.Sin(theta), math.Cos(theta)
 
@@ -502,8 +612,15 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 			return nil, ErrInvalidCOLRv1Data
 		}
 		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
-		theta := f2dot14(data[abs+4:abs+6]) * math.Pi
+		theta := f2dot14(data[abs+4 : abs+6])
 		cx, cy := fword(data[abs+6:abs+8]), fword(data[abs+8:abs+10])
+		if format == PaintVarRotateAroundCenter {
+			vb := binary.BigEndian.Uint32(data[abs+10 : abs+14])
+			theta += p.d14(vb, 0)
+			cx += p.dfw(vb, 1)
+			cy += p.dfw(vb, 2)
+		}
+		theta *= math.Pi
 		xx, yx, xy, yy := math.Cos(theta), math.Sin(theta), -math.Sin(theta), math.Cos(theta)
 		n.XX, n.YX, n.XY, n.YY, n.DX, n.DY = composeAroundCenter(xx, yx, xy, yy, cx, cy)
 
@@ -512,8 +629,15 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 			return nil, ErrInvalidCOLRv1Data
 		}
 		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
-		phi := f2dot14(data[abs+4:abs+6]) * math.Pi // x skew, 180° per 1.0
-		psi := f2dot14(data[abs+6:abs+8]) * math.Pi // y skew
+		phi := f2dot14(data[abs+4 : abs+6])
+		psi := f2dot14(data[abs+6 : abs+8])
+		if format == PaintVarSkew {
+			vb := binary.BigEndian.Uint32(data[abs+8 : abs+12])
+			phi += p.d14(vb, 0)
+			psi += p.d14(vb, 1)
+		}
+		phi *= math.Pi // x skew, 180° per 1.0
+		psi *= math.Pi // y skew
 		n.XX, n.YY = 1, 1
 		n.YX = math.Tan(psi)
 		n.XY = -math.Tan(phi)
@@ -523,9 +647,18 @@ func (p *COLRParser) parsePaint(abs uint32, path map[uint32]bool, depth int) (*P
 			return nil, ErrInvalidCOLRv1Data
 		}
 		n.Child = resolveChild(abs + offset24(data[abs+1:abs+4]))
-		phi := f2dot14(data[abs+4:abs+6]) * math.Pi
-		psi := f2dot14(data[abs+6:abs+8]) * math.Pi
+		phi := f2dot14(data[abs+4 : abs+6])
+		psi := f2dot14(data[abs+6 : abs+8])
 		cx, cy := fword(data[abs+8:abs+10]), fword(data[abs+10:abs+12])
+		if format == PaintVarSkewAroundCenter {
+			vb := binary.BigEndian.Uint32(data[abs+12 : abs+16])
+			phi += p.d14(vb, 0)
+			psi += p.d14(vb, 1)
+			cx += p.dfw(vb, 2)
+			cy += p.dfw(vb, 3)
+		}
+		phi *= math.Pi
+		psi *= math.Pi
 		xx, yy := 1.0, 1.0
 		yx, xy := math.Tan(psi), -math.Tan(phi)
 		n.XX, n.YX, n.XY, n.YY, n.DX, n.DY = composeAroundCenter(xx, yx, xy, yy, cx, cy)
@@ -566,11 +699,22 @@ func (p *COLRParser) parseColorLine(abs uint32, variable bool) (ColorLine, error
 	}
 	for i := 0; i < num; i++ {
 		pos := int(abs) + 3 + i*step
-		out.Stops = append(out.Stops, ColorStop{
+		stop := ColorStop{
 			Offset:       f2dot14(data[pos : pos+2]),
 			PaletteIndex: binary.BigEndian.Uint16(data[pos+2 : pos+4]),
 			Alpha:        f2dot14(data[pos+4 : pos+6]),
-		})
+		}
+		if variable {
+			vb := binary.BigEndian.Uint32(data[pos+6 : pos+10])
+			stop.Offset += p.d14(vb, 0)
+			stop.Alpha += p.d14(vb, 1)
+			if stop.Alpha < 0 {
+				stop.Alpha = 0
+			} else if stop.Alpha > 1 {
+				stop.Alpha = 1
+			}
+		}
+		out.Stops = append(out.Stops, stop)
 	}
 	return out, nil
 }
