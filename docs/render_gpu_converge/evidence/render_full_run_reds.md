@@ -221,3 +221,12 @@ WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render -count=1 -timeout 1
 - **与原定做法的偏差（如实记录）**：用户选项写的是「统一 helper 清全局 device 引用、覆盖 6 个测试文件」。实证表明这些测试本就有恢复、补 helper 不会改变全量结果，故改用**等效的进程隔离**达成同一目标（全量等价全绿），且严格满足「不动引擎、不动金图」。
 - 若坚持要「单进程一次全量也绿」，需动引擎：让 `gpu_textures.go` 的降级判定把 `resource already released` 排除出 depth-OOM 分支、改走 device 自愈（AutoRecover），或给全量跑加每测试资源回收——均超出「不动引擎」范围，未做，待另行拍板。
 - 本轮所有临时探针（`zz_global_state_test.go` 等）已删除，工作区干净。
+
+## 2026-11-11 复验（HEAD `d0ef0e57`，带库，K6 销账依据）
+
+- **分片门禁 1–4 全绿**：`^Test[A-H]` 6.5s、`^Test[I-Q]` 36.9s、`^Test[R-S]`（skip S69）11.8s、`^Test[T-Z]` 2.2s。
+- **S69 单独跑红 ×4**（计时预算门两行超：U05 p50=7.94 vs 7.10、H03 2.03 vs 1.97，边距 11%/3%）；**干净树 A/B（worktree @ `930fc580`，M3 之前）同红 ×2** ⇒ 与 2026-11-10/11 全部会话改动无关；机器负载 ~2.4/4 核（11-09 单跑绿时点负载更低）⇒ 定性为**计时门负载敏感波动**，非代码回归。11-09 的「5 片全绿」口径在本机当前负载下不可复现第 5 片，如实登记。
+- K6 台账行按终态销账（修复批次 1–5 真修 12 枚 + 干扰定性 + 分片门禁为准）。
+- **分类修正落地后复跑（同日晚）**：分片 1–4 再次全绿（7.7s / 47.3s / 13.3s / 2.6s，HEAD `d0ef0e57` + `surface_cache.go` OOM 门控），零新增红；修正详情 `evidence/P2.6/k6-depth-oom-classification.md`。
+- 剩余子项：render/text 主包加入逐文件门禁清单（本日另做）；「单进程一次全量也绿」的引擎改动方向见 11-09 档 2 尾注，另拍板。
+- **过程插曲（两次，均如实登记并恢复）**：2026-11-11 会话在 A/B 时两次误弹/误触别线 stash（`77008a8d`）：第一次 pop 后已 `git stash store` 字节级回栈 + 16 文件 checkout 回 HEAD；第二次因 `git stash push <已提交路径>` 静默 no-op、pop 撞冲突（UU），已 `git reset --hard HEAD` 清场（核对：无任何线未提交跟踪改动、stash 条目完好、untracked 无损）。教训入库：stash pop 前必看 `git stash list`；A/B 一律独立 worktree（且 worktree 需与 `purego` 同级放置保证 replace 路径有效）。

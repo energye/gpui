@@ -16,6 +16,7 @@ render/internal/image
 render/scene
 render/recording
 render/recording/backends/raster
+render/text
 gpu
 gpu/hal
 gpu/hal/noop

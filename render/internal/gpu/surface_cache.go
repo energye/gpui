@@ -293,10 +293,16 @@ func (c *surfaceCache) stats() res.CacheStats {
 
 // createSurfaceTrio allocates one MSAA/depth/resolve set for key.
 //
-// Errors:
-//   - full-size depth failed  → *surfaceDepthOOMError (owner retries degraded)
-//   - 1x1 depth failed too    → *surfaceTerminalOOMError (owner latches)
-//   - resolve failed          → *surfaceTerminalOOMError (owner latches)
+// Errors (OOM-gated per K6 fail-closed, 2026-11-11): only genuine OOM
+// (render.IsGPUOutOfMemory) takes the OOM-recovery paths — validation /
+// use-after-release failures surface explicitly and are retried next frame,
+// never silently degraded:
+//   - full-size depth OOM    → *surfaceDepthOOMError (owner retries degraded)
+//   - full-size depth other  → plain error (no degradation latch)
+//   - 1x1 depth OOM          → *surfaceTerminalOOMError (owner latches)
+//   - 1x1 depth other        → plain error
+//   - resolve OOM            → *surfaceTerminalOOMError (owner latches)
+//   - resolve other          → plain error
 //   - other view/create errors → plain error (retried next frame, as before)
 func createSurfaceTrio(device hal.Device, key res.CacheKey, labelPrefix string) (*surfaceTrio, error) {
 	if device == nil {
@@ -358,6 +364,14 @@ func createSurfaceTrio(device hal.Device, key res.CacheKey, labelPrefix string) 
 		Usage:         types.TextureUsageRenderAttachment,
 	})
 	if err != nil {
+		// K6 fail-closed (2026-11-11): only genuine OOM may take the OOM
+		// recovery paths. `resource already released` is a validation error —
+		// masking it as depth-OOM silently latched every later frame into a
+		// 1x1 depth (stencil degrade → Auto/SDF rendered empty, the K6
+		// 88-test cascade). Surface it explicitly instead.
+		if !render.IsGPUOutOfMemory(err) {
+			return fail(fmt.Errorf("create depth/stencil: %w", err))
+		}
 		if degraded {
 			return fail(&surfaceTerminalOOMError{
 				label: labelPrefix + "_depth_stencil",
@@ -391,6 +405,11 @@ func createSurfaceTrio(device hal.Device, key res.CacheKey, labelPrefix string) 
 			Usage:         types.TextureUsageRenderAttachment | types.TextureUsageCopySrc,
 		})
 		if err != nil {
+			// Same OOM gating as depth: non-OOM resolve failures surface
+			// explicitly, never latch an OOM-flavored terminal.
+			if !render.IsGPUOutOfMemory(err) {
+				return fail(fmt.Errorf("create resolve: %w", err))
+			}
 			return fail(&surfaceTerminalOOMError{
 				label: labelPrefix + "_resolve",
 				tried: "flush + cache-purge retries exhausted",
