@@ -35,3 +35,15 @@
 3. **G3**（在册）：TestPresentDamageX11 环境车道。
 4. **I1**：解剖完成（三环境三态），修复方向待 wgpu 呈现异步化能力评估。
 5. **X11/seat 环境类 1 项**：SeatCapCBFirstSilent 的 sweep 耦合（flaky 同源）。
+
+## 2026-11-11 C3 实测收口（K6 之后的 P1 单清理）
+
+- 现行树（HEAD `aafaffdc`）实测：`ui_ime_probe`（X11 档，`WAYLAND_DISPLAY=` 置空 +
+  `DISPLAY=:0` XWayland）后台启动，ctypes 直发 `WM_DELETE_WINDOW` ClientMessage
+  （type=33 ClientMessage、message_type=WM_PROTOCOLS、data.l[0]=WM_DELETE_WINDOW，
+  模拟 WM 标准行为）→ probe 打印 `probe: close requested (WM_DELETE)`
+  （`main.go:235-240` 的 EventCloseRequested 分支，e4 落地）并自行退出（ps 确认
+  EXITED，无 SIGTERM 兜底）⇒ e4 的 C3 修复经真窗标准关闭验证成立。
+- 过程注记：首轮发送器两次段错误是脚本自身的 XEvent 打包偏移错（window@32/
+  message_type@40/format@48，显式偏移修正）；一次 type 误填 2（KeyPress）产生
+  一枚假 KEY code=0 事件（即时识别重发修正）——均为验证脚本问题，引擎侧零改动。
