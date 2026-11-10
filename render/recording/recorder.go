@@ -337,13 +337,13 @@ func (r *Recording) Playback(backend Backend) error {
 		case DrawDepthSpritesCommand:
 			backend.DrawDepthSprites(r.resources.GetImage(c.Image), c.Sprites)
 		case DrawVerticesCommand:
-			backend.DrawVertices(c.Positions, c.Colors, c.Mode, r.resources.GetBrush(c.Brush))
+			backend.DrawVertices(c.Positions, c.Colors, c.Mode, r.resources.GetBrush(c.Brush), c.BlendMode)
 		case DrawMeshCommand:
 			backend.DrawMesh(render.Mesh{
 				Positions: c.Positions,
 				Colors:    c.Colors,
 				Indices:   c.Indices,
-			}, r.resources.GetBrush(c.Brush))
+			}, r.resources.GetBrush(c.Brush), c.BlendMode)
 		case DrawMeshPatchCommand:
 			backend.DrawMeshPatch(c.Patch, r.resources.GetBrush(c.Brush))
 		case DrawMeshGradientCommand:

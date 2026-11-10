@@ -49,9 +49,9 @@ func (stubBackend) DrawAtlas(_ *render.ImageBuf, _ []render.AtlasSprite, _ rende
 }
 func (stubBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.DepthSprite) {
 }
-func (stubBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ Brush) {
+func (stubBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ Brush, _ render.BlendMode) {
 }
-func (stubBackend) DrawMesh(_ render.Mesh, _ Brush) {
+func (stubBackend) DrawMesh(_ render.Mesh, _ Brush, _ render.BlendMode) {
 }
 func (stubBackend) DrawMeshPatch(_ render.MeshPatch, _ Brush) {
 }

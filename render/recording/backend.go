@@ -171,12 +171,12 @@ type Backend interface {
 	// DrawVertices draws an immediate-mode vertex mesh. brush is the fill paint
 	// recorded with the mesh — the fallback colour when a mesh carries fewer
 	// colours than vertices.
-	DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush)
+	DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush, blend render.BlendMode)
 
 	// DrawMesh draws an indexed (or triangle-list) coloured mesh. brush is the
 	// fill paint recorded with it, the fallback when the mesh carries no per
 	// vertex colours.
-	DrawMesh(mesh render.Mesh, brush Brush)
+	DrawMesh(mesh render.Mesh, brush Brush, blend render.BlendMode)
 
 	// DrawMeshPatch draws one colored Bezier patch (P3.9 mesh gradient).
 	// brush is the fill paint recorded with it; the patch carries its own

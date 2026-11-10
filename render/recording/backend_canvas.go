@@ -452,15 +452,23 @@ func (b *CanvasBackend) DrawDepthSprites(img *render.ImageBuf, sprites []render.
 // DrawVertices replays an immediate-mode mesh under the paint it was recorded
 // with, so the vertex fallback colour does not drift to whatever the previous
 // command left on the context.
-func (b *CanvasBackend) DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush) {
+func (b *CanvasBackend) DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush, blend render.BlendMode) {
 	ApplyBrush(b.dc, brush, true)
+	if blend != render.BlendNormal {
+		b.dc.SetBlendMode(blend)
+		defer b.dc.SetBlendMode(render.BlendNormal)
+	}
 	b.dc.DrawVertices(positions, colors, mode)
 }
 
 // DrawMesh replays an indexed or triangle-list mesh under the paint it was
 // recorded with, for the same reason as DrawVertices.
-func (b *CanvasBackend) DrawMesh(mesh render.Mesh, brush Brush) {
+func (b *CanvasBackend) DrawMesh(mesh render.Mesh, brush Brush, blend render.BlendMode) {
 	ApplyBrush(b.dc, brush, true)
+	if blend != render.BlendNormal {
+		b.dc.SetBlendMode(blend)
+		defer b.dc.SetBlendMode(render.BlendNormal)
+	}
 	b.dc.DrawMesh(mesh)
 }
 

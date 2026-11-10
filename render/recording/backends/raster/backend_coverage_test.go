@@ -156,9 +156,9 @@ func TestBackendCanvasOpsNoPanic(t *testing.T) {
 	backend.ClipRect(recording.NewRect(4, 4, 20, 20))
 	backend.SetTextDecoration(render.TextDecorationUnderline)
 	backend.DrawVertices([]render.Point{{X: 5, Y: 5}, {X: 25, Y: 5}, {X: 5, Y: 25}},
-		[]render.RGBA{{R: 1, A: 1}}, render.VertexModeTriangles, recording.NewSolidBrush(render.Red))
+		[]render.RGBA{{R: 1, A: 1}}, render.VertexModeTriangles, recording.NewSolidBrush(render.Red), render.BlendNormal)
 	backend.DrawVertices([]render.Point{{X: 5, Y: 5}, {X: 25, Y: 5}, {X: 5, Y: 25}},
-		nil, render.VertexModeTriangles, nil)
+		nil, render.VertexModeTriangles, nil, render.BlendNormal)
 	backend.DrawGlyphs(nil, nil, 10, 10, false, nil)
 	backend.ApplyBlur(2)
 	backend.ApplyColorMatrix([20]float32{1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0})

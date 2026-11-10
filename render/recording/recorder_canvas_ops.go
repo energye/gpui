@@ -276,6 +276,7 @@ func (r *Recorder) DrawVertices(positions []render.Point, colors []render.RGBA, 
 		Colors:    cloneColors(colors),
 		Mode:      mode,
 		Brush:     r.resources.AddBrush(r.fillBrush),
+		BlendMode: r.blendMode,
 	})
 }
 
@@ -296,6 +297,7 @@ func (r *Recorder) DrawMesh(mesh render.Mesh) {
 		Colors:    cloneColors(mesh.Colors),
 		Indices:   cloneIndices(mesh.Indices),
 		Brush:     r.resources.AddBrush(r.fillBrush),
+		BlendMode: r.blendMode,
 	})
 }
 

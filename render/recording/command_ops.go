@@ -117,6 +117,9 @@ type DrawVerticesCommand struct {
 	Colors    []render.RGBA
 	Mode      render.VertexMode
 	Brush     BrushRef
+	// BlendMode is the paint blend recorded at draw time (P4.1 round-trip:
+	// without it a replayed BlendPlus mesh painted as Normal).
+	BlendMode render.BlendMode
 }
 
 // Type implements Command.
@@ -236,6 +239,8 @@ type DrawMeshCommand struct {
 	Colors    []render.RGBA
 	Indices   []uint16
 	Brush     BrushRef
+	// BlendMode mirrors DrawVerticesCommand.BlendMode.
+	BlendMode render.BlendMode
 }
 
 // Type implements Command.

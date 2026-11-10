@@ -566,10 +566,12 @@ func (s *recordingSpyBackend) DrawAtlas(_ *render.ImageBuf, _ []render.AtlasSpri
 func (s *recordingSpyBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.DepthSprite) {
 	s.hit("DrawDepthSprites")
 }
-func (s *recordingSpyBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ recording.Brush) {
+func (s *recordingSpyBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ recording.Brush, _ render.BlendMode) {
 	s.hit("DrawVertices")
 }
-func (s *recordingSpyBackend) DrawMesh(_ render.Mesh, _ recording.Brush) { s.hit("DrawMesh") }
+func (s *recordingSpyBackend) DrawMesh(_ render.Mesh, _ recording.Brush, _ render.BlendMode) {
+	s.hit("DrawMesh")
+}
 
 func (s *recordingSpyBackend) DrawMeshGradient(_ *render.MeshGradient, _ recording.Brush) {
 	s.hit("DrawMeshGradient")
