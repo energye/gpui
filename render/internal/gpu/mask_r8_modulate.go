@@ -76,23 +76,57 @@ type maskR8Cache struct {
 	statPlanes   uint64
 	statBytes    uint64
 	statReadback uint64
+	statHits     uint64
+
+	// planes pools mask planes by exact length (P4.3): one masked draw at
+	// 1024² rebuilt a ~1 MiB plane every call. Bounded so a pathological size
+	// fan-out cannot grow without limit.
+	planes map[int][]byte
 }
 
-// notePlane records one per-call mask plane allocation.
-func (c *maskR8Cache) notePlane(n int) {
+// maxMaskPlanePool bounds pooled plane variants (one per distinct size).
+const maxMaskPlanePool = 8
+
+// getPlane returns a plane of length n, reused from the pool when available.
+// Every call is counted; reuse counts as a hit, otherwise as an allocation.
+func (c *maskR8Cache) getPlane(n int) []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.statCalls++
+	if b, ok := c.planes[n]; ok {
+		delete(c.planes, n)
+		c.statHits++
+		return b
+	}
 	c.statPlanes++
 	c.statBytes += uint64(n)
+	return make([]byte, n)
+}
+
+// putPlane returns a plane to the pool (bounded by maxMaskPlanePool sizes).
+func (c *maskR8Cache) putPlane(b []byte) {
+	if len(b) == 0 || cap(b) < len(b) {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.planes == nil {
+		c.planes = make(map[int][]byte, 4)
+	}
+	if _, exists := c.planes[len(b)]; exists || len(c.planes) >= maxMaskPlanePool {
+		return
+	}
+	c.planes[len(b)] = b[:len(b)]
 }
 
 // noteReadback records one RGBA readback buffer allocation.
 func (c *maskR8Cache) noteReadback(n int) { c.statReadback += uint64(n) }
 
-// MaskPlaneStats returns (calls, planeAllocs, planeBytes, readbackBytes).
-func (c *maskR8Cache) MaskPlaneStats() (uint64, uint64, uint64, uint64) {
+// MaskPlaneStats returns (calls, planeAllocs, planeBytes, readbackBytes, hits).
+func (c *maskR8Cache) MaskPlaneStats() (uint64, uint64, uint64, uint64, uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.statCalls, c.statPlanes, c.statBytes, c.statReadback
+	return c.statCalls, c.statPlanes, c.statBytes, c.statReadback, c.statHits
 }
 
 func (c *maskR8Cache) release() {
@@ -440,7 +474,6 @@ func maskR8Modulate(
 	}
 	src := unsafe.Slice((*byte)(mapping.Ptr), stagingSize) //nolint:gosec // hal.BufferMapping opaque pointer
 	out := make([]byte, needRGBA)
-	cache.notePlane(0)
 	cache.noteReadback(len(out))
 	if alignedRow == tightRow {
 		copy(out, src[:needRGBA])

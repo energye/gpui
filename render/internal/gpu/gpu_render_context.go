@@ -2112,9 +2112,9 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 // color pages with the color pipeline at flush time.
 // MaskPlaneStats reports the mask plane/readback allocation ledger
 // (calls, plane allocations, plane bytes, readback bytes) for P4.3 measurement.
-func (rc *GPURenderContext) MaskPlaneStats() (uint64, uint64, uint64, uint64) {
+func (rc *GPURenderContext) MaskPlaneStats() (uint64, uint64, uint64, uint64, uint64) {
 	if rc == nil {
-		return 0, 0, 0, 0
+		return 0, 0, 0, 0, 0
 	}
 	return rc.shared.maskR8.MaskPlaneStats()
 }

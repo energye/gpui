@@ -24,9 +24,12 @@ func TestP43MaskPlaneStats(t *testing.T) {
 		dc.PopLayer()
 		_ = dc.Image()
 	}
-	calls, planes, bytes, _ := dc.MaskPlaneStats()
-	if calls < 2 || planes < 2 || bytes == 0 {
-		t.Fatalf("mask plane ledger = calls %d planes %d bytes %d, want >=2/>=2/>0", calls, planes, bytes)
+	calls, allocs, bytes, _, hits := dc.MaskPlaneStats()
+	if calls < 2 || allocs < 1 || bytes == 0 {
+		t.Fatalf("mask plane ledger = calls %d allocs %d bytes %d, want >=2/>=1/>0", calls, allocs, bytes)
+	}
+	if hits == 0 {
+		t.Fatalf("mask plane pool never hit (calls %d allocs %d): pooling is not wired", calls, allocs)
 	}
 
 	cpu := render.NewContext(32, 32, render.WithCPUOnly())
@@ -36,7 +39,7 @@ func TestP43MaskPlaneStats(t *testing.T) {
 	cpu.DrawRectangle(4, 4, 8, 8)
 	_ = cpu.Fill()
 	cpu.PopLayer()
-	if c, p, b, rb := cpu.MaskPlaneStats(); c != 0 || p != 0 || b != 0 || rb != 0 {
-		t.Fatalf("CPU leg ledger = %d/%d/%d/%d, want zeros", c, p, b, rb)
+	if c, p, b, rb, h := cpu.MaskPlaneStats(); c != 0 || p != 0 || b != 0 || rb != 0 || h != 0 {
+		t.Fatalf("CPU leg ledger = %d/%d/%d/%d/%d, want zeros", c, p, b, rb, h)
 	}
 }
