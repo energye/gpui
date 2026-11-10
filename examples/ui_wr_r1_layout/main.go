@@ -3,9 +3,11 @@
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	RUN_SECONDS=30 go run ./examples/ui_wr_r1_layout
 //
-// Window: 1200x800. R1 table floor is 5s (U16); close evidence uses 30s
-// because the two U21 snapshot readbacks would otherwise exceed the hitch
-// budget. GPU window required.
+// Window: 1200x800. R1 table floor is 5s (U16); close evidence uses 30s for
+// phase coverage. The two U21 snapshot readbacks used to trip the hitch
+// budget; since C4/P2.6 the engine scopes verification readbacks out of the
+// jank counter (MetricsStore.PauseHitchCount in snapshot drain). GPU window
+// required.
 //
 // R1 thesis: changing one child's layout size must dirty only its relayout
 // boundary subtree — never the window root, the shell panels, or sibling
@@ -556,7 +558,7 @@ func main() {
 			"snapshot_static_diff_pct":    snapshotStaticDiff,
 			"snapshot_static_total_px":    snapshotStaticPx,
 			"rss_slope_semantics":         "30s correctness window is startup-ramp dominated; leakage verdict belongs to R15 soak",
-			"hitch_note":                  "2 hitches = the two U21 snapshot readbacks (steady/recover); 2/30s = 4/min; no other hitches",
+			"hitch_note":                  "C4/P2.6: snapshot readbacks are excluded by the engine hitch pause (MetricsStore.PauseHitchCount in drainSnapshots); hitch counts animation frames only, expect 0-1",
 			"cpu_fallback_note":           "cpu_fallback_ops=1/frame is the existing text:color-layout path for static labels; last_cpu_fallback exposes it (no gate-off, not an R1 layout callback)",
 			"frame_raster_note":           "final frame_raster_ms includes the post-run snapshot repaint/readback; fps gates use interval metrics",
 			"snapshots":                   "steady+recover raster-thread double-shot (U21 §4)",

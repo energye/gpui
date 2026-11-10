@@ -532,12 +532,17 @@ func main() {
 		MinBoundarySkip:       1,
 		MinBoundaryRerecord:   1,
 		// P2.4d 复用探针：filter-graph 的同尺寸 RT 与 device-surface 套装都
-		// 必须回桶再借出（各至少 1 次命中），layer-offscreen 必须真的建过池。
+		// 必须回桶再借出（各至少 1 次命中）。
 		// 不设「总命中 ≥100」：滤镜结果缓存命中时不会重跑 filter graph，稳态
 		// 帧本来就只复用不重算；100 是早先被窗口 resize 抖动抬出来的数字，
 		// 拿它当门槛会把「缓存工作得好」判成红（P2.4d 实测：干净 1200×800
 		// 跑 filter-graph 6 次命中，够证明回桶路径活着）。
-		RequirePoolDomains:    []string{"filter-graph", "device-surface", "layer-offscreen"},
+		// layer-offscreen 不再强制出现（C4 解剖，evidence/P2.6/c4-dissection.md）：
+		// 现行引擎路由下本窗（retained + scene 滤镜层）滤镜 RT 走 filter-graph 池、
+		// 中帧 pending 滤镜路（ensureFilterSrcRT）不触发，layer-offscreen 懒建池
+		// legitimately 不会建——不是引擎丢池，该池在别的场景（F14 效果发布等）
+		// 仍有生产可达性。
+		RequirePoolDomains:    []string{"filter-graph", "device-surface"},
 		RequirePoolHitDomains: []string{"filter-graph", "device-surface"},
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL:", err)

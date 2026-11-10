@@ -241,9 +241,49 @@ type MetricsStore struct {
 	ringI       int
 	targetHz    float64 // display refresh seeded by SeedDisplayRefreshHz
 
+	// Hitch pause (C4/P2.6): verification readbacks (snapshot drain) stall the
+	// raster frame past HitchThresholdMs, which is verification activity, not
+	// animation jank. depth>0 excludes stalls from HitchCount; after the
+	// depth returns to 0, skipNextHitch excludes the one interval that
+	// straddles the paused activity (the drain site samples the frame
+	// interval right after resuming).
+	hitchPauseDepth int
+	skipNextHitch   bool
+
 	// Cumulative UI-build and Raster-present wall times (ms) for path CPU split.
 	buildSumMs  float64
 	rasterSumMs float64
+}
+
+// PauseHitchCount suspends jank counting for a scoped verification activity
+// (snapshot readback drain). Nesting is allowed; every pause must pair with a
+// ResumeHitchCount. Interval percentiles and max stay recorded — only
+// HitchCount is scoped.
+func (s *MetricsStore) PauseHitchCount() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.hitchPauseDepth++
+	s.mu.Unlock()
+}
+
+// ResumeHitchCount ends one PauseHitchCount scope. When the outermost scope
+// ends, the first subsequent NoteFrameInterval is treated as straddling the
+// paused activity and skips hitch counting exactly once (a fast readback has
+// nothing to skip; a slow one lands in that interval).
+func (s *MetricsStore) ResumeHitchCount() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.hitchPauseDepth > 0 {
+		s.hitchPauseDepth--
+		if s.hitchPauseDepth == 0 {
+			s.skipNextHitch = true
+		}
+	}
+	s.mu.Unlock()
 }
 
 // Snapshot returns a copy of current metrics (includes p50/p95/p99, hitch rate, path CPU).
@@ -305,8 +345,15 @@ func (s *MetricsStore) NoteFrameInterval(now time.Time) {
 		s.intervalSum += ms
 		s.intervalN++
 		s.m.AvgFrameIntervalMs = s.intervalSum / float64(s.intervalN)
-		if ms > HitchThresholdMs {
+		// C4/P2.6: verification stalls (snapshot drain pause) are not animation
+		// jank; the first interval after the outermost resume straddles the
+		// paused activity (drain and the present-completion sample are
+		// adjacent in one raster job) and skips exactly once.
+		if ms > HitchThresholdMs && s.hitchPauseDepth == 0 && !s.skipNextHitch {
 			s.m.HitchCount++
+		}
+		if s.hitchPauseDepth == 0 {
+			s.skipNextHitch = false
 		}
 		s.ring[s.ringI%intervalRingCap] = ms
 		s.ringI++

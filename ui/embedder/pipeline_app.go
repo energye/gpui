@@ -304,6 +304,10 @@ func (a *PipelineApp) queueSnapshot(fn func(), wait time.Duration) bool {
 }
 
 // drainSnapshots executes queued snapshot closures on the raster thread.
+// Verification readbacks stall the frame past HitchThresholdMs, which is not
+// animation jank (C4/P2.6): hitch counting is paused for the drain and the
+// first interval after it (the straddling present-completion sample) skips
+// once. Percentiles/max stay recorded — only HitchCount is scoped.
 func (a *PipelineApp) drainSnapshots() {
 	if a == nil {
 		return
@@ -314,6 +318,12 @@ func (a *PipelineApp) drainSnapshots() {
 	a.snapshotMu.Unlock()
 	if q == nil {
 		return
+	}
+	var m *scheduler.MetricsStore
+	if a.sched != nil {
+		m = a.sched.Metrics()
+		m.PauseHitchCount()
+		defer m.ResumeHitchCount()
 	}
 	for _, fn := range q {
 		fn()
