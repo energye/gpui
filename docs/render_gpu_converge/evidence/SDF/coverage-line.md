@@ -29,6 +29,17 @@
 - 驱动拒绝可见性：shader 建好后先用 1×1 探针画布确认非空再进真窗；
 - Golden 重种只在该窗（预计仅 SDF 边缘带变化）。
 
+## 2026-11-11 新增验证项：morphology 传播放大器（K2 改判归此）
+
+- 证据：`evidence/P2.6/k2-erode-edge-dissection.md`——GPU 栅格化整数边界列
+  AA 覆盖差（`(60,55)` cpu=255 vs gpu=237、`(59,55)` cpu=25 vs gpu=42，
+  白矩形左缘），被 erode/dilate 的 min/max 窗沿半径传播（1px 输入差 →
+  5px 传播带，404px、max17）。窗口语义两侧本就一致（resvg 口径逐条对齐）。
+- 验收追加：覆盖线闭合后跑 erode(5)/dilate(5) 白矩形 CPU vs GPU 全图
+  逐像素对拍，diff px 收敛到 0 或 AA 带 ≤2（对拍脚本形态见 K2 证据）；
+  `ui_wr_p34_filters` A 卡探针 cpu 档应自然转绿（维持「cpu 组合非验收档」
+  口径不放宽）。
+
 ## 状态
 
 **登记，未动代码**（本机驱动限制 + 需真窗验收）。P4.2 的 AA 带容差（≤24）
