@@ -484,29 +484,54 @@ func (c *Context) PopLayer() {
 		// Callers that sample pixmap.GetPixel without Flush must FlushGPU first
 		// (Image() already flushes). Nested GPU parents already batch.
 	} else if canGPUPorterDuff {
-		// P4.1 batch1 (engine hole #3): Porter-Duff non-normal layers composite
-		// via CPU materialize + the shared premul Porter-Duff operators (the
-		// same path the mask branch uses). Verified headless; the GPU texture
-		// blend blit (ensureBlitBlendPipeline + QueueGPUTextureDrawBlend) is
-		// scaffolded but its composite is NOT yet verified on the windowed
-		// present chain — enabling it here dropped the layer content, so it
-		// stays disabled until that is diagnosed (tracked in the P4.1 ledger,
-		// engine hole #3 GPU path).
-		_ = c.materializeLayerGPUToPixmap(layer)
+		// P4.1 engine hole #3 (Skia saveLayer/restore contract): draw the layer
+		// image back into the parent with the paint's blend mode as a queued GPU
+		// command. The previous CPU readback wrote the parent pixmap mid-frame —
+		// the windowed present only replays the queued tail, so the layer content
+		// never reached the presented frame (mesh B card = bare backdrop).
+		savedMat := c.matrix
+		savedDev := c.deviceMatrix
+		c.matrix = Identity()
+		c.deviceMatrix = Identity()
+		op := float32(layer.opacity)
+		if op < 0 {
+			op = 0
+		}
+		if op > 1 {
+			op = 1
+		}
+		// The blend blit samples the whole layer texture (no UV variant), so the
+		// layer bounds are enforced with a clip instead of a dst sub-rect: a
+		// damage-tight dst rect would squeeze the full layer into that rect.
+		// Bounding to the layer content also keeps the destructive Porter-Duff
+		// modes (SrcIn/Clear/...) from erasing the parent outside the layer,
+		// matching the CPU composite's content bounds.
+		compositeRect := image.Rect(0, 0, layer.gpuW, layer.gpuH)
+		bounded := false
+		if !layer.fullComposite && !layer.damage.Empty() {
+			const pad = 2
+			if d := layer.damage.Inset(-pad).Intersect(compositeRect); !d.Empty() {
+				compositeRect = d
+				bounded = true
+			}
+		}
+		if bounded {
+			c.Push()
+			c.ClipRect(float64(compositeRect.Min.X), float64(compositeRect.Min.Y),
+				float64(compositeRect.Dx()), float64(compositeRect.Dy()))
+		}
+		c.drawGPUTextureWithOpacityBlend(layer.gpuView, 0, 0, layer.gpuW, layer.gpuH, op, layer.blendMode)
+		if bounded {
+			c.Pop()
+		}
+		c.noteParentCompositeDamage(compositeRect)
+		c.matrix = savedMat
+		c.deviceMatrix = savedDev
 		if layer.gpuRelease != nil {
-			layer.gpuRelease()
+			c.layerGPUReleases = append(c.layerGPUReleases, layer.gpuRelease)
 			layer.gpuRelease = nil
 		}
 		layer.gpuView = gpucontext.TextureView{}
-		c.compositeLayer(layer, parentPixmap)
-		r := image.Rect(0, 0, layer.pixmap.Width(), layer.pixmap.Height())
-		if !layer.fullComposite && !layer.damage.Empty() {
-			const pad = 2
-			r = r.Intersect(layer.damage.Inset(-pad))
-		}
-		if !r.Empty() {
-			c.noteParentCompositeDamage(r)
-		}
 	} else if !maskedGPUDone {
 		// CPU composite (advanced blend, mask, CPU-drawn content, or no GPU).
 		if layer.gpuRelease != nil {

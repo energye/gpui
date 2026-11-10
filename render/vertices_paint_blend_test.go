@@ -90,9 +90,20 @@ func runPaintBlendCase(t *testing.T, c paintBlendCase) *render.Context {
 			dc.Close()
 		}
 	}()
-	dc.ClearWithColor(render.RGBA{
+	// The background must live in the GPU target too: a dst-reading composite
+	// (Porter-Duff Plus/Xor/...) samples the target, and ClearWithColor only
+	// writes the CPU pixmap (registered seam: headless GPU composites do not see
+	// a pixmap-only clear; the windowed present seeds the base separately).
+	bg := render.RGBA{
 		R: c.Background[0], G: c.Background[1], B: c.Background[2], A: c.Background[3],
-	})
+	}
+	dc.SetAntiAlias(false) // exact surface-covering write on both legs
+	dc.SetRGBA(bg.R, bg.G, bg.B, bg.A)
+	dc.DrawRectangle(0, 0, float64(c.Canvas[0]), float64(c.Canvas[1]))
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("background fill: %v", err)
+	}
+	dc.SetAntiAlias(true)
 	dc.SetRGBA(c.PaintSolid[0], c.PaintSolid[1], c.PaintSolid[2], c.PaintSolid[3])
 	dc.SetBlendMode(paintBlendMode(c.PaintBlend))
 	dc.DrawVertices(
