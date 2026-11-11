@@ -17,28 +17,55 @@ import (
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"os"
+	"sync"
 	"time"
 )
 
+// waylandBlockingPresentWarn keeps the residual-risk warning to one line per
+// process. Native Wayland that advertises only FIFO cannot avoid the Mesa WSI
+// release wait; we do not pretend the surface is robust.
+var waylandBlockingPresentWarn sync.Once
+
+func warnBlockingWaylandPresent(preferNonBlocking bool, mode string) {
+	if !preferNonBlocking || mode != "fifo" {
+		return
+	}
+	waylandBlockingPresentWarn.Do(func() {
+		fmt.Fprintf(os.Stderr, "render: WARNING native Wayland selected blocking FIFO present (surface advertised no Mailbox/Immediate/FifoRelaxed); a compositor release stall can freeze the raster thread (I5 residual)\n")
+	})
+}
+
 // newWebgpuHalSwapchain builds the default hal.Swapchain.
-func newWebgpuHalSwapchain(surf hal.Surface, dev hal.Device, w, h uint32) hal.Swapchain {
-	return webgpu.NewSwapchain(surf, dev, w, h).NewHalSwapchain()
+func newWebgpuHalSwapchain(surf hal.Surface, dev hal.Device, w, h uint32, preferNonBlocking bool) hal.Swapchain {
+	sc := webgpu.NewSwapchain(surf, dev, w, h)
+	if preferNonBlocking {
+		sc.SetPreferNonBlocking()
+	} else {
+		sc.SetPreferVSync()
+	}
+	return sc.NewHalSwapchain()
 }
 
 // newPresentSwapchain picks the backend once (creation sentence) and
 // returns its hal.Swapchain; render talks hal afterwards. Callers own
 // cleanup on error (their Surface/Device lifetimes differ).
-// It resolves the same way as the target constructor, so env-wins keeps
-// both consistent without threading state between them.
-func newPresentSwapchain(surf hal.Surface, dev hal.Device, w, h uint32) (hal.Swapchain, error) {
-	want, err := ResolveBackend()
-	if err != nil {
-		return nil, err
-	}
+// want is the already-resolved backend. preferNonBlocking selects the
+// compositor-driven present order for native Wayland (Mailbox first); other
+// platforms keep the FIFO steady-state order.
+func newPresentSwapchain(surf hal.Surface, dev hal.Device, w, h uint32, want Backend, preferNonBlocking bool) (hal.Swapchain, error) {
 	if want == BackendGo {
 		return newGLHalSwapchain(surf, dev, w, h)
 	}
-	return newWebgpuHalSwapchain(surf, dev, w, h), nil
+	return newWebgpuHalSwapchain(surf, dev, w, h, preferNonBlocking), nil
+}
+
+// presentPreferNonBlocking reports whether the window should use the
+// non-blocking present order: native Wayland only. Mesa's Wayland WSI FIFO
+// present waits for the compositor release in poll(-1); the raster hub is
+// shared, so that wait must not happen on the frame path. X11/Windows/macOS
+// keep FIFO, and the go/gles Wayland present path is C7 (not this item).
+func presentPreferNonBlocking(p PresentPlatform, want Backend) bool {
+	return p == PresentPlatformWayland && want == BackendNative
 }
 
 // presentLevels orders downgrade attempts from the resolved policy downward.
@@ -95,19 +122,26 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
 	}
 	physW, physH := physicalSize(logicalW, logicalH, scale)
-	sc, err := newPresentSwapchain(surf, device, physW, physH)
+	want, err := ResolveBackend()
+	if err != nil {
+		surf.Destroy()
+		dropPin()
+		return nil, err
+	}
+	preferNonBlocking := presentPreferNonBlocking(ns.Platform, want)
+	sc, err := newPresentSwapchain(surf, device, physW, physH, want, preferNonBlocking)
 	if err != nil {
 		surf.Destroy()
 		dropPin()
 		return nil, err
 	}
 	sc.SetUsage(types.TextureUsageRenderAttachment | types.TextureUsageCopyDst)
-	sc.SetPreferVSync()
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
 		surf.Destroy()
 		dropPin()
 		return nil, fmt.Errorf("render: ConfigureFromCapabilities: %w", err)
 	}
+	warnBlockingWaylandPresent(preferNonBlocking, sc.PresentModeName())
 	// Defensive: the share must still be the chain we pinned. With the pin
 	// held the owner cannot free it, so any mismatch is a logic error —
 	// fail closed instead of counting a dead device.
@@ -143,7 +177,8 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		sc:                sc,
 		dc:                dc,
 		resizeStormWindow: 300 * time.Millisecond,
-		vsyncOn:           true,
+		vsyncOn:           !preferNonBlocking,
+		fixedNoVsync:      preferNonBlocking,
 	}
 	// R0-6: track every live target so a shared recovery can reconfigure
 	// all swapchains exactly once (the pin above is this borrower's ref).
@@ -332,6 +367,22 @@ func (t *PresentTarget) SetVsync(vsync bool) {
 	}
 	t.vsyncOn = vsync
 	t.vsyncPending = true
+}
+
+// PresentModeName reports the swapchain's active present mode label
+// ("mailbox", "immediate", "fifo_relaxed", "fifo"). Real-window evidence
+// uses it to prove which mode actually won from the surface capability list;
+// nil-safe and closed-safe.
+func (t *PresentTarget) PresentModeName() string {
+	if t == nil {
+		return ""
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.sc == nil {
+		return ""
+	}
+	return t.sc.PresentModeName()
 }
 
 // applyPendingSwapchain reconfigures the swapchain to the recorded logical

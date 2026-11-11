@@ -1,0 +1,12 @@
+=== present_damage_test.go
+ok  	github.com/energye/gpui/render	0.010s
+=== present_mode_wayland_test.go
+ok  	github.com/energye/gpui/render	0.009s
+=== present_waitidle_test.go
+ok  	github.com/energye/gpui/render	0.010s
+=== present_record_test.go
+ok  	github.com/energye/gpui/render	0.010s
+=== present_resize_test.go
+ok  	github.com/energye/gpui/render	0.818s
+=== s6_8_window_present_x11_linux_test.go
+ok  	github.com/energye/gpui/render	1.132s

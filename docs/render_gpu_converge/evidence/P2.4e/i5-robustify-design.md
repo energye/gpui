@@ -1,3 +1,5 @@
+> **已废弃（2026-11-12）**：本设计的 per-surface worker / 每窗设备前提已被 2c（wgpu-native 内部锁连坐）与 D1c（4 窗判死 + 824GB abort）实测推翻；现行设计见 `i5-v2/design.md`。本文件只作历史证据，不得作为实现依据。
+
 # I5 设计：GPU present 健壮化——present 出帧路径异步化 + 死线 + 弃疗（I1 后续，2026-11-11）
 
 > 来源：§2.2 I1 取证收口（`evidence/P2.4e/i1-verification/native-stack-verification.md`：Mesa Wayland WSI `poll(-1)` 等合成器 release 永眠 + 同步 FFI 持进程级 `gpuMu` + 共享 hub = 一 surface 卡 → 全进程 GPU 冻结、不可退出）。

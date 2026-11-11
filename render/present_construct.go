@@ -485,7 +485,16 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	}
 
 	physW, physH := physicalSize(logicalW, logicalH, scale)
-	sc, err := newPresentSwapchain(surf, device, physW, physH)
+	// Present policy (I5 v2): native Wayland must not block in present —
+	// Mesa's WSI FIFO waits for the compositor release inside
+	// wl_display_dispatch_queue/poll(-1), and this raster hub is shared by
+	// every window. newPresentSwapchain selects Mailbox→Immediate→
+	// FifoRelaxed→Fifo for Wayland; X11/Windows/macOS keep the FIFO
+	// steady-state order (their blocking present does not share the Wayland
+	// WSI release path).
+	preferNonBlocking := presentPreferNonBlocking(ns.Platform, want)
+	fixedNoVsync := preferNonBlocking
+	sc, err := newPresentSwapchain(surf, device, physW, physH, want, preferNonBlocking)
 	if err != nil {
 		surf.Destroy()
 		device.Release()
@@ -498,19 +507,6 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	// (uploadPixmapToView — the CPU mode renders shapes on the CPU and the
 	// present no longer depends on the GPU raster pipelines).
 	sc.SetUsage(types.TextureUsageRenderAttachment | types.TextureUsageCopyDst)
-	// 块3 present 策略：Wayland 与 X11 同为 Fifo 稳态（阻塞式 vsync 把提交
-	// 相位锁到显示刷新）。历史上 Wayland 用 FifoRelaxed 恒不阻塞，但实测
-	// （pelican GNOME/mutter 2026-08-26）UI 软件边界 16.0ms 与显示刷新
-	// 16.7ms 自由漂移 → 周期性错过合成 deadline → 上屏内容步距忽大忽小
-	// judder；X11 的 Fifo 阻塞语义天然锁相无此问题。Fifo 在 wayland
-	// 下由 frame callback 节流、raster 线程阻塞在 present（UI 线程异步，
-	// pipeline depth=2 可提前构建），不会卡 UI。
-	fixedNoVsync := false
-	if fixedNoVsync {
-		sc.SetPreferFifoRelaxed()
-	} else {
-		sc.SetPreferVSync()
-	}
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
 		surf.Destroy()
 		device.Release()
@@ -518,6 +514,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		inst.Release()
 		return nil, fmt.Errorf("render: ConfigureFromCapabilities: %w", err)
 	}
+	warnBlockingWaylandPresent(preferNonBlocking, sc.PresentModeName())
 
 	// Publish the first window's chain as the process share (later windows
 	// borrow it; last Close releases it).

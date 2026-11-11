@@ -23,6 +23,8 @@
 //
 //	# mode A (isolated Wayland session)
 //	GPUI_RULER_BACKEND=x11 RUN_SECONDS=60 go run ./examples/ui_base_vram_cap -auto-only
+//	# nested compositor screen < 2560x1080: fit all 8 windows with -cascade
+//	WAYLAND_DISPLAY=gpui-nested RUN_SECONDS=300 go run ./examples/ui_base_vram_cap -auto-only -cascade
 //	# mode B (desktop ok)
 //	GPUI_FAULT_OOM=180:1 RUN_SECONDS=15 go run ./examples/ui_base_vram_cap -oom-probe -auto-only
 package main
@@ -72,6 +74,11 @@ const (
 	healthFPS          = 40.0 // per-window floor for the low-pressure 2-window phase
 )
 
+// cascadeLayout places the 8 windows diagonally so all of them fit inside a
+// nested compositor screen smaller than the registered 4-column grid
+// (2560x1080). Test layout only; the default stays the registered grid.
+var cascadeLayout bool
+
 type phaseResult struct {
 	Windows         int     `json:"windows"`
 	SharedCount     int     `json:"shared_count"`
@@ -110,6 +117,9 @@ type vwin struct {
 	hud  *hudScene
 	box  *rendering.RenderBox // HUD box (ticker repaints only this)
 	path string
+	// presentMode is captured once right after Open (the target is nil after
+	// Quit/Close, so reading it at report time would report an empty mode).
+	presentMode string
 }
 
 // hudTicker keeps presenting (retained steady frames re-run EnsureCapacity,
@@ -167,6 +177,9 @@ func sleepStop(d time.Duration, stop <-chan struct{}) bool {
 
 func openWindow(idx, cards int, snapPath string, gateMode bool, eventsTotal *atomic.Int64, userClosed chan struct{}, closeOnce *sync.Once) (*vwin, error) {
 	pos := &platform.Point{X: (idx % 4) * winW, Y: (idx / 4) * (winH + 60)}
+	if cascadeLayout {
+		pos = &platform.Point{X: idx * 56, Y: idx * 56}
+	}
 	backend := platform.DisplayAuto
 	if os.Getenv("GPUI_RULER_BACKEND") == "x11" {
 		backend = platform.DisplayX11
@@ -286,7 +299,9 @@ func main() {
 	autoOnly := flag.Bool("auto-only", false, "gate mode: ladder or OOM probe, exit 1 on fail")
 	manualSeconds := flag.Float64("manual-seconds", 0, "manual mode: auto-close after N seconds (mode A)")
 	oomProbe := flag.Bool("oom-probe", false, "mode B: single-window GPUI_FAULT_OOM injection recovery probe")
+	cascade := flag.Bool("cascade", false, "layout A: place the 8 ladder windows in a cascade (nested screens smaller than 2560x1080)")
 	flag.Parse()
+	cascadeLayout = *cascade
 
 	// Mode B has its own simpler flow.
 	if *oomProbe {
@@ -357,6 +372,10 @@ func main() {
 			if err := w.app.Open(); err != nil {
 				fmt.Fprintf(os.Stderr, "FAIL: app %d open: %v\n", i+1, err)
 				os.Exit(1)
+			}
+			if t := w.app.Target(); t != nil {
+				w.presentMode = t.PresentModeName()
+				fmt.Fprintf(os.Stderr, "ui_base_vram_cap: win %d present_mode=%s\n", i+1, w.presentMode)
 			}
 			wg.Add(1)
 			go func(i int, w *vwin) {
@@ -535,9 +554,11 @@ func main() {
 	snap := wins[0].app.Metrics().Snapshot()
 	var totalPresents int64
 	var refusalsTotal int64
+	presentModes := make([]string, 0, len(wins))
 	for _, w := range wins {
 		totalPresents += w.app.PresentCount()
 		refusalsTotal += w.app.Metrics().Snapshot().BudgetRefusals
+		presentModes = append(presentModes, w.presentMode)
 	}
 
 	phaseMu.Lock()
@@ -615,6 +636,7 @@ func main() {
 	}
 	extra := map[string]any{
 		"mode":                      "budget_ladder",
+		"layout":                    map[bool]string{true: "cascade", false: "grid"}[cascadeLayout],
 		"windows_ladder":            []int{2, 4, 8},
 		"phases":                    gotPhases,
 		"cards_per_window":          cardsPerWin,
@@ -626,6 +648,7 @@ func main() {
 		"refusal_curve":             refusalCurve(gotPhases),
 		"fair_share_rule":           "budget / windows / 4 (render.PictureCacheFairMax) clamps automatic picture-texture cache growth",
 		"presents_total":            totalPresents,
+		"swapchain_present_mode":    presentModes,
 		"events_total":              eventsTotal.Load(),
 		"crash_free":                !timedOut,
 		"evidence_mode":             map[bool]string{true: "gate", false: "manual"}[gateMode],

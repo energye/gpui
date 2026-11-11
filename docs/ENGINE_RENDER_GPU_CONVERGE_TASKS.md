@@ -51,21 +51,21 @@
 
 **当前焦点（2026-11-11 起）：§2.2 待办池取项。**
 
-- 🟡 已立项：**I5 GPU present 健壮化**（设计已落盘，实现批未开；按批 1→4 推进）。
+- 🟡 已换向：**I5 GPU present 健壮化 v2**（Wayland Mailbox 非阻塞 present；v2-0 复现、v2-1 实现、v2-2 真窗 A/B/负向/X11 回归已落盘；金图 17.5273% 预存漂移待 P2.6，暂不标 ✅）。
 - 下一个 ⬜：**I2**（`TestS68_Swapchain_X11_MultiFramePresent` 同尺寸 Resize 语义；先拍板「改用例期望」还是「Resize 显式 force 重配口」）。
 - 已收口：I1（取证）、G3、E1、E3、C5、C6、B2、B3、C1 等，详见 §2.2。
 - **任务总表（P0–P4）在本节末**；下面的专项索引只列不属于主表 / §2.2 待办池的已收口项。
 - **本节只保留 1 个「当前任务验证载体」**；任务收口时用一行索引替换它，不保留完整历史块（规则见 §6.1）。
 
-**当前任务验证载体（I5：GPU present 健壮化，2026-11-11 立项）**
+**当前任务验证载体（I5 v2：Wayland present 非阻塞化，2026-11-12 换向）**
 
-- 任务：present 出帧路径同步 FFI 持进程级 `gpuMu` + 共享 hub；一 surface 被合成器卡 release（Mesa WSI `poll(-1)`）会拖死全进程 GPU。按 Chrome GPU-process watchdog / Flutter raster watchdog 的「牺牲 + 隔离 + 恢复」路线做健壮化。正本 `evidence/P2.4e/i5-robustify-design.md`。
-- 能力单测（随批）：批 1 = rwgpu 计数字段 + 并发安全实证；批 2 = per-surface worker + watchdog + fail-fast（mock 红绿对 + 嵌套 Wayland 卡死现场真窗）；批 3 = `gpuMu` 拆锁 + 三环境矩阵 + 拒增曲线；批 4 = 账本对账 + P2.6 重放。正常路径行为零变化是每批硬门禁。
-- 真窗：`ui_base_vram_cap` ladder native（`RUN_SECONDS=300`，`GPUI_VRAM_TRACE`，隔离嵌套 gnome-shell Wayland `dbus-run-session -- gnome-shell --nested --no-x11`，P2.4b 流程；当前桌面仅健康检查）。
-- 金图：无（呈现阻塞取证，不动金图）。
-- 双后端：native（rwgpu FFI）主测；go(gles) 同窗归 C7 域，不混入本项。
-- 负向对照：随批设计；批 2 的 mock 红绿对即负向证据。
-- 证据：`evidence/P2.4e/i5-robustify-design.md`、`evidence/P2.4e/i1-verification/`。
+- 任务：native Wayland 交换链默认 Mailbox present（Mailbox→Immediate→FifoRelaxed→Fifo），移除同步 Fifo present 的合成器 release 等待；X11/Windows/macOS 不变。
+- 能力单测：`gpu/webgpu/swapchain_configure_nonblocking_internal_test.go` :: `TestPickPresentMode_NonBlocking`（新增）；`render/present_mode_wayland_test.go` :: `TestPresentPreferNonBlocking`（新增）；`gpu/webgpu` 逐文件 21 PASS、`render` present_* 五文件 PASS；vet rc=0；五目标 build（含 nogpu）rc=0。
+- 真窗：`examples/ui_base_vram_cap -cascade` 级联 8 窗（`-auto-only`，`RUN_SECONDS=300`，嵌套 gnome-shell Wayland）；另 `ui_wr_c6_savelayer_group` 20s 单窗节流对照。
+- 金图：`examples/ui_base_vram_cap/testdata/vram_win{1..8}_base.png`，容差 0；17.5273% 为 P2.6 已登记预存漂移（`i5-v2/golden/assessment.md`），未重种，待专项判定。
+- 双后端：native Wayland 本项验（8 窗 mailbox、n=8 11.3fps、正常退出）；X11 :3 native 回归 fifo/rc=0；go/gles Wayland 70s 探针未冻（C7 域，未跑满 300s，未标绿）。
+- 负向对照：强制 `presentPreferNonBlocking=false` → n=8 冻结、150s SIGQUIT 不退出（已跑红）；还原 → 8 窗 presents>0 且正常退出。
+- 证据：`evidence/P2.4e/i5-v2/`（design.md、summary.md、diagnosis/、positive/、negative/、x11/、go-wayland/、golden/）。
 
 **§2.1 专项索引（主表未展开的细节 / 非主表专项）**
 
@@ -76,7 +76,7 @@
 | SDF 覆盖线 | GPU 覆盖改解析真值预计算 LUT（1024 项 midrange）；P4.2 AA 带容差 24→8（19 场景 max 6）；K2 erode/dilate 传播 404px/max17→5、548px/max5（带外 0）；6 扇金图重种 0.0000% | `evidence/SDF/coverage-line.md` |
 | P4.3 阴影专项 | 跨帧阴影 tile 缓存；native 58.91fps / go 58.46fps，双后端金图 0.0000%；滤波源帧内累积已治根（同帧两笔阴影 max diff 38→0） | `evidence/P4.3/cache-impl.md`、`evidence/P4.3/root-cause2-fix.md` |
 | P4.3 余项 | backdrop 损伤区 / 抖动两项经二轮量测判不修（用户拍板，正确性设计保留）；零引擎改动、零公开 API、金图不重种 | `evidence/P4.3/closeout.md` |
-| 22 窗金图漂移 | 21/22 窗存在历史金图相对当前渲染的漂移（唯一 0 = `ui_render_base_svg`；dither 31.7164% / miscdraw 14.2041% / backdrop 6.3519% / shadermask 5.6476% / filterops 5.2101% / 最小 0.1880%），修复前后同值、两档显示同值 ⇒ 与 C1/后端无关；须逐窗判定渲染洞 vs 基线过期，禁止直接重种掩盖 | `evidence/P2.6/c1-screen-grab-black-assessment.md` §9 |
+| 22 窗金图漂移 | 21/22 窗历史金图漂移（唯一 0=`ui_render_base_svg`；dither 31.7164% / miscdraw 14.2041% 等，详见证据），修复前后/两档同值 ⇒ 与 C1/后端无关；须逐窗判渲染洞 vs 基线过期，禁重种。2026-11-12 补 `ui_base_vram_cap` 17.5273%（I5 v2 同值，差异集中 1px 边沿/HUD，内部点逐字节同，材料 `i5-v2/golden/assessment.md`），倾向基线过期待判 | `evidence/P2.6/c1-screen-grab-black-assessment.md` §9、`evidence/P2.4e/i5-v2/golden/` |
 | Wayland 原生截屏 | portal/PipeWire 需人工授权，GNOME Shell 接口 AccessDenied；另立后续独立批次 | 同上 |
 
 **余留登记（不阻塞当前焦点）**
@@ -172,7 +172,7 @@
 | I2 | P2.4d | `TestS68_Swapchain_X11_MultiFramePresent` 期望第 6 帧同尺寸 `Resize(160,120)` 抬 `reconfigures`，实测 `reconfig=0`；产品侧 `swapchain_configure.go:213` 自 `34d9785e` 起把同尺寸 Resize 定为 no-op（避黑闪）；`8e4c0e99` 引入用例早于语义变更，干净树复现 | P2.4e：先拍板「改用例期望」还是「Resize 显式 force 重配口」，两边对齐 Skia/Flutter 后再动；禁止删断言凑绿 | ⬜ 未开工；`evidence/P2.4d/per-file-tests-notes.md` §4 |
 | I3 | P2.4d | R20 `gray_red_band_matrix_exact @(408,274)` 红：GRAY 卡保持彩色，疑层录制未按新矩阵重录 | P2.6 前诊断 | ✅ 2026-11-10：现行树 scripted 5/5、金图 0.0000%、`final_gray_identity=false`，复现消失；按「核实后没问题如实收回」销账，无代码改动；`evidence/P2.6/c4-dissection.md` |
 | I4 | P2.4d | R20 `r20_steady.png` / `r20_recover.png` 全黑（1200×800 RGB 全 0、5585B），stderr `snapshot request timed out`；`r20_final.png` 正常 | P2.6 前诊断（SnapshotAsync 黑图） | ✅ 2026-11-11：根因=saveSnap 用 `Context().Image()` 读 CPU pixmap，真 swapchain GPU 帧不回写 pixmap；按 r1/c8 `PaintPresentTree` 先重画再存；两窗 steady/recover 960000/960000 px 非零，门禁 PASS；`evidence/P2.6/i4-midrun-snapshot-black.md`、提交 `46aa5454` |
-| I5 | I1 | **GPU present 健壮化**：present 同步 FFI 持进程级 `gpuMu` + 共享 hub，一 surface 被合成器卡 release 即全进程 GPU 冻结、不可退出 | render 呈现层（PresentFrame→EndFrameWithDamage 边界，hal API 零改）+ rwgpu gpuMu 拆锁 | 🟡 2026-11-11 立项：批 1 计数+并发实证 / 批 2 per-surface worker+watchdog+fail-fast / 批 3 gpuMu 拆锁+三环境矩阵+拒增曲线 / 批 4 账本对账+P2.6 重放；正常路径行为零变化是每批硬门禁；`evidence/P2.4e/i5-robustify-design.md` |
+| I5 | I1 | **GPU present 健壮化**：Wayland 同步 Fifo present 在 Mesa WSI 等合成器 release，一窗卡住即全进程冻结；根因修复=native Wayland 默认非阻塞 present（Mailbox→Immediate→FifoRelaxed→Fifo）。旧 worker/每窗设备路线已被 2c/D1c 反证作废 | render 呈现口 + `gpu/webgpu` present 模式选择；旧设计标废弃 | 🟡 2026-11-12 v2 实现 + 真窗 A/B/负向/X11 回归已落盘（正轮 8 窗 mailbox、n=8 11.3fps、正常退出；负向 fifo n=8 冻结）；`gpu/webgpu` 逐文件 21 PASS、render present_* 5 PASS、五目标 build rc=0；金图 17.5273% 预存漂移待 P2.6，不标 ✅；`evidence/P2.4e/i5-v2/summary.md` |
 | J1 | P2.4d 收口审计 | `res.Registry` idle 回调电平触发 + `res.Cache.repool` 无查重：同一 `Ref` 双重 Release 时池桶重复入桶，后续可能把在借条目标死 | P2.4e：repool 查重 + 回调边沿触发 + 补负向用例 | ✅ 2026-11-09 源码实证：`res/cache.go:252-255` 已查重；`registry.go` idle 回调已边沿触发 |
 | J2 | P2.4d 收口审计 | `rwgpu` work-done 记录包级 map 仅在 `FutureDone`/`WaitForFuture` 观察时删除；`directSubmit.drain/invalidate` 不解 token → 设备切换/丢失时记录滞留 | P2.4e：drain 补观察 + invalidate 清理出口 | ✅ 2026-11-09：`direct_submit.go:139-141` `drain()` 已 `token.Done()`；`invalidate()` 已标注丢弃 |
 | J3 | P2.4d 收口审计 | 疑点「`Submission.Begin` 丢未决 jobs → inflight 泄漏」经全调用点核查收回：`Begin` 生产零调用，`endSubmission` 5 处同步点 + Destroy WaitIdle + Invalidate 配对闭合 | 无需修复（防重查） | ✅ 2026-10-31 核查闭合 |
@@ -473,6 +473,9 @@ docs/render_gpu_converge/
 | 2026-11-10 | P3.4/P4.1/P4.2/P4.3/P4.4 | P3.4 16 节点矩阵 + 4×4 真窗；P4.1 四批全收（含 B 卡 #3、live 漏改、DrawShadow 录制命令）；P4.2 20 场景 ≤2；P4.3 阴影专项 + mask 池化，backdrop/dither 判不修；P4.4 COLRv1 变量轴收口；G14 marker 补齐 | `evidence/P3.4/`、`P4.1/`–`P4.4/` |
 | 2026-11-11 | SDF/M5 | SDF 覆盖 LUT 实现批（P4.2 24→8、K2 传播、6 窗重种）；M5 HDR P0–P5 全批收口；M5 后主链 13 包 725 文件回归 | `evidence/SDF/coverage-line.md`、`evidence/M5/` |
 | 2026-11-11 | §2.2 池 | B2/B3/C1/C5/C6/E1/E3/G3/I1 全部收口；D1/D3/D4/E2/F1/F2/J1–J5/K1–K7/L1–L3/M1–M6 源码实证销账；D2/C7 仍部分保留；I5 立项、I2 待取、N1 可选 | `evidence/P2.6/`、`P2.4e/`、`review-fix/` |
+| 2026-11-12 | I5 | 换向：旧 worker/每窗设备设计作废（2c/D1c 反证）；当前树级联 8 窗 Fifo 冻结 vs Mailbox 8 窗全 present+正常退出；新设计 `i5-v2/design.md` | `evidence/P2.4e/i5-v2/` |
+| 2026-11-12 | I5 | v2 实现：`SetPreferNonBlocking` + render 创建口 + `PresentModeName`；正轮 8 窗 mailbox/n=8 11.3fps/正常退出，负向 fifo/n=8 冻结，X11 回归 fifo rc=0；金图 17.5273% 预存漂移待 P2.6 | `evidence/P2.4e/i5-v2/summary.md` |
+| 2026-11-12 | I5 | 用户拍板：I5 留 🟡，17.5273% 交 P2.6「22 窗金图漂移」逐窗判定，禁止直接重种；功能/真窗/负向证据已齐 | `evidence/P2.4e/i5-v2/golden/assessment.md` |
 
 ## 8 修订记录（摘要；全文见存档）
 
@@ -487,3 +490,4 @@ docs/render_gpu_converge/
 | 2026-11-06 | 批 6 六扇真窗收口；五目标×{默认,nogpu} 全绿、64 包 sweep 只减不增、conformance 双后端、整包 `-race` DATA RACE=0 |
 | 2026-11-10 | §2.2 台账整理（P0 文档清理）：11 行补回状态列、K6 重号改 K7、表格连续化；「无消费者」不作删除理由的判定口径写入证据 |
 | 2026-11-12 | 收敛版（内容截至 2026-11-11）：主文件压缩为当前状态/口径/决策/证据指针；§2.1 历史载体块、§7 全量流水、§8 全量修订冻结到 `docs/render_gpu_converge/archive/ENGINE_RENDER_GPU_CONVERGE_TASKS_2026-11-11_full.md`，逐字保留不丢精度 |
+| 2026-11-12 | I5 设计换向：从 present worker/设备隔离改为 native Wayland 非阻塞 present（Mailbox）根因修复；旧设计标废弃，v2 设计与诊断证据落盘 |

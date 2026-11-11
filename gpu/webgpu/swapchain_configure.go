@@ -88,6 +88,22 @@ func (sc *Swapchain) SetPreferLowLatency() {
 	sc.PreferPresentModes = []PresentMode{PresentModeMailbox, PresentModeFifoRelaxed, PresentModeFifo, PresentModeImmediate}
 }
 
+// SetPreferNonBlocking selects a compositor-driven, non-blocking present
+// order for surfaces whose present call must never stall the raster thread.
+// Native Wayland is the canonical case: Mesa's Vulkan WSI FIFO path waits for
+// the compositor to release a buffer inside wl_display_dispatch_queue/poll(-1),
+// so one stalled surface blocks the whole process. Mailbox replaces the
+// pending image instead of waiting for vblank/release; Immediate is the next
+// non-blocking fallback. FifoRelaxed still waits for a free image, so it only
+// ranks above the legacy FIFO last resort. Callers should treat a FIFO win as
+// a residual risk (no non-blocking mode was advertised by the surface).
+func (sc *Swapchain) SetPreferNonBlocking() {
+	if sc == nil {
+		return
+	}
+	sc.PreferPresentModes = []PresentMode{PresentModeMailbox, PresentModeImmediate, PresentModeFifoRelaxed, PresentModeFifo}
+}
+
 // Configure applies SurfaceConfiguration to the underlying surface.
 // Prefer choosing Format/PresentMode from Adapter.GetSurfaceCapabilities when available.
 // Configure applies SurfaceConfiguration to the underlying surface.

@@ -1,0 +1,13 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_base_vram_cap: win 1 present_mode=fifo
+ui_base_vram_cap: win 2 present_mode=fifo
+ui_base_vram_cap: phase n=2 shared=2 fps_min=49.1 refusals=+0 (total 4) live=92.8MB (max 92.8) fair/win=96.0MB
+ui_base_vram_cap: win 3 present_mode=fifo
+ui_base_vram_cap: win 4 present_mode=fifo
+ui_base_vram_cap: phase n=4 shared=4 fps_min=23.8 refusals=+476 (total 659) live=179.1MB (max 179.1) fair/win=48.0MB
+ui_base_vram_cap: win 5 present_mode=fifo
+ui_base_vram_cap: win 6 present_mode=fifo
+ui_base_vram_cap: win 7 present_mode=fifo
+ui_base_vram_cap: win 8 present_mode=fifo
+ui_base_vram_cap: phase n=8 shared=8 fps_min=11.5 refusals=+692 (total 1622) live=355.1MB (max 355.1) fair/win=24.0MB
+ui_base_vram_cap: OK presents=4104 refusals=1523 ledger_peak=355.1MB px=0/0 golden=0.0000% mode=manual elapsed=45.1s

@@ -1,0 +1,11 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+I5DIAG present mode=mailbox platform=1
+snapshot: /tmp/c6_savelayer_group/c6_final.png
+ui_wr_c6_savelayer_group: pixel groupA_offscreen_blend         @( 382, 199) got=(0.110,0.122,0.149) want=(0.526,0.232,0.248) ok=false
+ui_wr_c6_savelayer_group: pixel groupA_two_stage_blend         @( 494, 204) got=(0.129,0.149,0.212) want=(0.338,0.282,0.447) ok=false
+ui_wr_c6_savelayer_group: pixel groupB_direct_fill_unblended   @( 382, 445) got=(0.110,0.122,0.149) want=(0.350,0.650,0.550) ok=false
+ui_wr_c6_savelayer_group: pixel groupB_refusal_frame           @( 442, 368) got=(0.078,0.090,0.110) want=(1.000,0.250,0.250) ok=false
+ui_wr_c6_savelayer_group: pixel dense_cell_intact_under_churn  @( 972, 126) got=(0.098,0.110,0.129) want=(0.370,0.400,0.720) ok=false
+ui_wr_c6_savelayer_group: pixel dense_note_text_density        text_px=0 (want >=120) ok=false
+golden compare: size mismatch (0,0)-(1200,800) vs (0,0)-(748,541)
+FAIL: hitch_rate_per_min=6.01 > 5

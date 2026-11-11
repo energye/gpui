@@ -1,0 +1,11 @@
+--- /tmp/opencode/present_swapchain.go.positive	2026-11-12 01:32:59.479404473 +0800
++++ /tmp/opencode/present_swapchain.go.negative	2026-11-12 01:36:01.178026194 +0800
+@@ -65,7 +65,7 @@
+ // shared, so that wait must not happen on the frame path. X11/Windows/macOS
+ // keep FIFO, and the go/gles Wayland present path is C7 (not this item).
+ func presentPreferNonBlocking(p PresentPlatform, want Backend) bool {
+-	return p == PresentPlatformWayland && want == BackendNative
++	return false // I5 NEGATIVE CONTROL: force blocking FIFO on all platforms
+ }
+ 
+ // presentLevels orders downgrade attempts from the resolved policy downward.

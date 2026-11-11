@@ -1,0 +1,45 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_base_vram_cap: win 1 present_mode=mailbox
+ui_base_vram_cap: win 2 present_mode=mailbox
+ui_base_vram_cap: phase n=2 shared=2 fps_min=45.3 refusals=+0 (total 4) live=92.8MB (max 92.8) fair/win=96.0MB
+ui_base_vram_cap: win 3 present_mode=mailbox
+ui_base_vram_cap: win 4 present_mode=mailbox
+ui_base_vram_cap: phase n=4 shared=4 fps_min=22.2 refusals=+446 (total 602) live=180.2MB (max 180.2) fair/win=48.0MB
+ui_base_vram_cap: win 5 present_mode=mailbox
+ui_base_vram_cap: win 6 present_mode=mailbox
+ui_base_vram_cap: win 7 present_mode=mailbox
+ui_base_vram_cap: win 8 present_mode=mailbox
+ui_base_vram_cap: phase n=8 shared=8 fps_min=11.3 refusals=+682 (total 1515) live=357.8MB (max 357.8) fair/win=24.0MB
+snapshot: examples/ui_base_vram_cap/testdata/vram_win6.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win7.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win8.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win1.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win2.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win3.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win4.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win5.png
+ui_base_vram_cap: pixel win1_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win1_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win1_base.png: diff=17.5273% over 281600 px
+ui_base_vram_cap: pixel win2_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win2_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win2_base.png: diff=17.5273% over 281600 px
+ui_base_vram_cap: pixel win3_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win3_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win3_base.png: diff=17.5273% over 281600 px
+ui_base_vram_cap: pixel win4_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win4_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win4_base.png: diff=17.5273% over 281600 px
+ui_base_vram_cap: pixel win5_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win5_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win5_base.png: diff=17.5273% over 281600 px
+ui_base_vram_cap: pixel win6_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win6_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win6_base.png: diff=17.5273% over 281600 px
+ui_base_vram_cap: pixel win7_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win7_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win7_base.png: diff=17.5273% over 281600 px
+ui_base_vram_cap: pixel win8_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win8_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win8_base.png: diff=17.5273% over 281600 px
+FAIL: golden max=17.5273% want 0 per window (refusal path must not break correctness)

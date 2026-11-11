@@ -1,0 +1,213 @@
+diff --git a/examples/ui_base_vram_cap/main.go b/examples/ui_base_vram_cap/main.go
+index a40f7628..cac1b8f8 100644
+--- a/examples/ui_base_vram_cap/main.go
++++ b/examples/ui_base_vram_cap/main.go
+@@ -166,7 +166,7 @@ func sleepStop(d time.Duration, stop <-chan struct{}) bool {
+ }
+ 
+ func openWindow(idx, cards int, snapPath string, gateMode bool, eventsTotal *atomic.Int64, userClosed chan struct{}, closeOnce *sync.Once) (*vwin, error) {
+-	pos := &platform.Point{X: (idx % 4) * winW, Y: (idx / 4) * (winH + 60)}
++	pos := &platform.Point{X: idx * 56, Y: idx * 56} // I5 diagnosis: cascade keeps all 8 windows on the nested screen
+ 	backend := platform.DisplayAuto
+ 	if os.Getenv("GPUI_RULER_BACKEND") == "x11" {
+ 		backend = platform.DisplayX11
+diff --git a/examples/ui_base_vram_cap/testdata/vram_win2.png b/examples/ui_base_vram_cap/testdata/vram_win2.png
+index 680789bd..7b126897 100644
+Binary files a/examples/ui_base_vram_cap/testdata/vram_win2.png and b/examples/ui_base_vram_cap/testdata/vram_win2.png differ
+diff --git a/examples/ui_base_vram_cap/testdata/vram_win3.png b/examples/ui_base_vram_cap/testdata/vram_win3.png
+index 15153b4d..3a12638c 100644
+Binary files a/examples/ui_base_vram_cap/testdata/vram_win3.png and b/examples/ui_base_vram_cap/testdata/vram_win3.png differ
+diff --git a/examples/ui_base_vram_cap/testdata/vram_win4.png b/examples/ui_base_vram_cap/testdata/vram_win4.png
+index c208a829..fa1ba0a0 100644
+Binary files a/examples/ui_base_vram_cap/testdata/vram_win4.png and b/examples/ui_base_vram_cap/testdata/vram_win4.png differ
+diff --git a/examples/ui_base_vram_cap/testdata/vram_win5.png b/examples/ui_base_vram_cap/testdata/vram_win5.png
+index 1bd1165e..d1ca013b 100644
+Binary files a/examples/ui_base_vram_cap/testdata/vram_win5.png and b/examples/ui_base_vram_cap/testdata/vram_win5.png differ
+diff --git a/examples/ui_base_vram_cap/testdata/vram_win6.png b/examples/ui_base_vram_cap/testdata/vram_win6.png
+index 6d8f8ceb..a0bdc61b 100644
+Binary files a/examples/ui_base_vram_cap/testdata/vram_win6.png and b/examples/ui_base_vram_cap/testdata/vram_win6.png differ
+diff --git a/examples/ui_base_vram_cap/testdata/vram_win7.png b/examples/ui_base_vram_cap/testdata/vram_win7.png
+index daaf5d18..1286de0f 100644
+Binary files a/examples/ui_base_vram_cap/testdata/vram_win7.png and b/examples/ui_base_vram_cap/testdata/vram_win7.png differ
+diff --git a/examples/ui_base_vram_cap/testdata/vram_win8.png b/examples/ui_base_vram_cap/testdata/vram_win8.png
+index ff072d0b..74984450 100644
+Binary files a/examples/ui_base_vram_cap/testdata/vram_win8.png and b/examples/ui_base_vram_cap/testdata/vram_win8.png differ
+diff --git a/render/present_construct.go b/render/present_construct.go
+index d27f1bbd..2838d501 100644
+--- a/render/present_construct.go
++++ b/render/present_construct.go
+@@ -506,10 +506,21 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
+ 	// 下由 frame callback 节流、raster 线程阻塞在 present（UI 线程异步，
+ 	// pipeline depth=2 可提前构建），不会卡 UI。
+ 	fixedNoVsync := false
+-	if fixedNoVsync {
++	// I5 diagnosis only: select a non-blocking present mode without changing
++	// the production default. Reverted before any commit.
++	switch os.Getenv("GPUI_DIAG_PRESENT_MODE") {
++	case "relaxed":
++		fixedNoVsync = true
+ 		sc.SetPreferFifoRelaxed()
+-	} else {
+-		sc.SetPreferVSync()
++	case "mailbox":
++		fixedNoVsync = true
++		sc.SetPreferFifoRelaxed()
++	default:
++		if fixedNoVsync {
++			sc.SetPreferFifoRelaxed()
++		} else {
++			sc.SetPreferVSync()
++		}
+ 	}
+ 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
+ 		surf.Destroy()
+@@ -518,6 +529,12 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
+ 		inst.Release()
+ 		return nil, fmt.Errorf("render: ConfigureFromCapabilities: %w", err)
+ 	}
++	if os.Getenv("GPUI_DIAG_PRESENT_MODE") == "mailbox" {
++		// I5 diagnosis only: low-latency mode (Mailbox/Immediate) picked from
++		// the cached capability list. Reverted before any commit.
++		_ = sc.SetPresentModeForce(sc.PresentModeForVsync(false))
++	}
++	fmt.Fprintf(os.Stderr, "I5DIAG present mode=%s platform=%d\n", sc.PresentModeName(), ns.Platform)
+ 
+ 	// Publish the first window's chain as the process share (later windows
+ 	// borrow it; last Close releases it).
+diff --git a/render/present_swapchain.go b/render/present_swapchain.go
+index 9475a265..9d4cd2d8 100644
+--- a/render/present_swapchain.go
++++ b/render/present_swapchain.go
+@@ -102,12 +102,21 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
+ 		return nil, err
+ 	}
+ 	sc.SetUsage(types.TextureUsageRenderAttachment | types.TextureUsageCopyDst)
+-	sc.SetPreferVSync()
++	diagMode := os.Getenv("GPUI_DIAG_PRESENT_MODE")
++	if diagMode == "relaxed" || diagMode == "mailbox" {
++		sc.SetPreferFifoRelaxed()
++	} else {
++		sc.SetPreferVSync()
++	}
+ 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
+ 		surf.Destroy()
+ 		dropPin()
+ 		return nil, fmt.Errorf("render: ConfigureFromCapabilities: %w", err)
+ 	}
++	if diagMode == "mailbox" {
++		_ = sc.SetPresentModeForce(sc.PresentModeForVsync(false))
++	}
++	fmt.Fprintf(os.Stderr, "I5DIAG shared present mode=%s platform=%d\n", sc.PresentModeName(), ns.Platform)
+ 	// Defensive: the share must still be the chain we pinned. With the pin
+ 	// held the owner cannot free it, so any mismatch is a logic error —
+ 	// fail closed instead of counting a dead device.
+diff --git a/ui/embedder/pipeline_app.go b/ui/embedder/pipeline_app.go
+index 2962a93a..cde8c042 100644
+--- a/ui/embedder/pipeline_app.go
++++ b/ui/embedder/pipeline_app.go
+@@ -111,7 +111,14 @@ type PipelineApp struct {
+ 
+ 	quit     atomic.Bool
+ 	presents atomic.Int64
+-	frameID  atomic.Uint64
++	// I5 DIAG: per-window in-flight present credits. A credit is consumed by
++	// each real present and returned by the compositor's frame-presented
++	// notice (wl_surface.frame / XPresentNotifyMSC). Never present when the
++	// budget is exhausted, so a stalled compositor cannot leave us blocking
++	// inside vkQueuePresentKHR. Remove/replace with the real design.
++	presentCredits    atomic.Int32
++	presentCreditsMax int32
++	frameID           atomic.Uint64
+ 	// lastStats holds the last raster-thread dirty-layer stats (T2: written
+ 	// on raster, read on UI via LastRasterStats — guarded, never bare).
+ 	lastStatsMu sync.Mutex
+@@ -1124,6 +1131,23 @@ func (a *PipelineApp) handleLifecycle(in input.Event) bool {
+ 		// timestamp only — demand stays with events/tickers, so idle
+ 		// costs nothing (on-demand rendering, 块1).
+ 		a.sched.NoteFramePresented()
++		// I5 DIAG: return one in-flight present credit (capped) and keep the
++		// single-shot callback chain armed for the next commit.
++		for {
++			n := a.presentCredits.Load()
++			if a.presentCreditsMax <= 0 || n >= a.presentCreditsMax {
++				break
++			}
++			if a.presentCredits.CompareAndSwap(n, n+1) {
++				break
++			}
++		}
++		if a.presentCreditsMax > 0 {
++			if fn, ok := a.host.(platform.FrameNotifier); ok {
++				fn.RequestFrameNotify()
++			}
++			fmt.Fprintf(os.Stderr, "I5DIAG frame-presented credits=%d\n", a.presentCredits.Load())
++		}
+ 		return true
+ 	default:
+ 		return false
+@@ -1247,6 +1271,23 @@ func (a *PipelineApp) Run() error {
+ 	}
+ 	a.forceFullPresent.Store(3) // first presents after open are always full
+ 	a.firstPresentT0 = time.Now()
++	// I5 DIAG: arm the per-window present-credit gate. The request must be
++	// registered BEFORE the warm-up commit, otherwise its frame callback is
++	// for a future commit that never comes (credits would stay 0).
++	a.presentCreditsMax = 0
++	switch os.Getenv("GPUI_DIAG_PRESENT_CREDITS") {
++	case "1":
++		a.presentCreditsMax = 1
++	case "2":
++		a.presentCreditsMax = 2
++	}
++	a.presentCredits.Store(0)
++	if a.presentCreditsMax > 0 {
++		if fn, ok := a.host.(platform.FrameNotifier); ok {
++			fn.RequestFrameNotify()
++			fmt.Fprintf(os.Stderr, "I5DIAG armed credit gate max=%d\n", a.presentCreditsMax)
++		}
++	}
+ 	if a.opts.WarmUp {
+ 		// Warm-up is a full paint: it runs on the GL thread like every other
+ 		// present — a full present binds the window surface, and a foreign
+@@ -1486,6 +1527,13 @@ func (a *PipelineApp) Run() error {
+ 		// expensive layout and build entirely and retry next vsync (Flutter
+ 		// Pipeline.Produce fails when full). SubmitLatest would only park in
+ 		// pending — do not waste a build to throw the old one away.
++		// I5 DIAG: a full present credit budget means the compositor has not
++		// shown our last frame(s) yet; building another one can only run into
++		// a blocking vkQueuePresentKHR. Wait for the frame-presented notice.
++		if a.presentCreditsMax > 0 && a.presentCredits.Load() <= 0 {
++			time.Sleep(time.Millisecond)
++			continue
++		}
+ 		if a.loop != nil && !a.loop.TryReserve() {
+ 			a.preDrop.Add(1)
+ 			continue
+@@ -1727,6 +1775,11 @@ func (a *PipelineApp) Run() error {
+ 				// would release the stretched placeholder against stale
+ 				// content. The X property write itself is deferred to the
+ 				// event pump thread (Xlib is not thread-safe).
++				// I5 DIAG: consume one present credit for every real present;
++				// idle frames did not present and keep the budget untouched.
++				if err == nil && !out.Idle {
++					a.presentCredits.Add(-1)
++				}
+ 				if err == nil {
+ 					if fs, ok := a.host.(platform.FrameSync); ok {
+ 						fs.NotifyFrameDrawn()
+@@ -1735,8 +1788,13 @@ func (a *PipelineApp) Run() error {
+ 					// next "frame shown" notice so pacing follows the display
+ 					// server instead of a client-side waiter. No demand → no
+ 					// next frame → no next request → fully idle (块1).
+-					if fn := platform.HostFrameNotifier(a.host); fn != nil {
+-						fn.RequestFrameNotify()
++					// I5 DIAG: call the FrameNotifier directly so the
++					// Wayland path (FrameNotifyAvailable=false for the old
++					// one-frame gate) still returns the present credit.
++					if a.presentCreditsMax > 0 {
++						if fn, ok := a.host.(platform.FrameNotifier); ok {
++							fn.RequestFrameNotify()
++						}
+ 					}
+ 				}
+ 				if frameDraws > 0 {
