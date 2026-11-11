@@ -63,7 +63,7 @@
 - 证据：evidence/P2.6/b2-r6-golden-source.md + 两次跑窗日志。
 - 硬约束：不改动画/门禁语义；R6_SNAP_DIR 覆盖仍生效；测试数据入 testdata。
 
-**下一步：§2.2 剩余 ⬜ 项按序取（B3 / C1 / C5 / C6 / E1 / E3 / G3 / I1 / I2），取项前先登记载体。**
+**下一步：§2.2 剩余 ⬜ 项按序取（C1 / C5 / C6 / E1 / E3 / G3 / I1 / I2），取项前先登记载体。B2、B3 已 ✅。**
 
 **上一任务验证载体（M5 HDR 全链：P0–P5 全批收口 ✅，2026-11-11，存档）**
 
@@ -878,7 +878,7 @@
 | A4 | 审计 + P1.1b | `render/gpu/gpu_nogpu.go` 是 B1 的空包补丁（163 个消费方 blank import 不动）；最小侵入性质与消解路径（消费方按能力门控 / 顶层包拆分）未登记 | P2.5 评估归位 ✅ 2026-10-31 P2.5 评估归位：保留（B1 引擎层正解，导入恒安全）；消费方实测 193 文件/190 空白导入（台账原记 163 过时已修正）；唯一生产非空白消费=stage_chase（!nogpu/nogpu 拆分完好）；消解路径=将来顶层包拆分时自然消解，零代码改动 | ✅ |
 | B1 | P1.6 | `baseline/windows.md:213` 的 `ui_base_vram_cap` 运行档写 A/60s，代码 `examples/ui_base_vram_cap/main.go:67` 是 `gateSeconds=300`；P1.6 证伪后未回填 | P0.2 勘误（baseline 只增不改：在 windows.md 修订表追加勘误行） | ✅ **2026-11-10 勘误已落**：`baseline/windows.md` §7 修订表追加勘误行，写明表内运行档 `A/60s` 是文档过时、代码真源 `examples/ui_base_vram_cap/main.go:67` 是 `gateSeconds=300`；原表按「只增不改」不动。源码已核实 |
 | B2 | P1.4 | `ui_wr_r6_layer_anim` 表内金图 `golden/baseline_igpu.png` 与代码真源不一致（代码读 `R6_SNAP_DIR`，默认 `/tmp/r6_layer_anim/r6_final_base.png`，仓内图未被读取）；`baseline/windows/README.md:42-44` | P2.6 对齐真源/代码 | ✅ **2026-11-11 真源对齐完成**：窗口默认读仓内 `examples/ui_wr_r6_layer_anim/testdata/goldens/r6_final_base.png`（`GPUI_BACKEND=go` 用 `_go.png`），运行期快照仍写 `R6_SNAP_DIR`（默认 `/tmp/r6_layer_anim`，可覆盖，不脏树）；`baseline/windows.md` 表内路径已同步，旧 `golden/baseline_igpu.png` 仅归档。验证：native/go 各两次跑 0.0000%（306280 px）、scripted 6/6；负向 1px 篡改基线 → 0.0003% 红、还原绿。证据 `evidence/P2.6/b2-r6-golden-source.md` |
-| B3 | P1.4 | `ui_text_edit_accept` 的 script 金图自动模式不逐位比较 | P2.6 决策（补逐位或写清替代判定） | ⬜ |
+| B3 | P1.4 | `ui_text_edit_accept` 的 script 金图自动模式不逐位比较 | P2.6 决策（补逐位或写清替代判定） | ✅ **2026-11-11 补逐位完成**：script 模式每个 mark 在状态上屏后用 `RetainedSnapshot` 回放保留包（进程内，goroutine 排队避免卡帧），按 mark 矩形裁片与 `golden/f_script/{s1,s2,s3}.png` 零容差 RGB 逐位比较；capture 在飞期间步进机停走。三片基线重种为引擎快照裁片（旧 xwd 归档 `evidence/P2.6/b3-golden-reseed/`），旧 `/tmp` 外部脚本只作旁证。验证：两次跑 3/3 diff=0、pass=true；1px 篡改 s1 → `1/79200 px differ` 红→还原绿；门禁命令改 `GPUI_ACCEPT_RUN_SECONDS=34`（finish 在 31s）。证据 `evidence/P2.6/b3-script-golden-bitwise.md` |
 | C1 | P1.4 | 14 窗自带 x11grab screen check 在 rootless Xwayland 抓黑图 → 环境 FAIL（`backdrop` p95≈137ms 也被拉高）；`baseline/windows/README.md:33-37` | P2.6 重放环境（隔离真 Xorg/可抓图显示） | ⬜ |
 | C2 | P1.4 | `ui_wr_t_stress` BUILD_FAIL：引用不存在的 `ui/kit/button`、`ui/kit/icon`；`baseline/windows/README.md:41` | 组件线：kit `button`/`icon` 能力补齐后示例才能建（P2.3 已确认与老 GPU 簇无因果，2026-10-29 移出） | ✅ 2026-11-09 源码实证销账：`examples/ui_wr_t_stress` 目录已不存在（示例整删）；`ui/kit/` 的 `icon_*` 已齐全，BUILD_FAIL 与 button 需求随示例删除而消失 |
 | C3 | P1.4 | `ui_ime_probe` 不响应 WM_DELETE，人工探针按兜底 SIGTERM 记 PROBE | P2.4e（窗口关闭协议） | ✅ **2026-11-11 实测销账**：修复已随 P2.4e e4 落地（`03a630be`/`c66041f1`，summary.md:14「C3 ime probe 补 EventCloseRequested」；`x11_linux.go:1552` WM_DELETE→EventCloseRequested 映射 + 探针 `main.go:235-240` 处理分支，注释明示 C3），台账漏销。现行树实测：X11 档 probe 后台起 + ctypes 直发 WM_DELETE ClientMessage（模拟 WM）→ probe 打印 `close requested (WM_DELETE)` 并自行退出（无 SIGTERM 兜底）；验证脚本自身的打包偏移/type 误填两次段错误均即时定位修正（见 P2.4e/summary.md 11-11 收口段），引擎侧零改动 |
@@ -1391,6 +1391,8 @@ docs/render_gpu_converge/
 
 | 2026-11-11 | B2 真源对齐 | **⬜→✅ 收口**：`ui_wr_r6_layer_anim` 金图基线改读仓内 `testdata/goldens/r6_final_base.png`（`GPUI_BACKEND=go` 用 `_go.png`），运行期快照仍走 `R6_SNAP_DIR`（默认 /tmp，可覆盖，不脏树）；`baseline/windows.md` 表内路径同步 + §7 追加；native/go 各两次跑 **0.0000%**（306280 px）、scripted 6/6；负向 1px 篡改基线 → `0.0003%` 红、还原复绿；旧 `golden/baseline_igpu.png` 仅归档。旁注：seed 跑 hitch 8.01 撞既有 ≤5/min 灵敏度（与 C5/E1 同族，不在 B2 改）。 | `evidence/P2.6/b2-r6-golden-source.md`、`evidence/P2.6/b2-windows/` |
 
+| 2026-11-11 | B3 script 逐位 | **⬜→✅ 收口**：`ui_text_edit_accept` script 模式每个 mark 用 `RetainedSnapshot` 回放（进程内，无 xwd），按 mark 矩形裁片与三片 golden 零容差比较；capture 在飞时步进机停走；基线重种为引擎快照裁片（旧 xwd 归档）。验证：两次跑 3/3 diff=0（79200/79200/35200 px）、pass=true；1px 篡改负向 `1/79200 px differ` 红→还原绿；运行时长改 34s。 | `evidence/P2.6/b3-script-golden-bitwise.md`、`evidence/P2.6/b3-windows/`、`evidence/P2.6/b3-golden-reseed/` |
+
 ## 8 修订记录
 
 | 日期 | 修订 |
@@ -1462,3 +1464,4 @@ docs/render_gpu_converge/
 | 2026-11-11 | M5 P5 收口：负向守卫 + 双后端矩阵 + 残留登记；M5 整项 ✅，焦点切回 §2.2 待办池 |
 | 2026-11-11 | M5 后全量回归：主链 13 包 725 文件逐文件门禁；修 1 个 M5 回归（P2 探测顺序）+ 3 个既有红 A/B 归因 |
 | 2026-11-11 | §2.2 池取项 B2：r6 金图真源对齐（仓内 testdata/goldens，native/go 各基线）+ 表内路径同步 + 负向 |
+| 2026-11-11 | §2.2 池取项 B3：script 金图逐位（RetainedSnapshot 裁片 + 零容差 + 基线重种 + 负向） |

@@ -10,7 +10,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/energye/gpui/ui/embedder"
@@ -34,6 +37,8 @@ type scriptConfig struct {
 	dir            string
 }
 
+type scriptRect struct{ x, y, w, h float64 }
+
 type scriptVerify struct {
 	c        scriptConfig
 	t0       time.Time
@@ -54,10 +59,33 @@ type scriptVerify struct {
 	storm    [][2]int
 	states   map[string]any
 	failures []string
+
+	// B3: script golden bitwise compare. Each mark queues a capture; the
+	// next tick after the marked state actually presented replays the retained
+	// packet (in-process, no xwd) and compares the mark rect with
+	// golden/f_script/<tag>.png at zero tolerance.
+	snapDir       string
+	snapPending   []string
+	markRect      map[string]scriptRect
+	markPresent   int64
+	pixelCompared int
+	pixelPassed   int
+	// capturing holds tags whose snapshot goroutine is still in flight; the
+	// step machine refuses to advance until the capture lands (the retained
+	// packet must describe the marked state, not the next one).
+	capturing     []string
+	captureLanded chan string
 }
 
 func newScriptVerify(c scriptConfig) *scriptVerify {
-	return &scriptVerify{c: c, states: map[string]any{}, pending: map[string]float64{}}
+	snapDir := os.Getenv("GPUI_ACCEPT_SCRIPT_SNAP_DIR")
+	if snapDir == "" {
+		snapDir = filepath.Join(os.TempDir(), "accept_script_snap")
+	}
+	_ = os.MkdirAll(snapDir, 0o755)
+	_ = os.RemoveAll(snapDir)
+	_ = os.MkdirAll(snapDir, 0o755)
+	return &scriptVerify{c: c, states: map[string]any{}, pending: map[string]float64{}, markRect: map[string]scriptRect{}, snapDir: snapDir, captureLanded: make(chan string, 8)}
 }
 
 func (s *scriptVerify) failf(format string, args ...any) {
@@ -87,6 +115,11 @@ func utf16Count(str string) int {
 // mark announces a steady state for the outside xwd checker.
 func (s *scriptVerify) mark(tag, kind string, ox, oy, w, h float64) {
 	fmt.Printf("SCRIPT_MARK %s %d %.0f %.0f %.0f %.0f %s\n", tag, time.Now().UnixNano(), ox, oy, w, h, kind)
+	s.markRect[tag] = scriptRect{x: ox, y: oy, w: w, h: h}
+	s.snapPending = append(s.snapPending, tag)
+	if s.c.app != nil {
+		s.markPresent = s.c.app.PresentCount()
+	}
 	if os.Getenv("GPUI_ACCEPT_HANDSHAKE") == "1" {
 		s.pending[tag] = time.Since(s.t0).Seconds()
 	}
@@ -138,12 +171,26 @@ func (s *scriptVerify) tick() {
 	if s.c.app != nil {
 		presented = s.c.app.PresentCount()
 	}
+	// B3: capture each marked state once its frame actually presented (the
+	// retained packet then carries the marked content), and compare it with
+	// the script golden at zero tolerance. The replay is queued from a
+	// goroutine: queueSnapshot spins, and doing that on the UI thread blocks
+	// the very frame that carries the replay.
+	s.drainCaptures()
+	for len(s.snapPending) > 0 && presented > s.markPresent {
+		tag := s.snapPending[0]
+		s.snapPending = s.snapPending[1:]
+		s.startCapture(tag)
+	}
 	fire := func(i int, at float64, fn func()) {
 		if s.done[i] || el < at {
 			return
 		}
 		if i > 0 {
 			if !s.done[i-1] {
+				return
+			}
+			if len(s.capturing) > 0 {
 				return
 			}
 			prevPresented := s.presents[i-1] >= 0 && presented > s.presents[i-1]
@@ -370,6 +417,11 @@ func (s *scriptVerify) stepResized() {
 }
 
 func (s *scriptVerify) finish() {
+	if len(s.snapPending) > 0 || len(s.capturing) > 0 {
+		s.failf("script snapshots never captured: pending=%v in-flight=%v", s.snapPending, s.capturing)
+	}
+	s.states["script_pixel_compared"] = s.pixelCompared
+	s.states["script_pixel_passed"] = s.pixelPassed
 	s.states["presents"] = append([]int64(nil), s.presents...)
 	out := map[string]any{
 		"states":   s.states,
@@ -378,4 +430,113 @@ func (s *scriptVerify) finish() {
 	}
 	raw, _ := json.Marshal(out)
 	fmt.Printf("SCRIPT_VERIFY %s\n", string(raw))
+}
+
+// startCapture queues a retained-packet replay from a goroutine and signals
+// captureLanded when the PNG exists (RetainedSnapshot may time out while the
+// closure still lands; the file is the completion signal).
+func (s *scriptVerify) startCapture(tag string) {
+	path := filepath.Join(s.snapDir, tag+".png")
+	s.capturing = append(s.capturing, tag)
+	go func() {
+		start := time.Now()
+		_ = s.c.app.RetainedSnapshot(path)
+		for time.Since(start) < 5*time.Second {
+			if st, err := os.Stat(path); err == nil && !st.ModTime().Before(start.Add(-2*time.Second)) {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		s.captureLanded <- tag
+	}()
+}
+
+// drainCaptures collects landed captures on the UI thread and runs the bitwise
+// compare against the script golden.
+func (s *scriptVerify) drainCaptures() {
+	for {
+		select {
+		case tag := <-s.captureLanded:
+			s.compareCaptured(tag)
+			for i, t := range s.capturing {
+				if t == tag {
+					s.capturing = append(s.capturing[:i], s.capturing[i+1:]...)
+					break
+				}
+			}
+		default:
+			return
+		}
+	}
+}
+
+func (s *scriptVerify) compareCaptured(tag string) {
+	path := filepath.Join(s.snapDir, tag+".png")
+	if _, err := os.Stat(path); err != nil {
+		s.failf("script snapshot %s missing", tag)
+		return
+	}
+	golden := filepath.Join(s.c.dir, tag+".png")
+	if _, err := os.Stat(golden); err != nil {
+		s.states["script_pixel_"+tag] = map[string]any{"captured": path, "golden": "absent"}
+		return
+	}
+	r, ok := s.markRect[tag]
+	if !ok {
+		s.failf("script snapshot %s: no mark rect", tag)
+		return
+	}
+	diff, total, err := compareScriptCrop(path, golden, r)
+	if err != nil {
+		s.failf("script pixel %s: %v", tag, err)
+		return
+	}
+	s.pixelCompared++
+	s.states["script_pixel_"+tag] = map[string]any{"diff_px": diff, "total_px": total}
+	if diff != 0 {
+		s.failf("script pixel %s: %d/%d px differ (bitwise)", tag, diff, total)
+		return
+	}
+	s.pixelPassed++
+}
+
+func loadScriptPNG(path string) (image.Image, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return png.Decode(f)
+}
+
+// compareScriptCrop compares the mark rect of snapPath with goldenPath (both
+// opaque region captures) on RGB channels, zero tolerance.
+func compareScriptCrop(snapPath, goldenPath string, r scriptRect) (diff, total int, err error) {
+	snap, err := loadScriptPNG(snapPath)
+	if err != nil {
+		return 0, 0, fmt.Errorf("snapshot: %w", err)
+	}
+	gold, err := loadScriptPNG(goldenPath)
+	if err != nil {
+		return 0, 0, fmt.Errorf("golden: %w", err)
+	}
+	sb, gb := snap.Bounds(), gold.Bounds()
+	w, h := int(r.w), int(r.h)
+	if gb.Dx() != w || gb.Dy() != h {
+		return 0, 0, fmt.Errorf("golden %dx%d != mark %dx%d", gb.Dx(), gb.Dy(), w, h)
+	}
+	x0, y0 := int(r.x), int(r.y)
+	if x0 < 0 || y0 < 0 || x0+w > sb.Dx() || y0+h > sb.Dy() {
+		return 0, 0, fmt.Errorf("mark rect outside snapshot %dx%d", sb.Dx(), sb.Dy())
+	}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			sr, sg, sbl, _ := snap.At(sb.Min.X+x0+x, sb.Min.Y+y0+y).RGBA()
+			gr, gg, gbl, _ := gold.At(gb.Min.X+x, gb.Min.Y+y).RGBA()
+			if uint8(sr>>8) != uint8(gr>>8) || uint8(sg>>8) != uint8(gg>>8) || uint8(sbl>>8) != uint8(gbl>>8) {
+				diff++
+			}
+		}
+	}
+	return diff, w * h, nil
 }

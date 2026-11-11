@@ -149,11 +149,12 @@ M3.5 触发数据（同尺寸对照，`face==nil` 估算路径）：1e3 下拼�
 
 ## 剧本像素验收（2026-09-12，F 框尾部空白 + 拖选跳跃问题线）
 
-- 跑法：`GPUI_ACCEPT_SCRIPT=1 GPUI_ACCEPT_RUN_SECONDS=22 go run
+- 跑法：`GPUI_ACCEPT_SCRIPT=1 GPUI_ACCEPT_RUN_SECONDS=34 go run
   ./examples/ui_text_edit_accept`（需先 `export LD_LIBRARY_PATH=$PWD/lib
-  WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so`）。窗内只做驱动加逻辑断言，
-  像素全部交给窗外 `xwd -id` 实拍（窗内 `Image()` 回读按设计是空的，只能看逻辑；
-  转码用 `/tmp/xwd2png.py`，本机无需 `--roll-left`，+769 循环偏移在此合成器路径下未现）。
+  WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so`）。窗内驱动 + 逻辑断言 + **像素逐位**：
+  每个 mark 在状态上屏后用 `RetainedSnapshot` 回放保留包（进程内，不用 xwd），按 mark
+  矩形裁片与 `golden/f_script/<tag>.png` 零容差比较；s1/s2/s3 三片必须 0 差分。
+  窗外 `xwd -id` 实拍仍是可选旁证（旧流程保留，自动门禁不再依赖它）。
 - 三个稳态：s1 尾巴（F 框 25 个回车 + TAIL，滚到最大，散选）→ s2 全选高亮 →
   s3 B 框尾巴（横滚见证）。逻辑门禁（`SCRIPT_VERIFY pass`）：s1 滚到最大（±1px）、
   s2 选中全篇且三点击中配对 3/3、B 横滚 >0。
@@ -166,8 +167,9 @@ M3.5 触发数据（同尺寸对照，`face==nil` 估算路径）：1e3 下拼�
 | s2 | 高亮芯 `= (41,65,106)` ≥300px；墨芯 ≥50px；底部墨 ≥100px | 684 / 120 / 222 ✅ |
 | s3 | B 墨芯 `= (12,191,242)` ≥500px，同族 ≥1500px，非底色 ≥10% | 1106 / 3290 / 20.8% ✅ |
 
-- Golden：`golden/f_script/{s1,s2,s3}.png` 为 xwd 实拍裁片（旧片是窗内空回读，
-  全黑作废已替换），`ref.json` 记数；复跑三片逐位 0.0% ✅（可复现门禁）。
+- Golden：`golden/f_script/{s1,s2,s3}.png` 为**引擎快照裁片**（2026-11-11 B3 重种；
+  旧 xwd 片归档 `evidence/P2.6/b3-golden-reseed/`），`ref.json` 为旧外部检查器的计数参考；
+  自动模式逐位比较 0 容差，复跑三片 0.0% ✅（可复现门禁）。
 - 六框全窗：B/C 浓墨 ~20.8%，F 3.0% 含尾巴，A/D/E 空框只有边框无杂字 ✅。
 - 闪（问题一）：获焦 F 框 `xwd` 120×2 连抓 240 帧，平均亮度中位 35.4 上下只差 0.1，
   掉半帧 0 ✅；补丁 grep 门（`FRMDBG|PRSDBG|NOCLR|TMPDIAG|markTransparent|VisibleContent`，

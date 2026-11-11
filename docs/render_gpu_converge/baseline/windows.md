@@ -454,3 +454,4 @@ PY
 | 2026-11-10 | 勘误（B1，台账整理）：`ui_base_vram_cap` 运行档表内写 `A/60s` 系文档过时，代码真源 `examples/ui_base_vram_cap/main.go:67` 为 `gateSeconds=300`（P1.6 已证伪）；按「baseline 只增不改」仅追加本行勘误，原表条目不动 |
 | 2026-11-10 | 勘误（B2，台账整理）：`ui_wr_r6_layer_anim` 表内金图 `golden/baseline_igpu.png` 与代码真源不一致——代码读 `R6_SNAP_DIR`（默认 `/tmp/r6_layer_anim/r6_final_base.png`），仓内图仅归档参考、未被读取；2026-10-28/2026-10-29 两条已登记，本行补齐代码真源与默认路径。真源/代码对齐仍归 P2.6，未改表内条目 |
 | 2026-11-11 | B2 闭合（真源对齐）：`ui_wr_r6_layer_anim` 金图改读仓内 `examples/ui_wr_r6_layer_anim/testdata/goldens/r6_final_base.png`（`GPUI_BACKEND=go` 用 `_go.png`），运行期快照仍走 `R6_SNAP_DIR`（默认 /tmp，可覆盖）；表内路径同步；native/go 各两次跑 0.0000%（306280 px）、1px 篡改基线负向 0.0003% 红→还原绿；旧 `golden/baseline_igpu.png` 仅归档。 |
+| 2026-11-11 | B3 闭合（script 逐位）：`ui_text_edit_accept` script 模式在 mark 上屏后 RetainedSnapshot 回放裁片，与 `golden/f_script/{s1,s2,s3}.png` 零容差比较（两次跑 3/3 diff=0；1px 篡改负向红→还原绿）；三片基线重种为引擎快照裁片（旧 xwd 归档 `evidence/P2.6/b3-golden-reseed/`）；门禁命令改 `GPUI_ACCEPT_RUN_SECONDS=34`（finish 在 31s）。 |
