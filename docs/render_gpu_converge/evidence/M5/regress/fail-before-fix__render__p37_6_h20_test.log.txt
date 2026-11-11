@@ -1,0 +1,15 @@
+--- FAIL: TestP376H20DeviceResetRunsToCompletion (2.68s)
+    p37_6_h20_test.go:61: 子进程里那两枚测试被跳过了，钉是空的（不能拿 skip 当过）:
+        === RUN   TestMem_T2_ResetAccelerator
+            mem_gpu_lifecycle_test.go:118: CreateOffscreenTexture unavailable
+        --- SKIP: TestMem_T2_ResetAccelerator (0.00s)
+        === RUN   TestP04_ApplyDropShadowGPU
+            p04_filter_gpu_test.go:100: shadow gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base=1
+            p04_filter_gpu_test.go:106: content=229,51,51,255
+            p04_filter_gpu_test.go:117: shadow sample at 52,48 = 0,0,0,108
+        --- PASS: TestP04_ApplyDropShadowGPU (0.44s)
+        PASS
+        ok  	github.com/energye/gpui/render	0.539s
+FAIL
+FAIL	github.com/energye/gpui/render	2.690s
+FAIL

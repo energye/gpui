@@ -1,0 +1,5 @@
+--- FAIL: TestDrawShadowReplayParity (0.47s)
+    draw_shadow_test.go:130: replay parity: 716/32000 px differ (2.24%)
+FAIL
+FAIL	github.com/energye/gpui/render/recording	0.529s
+FAIL

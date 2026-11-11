@@ -137,6 +137,12 @@ func (s *GPUShared) offscreenFormatRenderable(f types.TextureFormat) bool {
 	}
 	device, queue := s.device, s.queue
 	s.mu.Unlock()
+	if device == nil {
+		// Not initialized yet: do not cache a false negative for this
+		// device generation (H20: a probe before ensureGPU poisoned the
+		// cache and CreateOffscreenTexture stayed unavailable).
+		return false
+	}
 
 	ok := probeOffscreenFormatRenderable(device, queue, f)
 

@@ -60,6 +60,17 @@ P4 API 形状：方案 B「格式跟随目标视图」（Skia surface color type
 以上均不阻塞 M5 登记的「目标格式概念 + float 离屏 RT + tonemap/曝光 pass + 呈现输出 +
 双后端逐位」范围。
 
-## 5 结论
+## 5 全量回归（M5 后，2026-11-11）
+
+主链 13 包逐文件门禁 725 文件 / 1h01m：693 PASS / 4 FAIL / 28 SKIP_TAGGED。
+- 1 个 M5 回归（已修）：P2 的能力探测跑在 ensureGPU 之前，把「设备未建」缓存成
+  「格式不支持」，H20 子进程 CreateOffscreenTexture 变空。修法=白名单→ensureGPU→
+  设备探测，且 device==nil 不写缓存；钉 TestP5OffscreenBeforeDeviceInit。
+- 3 个既有红（pre-M5 worktree 0ad8bad1 上同样失败）：recording 的设备缩放边缘、
+  DrawShadow replay 716/32000（P4.3 在册）、p37_3e3 对照组。
+- 修复后：H20 PASS、HDR 真窗双后端 0.0000% ⇒ 694 PASS / 3 既有红。
+- 正本 evidence/M5/regress/full-gate.md。
+
+## 6 结论
 
 M5 登记范围全部交付并有双后端真窗证据；台账 M5 行翻 ✅。

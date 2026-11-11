@@ -4115,7 +4115,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 // the underlying error. The caller owns the returned release.
 func (rc *GPURenderContext) CreateOffscreenTextureFormat(w, h int, format types.TextureFormat) (gpucontext.TextureView, func(), error) {
 	format = normalizeOffscreenFormat(format)
-	if !rc.offscreenFormatRenderable(format) {
+	if !offscreenEngineFormats(format) {
 		return gpucontext.TextureView{}, nil, unsupportedOffscreenFormat(format)
 	}
 	if rc.shared == nil {
@@ -4135,6 +4135,12 @@ func (rc *GPURenderContext) CreateOffscreenTextureFormat(w, h int, format types.
 	device := rc.shared.Device()
 	if device == nil {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("offscreen: device is nil")
+	}
+	// Capability probe runs only after the device is live: probing before
+	// ensureGPU would cache a false negative for the whole device generation
+	// (H20 regression, P5 full gate).
+	if !rc.shared.offscreenFormatRenderable(format) {
+		return gpucontext.TextureView{}, nil, unsupportedOffscreenFormat(format)
 	}
 	key := offscreenKey(w, h, format)
 	poolOn := os.Getenv("GPUI_NO_OFFSCREEN_POOL") != "1"

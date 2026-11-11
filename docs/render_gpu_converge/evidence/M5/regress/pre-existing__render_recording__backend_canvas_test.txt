@@ -1,0 +1,6 @@
+--- FAIL: TestCanvasBackendReplaysAtDeviceScale (0.00s)
+    backend_canvas_test.go:95: just left of the device edge (59,20) = {0.0196078431372549 0 0 0.0196078431372549}, want clean (no upscale smear)
+    backend_canvas_test.go:104: just past the right edge (100,20) = {0.0196078431372549 0 0 0.0196078431372549}, want clean
+FAIL
+FAIL	github.com/energye/gpui/render/recording	0.508s
+FAIL

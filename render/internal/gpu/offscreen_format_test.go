@@ -169,6 +169,20 @@ func TestP2OffscreenPoolSeparatesFormats(t *testing.T) {
 	r16b()
 }
 
+// P5 全量门禁抓到的 H20 回归：能力探测若发生在 ensureGPU 之前，会把「设备还没建」
+// 缓存成「格式不支持」，之后 CreateOffscreenTexture 永远返回空。本钉不预初始化设备。
+func TestP5OffscreenBeforeDeviceInit(t *testing.T) {
+	shared := NewGPUShared()
+	t.Cleanup(shared.Close)
+	rc := shared.NewRenderContext()
+	t.Cleanup(rc.Close)
+	view, release := rc.CreateOffscreenTexture(8, 8)
+	if view.IsNil() || release == nil {
+		t.Fatal("CreateOffscreenTexture before initGPU returned no target (probe poisoned the cache)")
+	}
+	release()
+}
+
 // The historical 8-bit entry keeps its contract (non-nil view, no error leak).
 func TestP2OffscreenLegacyEntryStillWorks(t *testing.T) {
 	_, rc := newP2Shared(t)

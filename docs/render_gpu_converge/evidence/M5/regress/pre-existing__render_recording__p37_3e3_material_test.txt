@@ -1,0 +1,5 @@
+--- FAIL: TestP37E3CanvasBackendScopedShaderNoLeak (0.48s)
+    p37_3e3_material_test.go:219: 对照组（无材质）什么都没画：这条鉴别不成立
+FAIL
+FAIL	github.com/energye/gpui/render/recording	0.532s
+FAIL
