@@ -1,0 +1,19 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0001b01e0 ctx=0xc00014e980
+snapshot: examples/ui_wr_r7b_scroll_reuse/testdata/showcase_r7b_scroll_reuse.png
+ui_wr_r7b_scroll_reuse: pixel track_bg           bg  @( 913, 460) got=(0.051,0.059,0.078) want=(0.050,0.060,0.080) ok=true
+ui_wr_r7b_scroll_reuse: pixel gap_body_bg        bg  @( 930, 360) got=(0.098,0.110,0.129) want=(0.100,0.110,0.130) ok=true
+ui_wr_r7b_scroll_reuse: pixel right_bg           bg  @(1138, 620) got=(0.110,0.122,0.149) want=(0.110,0.120,0.150) ok=true
+ui_wr_r7b_scroll_reuse: pixel right_cell_00      fg  @( 976, 150) got=(0.141,0.451,0.298) want=(0.140,0.450,0.300) ok=true
+ui_wr_r7b_scroll_reuse: pixel right_cell_33      fg  @(1150, 324) got=(0.380,0.631,0.298) want=(0.380,0.630,0.300) ok=true
+ui_wr_r7b_scroll_reuse: pixel legend_bg          bg  @(  32, 680) got=(0.110,0.122,0.149) want=(0.110,0.120,0.150) ok=true
+ui_wr_r7b_scroll_reuse: pixel top_bg             bg  @(1000,  24) got=(0.122,0.141,0.180) want=(0.120,0.140,0.180) ok=true
+ui_wr_r7b_scroll_reuse: pixel thumb              fg  @( 913, 100) got=(0.451,0.749,0.949) want=(0.450,0.750,0.950) ok=true
+ui_wr_r7b_scroll_reuse: pixel row0021_base       fg  @( 603, 276) got=(0.161,0.388,0.549) want=(0.160,0.390,0.550) ok=true
+ui_wr_r7b_scroll_reuse: pixel row0019_chip       fg  @( 313, 125) got=(0.118,0.627,0.784) want=(0.118,0.627,0.784) ok=true
+ui_wr_r7b_scroll_reuse: ink   right_title_ink    region=( 950,  70 210x16) ink_px=913 want>=20 ok=true
+ui_wr_r7b_scroll_reuse: ink   range_label_ink    region=( 950,  94 200x16) ink_px=660 want>=20 ok=true
+ui_wr_r7b_scroll_reuse: ink   static_labels_ink  region=( 950, 370 230x40) ink_px=1200 want>=30 ok=true
+ui_wr_r7b_scroll_reuse: ink   row0020_text_ink   region=( 298, 198 240x16) ink_px=1188 want>=20 ok=true
+ui_wr_r7b_scroll_reuse: golden showcase_r7b_scroll_reuse.png: diff=2.5134% over 821184 px
+FAIL: pixel_golden_diff_pct=2.5134 want 0 over 821184 px

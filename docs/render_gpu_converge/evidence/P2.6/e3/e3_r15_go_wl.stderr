@@ -1,0 +1,9 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc000166000 ctx=0xc000128100
+snapshot: /tmp/r15_soak/r15_final.png
+ui_wr_r15_soak: pixel nested_inner_intact_over_soak    @( 854, 255) got=(0.620,0.380,0.278) want=(0.620,0.380,0.280) ok=true
+ui_wr_r15_soak: pixel scrolled_in_row_content_correct  @( 332, 408) got=(0.161,0.620,0.620) want=(0.160,0.620,0.620) ok=true
+ui_wr_r15_soak: pixel overlay_zone_closed_no_residue   @(1050, 645) got=(0.098,0.110,0.129) want=(0.100,0.110,0.130) ok=true
+ui_wr_r15_soak: pixel static_note_text_density         text_px=648 (want >=120) ok=true
+ui_wr_r15_soak: golden r15_final.png: diff=0.0000% over 296292 px
+FAIL: RUN_SECONDS=60 want >=300 (§2.5 Soak 长跑 档关闭用时长)

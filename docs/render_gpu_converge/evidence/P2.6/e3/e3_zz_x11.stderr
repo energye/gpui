@@ -1,0 +1,2 @@
+CTRL win1 presents=1147 ~55.8 fps avg=17.50 p50=17.47 p95=19.82 hitches=1 raster=15.23 flush=1.17 acquire=11.36 presentWait=0.11 rerecord=15 skip=9144
+CTRL win2 presents=1144 ~55.7 fps avg=17.52 p50=17.54 p95=20.59 hitches=1 raster=5.49 flush=0.76 acquire=0.69 presentWait=0.16 rerecord=15 skip=9120
