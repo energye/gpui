@@ -31,7 +31,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
-	"image/png"
 	"math"
 	"os"
 	"path/filepath"
@@ -364,22 +363,25 @@ func main() {
 	snapSteadyAt, snapRecoverAt := phaseLen+1.0, 2*phaseLen+phaseLen*2.0/3.0
 
 	saveSnap := func(name string) {
-		img := app.Target().Context().Image()
-		if img == nil {
-			fmt.Fprintf(os.Stderr, "snapshot %s: no image\n", name)
+		dc := app.Target().Context()
+		if dc == nil {
+			fmt.Fprintf(os.Stderr, "snapshot %s: no gpu context\n", name)
 			return
 		}
-		f, err := os.Create(filepath.Join(snapDir, name))
-		if err != nil {
+		// I4 (P2.4d era): the post-present context Image() reads the CPU
+		// pixmap, which real-swapchain GPU frames never sync into — mid-run
+		// shots came out all-black (5585-byte zero PNGs, P1.4 archive 同图).
+		// Repaint the live tree into the context first (r1's pattern:
+		// PaintPresentTree inside SnapshotAsync), then SavePNG.
+		dc.BeginFrame()
+		embedder.PaintPresentTree(dc, app.Pipeline(), shell.Root, nil,
+			clearBG[0], clearBG[1], clearBG[2], 1, true)
+		path := filepath.Join(snapDir, name)
+		if err := dc.SavePNG(path); err != nil {
 			fmt.Fprintf(os.Stderr, "snapshot %s: %v\n", name, err)
 			return
 		}
-		defer f.Close()
-		if err := png.Encode(f, img); err != nil {
-			fmt.Fprintf(os.Stderr, "snapshot %s: %v\n", name, err)
-			return
-		}
-		fmt.Fprintf(os.Stderr, "snapshot stored: %s\n", name)
+		fmt.Fprintf(os.Stderr, "snapshot %s: %s\n", name, path)
 	}
 
 	app.Scheduler().Tickers().Add(&tickerT{on: func(dt float64) {
