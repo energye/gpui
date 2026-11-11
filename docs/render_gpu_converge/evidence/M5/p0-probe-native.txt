@@ -1,0 +1,5 @@
+=== RUN   TestM5HDR16FRenderTargetProbe
+    hdr_16f_probe_test.go:195: M5 P0 RGBA16Float center half bits: got=4100/3400/3000/3a00 want=4100/3400/3000/3a00
+--- PASS: TestM5HDR16FRenderTargetProbe (0.25s)
+PASS
+ok  	github.com/energye/gpui/render/internal/gpu	0.261s
