@@ -53,7 +53,7 @@
 
 - ✅ **22 窗金图漂移已收口**：44 轮双后端采集 → 21/22 判基线过期（未发现渲染洞）→ 用户确认 → 21 窗重种；native/go 42 轮复跑全 `0.0000%`；窗口级 1px 负向 12.9901% 红→还原绿；`ui_render_base_svg` 0.0000% 不重种。
 - ✅ **I5 v2 已收口**：`ui_base_vram_cap` 8 窗按既有证据重种；native Mailbox + go/gles 各 300s cascade，8/8 窗 `0.0000%`、像素 16/16、rc=0。
-- 余项：D2（余留既有红，有意保留）、N1（可选）、N3（`ui_base_vram_cap` 首窗 snapshot 偶发未写出，已登记）、soak 两项；主表 P0–P4 全 ✅。
+- 余项：D2（余留既有红，有意保留）、N1（可选）、N3 ✅ 2026-11-12（snapshot 竞态已修）、soak 两项；主表 P0–P4 全 ✅。下一步候选：P3.1b sRGB 目标格式整链（需先立项评估）。
 - 已收口：I1、I2、C7、I3、C1–C6、E1/E3、G3、B2/B3 等，详见 §2.2。
 - **任务总表（P0–P4）在本节末**；下面的专项索引只列不属于主表 / §2.2 待办池的已收口项。
 - **本节只保留 1 个「当前任务验证载体」**；当前无活动任务，收口块已用索引行替换（规则见 §6.1）。
@@ -191,7 +191,7 @@
 | M6 | P3.7 批 2 前置探针 | `SetEffectSurface(true)` 下 `ExportImageBuf` R/B 互换（同一绘制 `(255,0,0)` → `(0,0,255)`，两档都真走 GPU） | 色空间/通道口径单点化 | ✅ 2026-11-05：真病灶=`filter_ops_gpu.go:806-813` 无条件走不翻通道读回，而效果面发布 BGRA8；按纹理真实格式选读回 + 未知格式 fail-closed；两钉 + 负向 N15/N16；`evidence/P3.7/m6-export-byteorder.md` |
 | N1 | P4.3 收口 | backdrop 损伤区裁剪的「静止帧 + retained/hybrid」增量二轮未做：二轮 `damage_area_px` 恒 960000 是测量窗每帧 `ScheduleFrame` 全量重绘 + `PresentPolicyFullPaint` 标签造成，非 backdrop 造成 | 渲染专项（可选）：改测量窗不每帧调度、切 retained/hybrid，看 `damage_area_px` 是否收敛到 153600；须给客观收益 + 双后端逐位 + 负向，否则维持不优化 | ⬜ 可选后续（2026-11-10 用户拍板 P4.3 收口时登记，不阻塞） |
 | N2 | P2.6 22 窗漂移 | `ui_render_base_webp` 逻辑探针 `webp_lossless_format` 仍期望 `FormatRGBA8`，P3.8 `d5f9af60` 已把 `FromStdImage` 统一为 `FormatRGBAPremul`（`render/internal/image/io.go:313-355`）；像素探针 24/24、alpha 直方图 379/64/5701 全过，仅格式标签过期 | P2.6（随 21 窗金图重种批） | ✅ 2026-11-12 已改为期望 `FormatRGBAPremul`；重种后复跑 logic 19/19、pixel 24/24、golden 0.0000% |
-| N3 | P2.6 I5 金图重种 | `ui_base_vram_cap` gate 首窗 `snapshot:` 偶发未写出：native 300s 第一轮 7/8 行（win1 缺），gate 读取陈旧 `vram_win1.png` 误报 17.5273%；第二轮 8/8 行、全 0.0000% | P2.6/P2.4e（查 `runOnGL` 关闭竞态，补「snapshot 未写出」显式失败） | 🟡 2026-11-12 登记；不阻塞 I5 语义收口 |
+| N3 | P2.6 I5 金图重种 | `ui_base_vram_cap` gate 首窗 `snapshot:` 偶发未写出：native 300s 第一轮 7/8 行（win1 缺），gate 读取陈旧 `vram_win1.png` 误报 17.5273%；第二轮 8/8 行、全 0.0000% | P2.6/P2.4e（查 `runOnGL` 关闭竞态，补「snapshot 未写出」显式失败） | ✅ 2026-11-12：根因=`runDone` 的 Wait→Add 竞态使主 goroutine 提前 `Close()`，首窗 target 置 nil、快照静默跳过；修=windowsOpened 屏障 + gate 前删旧 PNG + 缺文件/不可读显式 FAIL + embedder target/context unavailable 报错；5×60s、native/go 300s 均 8/8 `0.0000%`，只读负向 8/8 `snapshot missing` 红；`evidence/P2.6/golden-drift/n3-snapshot-race/assessment.md` |
 
 ## 3 每个任务的开工条件与完成标准
 
@@ -476,6 +476,7 @@ docs/render_gpu_converge/
 | 2026-11-12 | I2 | 复跑 PASS：同尺寸 Resize no-op + `MarkNeedsReconfigure` 显式口，Impeller KHR/AHB 对照一致；e4 已实现，台账滞后销账 | `evidence/P2.4e/i2/` |
 | 2026-11-12 | C7 | 闭合 Wayland 第二机制：per-surface context 各自 `eglTerminate` 同一 native display → 关窗 SIGSEGV；修=EGLDisplay 按 native display 引用计数 + 借用 Wayland display 不 terminate；8 窗 300s 全开/全 present/正常退出 | `evidence/P2.4e/c7-wayland-verify/closeout.md` |
 | 2026-11-12 | 22 窗金图漂移/I5 | 44 轮双后端采集 → 21/22 判基线过期（0.1880%–31.7164%，svg 0.0000% 对照）；用户确认后 21 窗重种，42 轮复跑 0.0000%、1px 负向 12.9901% 红→还原绿；I5 `ui_base_vram_cap` 8 窗重种，native/go 各 300s 8/8 0.0000%；webp 探针改 premul；首窗 snapshot 竞态登记 N3 | `evidence/P2.6/golden-drift/` |
+| 2026-11-12 | N3 | 首窗 snapshot 未写出根因=`runDone` Wait→Add 竞态（主 goroutine 提前 Close 置 target nil）；修=windowsOpened 屏障 + gate 前删旧 PNG + 缺文件显式 FAIL + embedder 报错；5×60s 与 native/go 300s 全 8/8，只读负向 8/8 红 | `evidence/P2.6/golden-drift/n3-snapshot-race/assessment.md` |
 
 ## 8 修订记录（摘要；全文见存档）
 
@@ -492,3 +493,4 @@ docs/render_gpu_converge/
 | 2026-11-12 | 收敛版（内容截至 2026-11-11）：主文件压缩为当前状态/口径/决策/证据指针；§2.1 历史载体块、§7 全量流水、§8 全量修订冻结到 `docs/render_gpu_converge/archive/ENGINE_RENDER_GPU_CONVERGE_TASKS_2026-11-11_full.md`，逐字保留不丢精度 |
 | 2026-11-12 | I5 设计换向：从 present worker/设备隔离改为 native Wayland 非阻塞 present（Mailbox）根因修复；旧设计标废弃，v2 设计与诊断证据落盘 |
 | 2026-11-12 | 金图重种口径：只对「基线过期」重种，须有双后端内容逐字节同 + 平移 (0,0) + 内部采样 + 对照窗（SDF LUT 后重种窗 0%）证据；重种后双后端复跑 0.0000% + 1px 负向；禁止无证据重种 |
+| 2026-11-12 | N3 证据纪律：gate 开始前清旧快照，缺文件/不可读显式 FAIL；embedder 快照 target/context 不可用不得静默，必须留错误行 |

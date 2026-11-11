@@ -1852,20 +1852,27 @@ func (a *PipelineApp) Run() error {
 		// painting from the UI thread would bind-fail (0x3002) and silently
 		// return a stale pixmap.
 		a.runOnGL(func() {
-			if dc := a.target.Context(); dc != nil {
-				dc.BeginFrame()
-				// Snapshot repaint must honor the same per-frame SaveLayer
-				// budget/stats as loop frames — otherwise the captured "final
-				// frame" diverges from what actually presented (C6: budgetless
-				// repaint wrongly allowed the second offscreen group).
-				paintPresentTreeWithOpts(dc, a.pipe, a.root, a.opts.Overlay,
-					a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, false,
-					a.snapshotPaintOpts())
-				if err := dc.SavePNG(a.opts.SnapshotPath); err != nil {
-					fmt.Fprintf(os.Stderr, "snapshot: %v\n", err)
-				} else {
-					fmt.Fprintf(os.Stderr, "snapshot: %s\n", a.opts.SnapshotPath)
-				}
+			if a.target == nil {
+				fmt.Fprintf(os.Stderr, "snapshot: target unavailable (window closed before snapshot): %s\n", a.opts.SnapshotPath)
+				return
+			}
+			dc := a.target.Context()
+			if dc == nil {
+				fmt.Fprintf(os.Stderr, "snapshot: context unavailable: %s\n", a.opts.SnapshotPath)
+				return
+			}
+			dc.BeginFrame()
+			// Snapshot repaint must honor the same per-frame SaveLayer
+			// budget/stats as loop frames — otherwise the captured "final
+			// frame" diverges from what actually presented (C6: budgetless
+			// repaint wrongly allowed the second offscreen group).
+			paintPresentTreeWithOpts(dc, a.pipe, a.root, a.opts.Overlay,
+				a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, false,
+				a.snapshotPaintOpts())
+			if err := dc.SavePNG(a.opts.SnapshotPath); err != nil {
+				fmt.Fprintf(os.Stderr, "snapshot: %v\n", err)
+			} else {
+				fmt.Fprintf(os.Stderr, "snapshot: %s\n", a.opts.SnapshotPath)
 			}
 		})
 		a.loop.Stop() // snapshot taken: this window presents no more frames

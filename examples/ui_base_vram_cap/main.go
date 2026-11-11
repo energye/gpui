@@ -328,6 +328,13 @@ func main() {
 	snapDir := filepath.Join("examples", "ui_base_vram_cap", "testdata")
 	if gateMode {
 		os.MkdirAll(snapDir, 0o755)
+		// N3: remove the previous gate snapshots before the run. If a window
+		// cannot produce its final snapshot (target parked/closed), the gate
+		// must fail on a missing file instead of silently comparing a stale
+		// PNG from an earlier run.
+		for i := 1; i <= ladderSteps; i++ {
+			_ = os.Remove(filepath.Join(snapDir, fmt.Sprintf("vram_win%d.png", i)))
+		}
 	}
 
 	budgetMB := float64(render.VramBudgetMB())
@@ -413,8 +420,16 @@ func main() {
 	var phaseMu sync.Mutex
 	holdStart := time.Time{}
 	ctrlDone := make(chan struct{})
+	// windowsOpened gates the run-completion waiter: a sync.WaitGroup must not
+	// start Waiting before every Add, otherwise runDone can close while the
+	// first windows are still opening and the main goroutine's Close() races
+	// the per-window final snapshot (N3: win1 target nil -> stale golden).
+	windowsOpened := make(chan struct{})
+	var openedOnce sync.Once
+	markOpened := func() { openedOnce.Do(func() { close(windowsOpened) }) }
 	go func() {
 		defer close(ctrlDone)
+		defer markOpened()
 		// Incremental open IS the pressure ladder (registered row-17 plan:
 		// 2/4/8 windows): the shared fair share divides by the live window
 		// count, so each step raises shared pressure past the next
@@ -424,6 +439,9 @@ func main() {
 		for _, n := range ladder {
 			openBatch(prev, n-prev)
 			prev = n
+			if n == ladder[len(ladder)-1] {
+				markOpened()
+			}
 			if !sleepStop(time.Duration(openSettle*float64(time.Second)), stop) {
 				return
 			}
@@ -464,7 +482,11 @@ func main() {
 	}()
 
 	runDone := make(chan struct{})
-	go func() { wg.Wait(); close(runDone) }()
+	go func() {
+		<-windowsOpened
+		wg.Wait()
+		close(runDone)
+	}()
 
 	// Ledger + RSS series sampler: measurement must not drive frames, so it
 	// runs on a plain 500ms goroutine. The series feeds the hold-segment
@@ -577,8 +599,26 @@ func main() {
 		bg := [3]float64{0.08, 0.09, 0.12}
 		res := make(map[string]bool)
 		for i, w := range wins {
-			img := loadImage(w.path)
 			prefix := fmt.Sprintf("win%d_", i+1)
+			if _, err := os.Stat(w.path); err != nil {
+				// N3: no final snapshot for this window. Keep the gate red with
+				// an explicit reason instead of comparing a stale PNG.
+				pixelTotal += 2 // bg + ink checks below
+				pixelBad = append(pixelBad, prefix+"snapshot_missing")
+				goldenPer[i] = 100
+				goldenMax = 100
+				fmt.Fprintf(os.Stderr, "FAIL: %ssnapshot missing: %s (%v)\n", prefix, w.path, err)
+				continue
+			}
+			img := loadImage(w.path)
+			if img == nil {
+				pixelTotal += 2
+				pixelBad = append(pixelBad, prefix+"snapshot_unreadable")
+				goldenPer[i] = 100
+				goldenMax = 100
+				fmt.Fprintf(os.Stderr, "FAIL: %ssnapshot unreadable: %s\n", prefix, w.path)
+				continue
+			}
 			checks := []pixelCheck{
 				{desc: prefix + "bg", x: 10, y: winH - 10, want: bg, tol: 0.05, kind: kindBG},
 			}

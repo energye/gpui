@@ -1,0 +1,29 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_base_vram_cap: win 1 present_mode=mailbox
+ui_base_vram_cap: win 2 present_mode=mailbox
+ui_base_vram_cap: phase n=2 shared=2 fps_min=46.3 refusals=+0 (total 4) live=92.8MB (max 92.8) fair/win=96.0MB
+ui_base_vram_cap: win 3 present_mode=mailbox
+ui_base_vram_cap: win 4 present_mode=mailbox
+ui_base_vram_cap: phase n=4 shared=4 fps_min=22.2 refusals=+445 (total 600) live=179.1MB (max 179.1) fair/win=48.0MB
+ui_base_vram_cap: win 5 present_mode=mailbox
+ui_base_vram_cap: win 6 present_mode=mailbox
+ui_base_vram_cap: win 7 present_mode=mailbox
+ui_base_vram_cap: win 8 present_mode=mailbox
+ui_base_vram_cap: phase n=8 shared=8 fps_min=11.4 refusals=+687 (total 1514) live=355.1MB (max 355.1) fair/win=24.0MB
+snapshot: open examples/ui_base_vram_cap/testdata/vram_win3.png: permission denied
+snapshot: open examples/ui_base_vram_cap/testdata/vram_win4.png: permission denied
+snapshot: open examples/ui_base_vram_cap/testdata/vram_win5.png: permission denied
+snapshot: open examples/ui_base_vram_cap/testdata/vram_win6.png: permission denied
+snapshot: open examples/ui_base_vram_cap/testdata/vram_win7.png: permission denied
+snapshot: open examples/ui_base_vram_cap/testdata/vram_win8.png: permission denied
+snapshot: open examples/ui_base_vram_cap/testdata/vram_win1.png: permission denied
+snapshot: open examples/ui_base_vram_cap/testdata/vram_win2.png: permission denied
+FAIL: win1_snapshot missing: examples/ui_base_vram_cap/testdata/vram_win1.png (stat examples/ui_base_vram_cap/testdata/vram_win1.png: no such file or directory)
+FAIL: win2_snapshot missing: examples/ui_base_vram_cap/testdata/vram_win2.png (stat examples/ui_base_vram_cap/testdata/vram_win2.png: no such file or directory)
+FAIL: win3_snapshot missing: examples/ui_base_vram_cap/testdata/vram_win3.png (stat examples/ui_base_vram_cap/testdata/vram_win3.png: no such file or directory)
+FAIL: win4_snapshot missing: examples/ui_base_vram_cap/testdata/vram_win4.png (stat examples/ui_base_vram_cap/testdata/vram_win4.png: no such file or directory)
+FAIL: win5_snapshot missing: examples/ui_base_vram_cap/testdata/vram_win5.png (stat examples/ui_base_vram_cap/testdata/vram_win5.png: no such file or directory)
+FAIL: win6_snapshot missing: examples/ui_base_vram_cap/testdata/vram_win6.png (stat examples/ui_base_vram_cap/testdata/vram_win6.png: no such file or directory)
+FAIL: win7_snapshot missing: examples/ui_base_vram_cap/testdata/vram_win7.png (stat examples/ui_base_vram_cap/testdata/vram_win7.png: no such file or directory)
+FAIL: win8_snapshot missing: examples/ui_base_vram_cap/testdata/vram_win8.png (stat examples/ui_base_vram_cap/testdata/vram_win8.png: no such file or directory)
+FAIL: hold segment missing or too short (hold_sec=0): the leak line needs the fixed-8-window hold

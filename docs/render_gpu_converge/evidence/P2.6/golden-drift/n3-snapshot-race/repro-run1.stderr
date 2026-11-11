@@ -1,0 +1,77 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_base_vram_cap: win 1 present_mode=mailbox
+ui_base_vram_cap: win 2 present_mode=mailbox
+ui_base_vram_cap: phase n=2 shared=2 fps_min=45.3 refusals=+0 (total 4) live=92.8MB (max 92.8) fair/win=96.0MB
+ui_base_vram_cap: win 3 present_mode=mailbox
+ui_base_vram_cap: win 4 present_mode=mailbox
+ui_base_vram_cap: phase n=4 shared=4 fps_min=22.7 refusals=+455 (total 596) live=180.2MB (max 180.2) fair/win=48.0MB
+ui_base_vram_cap: win 5 present_mode=mailbox
+ui_base_vram_cap: win 6 present_mode=mailbox
+ui_base_vram_cap: win 7 present_mode=mailbox
+ui_base_vram_cap: win 8 present_mode=mailbox
+ui_base_vram_cap: phase n=8 shared=8 fps_min=11.6 refusals=+701 (total 1546) live=355.1MB (max 355.1) fair/win=24.0MB
+SNAPDBG start path="examples/ui_base_vram_cap/testdata/vram_win5.png" target_nil=false loop_nil=false quit=true
+SNAPDBG start path="examples/ui_base_vram_cap/testdata/vram_win3.png" target_nil=false loop_nil=false quit=true
+SNAPDBG start path="examples/ui_base_vram_cap/testdata/vram_win6.png" target_nil=false loop_nil=false quit=true
+SNAPDBG start path="examples/ui_base_vram_cap/testdata/vram_win4.png" target_nil=false loop_nil=false quit=true
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win1.png" target_nil=false
+SNAPDBG start path="examples/ui_base_vram_cap/testdata/vram_win8.png" target_nil=false loop_nil=false quit=true
+SNAPDBG start path="examples/ui_base_vram_cap/testdata/vram_win1.png" target_nil=false loop_nil=false quit=true
+SNAPDBG start path="examples/ui_base_vram_cap/testdata/vram_win7.png" target_nil=false loop_nil=false quit=true
+SNAPDBG start path="examples/ui_base_vram_cap/testdata/vram_win2.png" target_nil=false loop_nil=false quit=true
+snapshot: examples/ui_base_vram_cap/testdata/vram_win3.png
+SNAPDBG done path="examples/ui_base_vram_cap/testdata/vram_win3.png"
+snapshot: examples/ui_base_vram_cap/testdata/vram_win4.png
+SNAPDBG done path="examples/ui_base_vram_cap/testdata/vram_win4.png"
+snapshot: examples/ui_base_vram_cap/testdata/vram_win5.png
+SNAPDBG done path="examples/ui_base_vram_cap/testdata/vram_win5.png"
+snapshot: examples/ui_base_vram_cap/testdata/vram_win6.png
+SNAPDBG done path="examples/ui_base_vram_cap/testdata/vram_win6.png"
+snapshot: examples/ui_base_vram_cap/testdata/vram_win7.png
+SNAPDBG done path="examples/ui_base_vram_cap/testdata/vram_win7.png"
+snapshot: examples/ui_base_vram_cap/testdata/vram_win8.png
+SNAPDBG target nil in closure path="examples/ui_base_vram_cap/testdata/vram_win1.png"
+SNAPDBG done path="examples/ui_base_vram_cap/testdata/vram_win8.png"
+SNAPDBG done path="examples/ui_base_vram_cap/testdata/vram_win1.png"
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win1.png" target_nil=true
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win2.png" target_nil=false
+snapshot: examples/ui_base_vram_cap/testdata/vram_win2.png
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win3.png" target_nil=false
+SNAPDBG done path="examples/ui_base_vram_cap/testdata/vram_win2.png"
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win7.png" target_nil=false
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win6.png" target_nil=false
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win4.png" target_nil=false
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win8.png" target_nil=false
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win5.png" target_nil=false
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win3.png" target_nil=false
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win2.png" target_nil=true
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win4.png" target_nil=true
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win5.png" target_nil=true
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win6.png" target_nil=true
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win7.png" target_nil=true
+SNAPDBG Close path="examples/ui_base_vram_cap/testdata/vram_win8.png" target_nil=true
+ui_base_vram_cap: pixel win1_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win1_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win1_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win2_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win2_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win2_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win3_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win3_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win3_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win4_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win4_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win4_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win5_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win5_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win5_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win6_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win6_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win6_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win7_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win7_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win7_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win8_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win8_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win8_base.png: diff=0.0000% over 281600 px
+FAIL: hold segment missing or too short (hold_sec=0): the leak line needs the fixed-8-window hold
