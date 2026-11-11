@@ -132,7 +132,7 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 		Fragment: &hal.FragmentState{
 			Module: shader, EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{{
-				Format: types.TextureFormatBGRA8Unorm, Blend: &premul, WriteMask: types.ColorWriteMaskAll,
+				Format: colorFormatOr(sr.colorFormat), Blend: &premul, WriteMask: types.ColorWriteMaskAll,
 			}},
 		},
 		DepthStencil: &hal.DepthStencilState{
@@ -481,7 +481,7 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 		Fragment: &hal.FragmentState{
 			Module: shader, EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{{
-				Format: types.TextureFormatBGRA8Unorm, Blend: &premul, WriteMask: types.ColorWriteMaskAll,
+				Format: colorFormatOr(sr.colorFormat), Blend: &premul, WriteMask: types.ColorWriteMaskAll,
 			}},
 		},
 		DepthStencil: &hal.DepthStencilState{

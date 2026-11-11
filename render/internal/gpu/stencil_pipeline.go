@@ -207,7 +207,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(sr.colorFormat),
 					WriteMask: types.ColorWriteMaskNone,
 				},
 			},
@@ -262,7 +262,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(sr.colorFormat),
 					WriteMask: types.ColorWriteMaskNone,
 				},
 			},
@@ -313,7 +313,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(sr.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -404,7 +404,7 @@ func (sr *StencilRenderer) createAABandPipelines() error {
 				EntryPoint: shaderEntryFS,
 				Targets: []types.ColorTargetState{
 					{
-						Format:    types.TextureFormatBGRA8Unorm,
+						Format:    colorFormatOr(sr.colorFormat),
 						Blend:     blend,
 						WriteMask: types.ColorWriteMaskAll,
 					},
@@ -508,7 +508,7 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
-				{Format: types.TextureFormatBGRA8Unorm, WriteMask: types.ColorWriteMaskNone},
+				{Format: colorFormatOr(sr.colorFormat), WriteMask: types.ColorWriteMaskNone},
 			},
 		},
 		DepthStencil: &hal.DepthStencilState{
@@ -549,7 +549,7 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 			Module:     sr.stencilFillShader,
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
-				{Format: types.TextureFormatBGRA8Unorm, WriteMask: types.ColorWriteMaskNone},
+				{Format: colorFormatOr(sr.colorFormat), WriteMask: types.ColorWriteMaskNone},
 			},
 		},
 		DepthStencil: &hal.DepthStencilState{
@@ -590,7 +590,7 @@ func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen //
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(sr.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},

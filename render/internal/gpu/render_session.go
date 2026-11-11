@@ -269,6 +269,11 @@ type GPURenderSession struct {
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// colorFormat is the render-pass color attachment format these pipelines are
+	// built for. Zero means the historical BGRA8 session target (M5 P1); a float
+	// target sets it before the pipelines are created.
+	colorFormat types.TextureFormat
+
 	// onTextureOOM is invoked when a session texture allocation fails with
 	// GPU OOM after the built-in retry chain. The render context wires this
 	// to GPUShared.RequestMSAADowngrade so the failure recovers as 1x

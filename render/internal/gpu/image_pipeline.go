@@ -179,6 +179,11 @@ type TexturedQuadPipeline struct {
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// colorFormat is the render-pass color attachment format these pipelines are
+	// built for. Zero means the historical BGRA8 session target (M5 P1); a float
+	// target sets it before the pipelines are created.
+	colorFormat types.TextureFormat
+
 	// GPU objects for the render pipeline.
 	shader        hal.ShaderModule
 	uniformLayout hal.BindGroupLayout
@@ -226,7 +231,7 @@ type TexturedQuadPipeline struct {
 	// pass: SampleCount=1, no depth/stencil attachment, blit layout (P4.1
 	// batch1 gpu-tex layer composite).
 	blitBlendPipelines map[render.BlendMode]hal.RenderPipeline
-	blendPipeLayout         hal.PipelineLayout
+	blendPipeLayout    hal.PipelineLayout
 
 	// Non-MSAA blit pipeline for compositor fast path (ADR-016).
 	// SampleCount=1, no depth/stencil — used when the frame contains
@@ -317,7 +322,7 @@ func (p *TexturedQuadPipeline) ensurePipelineWithStencil() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -357,7 +362,7 @@ func (p *TexturedQuadPipeline) ensureDepthClipPipeline() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -410,7 +415,7 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -440,7 +445,7 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -498,7 +503,7 @@ func (p *TexturedQuadPipeline) ensurePerspectivePipelines() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -526,7 +531,7 @@ func (p *TexturedQuadPipeline) ensurePerspectivePipelines() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -612,7 +617,7 @@ func (p *TexturedQuadPipeline) createBlendPipeline(bs *types.BlendState, ds *hal
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     bs,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -753,7 +758,7 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -802,7 +807,7 @@ func (p *TexturedQuadPipeline) ensureBlitBlendPipeline(mode render.BlendMode) (h
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &bs,
 					WriteMask: types.ColorWriteMaskAll,
 				},

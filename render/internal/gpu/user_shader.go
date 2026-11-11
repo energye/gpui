@@ -293,7 +293,7 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 			Module:     fs,
 			EntryPoint: "fs_main",
 			Targets: []types.ColorTargetState{{
-				Format:    types.TextureFormatBGRA8Unorm,
+				Format:    colorFormatOr(rc.colorFormat),
 				WriteMask: types.ColorWriteMaskAll,
 				Blend: &types.BlendState{
 					Color: types.BlendComponent{Operation: types.BlendOperationAdd, SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorZero},

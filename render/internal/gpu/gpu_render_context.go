@@ -43,6 +43,11 @@ import (
 type GPURenderContext struct {
 	shared *GPUShared
 
+	// colorFormat is the render-pass color attachment format these pipelines are
+	// built for. Zero means the historical BGRA8 session target (M5 P1); a float
+	// target sets it before the pipelines are created.
+	colorFormat types.TextureFormat
+
 	// deviceGen is GPUShared.deviceGen at last session (re)build.
 	deviceGen uint64
 

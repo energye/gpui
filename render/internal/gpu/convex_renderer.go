@@ -121,6 +121,11 @@ type ConvexRenderer struct {
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// colorFormat is the render-pass color attachment format these pipelines are
+	// built for. Zero means the historical BGRA8 session target (M5 P1); a float
+	// target sets it before the pipelines are created.
+	colorFormat types.TextureFormat
+
 	// mu serializes pipeline lifecycle (create/destroy) on this shared
 	// renderer across windows — same contract as StencilRenderer.mu.
 	// Record/draw stays lock-free; handles are immutable once built.
@@ -260,7 +265,7 @@ func (cr *ConvexRenderer) ensurePipelineWithStencil() error { // Ensure base res
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(cr.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -311,7 +316,7 @@ func (cr *ConvexRenderer) ensureDepthClipPipeline() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(cr.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -367,7 +372,7 @@ func (cr *ConvexRenderer) ensureMeshPipelineWithStencilLocked() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(cr.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -408,7 +413,7 @@ func (cr *ConvexRenderer) ensureMeshDepthClipPipeline() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(cr.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -560,7 +565,7 @@ func (cr *ConvexRenderer) createBlendPipelineWithStencil(mode render.BlendMode) 
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(cr.colorFormat),
 					Blend:     &bs,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -653,7 +658,7 @@ func (cr *ConvexRenderer) createPipeline() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(cr.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},

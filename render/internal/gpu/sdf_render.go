@@ -66,6 +66,11 @@ type SDFRenderPipeline struct {
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// colorFormat is the render-pass color attachment format these pipelines are
+	// built for. Zero means the historical BGRA8 session target (M5 P1); a float
+	// target sets it before the pipelines are created.
+	colorFormat types.TextureFormat
+
 	// mu serializes pipeline lifecycle (create/destroy) on this shared
 	// pipeline across windows — same contract as StencilRenderer.mu.
 	// Record/draw stays lock-free; handles are immutable once built.
@@ -408,7 +413,7 @@ func (p *SDFRenderPipeline) createPipeline() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -465,7 +470,7 @@ func (p *SDFRenderPipeline) ensurePipelineWithStencil() error { // Ensure base r
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -512,7 +517,7 @@ func (p *SDFRenderPipeline) ensureDepthClipPipeline() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},
@@ -542,14 +547,14 @@ func (p *SDFRenderPipeline) ensureCoverageLUT() error {
 		Label: "sdf_cov_lut_layout",
 		Entries: []types.BindGroupLayoutEntry{
 			{
-				Binding:   0,
+				Binding:    0,
 				Visibility: types.ShaderStageFragment,
-				Texture:   &types.TextureBindingLayout{SampleType: types.TextureSampleTypeFloat, ViewDimension: types.TextureViewDimension2D},
+				Texture:    &types.TextureBindingLayout{SampleType: types.TextureSampleTypeFloat, ViewDimension: types.TextureViewDimension2D},
 			},
 			{
-				Binding:   1,
+				Binding:    1,
 				Visibility: types.ShaderStageFragment,
-				Sampler:   &types.SamplerBindingLayout{Type: types.SamplerBindingTypeFiltering},
+				Sampler:    &types.SamplerBindingLayout{Type: types.SamplerBindingTypeFiltering},
 			},
 		},
 	})

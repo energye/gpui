@@ -95,6 +95,11 @@ type DepthClipPipeline struct {
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// colorFormat is the render-pass color attachment format these pipelines are
+	// built for. Zero means the historical BGRA8 session target (M5 P1); a float
+	// target sets it before the pipelines are created.
+	colorFormat types.TextureFormat
+
 	// shader is the vertex/fragment shader for the cover-to-depth pass.
 	// Reuses the same depth_clip.wgsl (vertex: NDC transform, Z=0.0; fragment: no-op).
 	shader hal.ShaderModule
@@ -340,7 +345,7 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 				EntryPoint: shaderEntryFS,
 				Targets: []types.ColorTargetState{
 					{
-						Format:    types.TextureFormatBGRA8Unorm,
+						Format:    colorFormatOr(p.colorFormat),
 						WriteMask: types.ColorWriteMaskNone,
 					},
 				},
@@ -392,7 +397,7 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					WriteMask: types.ColorWriteMaskNone, // no color output
 				},
 			},
@@ -452,7 +457,7 @@ func (p *DepthClipPipeline) createStencilFillPipeline(
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					WriteMask: types.ColorWriteMaskNone,
 				},
 			},

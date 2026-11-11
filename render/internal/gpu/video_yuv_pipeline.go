@@ -133,7 +133,7 @@ func (p *TexturedQuadPipeline) ensureYUVPipelines() error {
 				EntryPoint: shaderEntryFS,
 				Targets: []types.ColorTargetState{
 					{
-						Format:    types.TextureFormatBGRA8Unorm,
+						Format:    colorFormatOr(p.colorFormat),
 						Blend:     &premulBlend,
 						WriteMask: types.ColorWriteMaskAll,
 					},
@@ -162,7 +162,7 @@ func (p *TexturedQuadPipeline) ensureYUVPipelines() error {
 				EntryPoint: shaderEntryFS,
 				Targets: []types.ColorTargetState{
 					{
-						Format:    types.TextureFormatBGRA8Unorm,
+						Format:    colorFormatOr(p.colorFormat),
 						Blend:     &premulBlend,
 						WriteMask: types.ColorWriteMaskAll,
 					},
@@ -229,7 +229,7 @@ func (p *TexturedQuadPipeline) ensureYUVBlitPipeline() error {
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(p.colorFormat),
 					Blend:     &premulBlend,
 					WriteMask: types.ColorWriteMaskAll,
 				},

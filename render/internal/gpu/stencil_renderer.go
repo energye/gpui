@@ -44,6 +44,11 @@ type StencilRenderer struct {
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// colorFormat is the render-pass color attachment format these pipelines are
+	// built for. Zero means the historical BGRA8 session target (M5 P1); a float
+	// target sets it before the pipelines are created.
+	colorFormat types.TextureFormat
+
 	// mu serializes pipeline-layout lifecycle (create/destroy) on this
 	// shared renderer across windows. Entries lock it; leaves
 	// (createPipelines, destroyPipelines, EnsureTextures, create* helpers)
@@ -1268,7 +1273,7 @@ func (sr *StencilRenderer) createCoverBlendPipeline(mode render.BlendMode) (hal.
 			EntryPoint: shaderEntryFS,
 			Targets: []types.ColorTargetState{
 				{
-					Format:    types.TextureFormatBGRA8Unorm,
+					Format:    colorFormatOr(sr.colorFormat),
 					Blend:     &bs,
 					WriteMask: types.ColorWriteMaskAll,
 				},

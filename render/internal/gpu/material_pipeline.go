@@ -421,7 +421,7 @@ func (s *GPURenderSession) ensureMaterialPipeline(effect *render.ShaderEffect, b
 			Module:     entry.module,
 			EntryPoint: "fs_main",
 			Targets: []types.ColorTargetState{{
-				Format:    types.TextureFormatBGRA8Unorm,
+				Format:    colorFormatOr(s.colorFormat),
 				WriteMask: types.ColorWriteMaskAll,
 				Blend:     premulBlendStatePtr(),
 			}},
