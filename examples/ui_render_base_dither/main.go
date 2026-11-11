@@ -27,8 +27,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -232,7 +230,7 @@ func main() {
 	var screenGrabErr error
 	if gateMode || *screenCheck {
 		screenGrabPath = filepath.Join(os.TempDir(), "gpui_dither_screen.png")
-		if _, _, err := grabClientArea(windowTitle, screenGrabPath); err != nil {
+		if _, _, err := wrkit.GrabClientArea(windowTitle, screenGrabPath); err != nil {
 			screenGrabErr = err
 			screenGrabPath = ""
 		}
@@ -281,7 +279,11 @@ func main() {
 	if gateMode || *screenCheck {
 		screenRes.Attempted = true
 		screenRes.GrabPath = screenGrabPath
-		if screenGrabErr != nil {
+		if wrkit.ScreenUnsupported(screenGrabErr) {
+			screenRes.Skipped = true
+			screenRes.Attempted = false
+			screenRes.Detail = "skipped:no_x11_window (native Wayland: no X11 window to grab)"
+		} else if screenGrabErr != nil {
 			screenRes.Detail = "grab failed: " + screenGrabErr.Error()
 		} else if pct, n, cmpErr := compareScreenToSnapshot(screenGrabPath, snapPath, goldenRects, screenTol); cmpErr != nil {
 			screenRes.Detail = cmpErr.Error()
@@ -325,6 +327,7 @@ func main() {
 			"pixel_golden_diff_pct":   goldenDiffPct,
 			"pixel_golden_total_px":   goldenTotalPx,
 			"pixel_golden_first_run":  goldenFirstRun,
+			"screen_check_skipped":    screenRes.Skipped,
 			"screen_check_ok":         screenRes.OK,
 			"screen_check_diff_pct":   screenRes.DiffPct,
 			"screen_check_px":         screenRes.Compared,
@@ -487,57 +490,12 @@ func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int6
 
 type screenCheckResult struct {
 	Attempted bool
+	Skipped   bool
 	OK        bool
 	DiffPct   float64
 	Compared  int
 	GrabPath  string
 	Detail    string
-}
-
-func grabClientArea(title, outPath string) (w, h int, err error) {
-	disp := os.Getenv("DISPLAY")
-	if disp == "" {
-		return 0, 0, fmt.Errorf("DISPLAY is empty")
-	}
-	info := exec.Command("xwininfo", "-name", title)
-	info.Env = append(os.Environ(), "LC_ALL=C")
-	raw, err := info.Output()
-	if err != nil {
-		return 0, 0, fmt.Errorf("xwininfo -name %q: %w", title, err)
-	}
-	var x, y, gotW, gotH int
-	for _, ln := range strings.Split(string(raw), "\n") {
-		k, v, ok := strings.Cut(strings.TrimSpace(ln), ":")
-		if !ok {
-			continue
-		}
-		n, convErr := strconv.Atoi(strings.TrimSpace(v))
-		if convErr != nil {
-			continue
-		}
-		switch k {
-		case "Absolute upper-left X":
-			x = n
-		case "Absolute upper-left Y":
-			y = n
-		case "Width":
-			gotW = n
-		case "Height":
-			gotH = n
-		}
-	}
-	if gotW <= 0 || gotH <= 0 {
-		return 0, 0, fmt.Errorf("xwininfo: no geometry for %q", title)
-	}
-	grab := exec.Command("ffmpeg", "-y", "-loglevel", "error",
-		"-f", "x11grab", "-draw_mouse", "0",
-		"-video_size", fmt.Sprintf("%dx%d", gotW, gotH),
-		"-i", fmt.Sprintf("%s+%d,%d", disp, x, y),
-		"-frames:v", "1", outPath)
-	if out, grabErr := grab.CombinedOutput(); grabErr != nil {
-		return 0, 0, fmt.Errorf("ffmpeg x11grab: %w: %s", grabErr, strings.TrimSpace(string(out)))
-	}
-	return gotW, gotH, nil
 }
 
 func compareScreenToSnapshot(grabPath, snapPath string, rects []rect, tol int) (diffPct float64, compared int, err error) {

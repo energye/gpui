@@ -63,7 +63,17 @@
 - 证据：evidence/P2.6/b2-r6-golden-source.md + 两次跑窗日志。
 - 硬约束：不改动画/门禁语义；R6_SNAP_DIR 覆盖仍生效；测试数据入 testdata。
 
-**下一步：§2.2 剩余 ⬜ 项按序取（C1 / C5 / C6 / E1 / E3 / G3 / I1 / I2），取项前先登记载体。B2、B3 已 ✅。**
+**上一任务验证载体（C1：22 窗 screen check 抓黑图修复，2026-11-11 ✅ 收口）**
+
+- 任务：定位 rootless Xwayland 下 14 窗 screen check 抓黑图导致环境 FAIL 的真因（代码洞 vs 环境限制），并给出标准修法；本阶段**只排查+停下报告**，不批量改窗。
+- 真窗：examples/ui_render_base_backdrop、-filterops、-dither（代表性三扇），native Wayland 与 env -u WAYLAND_DISPLAY（X11/Xwayland）两档各单窗自退出跑。
+- 证据：evidence/P2.6/c1-repro/（两档日志、xwd/x11grab 对照 PNG 统计、shim 调用轨迹）、evidence/P2.6/c1-screen-grab-black-assessment.md。
+- 双后端：Wayland 与 X11/Xwayland 两档显示环境；metal 不可验。
+- 硬约束：单窗自退出 + 每轮查显示健康；不改默认呈现/金图语义；差异用逐像素统计（禁 mean 判好转）。
+
+**下一步：§2.2 剩余 ⬜ 项按序取（C5 / C6 / E1 / E3 / G3 / I1 / I2），取项前先登记载体。B2、B3、C1 已 ✅。**
+
+**C1 顺带登记（非本项范围）**：backdrop/filterops/dither 等窗既有金图漂移（6.3519% / 5.2101% / 31.7164% 等），两档显示同值，与抓黑图无关，另立子项；Wayland 原生截屏（portal/PipeWire 需人工授权）另立后续大批次。
 
 **上一任务验证载体（M5 HDR 全链：P0–P5 全批收口 ✅，2026-11-11，存档）**
 
@@ -879,7 +889,7 @@
 | B1 | P1.6 | `baseline/windows.md:213` 的 `ui_base_vram_cap` 运行档写 A/60s，代码 `examples/ui_base_vram_cap/main.go:67` 是 `gateSeconds=300`；P1.6 证伪后未回填 | P0.2 勘误（baseline 只增不改：在 windows.md 修订表追加勘误行） | ✅ **2026-11-10 勘误已落**：`baseline/windows.md` §7 修订表追加勘误行，写明表内运行档 `A/60s` 是文档过时、代码真源 `examples/ui_base_vram_cap/main.go:67` 是 `gateSeconds=300`；原表按「只增不改」不动。源码已核实 |
 | B2 | P1.4 | `ui_wr_r6_layer_anim` 表内金图 `golden/baseline_igpu.png` 与代码真源不一致（代码读 `R6_SNAP_DIR`，默认 `/tmp/r6_layer_anim/r6_final_base.png`，仓内图未被读取）；`baseline/windows/README.md:42-44` | P2.6 对齐真源/代码 | ✅ **2026-11-11 真源对齐完成**：窗口默认读仓内 `examples/ui_wr_r6_layer_anim/testdata/goldens/r6_final_base.png`（`GPUI_BACKEND=go` 用 `_go.png`），运行期快照仍写 `R6_SNAP_DIR`（默认 `/tmp/r6_layer_anim`，可覆盖，不脏树）；`baseline/windows.md` 表内路径已同步，旧 `golden/baseline_igpu.png` 仅归档。验证：native/go 各两次跑 0.0000%（306280 px）、scripted 6/6；负向 1px 篡改基线 → 0.0003% 红、还原绿。证据 `evidence/P2.6/b2-r6-golden-source.md` |
 | B3 | P1.4 | `ui_text_edit_accept` 的 script 金图自动模式不逐位比较 | P2.6 决策（补逐位或写清替代判定） | ✅ **2026-11-11 补逐位完成**：script 模式每个 mark 在状态上屏后用 `RetainedSnapshot` 回放保留包（进程内，goroutine 排队避免卡帧），按 mark 矩形裁片与 `golden/f_script/{s1,s2,s3}.png` 零容差 RGB 逐位比较；capture 在飞期间步进机停走。三片基线重种为引擎快照裁片（旧 xwd 归档 `evidence/P2.6/b3-golden-reseed/`），旧 `/tmp` 外部脚本只作旁证。验证：两次跑 3/3 diff=0、pass=true；1px 篡改 s1 → `1/79200 px differ` 红→还原绿；门禁命令改 `GPUI_ACCEPT_RUN_SECONDS=34`（finish 在 31s）。证据 `evidence/P2.6/b3-script-golden-bitwise.md` |
-| C1 | P1.4 | 14 窗自带 x11grab screen check 在 rootless Xwayland 抓黑图 → 环境 FAIL（`backdrop` p95≈137ms 也被拉高）；`baseline/windows/README.md:33-37` | P2.6 重放环境（隔离真 Xorg/可抓图显示） | ⬜ |
+| C1 | P1.4 | 14 窗自带 x11grab screen check 在 rootless Xwayland 抓黑图 → 环境 FAIL（`backdrop` p95≈137ms 也被拉高）；`baseline/windows/README.md:33-37` | P2.6 重放环境（隔离真 Xorg/可抓图显示） | ✅ **2026-11-11 收口**：真因=解析洞（xwininfo "xwininfo: Window id:" 行按首个冒号切分，winID 恒空，xwd -id 优先分支从未生效）+ 环境（rootless Xwayland 的 X root 不绘制，x11grab 全黑；native Wayland 无 X11 窗）。修法=22 窗全量收敛到 `examples/wrkit/screencheck.go`（正确解析 winID → xwd -id 为主、x11grab 仅回退 + 负向 env 强制），JSON 加 `screen_check_skipped`，native Wayland 显式 SKIP 不记绿。验证：X11/Xwayland 档 14 窗 + 8 个 p38 窗（`-screencheck`）screen check 全 0.0000%；负向强制回退仍 100% 红；Wayland 档 `screen_check_skipped=true`。Wayland 原生截屏经实测需交互授权/被拒，登记后续独立批次。正本 `evidence/P2.6/c1-screen-grab-black-assessment.md` |
 | C2 | P1.4 | `ui_wr_t_stress` BUILD_FAIL：引用不存在的 `ui/kit/button`、`ui/kit/icon`；`baseline/windows/README.md:41` | 组件线：kit `button`/`icon` 能力补齐后示例才能建（P2.3 已确认与老 GPU 簇无因果，2026-10-29 移出） | ✅ 2026-11-09 源码实证销账：`examples/ui_wr_t_stress` 目录已不存在（示例整删）；`ui/kit/` 的 `icon_*` 已齐全，BUILD_FAIL 与 button 需求随示例删除而消失 |
 | C3 | P1.4 | `ui_ime_probe` 不响应 WM_DELETE，人工探针按兜底 SIGTERM 记 PROBE | P2.4e（窗口关闭协议） | ✅ **2026-11-11 实测销账**：修复已随 P2.4e e4 落地（`03a630be`/`c66041f1`，summary.md:14「C3 ime probe 补 EventCloseRequested」；`x11_linux.go:1552` WM_DELETE→EventCloseRequested 映射 + 探针 `main.go:235-240` 处理分支，注释明示 C3），台账漏销。现行树实测：X11 档 probe 后台起 + ctypes 直发 WM_DELETE ClientMessage（模拟 WM）→ probe 打印 `close requested (WM_DELETE)` 并自行退出（无 SIGTERM 兜底）；验证脚本自身的打包偏移/type 误填两次段错误均即时定位修正（见 P2.4e/summary.md 11-11 收口段），引擎侧零改动 |
 | C4 | P1.4 重审 | T2：`ui_wr_r1_layout`/`r20_filter`/`r22_selection_stub`/`c6_savelayer_group` 两轮 rc=1 而 JSON 自报通过、金图 diff=0，病因未解剖（§3 已知问题 T2） | P2.6 前诊断 | ✅ **2026-11-10/11 解剖销账（`evidence/P2.6/c4-dissection.md`，用户三拍板）**：① 共同机制源码钉死——wr 窗报告顺序是**先打印 JSON 后评门**（r20 `main.go:518-519` 先发 JSON、`:525` 才 EvaluateGates），rc 才是最终判定，`json_ok=true` 只是「JSON 可解析+能力字段自报」，四窗金图全 0.0000% 无渲染假绿；② 逐窗病灶：r1/c6=窗自己的 U21 快照回读顶破 hitch 门（r1 窗 JSON 自注「no other hitches」）、r22=同族压线、r20=P1.4 时是 scripted 4/5（I3 现场而 hitch 预算本 30）、现行树 scripted 已 5/5 但 rc=1 换成池域名门 `layer-offscreen` 期望脱节（现行路由下该场景 legitimately 不触碰该懒建池，`ensureFilterSrcRT` 仅中帧 pending 路、`acquireEffectPublishView` F14 路才有可达性）；③ 处置：r20 窗门更新到现行拓扑（去 layer-offscreen 强制，零引擎改动）+ **引擎口快照回读不计 hitch**（`MetricsStore.PauseHitchCount/ResumeHitchCount` 可嵌套 + `drainSnapshots` 包裹，SnapshotAsync/RetainedSnapshot 一处全覆盖；先红后绿两钉 `metrics_hitch_pause_test.go`；百分位/max 照记只免计 HitchCount）+ r1 过时注记更新；④ 验证：四窗双后端 8 轮 30s 自检全 PASS（rc=0、scripted 全过、金图全 0.0000%、剩余 hitch 2-4/min ≤5 富余、未逐笔归因如实登记）；门禁 scheduler/embedder 目录绿 + -race ×5 绿（首跑磁盘满高负载期一枚未留名 FAIL 未复现如实登记）+ 默认/nogpu/全仓构建/apidoc rc=0 |
@@ -1393,6 +1403,8 @@ docs/render_gpu_converge/
 
 | 2026-11-11 | B3 script 逐位 | **⬜→✅ 收口**：`ui_text_edit_accept` script 模式每个 mark 用 `RetainedSnapshot` 回放（进程内，无 xwd），按 mark 矩形裁片与三片 golden 零容差比较；capture 在飞时步进机停走；基线重种为引擎快照裁片（旧 xwd 归档）。验证：两次跑 3/3 diff=0（79200/79200/35200 px）、pass=true；1px 篡改负向 `1/79200 px differ` 红→还原绿；运行时长改 34s。 | `evidence/P2.6/b3-script-golden-bitwise.md`、`evidence/P2.6/b3-windows/`、`evidence/P2.6/b3-golden-reseed/` |
 
+| 2026-11-11 | C1 screen check 抓黑图 | **🟡→✅ 收口**：真因=解析洞（xwininfo 窗口 id 行按首个冒号切，winID 恒空，xwd -id 分支死）+ 环境（Xwayland X root 不绘制）。22 窗收敛到 `examples/wrkit/screencheck.go`（正确解析 + xwd -id 为主 + 负向 env），native Wayland 显式 SKIP（screen_check_skipped）。验证：14 窗 + 8 个 p38 窗 screen check 全 0.0000%、强制回退负向 100% 红、Wayland 档 skipped=true；build/vet rc=0。 | `evidence/P2.6/c1-screen-grab-black-assessment.md`、`evidence/P2.6/c1-verify/` |
+
 ## 8 修订记录
 
 | 日期 | 修订 |
@@ -1465,3 +1477,4 @@ docs/render_gpu_converge/
 | 2026-11-11 | M5 后全量回归：主链 13 包 725 文件逐文件门禁；修 1 个 M5 回归（P2 探测顺序）+ 3 个既有红 A/B 归因 |
 | 2026-11-11 | §2.2 池取项 B2：r6 金图真源对齐（仓内 testdata/goldens，native/go 各基线）+ 表内路径同步 + 负向 |
 | 2026-11-11 | §2.2 池取项 B3：script 金图逐位（RetainedSnapshot 裁片 + 零容差 + 基线重种 + 负向） |
+| 2026-11-11 | §2.2 池取项 C1：22 窗 screen check 收敛到 wrkit helper（解析洞修复 + xwd -id + 显式 SKIP + 负向验收） |

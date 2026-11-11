@@ -1,0 +1,2 @@
+FFMPEG ARGS: -y -loglevel error -f x11grab -draw_mouse 0 -video_size 1200x800 -i :0+102,114 -frames:v 1 /tmp/gpui_filterops_screen.png
+FFMPEG rc=0 out=/tmp/gpui_filterops_screen.png size=2891

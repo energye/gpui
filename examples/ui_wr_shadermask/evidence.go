@@ -10,10 +10,7 @@ import (
 	_ "image/png"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 )
 
 type rect struct{ x, y, w, h float64 }
@@ -77,6 +74,7 @@ func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int6
 // when -screencheck=false in manual mode; gate mode always runs it.
 type screenCheckResult struct {
 	Attempted bool
+	Skipped   bool
 	OK        bool
 	DiffPct   float64
 	Compared  int
@@ -84,57 +82,6 @@ type screenCheckResult struct {
 	Detail    string
 }
 
-// grabClientArea captures the live X11 client area of the window with the given
-// title. The snapshot is a synthetic repaint at Close, so the real window must
-// be grabbed while it is still on screen.
-func grabClientArea(title, outPath string) (w, h int, err error) {
-	disp := os.Getenv("DISPLAY")
-	if disp == "" {
-		return 0, 0, fmt.Errorf("DISPLAY is empty")
-	}
-	info := exec.Command("xwininfo", "-name", title)
-	info.Env = append(os.Environ(), "LC_ALL=C") // stable field names
-	raw, err := info.Output()
-	if err != nil {
-		return 0, 0, fmt.Errorf("xwininfo -name %q: %w", title, err)
-	}
-	var x, y, gotW, gotH int
-	for _, ln := range strings.Split(string(raw), "\n") {
-		k, v, ok := strings.Cut(strings.TrimSpace(ln), ":")
-		if !ok {
-			continue
-		}
-		n, convErr := strconv.Atoi(strings.TrimSpace(v))
-		if convErr != nil {
-			continue
-		}
-		switch k {
-		case "Absolute upper-left X":
-			x = n
-		case "Absolute upper-left Y":
-			y = n
-		case "Width":
-			gotW = n
-		case "Height":
-			gotH = n
-		}
-	}
-	if gotW <= 0 || gotH <= 0 {
-		return 0, 0, fmt.Errorf("xwininfo: no geometry for %q", title)
-	}
-	grab := exec.Command("ffmpeg", "-y", "-loglevel", "error",
-		"-f", "x11grab", "-draw_mouse", "0",
-		"-video_size", fmt.Sprintf("%dx%d", gotW, gotH),
-		"-i", fmt.Sprintf("%s+%d,%d", disp, x, y),
-		"-frames:v", "1", outPath)
-	if out, grabErr := grab.CombinedOutput(); grabErr != nil {
-		return 0, 0, fmt.Errorf("ffmpeg x11grab: %w: %s", grabErr, strings.TrimSpace(string(out)))
-	}
-	return gotW, gotH, nil
-}
-
-// compareScreenToSnapshot compares the grabbed client area against the snapshot
-// over rects that exclude the live HUD (its counters change every frame).
 func compareScreenToSnapshot(grabPath, snapPath string, rects []rect, tol int) (diffPct float64, compared int, err error) {
 	grab, snap := loadImage(grabPath), loadImage(snapPath)
 	if grab == nil || snap == nil {

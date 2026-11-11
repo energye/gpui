@@ -27,8 +27,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -56,6 +54,7 @@ type rect struct{ x, y, w, h float64 }
 
 type screenCheckResult struct {
 	Attempted bool
+	Skipped   bool
 	OK        bool
 	DiffPct   float64
 	Compared  int
@@ -220,7 +219,7 @@ func main() {
 	var screenGrabErr error
 	if *screenCheck {
 		screenGrabPath = filepath.Join(os.TempDir(), "gpui_p38_svg_screen.png")
-		if _, _, err := grabClientArea(windowTitle, screenGrabPath); err != nil {
+		if _, _, err := wrkit.GrabClientArea(windowTitle, screenGrabPath); err != nil {
 			screenGrabErr = err
 			screenGrabPath = ""
 		}
@@ -272,7 +271,11 @@ func main() {
 	if *screenCheck {
 		screenRes.Attempted = true
 		screenRes.GrabPath = screenGrabPath
-		if screenGrabErr != nil {
+		if wrkit.ScreenUnsupported(screenGrabErr) {
+			screenRes.Skipped = true
+			screenRes.Attempted = false
+			screenRes.Detail = "skipped:no_x11_window (native Wayland: no X11 window to grab)"
+		} else if screenGrabErr != nil {
 			screenRes.Detail = "grab failed: " + screenGrabErr.Error()
 		} else if pct, n, cmpErr := compareScreenToSnapshot(screenGrabPath, snapPath, goldenRects, screenTol); cmpErr != nil {
 			screenRes.Detail = cmpErr.Error()
@@ -312,6 +315,7 @@ func main() {
 			"pixel_golden_diff_pct":  goldenDiffPct,
 			"pixel_golden_total_px":  goldenTotalPx,
 			"pixel_golden_first_run": goldenFirstRun,
+			"screen_check_skipped":   screenRes.Skipped,
 			"screen_check_ok":        screenRes.OK,
 			"screen_check_diff_pct":  screenRes.DiffPct,
 			"screen_check_px":        screenRes.Compared,
@@ -469,82 +473,6 @@ func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int6
 	}
 	fmt.Fprintf(os.Stderr, "golden %s: diff=%.4f%% over %d px\n", filepath.Base(cur), diff, total)
 	return diff, total, false
-}
-
-func grabClientArea(title, outPath string) (w, h int, err error) {
-	disp := os.Getenv("DISPLAY")
-	if disp == "" {
-		return 0, 0, fmt.Errorf("DISPLAY is empty")
-	}
-	info := exec.Command("xwininfo", "-name", title)
-	info.Env = append(os.Environ(), "LC_ALL=C")
-	raw, err := info.Output()
-	if err != nil {
-		return 0, 0, fmt.Errorf("xwininfo -name %q: %w", title, err)
-	}
-	var x, y, gotW, gotH int
-	winID := ""
-	for _, ln := range strings.Split(string(raw), "\n") {
-		k, v, ok := strings.Cut(strings.TrimSpace(ln), ":")
-		if !ok {
-			continue
-		}
-		k = strings.TrimSpace(k)
-		v = strings.TrimSpace(v)
-		if k == "Window id" {
-			if f := strings.Fields(v); len(f) > 0 {
-				winID = f[0]
-			}
-			continue
-		}
-		n, convErr := strconv.Atoi(v)
-		if convErr != nil {
-			continue
-		}
-		switch k {
-		case "Absolute upper-left X":
-			x = n
-		case "Absolute upper-left Y":
-			y = n
-		case "Width":
-			gotW = n
-		case "Height":
-			gotH = n
-		}
-	}
-	if gotW <= 0 || gotH <= 0 {
-		return 0, 0, fmt.Errorf("xwininfo: no geometry for %q", title)
-	}
-
-	if winID != "" {
-		if _, lookErr := exec.LookPath("xwd"); lookErr == nil {
-			tmp, tmpErr := os.CreateTemp(os.TempDir(), "gpui_p38_*.xwd")
-			if tmpErr == nil {
-				xwdPath := tmp.Name()
-				_ = tmp.Close()
-				defer os.Remove(xwdPath)
-				dump := exec.Command("xwd", "-silent", "-id", winID, "-out", xwdPath)
-				dump.Env = append(os.Environ(), "LC_ALL=C")
-				if dumpErr := dump.Run(); dumpErr == nil {
-					conv := exec.Command("ffmpeg", "-y", "-loglevel", "error",
-						"-i", xwdPath, "-frames:v", "1", outPath)
-					if convErr := conv.Run(); convErr == nil {
-						return gotW, gotH, nil
-					}
-				}
-			}
-		}
-	}
-
-	grab := exec.Command("ffmpeg", "-y", "-loglevel", "error",
-		"-f", "x11grab", "-draw_mouse", "0",
-		"-video_size", fmt.Sprintf("%dx%d", gotW, gotH),
-		"-i", fmt.Sprintf("%s+%d,%d", disp, x, y),
-		"-frames:v", "1", outPath)
-	if out, grabErr := grab.CombinedOutput(); grabErr != nil {
-		return 0, 0, fmt.Errorf("ffmpeg x11grab: %w: %s", grabErr, strings.TrimSpace(string(out)))
-	}
-	return gotW, gotH, nil
 }
 
 func compareScreenToSnapshot(grabPath, snapPath string, rects []rect, tol int) (diffPct float64, compared int, err error) {

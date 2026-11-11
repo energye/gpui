@@ -1,0 +1,22 @@
+ui_render_base_backdrop	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_backdrop
+ui_render_base_cliprrect	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_cliprrect
+ui_render_base_dither	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_dither
+ui_render_base_filterops	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_filterops
+ui_render_base_maskops	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_maskops
+ui_render_base_miscdraw	rc=1	True	False	diff=0.0000% over 737760 px tol=±2	ui_render_base_miscdraw
+ui_render_base_pathbool	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_pathbool
+ui_render_base_svg	rc=0	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_svg
+ui_render_base_textlow	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_textlow
+ui_render_base_textspacing	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_textspacing
+ui_render_base_textstroke	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_textstroke
+ui_render_base_verticesmesh	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_verticesmesh
+ui_render_base_webp	rc=1	True	False	diff=0.0000% over 627200 px tol=±2	ui_render_base_webp
+ui_wr_p38_color_font	rc=1	False	False		ui_wr_p38_color_font
+ui_wr_p38_picture	rc=1	False	False		ui_wr_p38_picture
+ui_wr_p38_svg_doc	rc=1	False	False		ui_wr_p38_svg_doc
+ui_wr_p38_svg_filter	rc=1	False	False		ui_wr_p38_svg_filter
+ui_wr_p38_svg_paint	rc=1	False	False		ui_wr_p38_svg_paint
+ui_wr_p38_svg_showcase	rc=1	False	False		ui_wr_p38_svg_showcase
+ui_wr_p38_svg_structure	rc=1	False	False		ui_wr_p38_svg_structure
+ui_wr_p38_svg_text	rc=1	False	False		ui_wr_p38_svg_text
+ui_wr_shadermask	rc=1	True	False	diff=0.0000% over 912000 px tol=±2	ui_wr_shadermask

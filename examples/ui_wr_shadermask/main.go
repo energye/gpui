@@ -473,7 +473,7 @@ func main() {
 	var screenGrabErr error
 	if gateMode || *screenCheck {
 		screenGrabPath = filepath.Join(os.TempDir(), "gpui_shadermask_screen.png")
-		if _, _, err := grabClientArea(windowTitle, screenGrabPath); err != nil {
+		if _, _, err := wrkit.GrabClientArea(windowTitle, screenGrabPath); err != nil {
 			screenGrabErr = err
 			screenGrabPath = ""
 		}
@@ -548,7 +548,11 @@ func main() {
 	if gateMode || *screenCheck {
 		screenRes.Attempted = true
 		screenRes.GrabPath = screenGrabPath
-		if screenGrabErr != nil {
+		if wrkit.ScreenUnsupported(screenGrabErr) {
+			screenRes.Skipped = true
+			screenRes.Attempted = false
+			screenRes.Detail = "skipped:no_x11_window (native Wayland: no X11 window to grab)"
+		} else if screenGrabErr != nil {
 			screenRes.Detail = "grab failed: " + screenGrabErr.Error()
 		} else if pct, n, cmpErr := compareScreenToSnapshot(screenGrabPath, snapPath, goldenRects, screenTol); cmpErr != nil {
 			screenRes.Detail = cmpErr.Error()
@@ -617,6 +621,7 @@ func main() {
 			"pixel_golden_total_px":  goldenTotalPx,
 			"pixel_golden_first_run": goldenFirstRun,
 			"retained_direct_pairs":  fmt.Sprintf("%d/%d", pairOK, pairTotal),
+			"screen_check_skipped":   screenRes.Skipped,
 			"screen_check_ok":        screenRes.OK,
 			"screen_check_diff_pct":  screenRes.DiffPct,
 			"screen_check_px":        screenRes.Compared,
