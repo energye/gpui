@@ -15,7 +15,6 @@ package gles
 import (
 	"image"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -54,6 +53,21 @@ func TestPresentDamageX11(t *testing.T) {
 	purego.RegisterLibFunc(&xGetPixel, xw.lib, "XGetPixel")
 	purego.RegisterLibFunc(&xDestroyIm, xw.lib, "XDestroyImage")
 	purego.RegisterLibFunc(&xRaiseWin, xw.lib, "XRaiseWindow")
+
+	// The helper maps the window but rootless Xwayland compositing is
+	// asynchronous: XGetImage before the window is viewable raises BadMatch
+	// and the default X error handler kills the process (G3 second failure
+	// mode). Install a counting handler and retry pixel reads instead.
+	var xSetErrorHandler func(handler uintptr) uintptr
+	purego.RegisterLibFunc(&xSetErrorHandler, xw.lib, "XSetErrorHandler")
+	xErrorsSeen := 0
+	handler := purego.NewCallback(func(dpy, ev uintptr) uintptr {
+		xErrorsSeen++
+		return 0
+	})
+	prevHandler := xSetErrorHandler(handler)
+	defer xSetErrorHandler(prevHandler)
+
 	xRaiseWin(xw.display, xw.window)
 	xSync(xw.display, 0)
 
@@ -98,11 +112,6 @@ func TestPresentDamageX11(t *testing.T) {
 	}
 	if err := surf.Configure(nil, cfg); err != nil {
 		t.Fatalf("Surface.Configure: %v", err)
-	}
-
-	if !egl.HasSwapBuffersWithDamage() || !egl.HasPartialUpdate() {
-		t.Skipf("EGL incremental present unavailable on this display (swap=%v partial=%v)",
-			egl.HasSwapBuffersWithDamage(), egl.HasPartialUpdate())
 	}
 
 	const (
@@ -154,13 +163,22 @@ func TestPresentDamageX11(t *testing.T) {
 
 	windowPixel := func(x, y int) uintptr {
 		t.Helper()
-		img := xGetImage(xw.display, xw.window, x, y, 1, 1, ^uintptr(0), 2 /* ZPixmap */)
-		if img == 0 {
-			t.Fatalf("XGetImage(window %d,%d) returned nil", x, y)
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			img := xGetImage(xw.display, xw.window, x, y, 1, 1, ^uintptr(0), 2 /* ZPixmap */)
+			if img != 0 {
+				p := xGetPixel(img, 0, 0)
+				xDestroyIm(img)
+				return p
+			}
+			// nil = the request failed (typ. BadMatch while the window is
+			// not yet viewable); the counting handler swallowed the X
+			// error, so retry until the window is composited.
+			if time.Now().After(deadline) {
+				t.Fatalf("XGetImage(window %d,%d) returned nil after retries (x_errors=%d)", x, y, xErrorsSeen)
+			}
+			time.Sleep(20 * time.Millisecond)
 		}
-		p := xGetPixel(img, 0, 0)
-		xDestroyIm(img)
-		return p
 	}
 	screenInside := func() uintptr { return windowPixel(dmgX0+5, dmgY0+5) }
 	screenOutside := func() uintptr { return windowPixel(5, 5) }
@@ -201,10 +219,23 @@ func TestPresentDamageX11(t *testing.T) {
 		t.Fatalf("Y-flip guard: top-left=%#x bottom-left=%#x, want top-left red %#x", tl, bl, redPx)
 	}
 
-	// Base full frame for the damage run. The extension string is the
-	// reliable capability check; EGL_BUFFER_AGE_EXT itself is only meaningful
-	// for the back buffer during a present.
-	if !strings.Contains(egl.QueryString(surf.eglDisplay, egl.Extensions), "EGL_EXT_buffer_age") {
+	// Per-display incremental present capability: driver symbol presence ∩
+	// display extension string (resolvePresentDamageCapabilities). The
+	// full-frame and Y-flip gates above need no extension and run on every
+	// display; the partial machinery below requires the real capability. A
+	// symbol-only check here once ran the section on displays whose
+	// extension string lacks EGL_KHR_partial_update, where every frame
+	// silently degraded to a full swap (G3, evidence/P2.6/
+	// g3-partial-present-assessment.md).
+	if !surf.presentDamageCaps.swapWithDamage || !surf.presentDamageCaps.partialUpdate {
+		t.Skipf("EGL incremental present unavailable on this display (swap=%v partial=%v)",
+			surf.presentDamageCaps.swapWithDamage, surf.presentDamageCaps.partialUpdate)
+	}
+
+	// Base full frame for the damage run. The capability check above is the
+	// reliable gate; EGL_BUFFER_AGE_EXT itself is only meaningful for the
+	// back buffer during a present.
+	if !surf.presentDamageCaps.bufferAge {
 		t.Skip("EGL_EXT_buffer_age unavailable; partial present cannot be validated")
 	}
 	clearFBO(0, 1, 0, nil)

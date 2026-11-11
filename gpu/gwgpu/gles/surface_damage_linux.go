@@ -14,6 +14,7 @@ package gles
 
 import (
 	"image"
+	"strings"
 )
 
 // maxPresentDamageHistory is how many past presented damage unions are kept.
@@ -25,6 +26,36 @@ const maxPresentDamageHistory = 4
 // surface to a full present: a compositor hint that large is not cheaper
 // than a plain swap, and the full path is always safe.
 const presentDamageFullCoverage = 0.85
+
+// presentDamageCapabilities is the per-display truth for the EGL damage
+// present path, resolved once when the EGL surface is created. Driver symbol
+// presence (egl.HasSwapBuffersWithDamage / egl.HasPartialUpdate) only says
+// the libEGL exports the entry points; whether an extension is usable is a
+// per-display property. E.g. NVIDIA on Xwayland exports both symbols but its
+// display extension string lacks EGL_KHR_partial_update, so SetDamageRegionKHR
+// fails per call — a symbol-only gate silently degraded every damage present
+// to a full swap (evidence/P2.6/g3-partial-present-assessment.md).
+type presentDamageCapabilities struct {
+	// swapWithDamage: EGL_KHR_swap_buffers_with_damage usable on this display.
+	swapWithDamage bool
+	// partialUpdate: EGL_KHR_partial_update usable on this display.
+	partialUpdate bool
+	// bufferAge: EGL_EXT_buffer_age advertised on this display. The query
+	// itself is re-validated per present (it requires the surface current on
+	// the calling thread); the string only decides whether the partial path
+	// is worth attempting.
+	bufferAge bool
+}
+
+// resolvePresentDamageCapabilities intersects driver symbol presence with the
+// display's extension string. Pure in the string; unit-testable.
+func resolvePresentDamageCapabilities(hasSwapWithDamage, hasPartialUpdate bool, displayExtensions string) presentDamageCapabilities {
+	return presentDamageCapabilities{
+		swapWithDamage: hasSwapWithDamage && strings.Contains(displayExtensions, "EGL_KHR_swap_buffers_with_damage"),
+		partialUpdate:  hasPartialUpdate && strings.Contains(displayExtensions, "EGL_KHR_partial_update"),
+		bufferAge:      strings.Contains(displayExtensions, "EGL_EXT_buffer_age"),
+	}
+}
 
 // resetPresentDamageHistory forces the next present onto the full path.
 // Called when the EGL surface or its buffers are recreated.

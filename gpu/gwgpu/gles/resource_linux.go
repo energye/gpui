@@ -73,6 +73,19 @@ type Surface struct {
 	// damage-scissored partial swaps. Read under the surface/queue lock.
 	presentFullCount    uint64
 	presentPartialCount uint64
+
+	// presentDamageCaps is the per-display capability truth for the damage
+	// present path (driver symbol presence ∩ display extension string),
+	// resolved once in createEGLWindowSurface and read-only afterwards.
+	// Zero value (= all disabled) is the safe default for surfaces that
+	// never created an EGL window surface.
+	presentDamageCaps presentDamageCapabilities
+
+	// presentDamageFallbacks counts damage presents that degraded to the
+	// full path because a partial-path EGL call failed; the first one is
+	// logged so the degradation is visible instead of silent.
+	presentDamageFallbacks      uint64
+	presentDamageFallbackLogged bool
 }
 
 // GetAdapterInfo returns adapter information from this surface's GL context.
@@ -199,6 +212,12 @@ func (s *Surface) createEGLWindowSurface(width, height uint32) error {
 	eglCtx := s.ctx.EGL()
 	s.eglDisplay = eglCtx.Display()
 	s.isWayland = eglCtx.WindowKind() == egl.WindowKindWayland
+
+	// Per-display damage present capability (symbol presence ∩ extension
+	// string), resolved once; the display of a surface never changes.
+	s.presentDamageCaps = resolvePresentDamageCapabilities(
+		egl.HasSwapBuffersWithDamage(), egl.HasPartialUpdate(),
+		egl.QueryString(s.eglDisplay, egl.Extensions))
 
 	if s.isWayland {
 		return s.createWaylandEGLSurface(width, height)

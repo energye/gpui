@@ -1,0 +1,18 @@
+=== RUN   TestZZG3PartialPresentProbe
+    zz_g3_probe_test.go:71: window geometry query ok=true
+J5TRACE Open device=0xc00016a3c0 ctx=0xc000196080
+    zz_g3_probe_test.go:119: PROBE extensions: swap_with_damage=true partial_update=false buffer_age=true pkg_swap=true pkg_partial=true
+    zz_g3_probe_test.go:126: PROBE canScissorPresent=true fbo=128x128 config=128x128
+    zz_g3_probe_test.go:169: PROBE after full seeds: full=2 partial=0
+    zz_g3_probe_test.go:178: PROBE damage frame 1: buffer_age ok=false age=0 → full=3 partial=0
+    zz_g3_probe_test.go:178: PROBE damage frame 2: buffer_age ok=false age=0 → full=4 partial=0
+    zz_g3_probe_test.go:178: PROBE damage frame 3: buffer_age ok=false age=0 → full=5 partial=0
+    zz_g3_probe_test.go:178: PROBE damage frame 4: buffer_age ok=false age=0 → full=6 partial=0
+    zz_g3_probe_test.go:189: PROBE SetDamageRegionKHR direct: result=false egl_error=0x3009
+    zz_g3_probe_test.go:204: PROBE current-ctx: buffer_age ok=true age=1; SetDamageRegion result=false err=0x3000
+    zz_g3_probe_test.go:206: PROBE current-ctx extensions: partial_update=false swap_with_damage=true buffer_age=true
+    zz_g3_probe_test.go:213: PROBE final buffer_age ok=false age=0
+    zz_g3_probe_test.go:216: PROBE CONCLUSION: partial never engaged (full=6) — see per-frame evidence above
+--- PASS: TestZZG3PartialPresentProbe (0.48s)
+PASS
+ok  	github.com/energye/gpui/gpu/gwgpu/gles	0.497s

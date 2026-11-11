@@ -283,7 +283,7 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects
 	current := presentDamageUnion(damageRects)
 	var presentRect image.Rectangle
 	if !current.Empty() &&
-		egl.HasSwapBuffersWithDamage() && egl.HasPartialUpdate() &&
+		surf.presentDamageCaps.swapWithDamage && surf.presentDamageCaps.partialUpdate &&
 		surf.canScissorPresent() {
 		if age, ok := egl.BufferAge(surf.eglDisplay, surf.eglSurface); ok {
 			if u, ok := surf.damageUnionForAge(age, current); ok &&
@@ -316,8 +316,18 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects
 			return nil
 		}
 		// SetDamageRegion failed before drawing: consume the EGL error and
-		// fall through to the full path with an untouched back buffer.
-		_ = egl.GetError()
+		// fall through to the full path with an untouched back buffer. The
+		// degradation is counted and logged once — silent per-frame fallback
+		// is how a capability hole hid behind green pixel asserts (G3).
+		presentErr := egl.GetError()
+		surf.presentDamageFallbacks++
+		if !surf.presentDamageFallbackLogged {
+			surf.presentDamageFallbackLogged = true
+			hal.Logger().Warn("gles: damage present degraded to full swap (SetDamageRegionKHR failed; capability gate should have caught this)",
+				"egl_error", fmt.Sprintf("0x%x", uint32(presentErr)),
+				"caps", fmt.Sprintf("swap=%v partial=%v age=%v",
+					surf.presentDamageCaps.swapWithDamage, surf.presentDamageCaps.partialUpdate, surf.presentDamageCaps.bufferAge))
+		}
 	}
 
 	// Standard full-surface blit + swap.

@@ -156,3 +156,55 @@ func TestPresentHistoryDoesNotAmplifyFullFrame(t *testing.T) {
 		t.Fatalf("frame 3 union = %v ok=%v, want small %v (full amplified)", u, ok, small)
 	}
 }
+
+// TestResolvePresentDamageCapabilities pins the per-display capability
+// contract: driver symbol presence alone is not usability — the display
+// extension string must advertise the extension too (G3: NVIDIA on Xwayland
+// exports both symbols but its display string lacks EGL_KHR_partial_update,
+// so a symbol-only gate silently degraded every damage present to a full
+// swap).
+func TestResolvePresentDamageCapabilities(t *testing.T) {
+	cases := []struct {
+		name                  string
+		hasSwap, hasPartial   bool
+		exts                  string
+		wantSwap, wantPartial bool
+		wantAge               bool
+	}{
+		{
+			name:    "g3_nvidia_xwayland_symbols_present_partial_absent_in_string",
+			hasSwap: true, hasPartial: true,
+			exts:        "EGL_KHR_surfaceless_context EGL_KHR_swap_buffers_with_damage EGL_EXT_buffer_age",
+			wantSwap:    true,
+			wantPartial: false,
+			wantAge:     true,
+		},
+		{
+			name: "all_present", hasSwap: true, hasPartial: true,
+			exts:        "EGL_KHR_swap_buffers_with_damage EGL_KHR_partial_update EGL_EXT_buffer_age",
+			wantSwap:    true,
+			wantPartial: true,
+			wantAge:     true,
+		},
+		{
+			name: "symbols_missing_string_claims", hasSwap: false, hasPartial: false,
+			exts:        "EGL_KHR_swap_buffers_with_damage EGL_KHR_partial_update EGL_EXT_buffer_age",
+			wantSwap:    false,
+			wantPartial: false,
+			wantAge:     true,
+		},
+		{
+			name: "empty_string", hasSwap: true, hasPartial: true, exts: "",
+			wantSwap:    false,
+			wantPartial: false,
+			wantAge:     false,
+		},
+	}
+	for _, c := range cases {
+		got := resolvePresentDamageCapabilities(c.hasSwap, c.hasPartial, c.exts)
+		if got.swapWithDamage != c.wantSwap || got.partialUpdate != c.wantPartial || got.bufferAge != c.wantAge {
+			t.Fatalf("%s: got swap=%v partial=%v age=%v, want swap=%v partial=%v age=%v",
+				c.name, got.swapWithDamage, got.partialUpdate, got.bufferAge, c.wantSwap, c.wantPartial, c.wantAge)
+		}
+	}
+}
