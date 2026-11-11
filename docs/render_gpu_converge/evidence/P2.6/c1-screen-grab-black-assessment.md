@@ -128,3 +128,29 @@ dither_xwayland.log / shim 轨迹 / 抓图 PNG 统计）。
   修好后 rootless Xwayland 用 xwd -id 即可真抓；隔离 Xorg 不再是必要条件。
 - native Wayland 档按用户重拍板走显式 SKIP（机器可读原因）；Wayland 原生截屏
   （portal/PipeWire，需人工授权 token）登记为后续独立大批次，不假装已解决。
+
+## 9 登记勘误：既有金图漂移的真实范围（2026-11-11 复核）
+
+§5 只登记了 backdrop / filterops / dither 三扇，复核 `evidence/P2.6/c1-verify/` 全部
+22 窗日志后更正：**21/22 窗的 pixel_golden_diff_pct 非零**（唯一 0 是 ui_render_base_svg），
+幅度 0.1880%–31.7164%：
+
+| 代表窗 | golden diff |
+|---|---|
+| ui_render_base_dither | 31.7164% |
+| ui_render_base_miscdraw | 14.2041% |
+| ui_render_base_backdrop | 6.3519% |
+| ui_wr_shadermask | 5.6476% |
+| ui_render_base_filterops | 5.2101% |
+| ui_render_base_textlow | 3.4169% |
+| ui_render_base_maskops | 2.2262% |
+| ui_render_base_webp | 2.1279% |
+| ui_render_base_pathbool | 1.8532% |
+| 其余 12 窗 | 0.1880%–1.6722% |
+
+- 修复前（c1-repro 两档显示）与修复后（c1-verify）同值（backdrop 恒 6.35188137755102），
+  两档显示环境同值 ⇒ **与 C1 的抓图修复无关、与显示后端无关**，是历史金图（2026-10 月基线）
+  相对当前渲染结果的普遍漂移。
+- C1 验收口径只看 screen_check 字段：22 窗 screen check 全绿/显式 SKIP，golden FAIL 是既有欠账。
+- 按「新问题归位」登记为独立余留项：22 窗金图漂移专项（需逐窗判定是「渲染有洞」还是「基线过期」，
+  禁止直接重种掩盖）。本项不处理。

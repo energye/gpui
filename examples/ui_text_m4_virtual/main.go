@@ -342,8 +342,8 @@ func main() {
 			"vtl_window_last":   int64(vl),
 			"anchor_jumps":      int64(anchorJumps),
 			"window_lag_max":    int64(winLagMax),
-			"prefix_refreshes":   int64(invCount),
-			"prefix_throttled":   int64(invSkipped),
+			"prefix_refreshes":  int64(invCount),
+			"prefix_throttled":  int64(invSkipped),
 			"measured_rows":     int64(vtl.MeasuredCount()),
 			"total_height_px":   vtl.TotalHeight(),
 			"sample_lines_file": "testdata/log_sample.txt",
@@ -351,4 +351,8 @@ func main() {
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
+	if err := wrgate.CheckRSSSlopeSteady(report); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

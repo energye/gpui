@@ -330,6 +330,10 @@ func main() {
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
+	if err := wrgate.CheckRSSSlopeSteady(report); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	// Schema gate first (full A–J family must be present).
 	if err := wrgate.EvaluateGates(report, wrgate.GateOptions{MinPresents: 1}); err != nil {

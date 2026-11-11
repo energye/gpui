@@ -538,6 +538,10 @@ func main() {
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
+	if err := wrgate.CheckRSSSlopeSteady(report); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	// ---- Gates (§2 R6 行 + §2.5 动画层档 + §2.2 全族；硬，不许放) ----------
 	// 族 A（fps/p95/hitch）只在无人值守跑上判定：拖拽把引擎置入 resize 全量

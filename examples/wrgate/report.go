@@ -383,6 +383,14 @@ type GateOptions struct {
 	// shared), so the miss count proves every window actually went through the
 	// shared cache instead of allocating around it.
 	MinPoolMisses int64
+	// C5 (evidence/P2.6/c5-rss-slope-gate-assessment.md): P0.1
+	// thresholds.md:122 declares rss_slope_steady_kb_per_min > 30000 KB/min a
+	// leak, but only a verdict window long enough (>=60s recommended) may judge;
+	// a 30s window still contains startup cache growth. Defaults: 30000 / 60s,
+	// i.e. the gate is ON for every window using the shared gate set. Zero or
+	// negative means "use default"; short/invalid runs are observation only.
+	MaxRSSSlopeSteadyKBPerMin float64
+	MinRSSVerdictSec          float64
 	// RequirePoolDomains names domains that must be present in the probe
 	// (P2.4d). Hits may legitimately be zero when the workload holds its
 	// entries for the whole run or draws a composited layer only once, so this
@@ -486,6 +494,32 @@ func numExtra(extra map[string]any, key string) (int64, bool) {
 	}
 }
 
+// C5 defaults, from P0.1 thresholds.md:122 ("> 30000 KB/min → FAIL", ">30s
+// recommended 60s"). Both are overridable via GateOptions.
+const (
+	DefaultMaxRSSSlopeSteadyKBPerMin = 30000.0
+	DefaultMinRSSVerdictSec          = 60.0
+)
+
+// rssSlopeVerdict is the single RSS leak verdict used by EvaluateGates and by
+// legacy windows that build a Report but do not run the full gate set. A short
+// or invalid run cannot be judged (warmup cache growth, not a leak).
+func rssSlopeVerdict(r Report, maxSlope, minVerdict float64) error {
+	if r.RSSSlopeValid && r.ElapsedSec >= minVerdict && r.RSSSlopeSteadyKBPerMin > maxSlope {
+		return fmt.Errorf("FAIL: rss_slope_steady_kb_per_min=%.1f > %.0f (verdict window %.1fs >= %.0fs)",
+			r.RSSSlopeSteadyKBPerMin, maxSlope, r.ElapsedSec, minVerdict)
+	}
+	return nil
+}
+
+// CheckRSSSlopeSteady applies the default RSS verdict to a Report. Exported for
+// legacy windows (r17/m4_virtual/c5/r6/r10) that build a Report but do not call
+// EvaluateGates; l1_spinner is deliberately excluded — it is covered by a
+// separate 2h soak item (evidence/P2.6/c5-rss-slope-gate-assessment.md §5).
+func CheckRSSSlopeSteady(r Report) error {
+	return rssSlopeVerdict(r, DefaultMaxRSSSlopeSteadyKBPerMin, DefaultMinRSSVerdictSec)
+}
+
 // EvaluateGates returns a FAIL error or nil. Pure: no I/O.
 func EvaluateGates(r Report, opt GateOptions) error {
 	b, err := Marshal(r)
@@ -563,6 +597,20 @@ func EvaluateGates(r Report, opt GateOptions) error {
 	}
 	if opt.RequireDebugOn && !r.DebugRepaintOn {
 		return fmt.Errorf("FAIL: debug_repaint_on=false want true (R12b overlay active)")
+	}
+	// C5: the shared gate set owns the RSS steady-slope leak verdict (single
+	// source of truth, P0.1 thresholds.md:122). Short or invalid runs are
+	// observation only — a 30s window would judge warmup cache growth as a leak.
+	maxSlope := opt.MaxRSSSlopeSteadyKBPerMin
+	if maxSlope <= 0 {
+		maxSlope = DefaultMaxRSSSlopeSteadyKBPerMin
+	}
+	minVerdict := opt.MinRSSVerdictSec
+	if minVerdict <= 0 {
+		minVerdict = DefaultMinRSSVerdictSec
+	}
+	if err := rssSlopeVerdict(r, maxSlope, minVerdict); err != nil {
+		return err
 	}
 	if err := EvaluatePoolGates(r, opt); err != nil {
 		return err

@@ -608,6 +608,10 @@ func main() {
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
+	if err := wrgate.CheckRSSSlopeSteady(report); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	fail := func(format string, args ...any) {
 		fmt.Fprintf(os.Stderr, "FAIL: "+format+"\n", args...)

@@ -1,0 +1,10 @@
+ui_wr_r17_bg_throttle	native	rc=1	valid=True	steady=27843.9	raw=72082.5	elapsed=30.408709022	start=52012	end=391556
+ui_wr_r17_bg_throttle	go	rc=1	valid=True	steady=-9921.6	raw=63284.9	elapsed=30.529980314	start=51856	end=379760
+ui_text_m4_virtual	go	rc=0	valid=True	steady=31985.1	raw=33620.1	elapsed=35.540863386	start=51788	end=426876
+ui_wr_c5_anim_over_static	native	rc=1	valid=True	steady=22537.2	raw=27276.8	elapsed=35.54809239	start=51828	end=392320
+ui_wr_c5_anim_over_static	go	rc=1	valid=True	steady=21876.6	raw=28230.6	elapsed=35.679476218	start=52236	end=378664
+ui_wr_r6_layer_anim	native	rc=1	valid=True	steady=16455.9	raw=24734.7	elapsed=35.524685724	start=52044	end=387216
+ui_wr_r6_layer_anim	go	rc=1	valid=True	steady=25006.2	raw=32889.5	elapsed=35.670485814	start=51816	end=385056
+ui_wr_r10_async_image	native	rc=1	valid=True	steady=9693.9	raw=23278.0	elapsed=35.595213342	start=51788	end=394824
+ui_wr_r10_async_image	go	rc=1	valid=True	steady=24099.3	raw=34331.9	elapsed=35.654478668	start=51908	end=387460
+ui_l1_spinner	native	rc=0	valid=True	steady=46936.0	raw=44497.6	elapsed=None	start=12304	end=262196

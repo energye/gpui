@@ -434,6 +434,10 @@ func main() {
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
+	if err := wrgate.CheckRSSSlopeSteady(report); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	// ---- Gates (§3 C5 行 + §3.1.2 + §2.2 族 A 动画层档；硬，不许放) --------
 	if err := wrgate.EvaluateGates(report, wrgate.GateOptions{

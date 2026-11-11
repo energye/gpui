@@ -71,9 +71,27 @@
 - 双后端：Wayland 与 X11/Xwayland 两档显示环境；metal 不可验。
 - 硬约束：单窗自退出 + 每轮查显示健康；不改默认呈现/金图语义；差异用逐像素统计（禁 mean 判好转）。
 
-**下一步：§2.2 剩余 ⬜ 项按序取（C5 / C6 / E1 / E3 / G3 / I1 / I2），取项前先登记载体。B2、B3、C1 已 ✅。**
+**上一任务验证载体（C5：RSS 稳态斜率门禁收口，2026-11-11 ✅）**
 
-**C1 顺带登记（非本项范围）**：backdrop/filterops/dither 等窗既有金图漂移（6.3519% / 5.2101% / 31.7164% 等），两档显示同值，与抓黑图无关，另立子项；Wayland 原生截屏（portal/PipeWire 需人工授权）另立后续大批次。
+- 任务：判定「窗门禁集是否含 RSS 线」——排查为主，本阶段**不改生产代码**；正本 `evidence/P2.6/c5-rss-slope-gate-assessment.md`。
+- 真窗：P1.6 盘点 10 条过线记录（r17_bg_throttle / m4_virtual / c5_anim_over_static / r6_layer_anim / r10_async_image / l1_spinner，双后端共 10 条）；复核 `rss_settle.tsv`：全部 `slope_valid=True`、`judge=LEAK-LINE`。
+- 能力单测：`examples/wrgate`（门禁集）+ 各窗 ≥30s 复跑（待 D3 拍板后做，串行单窗自退出、每轮查显示健康）。
+- 标准方案：P0.1 `thresholds.md:122`（>30000 FAIL、仅 `rss_slope_valid=true` 时判）+ 门禁单一真源收敛到 `wrgate.EvaluateGates`。
+- 证据：`baseline/vram/summary.md §3`、`baseline/vram/rss_settle.tsv`、`examples/wrgate/report.go`（GateOptions/EvaluateGates 无 RSS 判定，Report 只有采集字段）。
+- 硬约束：短窗 `valid=false` 不判（不改口径）；不动 30000 阈值真源；不把 10 条 PASS 直接判真泄漏（须先复跑定性）。
+
+**C5 余留子项（2026-11-11 登记，不阻塞 C5 收口）**：
+- `ui_l1_spinner` 2h soak 定性（唯一 60s 仍过线 35161，RSS 12MB→302MB；按用户拍板单独立项，用 P0.1「2 小时 RSS 涨 ≤5%」档判真泄漏 vs 缓存上限）。
+- `ui_text_m4_virtual` go 60s 稳态斜率波动（28586.8 / 37791.2 / 32694.3），与 l1_spinner 一并归 soak 定性，不在门禁批下结论。
+
+**下一步：§2.2 剩余 ⬜ 项按序取（C6 / E1 / E3 / G3 / I1 / I2），取项前先登记载体。B2、B3、C1、C5 已 ✅。**
+
+**C1 顺带登记（非本项范围，2026-11-11 复核更正）**：既有金图漂移**不是 3 扇而是 21/22 窗**
+（唯一 0 是 ui_render_base_svg；dither 31.7164% / miscdraw 14.2041% / backdrop 6.3519% /
+shadermask 5.6476% / filterops 5.2101% … 最小 0.1880%），修复前后同值、两档显示同值 ⇒ 与 C1 及
+后端无关，是历史金图相对当前渲染的普遍漂移。登记为独立余留项「22 窗金图漂移专项」
+（须逐窗判定渲染洞 vs 基线过期，禁止直接重种掩盖），正本 `evidence/P2.6/c1-screen-grab-black-assessment.md` §9；
+Wayland 原生截屏（portal/PipeWire 需人工授权，GNOME Shell 接口 AccessDenied）另立后续大批次。
 
 **上一任务验证载体（M5 HDR 全链：P0–P5 全批收口 ✅，2026-11-11，存档）**
 
@@ -893,7 +911,12 @@
 | C2 | P1.4 | `ui_wr_t_stress` BUILD_FAIL：引用不存在的 `ui/kit/button`、`ui/kit/icon`；`baseline/windows/README.md:41` | 组件线：kit `button`/`icon` 能力补齐后示例才能建（P2.3 已确认与老 GPU 簇无因果，2026-10-29 移出） | ✅ 2026-11-09 源码实证销账：`examples/ui_wr_t_stress` 目录已不存在（示例整删）；`ui/kit/` 的 `icon_*` 已齐全，BUILD_FAIL 与 button 需求随示例删除而消失 |
 | C3 | P1.4 | `ui_ime_probe` 不响应 WM_DELETE，人工探针按兜底 SIGTERM 记 PROBE | P2.4e（窗口关闭协议） | ✅ **2026-11-11 实测销账**：修复已随 P2.4e e4 落地（`03a630be`/`c66041f1`，summary.md:14「C3 ime probe 补 EventCloseRequested」；`x11_linux.go:1552` WM_DELETE→EventCloseRequested 映射 + 探针 `main.go:235-240` 处理分支，注释明示 C3），台账漏销。现行树实测：X11 档 probe 后台起 + ctypes 直发 WM_DELETE ClientMessage（模拟 WM）→ probe 打印 `close requested (WM_DELETE)` 并自行退出（无 SIGTERM 兜底）；验证脚本自身的打包偏移/type 误填两次段错误均即时定位修正（见 P2.4e/summary.md 11-11 收口段），引擎侧零改动 |
 | C4 | P1.4 重审 | T2：`ui_wr_r1_layout`/`r20_filter`/`r22_selection_stub`/`c6_savelayer_group` 两轮 rc=1 而 JSON 自报通过、金图 diff=0，病因未解剖（§3 已知问题 T2） | P2.6 前诊断 | ✅ **2026-11-10/11 解剖销账（`evidence/P2.6/c4-dissection.md`，用户三拍板）**：① 共同机制源码钉死——wr 窗报告顺序是**先打印 JSON 后评门**（r20 `main.go:518-519` 先发 JSON、`:525` 才 EvaluateGates），rc 才是最终判定，`json_ok=true` 只是「JSON 可解析+能力字段自报」，四窗金图全 0.0000% 无渲染假绿；② 逐窗病灶：r1/c6=窗自己的 U21 快照回读顶破 hitch 门（r1 窗 JSON 自注「no other hitches」）、r22=同族压线、r20=P1.4 时是 scripted 4/5（I3 现场而 hitch 预算本 30）、现行树 scripted 已 5/5 但 rc=1 换成池域名门 `layer-offscreen` 期望脱节（现行路由下该场景 legitimately 不触碰该懒建池，`ensureFilterSrcRT` 仅中帧 pending 路、`acquireEffectPublishView` F14 路才有可达性）；③ 处置：r20 窗门更新到现行拓扑（去 layer-offscreen 强制，零引擎改动）+ **引擎口快照回读不计 hitch**（`MetricsStore.PauseHitchCount/ResumeHitchCount` 可嵌套 + `drainSnapshots` 包裹，SnapshotAsync/RetainedSnapshot 一处全覆盖；先红后绿两钉 `metrics_hitch_pause_test.go`；百分位/max 照记只免计 HitchCount）+ r1 过时注记更新；④ 验证：四窗双后端 8 轮 30s 自检全 PASS（rc=0、scripted 全过、金图全 0.0000%、剩余 hitch 2-4/min ≤5 富余、未逐笔归因如实登记）；门禁 scheduler/embedder 目录绿 + -race ×5 绿（首跑磁盘满高负载期一枚未留名 FAIL 未复现如实登记）+ 默认/nogpu/全仓构建/apidoc rc=0 |
-| C5 | P1.6 | 10 条 PASS 记录 RSS 稳态斜率过 30000KB/min 泄漏线（`r17_bg_throttle` 88801 最高）；`baseline/vram/summary.md` §3 | P2 判定窗门禁集是否含 RSS 线 | ⬜ |
+| C5 | P1.6 | 10 条 PASS 记录 RSS 稳态斜率过 30000KB/min 泄漏线（`r17_bg_throttle` 88801 最高）；`baseline/vram/summary.md` §3 | P2 判定窗门禁集是否含 RSS 线 | ✅ **2026-11-11 收口**：复核 `rss_settle.tsv` 10 条过线记录全部 `slope_valid=True`/`LEAK-LINE`（按 P0.1 本应 FAIL）；根因=统一门禁集 `wrgate.EvaluateGates` 无 RSS 判定，6 个老窗均不调用门禁集、仅 r10 手写且短跑跳过。修法=`GateOptions` 加 `MaxRSSSlopeSteadyKBPerMin=30000`/`MinRSSVerdictSec=60`（默认开启，短于 60s 或 `valid=false` 只观测），`rssSlopeVerdict` 单一真源 + 导出 `CheckRSSSlopeSteady` 给 r17/m4_virtual/c5/r6/r10 五窗薄接线；l1_spinner 按拍板不接门禁、另立 2h soak 子项。验收：10 条 ≥30s 复跑定性（9/10 不复现历史过线，主因预热爬坡）、wrgate 5 单测、真窗 35s steady=37597.7 不判/60s steady=32694.3 判红，build/vet rc=0。正本 `evidence/P2.6/c5-rss-slope-gate-assessment.md`、`evidence/P2.6/c5-recheck/` |
+不复现历史过线（r17 go 甚至 -9921.6；m4_virtual go 60s 降到 28586.8）⇒ 历史高斜率主要是
+短窗口径 + 启动/预热爬坡，不是持续泄漏；唯一持续过线 `ui_l1_spinner` native 60s=35161
+（RSS 12MB→302MB，需 2h soak 单独定性）。**停在停下报告待定口径**：`proc_tracker.go` 的
+`RSSSlopeValid` 只需 30s，直接默认开启会把爬坡误判；P0.1 写「≥30s，推荐 60s」，两者不一致。
+正本 `evidence/P2.6/c5-rss-slope-gate-assessment.md`（§5 复跑数据），待拍板门禁默认值/有效时长 |
 | C6 | P1.6 | `ui_base_batch_cap` p95 双后端 55.7/62.1ms 超 22ms 门禁（P1.4 同因同量级） | P2 性能线 | ⬜ |
 | C7 | P1.6 | `ui_base_vram_cap` ladder 的 go 档在 GL 第 4 窗起 `eglMakeCurrent 0x3002`，8 窗阶梯跑不了；`baseline/vram/summary.md:18` | P2.4a/P2.4e（gles 多窗上下文） | 🔍 **2026-11-10 台账整理注**：X11 主修复随 P2.4e 落地（§7 1151/1306 行「C7 拆半」、J5「C7 修复后首次可达」已闭合）；Wayland「context-per-surface 第二机制」仍待核实，未擅自销账。原 2026-10-30 根因已解剖（`evidence/P2.4a/c7-dissection.md`）：开窗的 EGL 绑定操作跑在控制器线程，撞上唯一 GL 线程（ui/raster/hub）的 Submit keep 窗口期 → EGL 单绑定拒绝；竞态非确定窗号（P2.4a 生命周期复跑在嵌套 Wayland multiwin 第 8 窗同码复现——Wayland 为 context-per-surface，具体触发路径是**第二个待解剖机制**，随 P2.4e 一并解剖）；修复归 **P2.4e**（X11 推荐方案：开窗 GL 步骤投递 hub FrameJob），P2.4a 建设备收敛与本根因无交集。2026-10-30 P2.4b 门禁补跑复现**单窗形态**：`ui_l1_blank` go 单窗即报 `eglMakeCurrent 0x3002`（开窗 rc=1），另一形态是关窗死锁（hub 线程 `gles.(*AdapterContext).Destroy` 等 `AdapterContext` 互斥锁，主线程 `App.Close → Loop.RunSync` 等 hub）；同一合成器上 `55495fdd` 干净树同样复现，证据 `evidence/P2.4b/l1_blank_go_c7-0x3002.stderr`、`l1_blank_go_hang-stack.txt`、`ab-clean-55495fdd.stderr` |
 | D1 | P1.3 | T1：`gpu/rwgpu/queue_workdone_test.go:45` 失败后 cleanup `Release()` 在 `device_misc.go:313/314` SIGSEGV（原始栈 `baseline/tests/failures/queue_workdone_test.log`） | P2.4c/P2.4e | ✅ **2026-11-10 解剖销账（`evidence/P2.4e/d1-dissection.md`）**：根因 = 92ca9216 时代 `queueWorkDoneCallbackInfo` 缺 v29 `Mode` 字段（四字 vs 头文件 `webgpu.h:1677-1688` 五字按值）→ wgpu 按 v29 读四字结构错位一格，`callback` 槽拿到记录 id（首调=1）→ null future + `Device.Release` 结算 pending 回调跳地址 1（PC=0x1）。92ca9216 布局重放完整复现（null future + SIGSEGV PC=0x1/addr=0x1 与原始栈逐帧同构、寄存器逐位一致，`evidence/P2.4e/d1-repro-oldlayout.txt`，临时测试已删）；根因已由 v29 对齐修复消除（`queue_workdone.go` 补 Mode 字段/五参回调/枚举 v29 值），现行 HEAD 整文件 4 用例带 lib 全 PASS；按拍板销账 + 布局防回归钉 `TestQueueWorkDoneCallbackInfoV29Layout`（尺寸/偏移/Mode 枚举/Future ABI 纯 Go 断言，零行为改动）；零引擎代码改动、零公开 API |
@@ -1405,6 +1428,8 @@ docs/render_gpu_converge/
 
 | 2026-11-11 | C1 screen check 抓黑图 | **🟡→✅ 收口**：真因=解析洞（xwininfo 窗口 id 行按首个冒号切，winID 恒空，xwd -id 分支死）+ 环境（Xwayland X root 不绘制）。22 窗收敛到 `examples/wrkit/screencheck.go`（正确解析 + xwd -id 为主 + 负向 env），native Wayland 显式 SKIP（screen_check_skipped）。验证：14 窗 + 8 个 p38 窗 screen check 全 0.0000%、强制回退负向 100% 红、Wayland 档 skipped=true；build/vet rc=0。 | `evidence/P2.6/c1-screen-grab-black-assessment.md`、`evidence/P2.6/c1-verify/` |
 
+| 2026-11-11 | C5 RSS 稳态斜率门禁 | **🟡→✅ 收口**：真因=统一门禁集无 RSS 判定 + 6 老窗不接门禁集。修法=GateOptions 默认 30000/60s + `rssSlopeVerdict` 单一真源 + 5 老窗薄接线，l1_spinner 另立 soak。验证：10 条 ≥30s 复跑（9/10 不复现，主因预热爬坡）、wrgate 5 单测、真窗 35s 不判/60s 判红、build/vet rc=0。 | `evidence/P2.6/c5-rss-slope-gate-assessment.md`、`evidence/P2.6/c5-recheck/` |
+
 ## 8 修订记录
 
 | 日期 | 修订 |
@@ -1478,3 +1503,4 @@ docs/render_gpu_converge/
 | 2026-11-11 | §2.2 池取项 B2：r6 金图真源对齐（仓内 testdata/goldens，native/go 各基线）+ 表内路径同步 + 负向 |
 | 2026-11-11 | §2.2 池取项 B3：script 金图逐位（RetainedSnapshot 裁片 + 零容差 + 基线重种 + 负向） |
 | 2026-11-11 | §2.2 池取项 C1：22 窗 screen check 收敛到 wrkit helper（解析洞修复 + xwd -id + 显式 SKIP + 负向验收） |
+| 2026-11-11 | §2.2 池取项 C5：RSS 稳态斜率门禁统一进 wrgate（默认开启+≥60s 判红）+ 5 老窗接线 + 10 条复跑定性 |
