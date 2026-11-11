@@ -14,6 +14,10 @@ RUN_SECONDS=30 go run ./examples/ui_wr_r6_layer_anim
 不设 `RUN_SECONDS`：交互模式，窗不自动关、相位无限循环（像素断言只在关闭跑触发，
 证据 = 引擎终帧快照 `R6_SNAP_DIR`（默认 /tmp/r6_layer_anim）/r6_final.png）。
 
+金图基线在仓内 `testdata/goldens/r6_final_base.png`（`GPUI_BACKEND=go` 用
+`r6_final_base_go.png`）；运行期快照仍写 `R6_SNAP_DIR`（默认 `/tmp/r6_layer_anim`，
+可整体覆盖，不脏工作树）。
+
 ## Window / Close duration
 
 - 窗口 **1200×800**（U15）

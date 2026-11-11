@@ -47,7 +47,23 @@
 
 ### 2.1 当前焦点
 
-**当前焦点（2026-11-11 起）：§2.2 待办池取项**——M5 HDR 全链已全批收口（P0–P5 ✅，见下方存档）；下一步重读 §2.2 池内剩余 ⬜ 项，按优先级登记载体后开工。
+**当前焦点（2026-11-11 起）：§2.2 待办池取项**
+
+**上一任务验证载体（B2：ui_wr_r6_layer_anim 金图真源对齐，2026-11-11 ✅ 收口）**
+
+- 任务：窗口金图从外部绝对路径（R6_SNAP_DIR 默认 /tmp/r6_layer_anim/r6_final_base.png）对齐到仓内
+  examples/ui_wr_r6_layer_anim/testdata/goldens/（native 与 go 各自基线），消除「baseline/windows.md
+  表内金图未被读取」；R6_SNAP_DIR 保留为测量档覆盖。
+- 能力单测：窗内金图逐位（仅静态掩码 topbar/legend/dense，零容差）；两次跑复验 0.0000%。
+- 真窗：examples/ui_wr_r6_layer_anim，RUN_SECONDS=30，native + GPUI_BACKEND=go 各自基线。
+- 金图：testdata/goldens/r6_final_base.png / r6_final_base_go.png；旧 golden/baseline_igpu.png
+  只作历史归档、不再被读取（表内路径同步改）。
+- 双后端：native/go 均跑；metal 本机不可验（写明）。
+- 负向对照：替换/篡改基线一像素 → diff 非 0 判红；还原复绿（不写生产代码）。
+- 证据：evidence/P2.6/b2-r6-golden-source.md + 两次跑窗日志。
+- 硬约束：不改动画/门禁语义；R6_SNAP_DIR 覆盖仍生效；测试数据入 testdata。
+
+**下一步：§2.2 剩余 ⬜ 项按序取（B3 / C1 / C5 / C6 / E1 / E3 / G3 / I1 / I2），取项前先登记载体。**
 
 **上一任务验证载体（M5 HDR 全链：P0–P5 全批收口 ✅，2026-11-11，存档）**
 
@@ -861,7 +877,7 @@
 | A3 | 审计 | 46 个 `RequestDevice unavailable` SKIP 的根因未解剖，首轮与干净重跑均复现（`baseline/tests/summary.md:13`；原始错误 `:135` `RequestDevice: Validation Error`） | P2.4a 解剖；解剖前不定修复方向 | ✅ 2026-10-30 解剖闭合（`evidence/P2.4a/a3-dissection.md`）：真因是显存 OOM——wgpu 把 RequestDevice 阶段的 "Not enough memory left" 包装成 Validation Error，46 例全同因；显存压力决定 OOM 浮现层级（P1.3 在 RequestDevice 层、2026-10-30 在 CreateBuffer 层、单独跑全 PASS），环境依赖非代码缺陷；`IsGPUOutOfMemory` 对包装后文案仍命中（生产重试/降级健壮），不安排修复 |
 | A4 | 审计 + P1.1b | `render/gpu/gpu_nogpu.go` 是 B1 的空包补丁（163 个消费方 blank import 不动）；最小侵入性质与消解路径（消费方按能力门控 / 顶层包拆分）未登记 | P2.5 评估归位 ✅ 2026-10-31 P2.5 评估归位：保留（B1 引擎层正解，导入恒安全）；消费方实测 193 文件/190 空白导入（台账原记 163 过时已修正）；唯一生产非空白消费=stage_chase（!nogpu/nogpu 拆分完好）；消解路径=将来顶层包拆分时自然消解，零代码改动 | ✅ |
 | B1 | P1.6 | `baseline/windows.md:213` 的 `ui_base_vram_cap` 运行档写 A/60s，代码 `examples/ui_base_vram_cap/main.go:67` 是 `gateSeconds=300`；P1.6 证伪后未回填 | P0.2 勘误（baseline 只增不改：在 windows.md 修订表追加勘误行） | ✅ **2026-11-10 勘误已落**：`baseline/windows.md` §7 修订表追加勘误行，写明表内运行档 `A/60s` 是文档过时、代码真源 `examples/ui_base_vram_cap/main.go:67` 是 `gateSeconds=300`；原表按「只增不改」不动。源码已核实 |
-| B2 | P1.4 | `ui_wr_r6_layer_anim` 表内金图 `golden/baseline_igpu.png` 与代码真源不一致（代码读 `R6_SNAP_DIR`，默认 `/tmp/r6_layer_anim/r6_final_base.png`，仓内图未被读取）；`baseline/windows/README.md:42-44` | P2.6 对齐真源/代码 | ⬜ **文档已如实登记，真源/代码对齐仍归 P2.6**：`windows.md` §7 已有 2026-10-28/2026-10-29 两条登记，本次追加精确勘误行（代码真源 `R6_SNAP_DIR`，默认 `/tmp/r6_layer_anim/r6_final_base.png`；仓内 `golden/baseline_igpu.png` 仅归档参考、未被读取）。金图与代码真源不一致本身未解决，按「失败不掩盖」不标 ✅ |
+| B2 | P1.4 | `ui_wr_r6_layer_anim` 表内金图 `golden/baseline_igpu.png` 与代码真源不一致（代码读 `R6_SNAP_DIR`，默认 `/tmp/r6_layer_anim/r6_final_base.png`，仓内图未被读取）；`baseline/windows/README.md:42-44` | P2.6 对齐真源/代码 | ✅ **2026-11-11 真源对齐完成**：窗口默认读仓内 `examples/ui_wr_r6_layer_anim/testdata/goldens/r6_final_base.png`（`GPUI_BACKEND=go` 用 `_go.png`），运行期快照仍写 `R6_SNAP_DIR`（默认 `/tmp/r6_layer_anim`，可覆盖，不脏树）；`baseline/windows.md` 表内路径已同步，旧 `golden/baseline_igpu.png` 仅归档。验证：native/go 各两次跑 0.0000%（306280 px）、scripted 6/6；负向 1px 篡改基线 → 0.0003% 红、还原绿。证据 `evidence/P2.6/b2-r6-golden-source.md` |
 | B3 | P1.4 | `ui_text_edit_accept` 的 script 金图自动模式不逐位比较 | P2.6 决策（补逐位或写清替代判定） | ⬜ |
 | C1 | P1.4 | 14 窗自带 x11grab screen check 在 rootless Xwayland 抓黑图 → 环境 FAIL（`backdrop` p95≈137ms 也被拉高）；`baseline/windows/README.md:33-37` | P2.6 重放环境（隔离真 Xorg/可抓图显示） | ⬜ |
 | C2 | P1.4 | `ui_wr_t_stress` BUILD_FAIL：引用不存在的 `ui/kit/button`、`ui/kit/icon`；`baseline/windows/README.md:41` | 组件线：kit `button`/`icon` 能力补齐后示例才能建（P2.3 已确认与老 GPU 簇无因果，2026-10-29 移出） | ✅ 2026-11-09 源码实证销账：`examples/ui_wr_t_stress` 目录已不存在（示例整删）；`ui/kit/` 的 `icon_*` 已齐全，BUILD_FAIL 与 button 需求随示例删除而消失 |
@@ -1373,6 +1389,8 @@ docs/render_gpu_converge/
 
 | 2026-11-11 | M5 后全量回归 | **🟡→✅ 主链逐文件门禁 + 失败归因**：13 包 725 文件 / 1h01m = 693 PASS / 4 FAIL / 28 SKIP；1 个 M5 回归（P2 probe 顺序）已修+钉，3 个既有红以 pre-M5 worktree A/B 证明；修复后 694 PASS / 3 既有红；HDR 真窗 native/go 复跑 0.0000%。 | `evidence/M5/regress/full-gate.md`、`evidence/M5/regress/` |
 
+| 2026-11-11 | B2 真源对齐 | **⬜→✅ 收口**：`ui_wr_r6_layer_anim` 金图基线改读仓内 `testdata/goldens/r6_final_base.png`（`GPUI_BACKEND=go` 用 `_go.png`），运行期快照仍走 `R6_SNAP_DIR`（默认 /tmp，可覆盖，不脏树）；`baseline/windows.md` 表内路径同步 + §7 追加；native/go 各两次跑 **0.0000%**（306280 px）、scripted 6/6；负向 1px 篡改基线 → `0.0003%` 红、还原复绿；旧 `golden/baseline_igpu.png` 仅归档。旁注：seed 跑 hitch 8.01 撞既有 ≤5/min 灵敏度（与 C5/E1 同族，不在 B2 改）。 | `evidence/P2.6/b2-r6-golden-source.md`、`evidence/P2.6/b2-windows/` |
+
 ## 8 修订记录
 
 | 日期 | 修订 |
@@ -1443,3 +1461,4 @@ docs/render_gpu_converge/
 | 2026-11-11 | M5 P4：真窗 HDR 接线（+3 公开 API，格式跟随目标视图）+ ui_wr_m5_hdr 双后端 0.0000% |
 | 2026-11-11 | M5 P5 收口：负向守卫 + 双后端矩阵 + 残留登记；M5 整项 ✅，焦点切回 §2.2 待办池 |
 | 2026-11-11 | M5 后全量回归：主链 13 包 725 文件逐文件门禁；修 1 个 M5 回归（P2 探测顺序）+ 3 个既有红 A/B 归因 |
+| 2026-11-11 | §2.2 池取项 B2：r6 金图真源对齐（仓内 testdata/goldens，native/go 各基线）+ 表内路径同步 + 负向 |

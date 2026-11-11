@@ -490,7 +490,8 @@ func main() {
 	if resizedDuringRun {
 		fmt.Fprintf(os.Stderr, "golden: SKIPPED (window resized during run; bitwise compare needs same-size captures)\n")
 	} else {
-		goldenDiffPct, goldenTotalPx, goldenFirstRun = evaluateGolden(snapDir, goldenRects)
+		goldenDir := filepath.Join("examples", "ui_wr_r6_layer_anim", "testdata", "goldens")
+		goldenDiffPct, goldenTotalPx, goldenFirstRun = evaluateGolden(snapPath, goldenDir, goldenRects)
 	}
 
 	report := wrgate.BuildReport(wrgate.BuildInput{
@@ -711,9 +712,15 @@ func textPixels(img image.Image, dpr float64, box rect, base [3]float64) int {
 // evaluateGolden compares this run's snapshot against the stored baseline over
 // the static mask. First run stores the baseline (first_run=true, no verdict;
 // §2.7 semantics). Later runs demand ZERO differing pixels.
-func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int64, firstRun bool) {
-	cur := filepath.Join(snapDir, "r6_final.png")
-	base := filepath.Join(snapDir, "r6_final_base.png")
+// The baseline lives in the repo (AGENTS: test data in testdata/); the runtime
+// snapshot stays in R6_SNAP_DIR so runs do not dirty the tree.
+func evaluateGolden(cur, goldensDir string, rects []rect) (diffPct float64, totalPx int64, firstRun bool) {
+	baseName := "r6_final_base.png"
+	if os.Getenv("GPUI_BACKEND") == "go" {
+		baseName = "r6_final_base_go.png"
+	}
+	_ = os.MkdirAll(goldensDir, 0o755)
+	base := filepath.Join(goldensDir, baseName)
 	if _, err := os.Stat(base); err != nil {
 		data, err := os.ReadFile(cur)
 		if err != nil {

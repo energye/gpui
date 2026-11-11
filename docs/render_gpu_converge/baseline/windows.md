@@ -164,7 +164,7 @@
 | `ui_wr_r4_composite` | `testdata/showcase_r4_composite_base.png` | 0 | A/15s | 缓存/边界 · 层合成分带 |
 | `ui_wr_r4b_multidamage` | `testdata/r4b_multidamage_base.png` | 0 | A/15s | 缓存/边界 · DirtyLayerID/多 damage |
 | `ui_wr_r5_picture` | `testdata/showcase_r5_picture_base.png` | 0 | A/5s | 录制 · Picture 录/回放 |
-| `ui_wr_r6_layer_anim` | `golden/baseline_igpu.png` | 0 | R=30s | 混合 · Opacity/Transform/Clip 层动画 |
+| `ui_wr_r6_layer_anim` | `testdata/goldens/r6_final_base.png`（go: `_go.png`） | 0 | R=30s | 混合 · Opacity/Transform/Clip 层动画 |
 | `ui_wr_r7_virtlist` | `testdata/r7_virtlist_base.png` | 0 | A/60s | 缓存/边界 · 虚拟列表 |
 | `ui_wr_r7b_scroll_reuse` | `testdata/showcase_r7b_scroll_reuse_base.png` | 0 | A/60s | 缓存/边界 · 滚动 cell 复用 |
 | `ui_wr_r8_overlay` | `testdata/showcase_r8_overlay_{open,closed}_base.png` | 0 | A/15s | 混合 · 浮层独立合成双态 |
@@ -453,3 +453,4 @@ PY
 | 2026-10-29 | P1.4 采集最终计数：native 191 轮（PASS 111 / FAIL 60 / NO_JSON 8 / SEED 8 / BUILD_FAIL 1 / PROBE 1 / SKIP 2）+ go 183 轮（PASS 108 / FAIL 51 / NO_JSON 20 / BUILD_FAIL 1 / PROBE 1 / SKIP 2），汇总 374 行无 MISSING；`ui_text_edit_accept` 按 `GPUI_ACCEPT_RUN_SECONDS=30` 补跑两后端 PASS（script 金图自动模式不逐位比较，是否补 script 模式留 P2）；`ui_ime_probe` 记 PROBE；`ui_wr_r6_layer_anim`/`ui_wr_c11_policy_switch` 基线与参考金图补齐到双后端证据目录。自校验保持 162 行、122 仓内 / 0 运行期 / 40 无、缺图 0；表内 r6 金图路径按真源问题原样保留（P2 对齐，不为好看改表） |
 | 2026-11-10 | 勘误（B1，台账整理）：`ui_base_vram_cap` 运行档表内写 `A/60s` 系文档过时，代码真源 `examples/ui_base_vram_cap/main.go:67` 为 `gateSeconds=300`（P1.6 已证伪）；按「baseline 只增不改」仅追加本行勘误，原表条目不动 |
 | 2026-11-10 | 勘误（B2，台账整理）：`ui_wr_r6_layer_anim` 表内金图 `golden/baseline_igpu.png` 与代码真源不一致——代码读 `R6_SNAP_DIR`（默认 `/tmp/r6_layer_anim/r6_final_base.png`），仓内图仅归档参考、未被读取；2026-10-28/2026-10-29 两条已登记，本行补齐代码真源与默认路径。真源/代码对齐仍归 P2.6，未改表内条目 |
+| 2026-11-11 | B2 闭合（真源对齐）：`ui_wr_r6_layer_anim` 金图改读仓内 `examples/ui_wr_r6_layer_anim/testdata/goldens/r6_final_base.png`（`GPUI_BACKEND=go` 用 `_go.png`），运行期快照仍走 `R6_SNAP_DIR`（默认 /tmp，可覆盖）；表内路径同步；native/go 各两次跑 0.0000%（306280 px）、1px 篡改基线负向 0.0003% 红→还原绿；旧 `golden/baseline_igpu.png` 仅归档。 |
