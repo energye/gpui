@@ -1,0 +1,4 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_base_vram_cap: phase n=2 shared=2 fps_min=50.5 refusals=+0 (total 4) live=92.8MB (max 92.8) fair/win=96.0MB
+ui_base_vram_cap: phase n=4 shared=4 fps_min=23.8 refusals=+478 (total 622) live=180.2MB (max 180.2) fair/win=48.0MB
+ui_base_vram_cap: phase n=8 shared=8 fps_min=0.0 refusals=+0 (total 642) live=194.6MB (max 194.6) fair/win=24.0MB

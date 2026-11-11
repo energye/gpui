@@ -1,0 +1,343 @@
+warning: File "/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/runtime-gdb.py" auto-loading has been declined by your `auto-load safe-path' set to "$debugdir:$datadir/auto-load".
+To enable execution of this file add
+	add-auto-load-safe-path /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/runtime-gdb.py
+line to your configuration file "/home/yanghy/.config/gdb/gdbinit".
+To completely disable this security protection add
+	set auto-load safe-path /
+line to your configuration file "/home/yanghy/.config/gdb/gdbinit".
+For more information about this security protection see the
+"Auto-loading safe path" section in the GDB manual.  E.g., run from the shell:
+	info "(gdb)Auto-loading safe path"
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+[New Thread 0x7fffb113f640 (LWP 2186000)]
+[New Thread 0x7fffb093e640 (LWP 2186001)]
+[New Thread 0x7fffabfff640 (LWP 2186002)]
+[New Thread 0x7fffab7fe640 (LWP 2186003)]
+[New Thread 0x7fffaaffd640 (LWP 2186004)]
+[New Thread 0x7fffaa63c640 (LWP 2186005)]
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+[New Thread 0x7fff815ff640 (LWP 2186006)]
+[New Thread 0x7fff80dfe640 (LWP 2186007)]
+[New Thread 0x7fff73fff640 (LWP 2186008)]
+[New Thread 0x7fff737fe640 (LWP 2186009)]
+[New Thread 0x7fff7240d640 (LWP 2186010)]
+[New Thread 0x7fff71c0c640 (LWP 2186016)]
+ui_base_vram_cap: phase n=2 shared=2 fps_min=49.5 refusals=+0 (total 4) live=92.8MB (max 92.8) fair/win=96.0MB
+[New Thread 0x7fff713b0640 (LWP 2186019)]
+[New Thread 0x7fff70982640 (LWP 2186022)]
+ui_base_vram_cap: phase n=4 shared=4 fps_min=24.7 refusals=+495 (total 674) live=180.2MB (max 180.2) fair/win=48.0MB
+[New Thread 0x7fff5bf6f640 (LWP 2186034)]
+[New Thread 0x7fff5b6de640 (LWP 2186035)]
+[New Thread 0x7fff5aedd640 (LWP 2186036)]
+ui_base_vram_cap: phase n=8 shared=8 fps_min=0.0 refusals=+0 (total 694) live=194.6MB (max 194.6) fair/win=24.0MB
+
+Thread 1 "i1_vram_cap" received signal SIGQUIT, Quit.
+runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+558		MOVL	AX, ret+40(FP)
+  Id   Target Id                                            Frame 
+* 1    Thread 0x7ffff7f97740 (LWP 2185997) "i1_vram_cap"    runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+  2    Thread 0x7fffb113f640 (LWP 2186000) "i1_vram_cap"    runtime.usleep () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:135
+  3    Thread 0x7fffb093e640 (LWP 2186001) "i1_vram_cap"    runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+  4    Thread 0x7fffabfff640 (LWP 2186002) "i1_vram_cap"    0x00007ffff7d18d1f in __GI___poll (fds=0x7fffabffe4a0, nfds=1, timeout=-1) at ../sysdeps/unix/sysv/linux/poll.c:29
+  5    Thread 0x7fffab7fe640 (LWP 2186003) "i1_vram_cap"    internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+  6    Thread 0x7fffaaffd640 (LWP 2186004) "i1_vram_cap"    runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+  7    Thread 0x7fffaa63c640 (LWP 2186005) "i1_vram_cap"    runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+  8    Thread 0x7fff815ff640 (LWP 2186006) "i1_vram:disk$0" __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fff9c0b2280) at ./nptl/futex-internal.c:57
+  9    Thread 0x7fff80dfe640 (LWP 2186007) "i1_vra:traceq0" __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fff9c0bbf20) at ./nptl/futex-internal.c:57
+  10   Thread 0x7fff73fff640 (LWP 2186008) "i1_vram_cap"    internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+  11   Thread 0x7fff737fe640 (LWP 2186009) "i1_vram_cap"    internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+  12   Thread 0x7fff7240d640 (LWP 2186010) "i1_vram_cap"    internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+  13   Thread 0x7fff71c0c640 (LWP 2186016) "i1_vram_cap"    internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+  14   Thread 0x7fff713b0640 (LWP 2186019) "i1_vram_cap"    internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+  15   Thread 0x7fff70982640 (LWP 2186022) "i1_vram_cap"    internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+  16   Thread 0x7fff5bf6f640 (LWP 2186034) "i1_vram_cap"    runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+  17   Thread 0x7fff5b6de640 (LWP 2186035) "i1_vram_cap"    runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+  18   Thread 0x7fff5aedd640 (LWP 2186036) "i1_vram_cap"    internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+
+Thread 18 (Thread 0x7fff5aedd640 (LWP 2186036) "i1_vram_cap"):
+#0  internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+#1  0x00000000004c4b4d in syscall.RawSyscall6 (trap=18446744073709551102, a1=824856991304, a2=4210670, a3=824856991304, a4=2, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:65
+#2  0x00000000004c4c4a in syscall.Syscall6 (trap=271, a1=824856991304, a2=2, a3=824856991240, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:97
+#3  0x00000000004c55dd in syscall.Syscall6 (trap=271, a1=824856991304, a2=2, a3=824856991240, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at ./<autogenerated>:1
+#4  0x000000000093e0f2 in golang.org/x/sys/unix.ppoll (fds=<optimized out>, nfds=824856991304, timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/zsyscall_linux.go:138
+#5  0x000000000093ddf8 in golang.org/x/sys/unix.Ppoll (fds=..., timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:158
+#6  0x000000000093dec7 in golang.org/x/sys/unix.Poll (fds=..., timeout=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:167
+#7  0x000000000095bb65 in github.com/energye/gpui/ui/platform.(*wlHost).WaitEvents (h=0xc00bcd51d0, timeout=15921442, ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/platform/wayland_linux.go:1717
+#8  0x00000000009f91ae in github.com/energye/gpui/ui/embedder.(*PipelineApp).Run (a=0xc0027a6f08, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1299
+#9  0x0000000000b42519 in main.main.func3.1 (i=6, w=0xc00d4ed648) at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:364
+#10 0x0000000000b42468 in main.main.func3.gowrap1 () at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:369
+#11 0x000000000047eba1 in runtime.goexit () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693
+#12 0x0000000000000000 in ?? ()
+
+Thread 17 (Thread 0x7fff5b6de640 (LWP 2186035) "i1_vram_cap"):
+#0  runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+#1  0x000000000043d510 in runtime.futexsleep (addr=0xfffffffffffffe00, val=0, ns=4721091) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/os_linux.go:76
+#2  0x00000000004160c7 in runtime.notesleep (n=0xc009ab4958) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/lock_futex.go:47
+#3  0x0000000000448d4c in runtime.mPark () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:1974
+#4  runtime.stopm () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3013
+#5  0x000000000044ab17 in runtime.findRunnable (gp=<optimized out>, inheritTime=<optimized out>, tryWakeP=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3784
+#6  0x000000000044bb71 in runtime.schedule () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4152
+#7  0x000000000044ddd5 in runtime.exitsyscall0 (gp=0xc0000b3880) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:5013
+#8  0x000000000047cb95 in runtime.mcall () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:458
+#9  0x01007ffff7c94790 in ?? ()
+#10 0x0000000000800000 in github.com/energye/gpui/gpu/shader/wgsl/internal/lower.(*Lowerer).emitFinish (l=0x7fffb113e750, target=0x7fffb113e5f0, start=<optimized out>) at /home/yanghy/app/projects/gogpu/gpui/gpu/shader/wgsl/internal/lower/lower.go:10061
+#11 github.com/energye/gpui/gpu/shader/wgsl/internal/lower.(*Lowerer).lowerLoop (l=0x7fffb113e750, loopStmt=0x95c056b4164fde9a, target=0x95c10ffd3b8dde9a, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/gpu/shader/wgsl/internal/lower/lower.go:4997
+#12 0x00007ffff7c94790 in ?? () at ./nptl/pthread_create.c:321 from /lib/x86_64-linux-gnu/libc.so.6
+#13 0x00007fffb113e750 in ?? ()
+#14 0x95c056b4164fde9a in ?? ()
+#15 0x95c10ffd3b8dde9a in ?? ()
+#16 0x0000000000000000 in ?? ()
+
+Thread 16 (Thread 0x7fff5bf6f640 (LWP 2186034) "i1_vram_cap"):
+#0  runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+#1  0x000000000043d510 in runtime.futexsleep (addr=0xfffffffffffffe00, val=0, ns=4721091) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/os_linux.go:76
+#2  0x00000000004160c7 in runtime.notesleep (n=0xc007ea1958) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/lock_futex.go:47
+#3  0x0000000000448d4c in runtime.mPark () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:1974
+#4  runtime.stopm () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3013
+#5  0x000000000044ddd0 in runtime.exitsyscall0 (gp=0xc0078a2a80) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:5012
+#6  0x000000000047cb95 in runtime.mcall () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:458
+#7  0x01007ffff7c94790 in ?? ()
+#8  0x0000000000800000 in github.com/energye/gpui/gpu/shader/wgsl/internal/lower.(*Lowerer).emitFinish (l=0x7fff713af7a0, target=0x7fff713af640, start=<optimized out>) at /home/yanghy/app/projects/gogpu/gpui/gpu/shader/wgsl/internal/lower/lower.go:10061
+#9  github.com/energye/gpui/gpu/shader/wgsl/internal/lower.(*Lowerer).lowerLoop (l=0x7fff713af7a0, loopStmt=0x95c05782764fde9a, target=0x95c10ffd3b8dde9a, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/gpu/shader/wgsl/internal/lower/lower.go:4997
+#10 0x00007ffff7c94790 in ?? () at ./nptl/pthread_create.c:321 from /lib/x86_64-linux-gnu/libc.so.6
+#11 0x00007fff713af7a0 in ?? ()
+#12 0x95c05782764fde9a in ?? ()
+#13 0x95c10ffd3b8dde9a in ?? ()
+#14 0x0000000000000000 in ?? ()
+
+Thread 15 (Thread 0x7fff70982640 (LWP 2186022) "i1_vram_cap"):
+#0  internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+#1  0x00000000004c4b4d in syscall.RawSyscall6 (trap=18446744073709551102, a1=824634054216, a2=4210670, a3=824634054216, a4=2, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:65
+#2  0x00000000004c4c4a in syscall.Syscall6 (trap=271, a1=824634054216, a2=2, a3=824634054152, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:97
+#3  0x00000000004c55dd in syscall.Syscall6 (trap=271, a1=824634054216, a2=2, a3=824634054152, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at ./<autogenerated>:1
+#4  0x000000000093e0f2 in golang.org/x/sys/unix.ppoll (fds=<optimized out>, nfds=824634054216, timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/zsyscall_linux.go:138
+#5  0x000000000093ddf8 in golang.org/x/sys/unix.Ppoll (fds=..., timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:158
+#6  0x000000000093dec7 in golang.org/x/sys/unix.Poll (fds=..., timeout=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:167
+#7  0x000000000095bb65 in github.com/energye/gpui/ui/platform.(*wlHost).WaitEvents (h=0xc006426690, timeout=14664220, ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/platform/wayland_linux.go:1717
+#8  0x00000000009f91ae in github.com/energye/gpui/ui/embedder.(*PipelineApp).Run (a=0xc006420308, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1299
+#9  0x0000000000b42519 in main.main.func3.1 (i=1, w=0xc000051648) at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:364
+#10 0x0000000000b42468 in main.main.func3.gowrap1 () at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:369
+#11 0x000000000047eba1 in runtime.goexit () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693
+#12 0x0000000000000000 in ?? ()
+
+Thread 14 (Thread 0x7fff713b0640 (LWP 2186019) "i1_vram_cap"):
+#0  internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+#1  0x00000000004c4b4d in syscall.RawSyscall6 (trap=18446744073709551102, a1=824832816712, a2=4210670, a3=824832816712, a4=2, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:65
+#2  0x00000000004c4c4a in syscall.Syscall6 (trap=271, a1=824832816712, a2=2, a3=824832816648, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:97
+#3  0x00000000004c55dd in syscall.Syscall6 (trap=271, a1=824832816712, a2=2, a3=824832816648, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at ./<autogenerated>:1
+#4  0x000000000093e0f2 in golang.org/x/sys/unix.ppoll (fds=<optimized out>, nfds=824832816712, timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/zsyscall_linux.go:138
+#5  0x000000000093ddf8 in golang.org/x/sys/unix.Ppoll (fds=..., timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:158
+#6  0x000000000093dec7 in golang.org/x/sys/unix.Poll (fds=..., timeout=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:167
+#7  0x000000000095bb65 in github.com/energye/gpui/ui/platform.(*wlHost).WaitEvents (h=0xc00c852690, timeout=15606740, ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/platform/wayland_linux.go:1717
+#8  0x00000000009f91ae in github.com/energye/gpui/ui/embedder.(*PipelineApp).Run (a=0xc0027a6608, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1299
+#9  0x0000000000b42519 in main.main.func3.1 (i=3, w=0xc00bddf648) at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:364
+#10 0x0000000000b42468 in main.main.func3.gowrap1 () at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:369
+#11 0x000000000047eba1 in runtime.goexit () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693
+#12 0x0000000000000000 in ?? ()
+
+Thread 13 (Thread 0x7fff71c0c640 (LWP 2186016) "i1_vram_cap"):
+#0  internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+#1  0x00000000004c4b4d in syscall.RawSyscall6 (trap=18446744073709551102, a1=824738453064, a2=4210670, a3=824738453064, a4=2, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:65
+#2  0x00000000004c4c4a in syscall.Syscall6 (trap=271, a1=824738453064, a2=2, a3=824738453000, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:97
+#3  0x00000000004c55dd in syscall.Syscall6 (trap=271, a1=824738453064, a2=2, a3=824738453000, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at ./<autogenerated>:1
+#4  0x000000000093e0f2 in golang.org/x/sys/unix.ppoll (fds=<optimized out>, nfds=824738453064, timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/zsyscall_linux.go:138
+#5  0x000000000093ddf8 in golang.org/x/sys/unix.Ppoll (fds=..., timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:158
+#6  0x000000000093dec7 in golang.org/x/sys/unix.Poll (fds=..., timeout=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:167
+#7  0x000000000095bb65 in github.com/energye/gpui/ui/platform.(*wlHost).WaitEvents (h=0xc0099433b0, timeout=16000000, ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/platform/wayland_linux.go:1717
+#8  0x00000000009f91ae in github.com/energye/gpui/ui/embedder.(*PipelineApp).Run (a=0xc006420f08, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1299
+#9  0x0000000000b42519 in main.main.func3.1 (i=4, w=0xc0063e1648) at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:364
+#10 0x0000000000b42468 in main.main.func3.gowrap1 () at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:369
+#11 0x000000000047eba1 in runtime.goexit () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693
+#12 0x0000000000000000 in ?? ()
+
+Thread 12 (Thread 0x7fff7240d640 (LWP 2186010) "i1_vram_cap"):
+#0  internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+#1  0x00000000004c4b4d in syscall.RawSyscall6 (trap=18446744073709551102, a1=824806520392, a2=4210670, a3=824806520392, a4=2, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:65
+#2  0x00000000004c4c4a in syscall.Syscall6 (trap=271, a1=824806520392, a2=2, a3=824806520328, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:97
+#3  0x00000000004c55dd in syscall.Syscall6 (trap=271, a1=824806520392, a2=2, a3=824806520328, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at ./<autogenerated>:1
+#4  0x000000000093e0f2 in golang.org/x/sys/unix.ppoll (fds=<optimized out>, nfds=824806520392, timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/zsyscall_linux.go:138
+#5  0x000000000093ddf8 in golang.org/x/sys/unix.Ppoll (fds=..., timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:158
+#6  0x000000000093dec7 in golang.org/x/sys/unix.Poll (fds=..., timeout=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:167
+#7  0x000000000095bb65 in github.com/energye/gpui/ui/platform.(*wlHost).WaitEvents (h=0xc00be6c000, timeout=15958625, ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/platform/wayland_linux.go:1717
+#8  0x00000000009f91ae in github.com/energye/gpui/ui/embedder.(*PipelineApp).Run (a=0xc0027a6c08, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1299
+#9  0x0000000000b42519 in main.main.func3.1 (i=5, w=0xc00a4cb648) at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:364
+#10 0x0000000000b42468 in main.main.func3.gowrap1 () at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:369
+#11 0x000000000047eba1 in runtime.goexit () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693
+#12 0x0000000000000000 in ?? ()
+
+Thread 11 (Thread 0x7fff737fe640 (LWP 2186009) "i1_vram_cap"):
+#0  internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+#1  0x0000000000403e05 in internal/runtime/syscall.EpollWait (epfd=<optimized out>, events=..., maxev=<optimized out>, waitms=<optimized out>, n=<optimized out>, errno=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/syscall_linux.go:33
+#2  0x000000000043d1b4 in runtime.netpoll (delay=<optimized out>, ~r0=..., ~r1=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/netpoll_epoll.go:119
+#3  0x000000000044a425 in runtime.findRunnable (gp=<optimized out>, inheritTime=<optimized out>, tryWakeP=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3742
+#4  0x000000000044bb71 in runtime.schedule () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4152
+#5  0x000000000044c198 in runtime.goschedImpl (gp=0xc0000b3a40, preempted=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4314
+#6  0x000000000045cefa in runtime.gopreempt_m (gp=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4331
+#7  runtime.newstack () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/stack.go:1126
+#8  0x000000000047cd1d in runtime.morestack () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:620
+#9  0x0000000000000002 in ?? ()
+#10 0x01007ffff7c94790 in ?? ()
+#11 0x0000000000800000 in github.com/energye/gpui/gpu/shader/wgsl/internal/lower.(*Lowerer).emitFinish (l=0x7fffab7fd7b0, target=0x7fffab7fd650, start=<optimized out>) at /home/yanghy/app/projects/gogpu/gpui/gpu/shader/wgsl/internal/lower/lower.go:10061
+#12 github.com/energye/gpui/gpu/shader/wgsl/internal/lower.(*Lowerer).lowerLoop (l=0x7fffab7fd7b0, loopStmt=0x95c00690164fde9a, target=0x95c10ffd3b8dde9a, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/gpu/shader/wgsl/internal/lower/lower.go:4997
+#13 0x00007ffff7c94790 in ?? () at ./nptl/pthread_create.c:321 from /lib/x86_64-linux-gnu/libc.so.6
+#14 0x00007fffab7fd7b0 in ?? ()
+#15 0x95c00690164fde9a in ?? ()
+#16 0x95c10ffd3b8dde9a in ?? ()
+#17 0x0000000000000000 in ?? ()
+
+Thread 10 (Thread 0x7fff73fff640 (LWP 2186008) "i1_vram_cap"):
+#0  internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+#1  0x00000000004c4b4d in syscall.RawSyscall6 (trap=18446744073709551102, a1=824716146248, a2=4210670, a3=824716146248, a4=2, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:65
+#2  0x00000000004c4c4a in syscall.Syscall6 (trap=271, a1=824716146248, a2=2, a3=824716146184, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:97
+#3  0x00000000004c55dd in syscall.Syscall6 (trap=271, a1=824716146248, a2=2, a3=824716146184, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at ./<autogenerated>:1
+#4  0x000000000093e0f2 in golang.org/x/sys/unix.ppoll (fds=<optimized out>, nfds=824716146248, timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/zsyscall_linux.go:138
+#5  0x000000000093ddf8 in golang.org/x/sys/unix.Ppoll (fds=..., timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:158
+#6  0x000000000093dec7 in golang.org/x/sys/unix.Poll (fds=..., timeout=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:167
+#7  0x000000000095bb65 in github.com/energye/gpui/ui/platform.(*wlHost).WaitEvents (h=0xc00b732dc0, timeout=15449082, ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/platform/wayland_linux.go:1717
+#8  0x00000000009f91ae in github.com/energye/gpui/ui/embedder.(*PipelineApp).Run (a=0xc006420908, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1299
+#9  0x0000000000b42519 in main.main.func3.1 (i=2, w=0xc004e9b648) at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:364
+#10 0x0000000000b42468 in main.main.func3.gowrap1 () at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:369
+#11 0x000000000047eba1 in runtime.goexit () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693
+#12 0x0000000000000000 in ?? ()
+
+Thread 9 (Thread 0x7fff80dfe640 (LWP 2186007) "i1_vra:traceq0"):
+#0  __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fff9c0bbf20) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fff9c0bbf20) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fff9c0bbf20, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c93a01 in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fff9c0bbed0, cond=0x7fff9c0bbef8) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fff9c0bbef8, mutex=0x7fff9c0bbed0) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fff8c9e385d in ?? () from /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+#6  0x00007fff8c9cee4b in ?? () from /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+#7  0x00007fff8c9e378b in ?? () from /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+#8  0x00007ffff7c94a83 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:442
+#9  0x00007ffff7d268e0 in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:81
+
+Thread 8 (Thread 0x7fff815ff640 (LWP 2186006) "i1_vram:disk$0"):
+#0  __futex_abstimed_wait_common64 (private=0, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x7fff9c0b2280) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=0, abstime=0x0, clockid=0, expected=0, futex_word=0x7fff9c0b2280) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7fff9c0b2280, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x00007ffff7c93a01 in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x7fff9c0b2230, cond=0x7fff9c0b2258) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x7fff9c0b2258, mutex=0x7fff9c0b2230) at ./nptl/pthread_cond_wait.c:627
+#5  0x00007fff8c9e385d in ?? () from /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+#6  0x00007fff8c9cee4b in ?? () from /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+#7  0x00007fff8c9e378b in ?? () from /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+#8  0x00007ffff7c94a83 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:442
+#9  0x00007ffff7d268e0 in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:81
+
+Thread 7 (Thread 0x7fffaa63c640 (LWP 2186005) "i1_vram_cap"):
+#0  runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+#1  0x000000000043d510 in runtime.futexsleep (addr=0xfffffffffffffe00, val=0, ns=4721091) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/os_linux.go:76
+#2  0x00000000004160c7 in runtime.notesleep (n=0xc000100958) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/lock_futex.go:47
+#3  0x0000000000448d4c in runtime.mPark () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:1974
+#4  runtime.stopm () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3013
+#5  0x000000000044ab17 in runtime.findRunnable (gp=<optimized out>, inheritTime=<optimized out>, tryWakeP=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3784
+#6  0x000000000044bb71 in runtime.schedule () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4152
+#7  0x000000000044c198 in runtime.goschedImpl (gp=0xc0001028c0, preempted=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4314
+#8  0x000000000045cefa in runtime.gopreempt_m (gp=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4331
+#9  runtime.newstack () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/stack.go:1126
+#10 0x000000000047cd1d in runtime.morestack () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:620
+#11 0x0000000000000000 in ?? ()
+
+Thread 6 (Thread 0x7fffaaffd640 (LWP 2186004) "i1_vram_cap"):
+#0  runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+#1  0x000000000043d510 in runtime.futexsleep (addr=0xfffffffffffffe00, val=0, ns=4721091) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/os_linux.go:76
+#2  0x00000000004160c7 in runtime.notesleep (n=0x1374238 <runtime[newmHandoff]+24>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/lock_futex.go:47
+#3  0x0000000000448c31 in runtime.templateThread () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:2991
+#4  0x0000000000447453 in runtime.mstart1 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:1942
+#5  0x0000000000447395 in runtime.mstart0 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:1895
+#6  0x000000000047cb05 in runtime.mstart () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:395
+#7  0x00000000007170f7 in github.com/ebitengine/purego/internal/fakecgo.callThreadEntryFn () at /home/yanghy/app/projects/gogpu/purego/internal/fakecgo/trampolines_amd64.s:98
+#8  0x0000000000716b8c in github.com/ebitengine/purego/internal/fakecgo.threadentry (v=<optimized out>, ~r0=<optimized out>) at /home/yanghy/app/projects/gogpu/purego/internal/fakecgo/go_linux.go:52
+#9  0x000000000071707f in threadentry_trampoline () at /home/yanghy/app/projects/gogpu/purego/internal/fakecgo/trampolines_amd64.s:81
+#10 0x00007ffff7c94a83 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:442
+#11 0x00007ffff7d268e0 in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:81
+
+Thread 5 (Thread 0x7fffab7fe640 (LWP 2186003) "i1_vram_cap"):
+#0  internal/runtime/syscall.Syscall6 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/internal/runtime/syscall/asm_linux_amd64.s:36
+#1  0x00000000004c4b4d in syscall.RawSyscall6 (trap=18446744073709551102, a1=824857007688, a2=4210670, a3=824857007688, a4=2, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:65
+#2  0x00000000004c4c4a in syscall.Syscall6 (trap=271, a1=824857007688, a2=2, a3=824857007624, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/syscall/syscall_linux.go:97
+#3  0x00000000004c55dd in syscall.Syscall6 (trap=271, a1=824857007688, a2=2, a3=824857007624, a4=0, a5=0, a6=0, r1=<optimized out>, r2=<optimized out>, err=<optimized out>) at ./<autogenerated>:1
+#4  0x000000000093e0f2 in golang.org/x/sys/unix.ppoll (fds=<optimized out>, nfds=824857007688, timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/zsyscall_linux.go:138
+#5  0x000000000093ddf8 in golang.org/x/sys/unix.Ppoll (fds=..., timeout=<optimized out>, sigmask=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:158
+#6  0x000000000093dec7 in golang.org/x/sys/unix.Poll (fds=..., timeout=<optimized out>, n=<optimized out>, err=...) at /home/yanghy/app/gopath/pkg/mod/golang.org/x/sys@v0.47.0/unix/syscall_linux.go:167
+#7  0x000000000095bb65 in github.com/energye/gpui/ui/platform.(*wlHost).WaitEvents (h=0xc00e660960, timeout=16000000, ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/platform/wayland_linux.go:1717
+#8  0x00000000009f91ae in github.com/energye/gpui/ui/embedder.(*PipelineApp).Run (a=0xc0027a7208, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1299
+#9  0x0000000000b42519 in main.main.func3.1 (i=7, w=0xc00d4f1648) at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:364
+#10 0x0000000000b42468 in main.main.func3.gowrap1 () at /home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:369
+#11 0x000000000047eba1 in runtime.goexit () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693
+#12 0x0000000000000000 in ?? ()
+
+Thread 4 (Thread 0x7fffabfff640 (LWP 2186002) "i1_vram_cap"):
+#0  0x00007ffff7d18d1f in __GI___poll (fds=0x7fffabffe4a0, nfds=1, timeout=-1) at ../sysdeps/unix/sysv/linux/poll.c:29
+#1  0x00007fffa9e1cd4c in wl_display_dispatch_queue () from /lib/x86_64-linux-gnu/libwayland-client.so.0
+#2  0x00007fff8c863c08 in ?? () from /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+#3  0x00007fff8c85c246 in ?? () from /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+#4  0x00007fff8c6c5652 in ?? () from /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+#5  0x00007fffa9a9ddae in <wgpu_hal::vulkan::swapchain::native::NativeSwapchain as wgpu_hal::vulkan::swapchain::Swapchain>::present () from /home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+#6  0x00007fffa9a2acb6 in <wgpu_hal::vulkan::Queue as wgpu_hal::Queue>::present () from /home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+#7  0x00007fffa995c6df in <Q as wgpu_hal::dynamic::queue::DynQueue>::present () from /home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+#8  0x00007fffa9a13cf8 in wgpu_core::present::<impl wgpu_core::instance::Surface>::present () from /home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+#9  0x00007fffa993a8c7 in wgpu_core::present::<impl wgpu_core::global::Global>::surface_present () from /home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+#10 0x00007fffa98664aa in wgpuSurfacePresent () from /home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+#11 0x000000000071def8 in syscallX () at /home/yanghy/app/projects/gogpu/purego/sys_amd64.s:117
+#12 0x000000000047e864 in runtime.asmcgocall () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:921
+#13 0x000000c0000b3180 in ?? ()
+#14 0x0000000000000000 in ?? ()
+
+Thread 3 (Thread 0x7fffb093e640 (LWP 2186001) "i1_vram_cap"):
+#0  runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+#1  0x000000000043d510 in runtime.futexsleep (addr=0xfffffffffffffe00, val=0, ns=4721091) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/os_linux.go:76
+#2  0x00000000004160c7 in runtime.notesleep (n=0xc00006d158) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/lock_futex.go:47
+#3  0x0000000000448d4c in runtime.mPark () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:1974
+#4  runtime.stopm () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3013
+#5  0x000000000044ab17 in runtime.findRunnable (gp=<optimized out>, inheritTime=<optimized out>, tryWakeP=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3784
+#6  0x000000000044bb71 in runtime.schedule () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4152
+#7  0x000000000044ddd5 in runtime.exitsyscall0 (gp=0xc00846a000) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:5013
+#8  0x000000000047cb95 in runtime.mcall () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:458
+#9  0x01007ffff7c94790 in ?? ()
+#10 0x0000000000800000 in github.com/energye/gpui/gpu/shader/wgsl/internal/lower.(*Lowerer).emitFinish (l=0x7fffffffd0d0, target=0x7fffffffcf70, start=<optimized out>) at /home/yanghy/app/projects/gogpu/gpui/gpu/shader/wgsl/internal/lower/lower.go:10061
+#11 github.com/energye/gpui/gpu/shader/wgsl/internal/lower.(*Lowerer).lowerLoop (l=0x7fffffffd0d0, loopStmt=0x95c18148164fde9a, target=0x95c10ffd3b8dde9a, ~r0=..., ~r0=...) at /home/yanghy/app/projects/gogpu/gpui/gpu/shader/wgsl/internal/lower/lower.go:4997
+#12 0x00007ffff7c94790 in ?? () at ./nptl/pthread_create.c:321 from /lib/x86_64-linux-gnu/libc.so.6
+#13 0x00007fffffffd0d0 in ?? ()
+#14 0x95c18148164fde9a in ?? ()
+#15 0x95c10ffd3b8dde9a in ?? ()
+#16 0x0000000000000000 in ?? ()
+
+Thread 2 (Thread 0x7fffb113f640 (LWP 2186000) "i1_vram_cap"):
+#0  runtime.usleep () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:135
+#1  0x0000000000450db0 in runtime.sysmon () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:6248
+#2  0x0000000000447453 in runtime.mstart1 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:1942
+#3  0x0000000000447395 in runtime.mstart0 () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:1895
+#4  0x000000000047cb05 in runtime.mstart () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:395
+#5  0x00000000007170f7 in github.com/ebitengine/purego/internal/fakecgo.callThreadEntryFn () at /home/yanghy/app/projects/gogpu/purego/internal/fakecgo/trampolines_amd64.s:98
+#6  0x0000000000716b8c in github.com/ebitengine/purego/internal/fakecgo.threadentry (v=<optimized out>, ~r0=<optimized out>) at /home/yanghy/app/projects/gogpu/purego/internal/fakecgo/go_linux.go:52
+#7  0x000000000071707f in threadentry_trampoline () at /home/yanghy/app/projects/gogpu/purego/internal/fakecgo/trampolines_amd64.s:81
+#8  0x00007ffff7c94a83 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:442
+#9  0x00007ffff7d268e0 in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:81
+
+Thread 1 (Thread 0x7ffff7f97740 (LWP 2185997) "i1_vram_cap"):
+#0  runtime.futex () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/sys_linux_amd64.s:558
+#1  0x000000000043d510 in runtime.futexsleep (addr=0xfffffffffffffe00, val=0, ns=4721091) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/os_linux.go:76
+#2  0x00000000004160c7 in runtime.notesleep (n=0x13482f0 <runtime.m0+336>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/lock_futex.go:47
+#3  0x0000000000448d4c in runtime.mPark () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:1974
+#4  runtime.stopm () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3013
+#5  0x000000000044ab17 in runtime.findRunnable (gp=<optimized out>, inheritTime=<optimized out>, tryWakeP=<optimized out>) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:3784
+#6  0x000000000044bb71 in runtime.schedule () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4152
+#7  0x000000000044bfe5 in runtime.park_m (gp=0xc0000b2e00) at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:4280
+#8  0x000000000047cb95 in runtime.mcall () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:458
+#9  0x00007fffffffd618 in ?? ()
+#10 0x000000000048133f in runtime.newproc (fn=0x47ca8f <runtime.rt0_go+303>) at ./<autogenerated>:1
+#11 0x000000000047cb05 in runtime.mstart () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:395
+#12 0x000000000047ca8f in runtime.rt0_go () at /home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:358
+#13 0x0000000000000002 in ?? ()
+#14 0x00007fffffffd668 in ?? ()
+#15 0x00007fffffffd660 in ?? ()
+#16 0x0000000000000002 in ?? ()
+#17 0x00007fffffffd668 in ?? ()
+#18 0x00007ffff7fe32ca in _dl_start_user () from /lib64/ld-linux-x86-64.so.2
+#19 0x0000000000000002 in ?? ()
+#20 0x00007fffffffdb01 in ?? ()
+#21 0x00007fffffffdb12 in ?? ()
+#22 0x0000000000000000 in ?? ()
+[Inferior 1 (process 2185997) killed]
