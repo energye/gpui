@@ -49,6 +49,14 @@
 
 **当前焦点（2026-11-11 起）：§2.2 待办池取项**
 
+**当前任务验证载体（C6：batch_cap 全程 p95 超门禁排查，2026-11-11 ✅ 收口，拍板方向 A 零代码）**
+
+- 任务：判定 `ui_base_batch_cap` 全程 p95 55.7/62.1ms 超 22ms 门禁（P1.4/P1.6/P1.7 同因）是引擎性能洞还是门禁口径错配。正本 `evidence/P2.6/c6-batch-cap-p95-scope-assessment.md`。
+- 复现：隔离 rootless Xwayland `DISPLAY=:3` 单窗串行，gate 模式 RUN_SECONDS=200 自 Quit（标准关闭），native + `GPUI_BACKEND=go` 各一轮，现行树 p95 52.98/59.89 与基线同量级。
+- 结论：非引擎性能洞——报告百分位是末 256 采样环（`ui/scheduler/metrics.go:24`），gate 收尾冻结在刻意超载档 vector-600（`main.go:420-437`），报告 p95 ↔ 档内 p95 逐值合证（52.98↔53.0 / 59.89↔59.1；p50>avg 即环域推论）；`windows.md:210` A/200s 套 thresholds.md:87 硬线超 §3 适用域。
+- 处置（方向 A，零代码）：thresholds.md §3 适用域补「不适用容量阶梯窗」+ §9 修订表 C6 行；windows.md §7 修订表 C6 勘误行；判定=窗内逐级健康线与地板门（双后端过）。冻结基线只增不改。
+- 顺带发现归位：prims 金图漂移 0.1667%（边缘列 1-LSB + 2px 竖缝，双后端同值）→「22 窗金图漂移专项」；贴线档 p95 逐轮抖动数据在案无缺陷证据；跑窗覆写的两个被跟踪快照已还原。
+
 **上一任务验证载体（B2：ui_wr_r6_layer_anim 金图真源对齐，2026-11-11 ✅ 收口）**
 
 - 任务：窗口金图从外部绝对路径（R6_SNAP_DIR 默认 /tmp/r6_layer_anim/r6_final_base.png）对齐到仓内
@@ -84,7 +92,7 @@
 - `ui_l1_spinner` 2h soak 定性（唯一 60s 仍过线 35161，RSS 12MB→302MB；按用户拍板单独立项，用 P0.1「2 小时 RSS 涨 ≤5%」档判真泄漏 vs 缓存上限）。
 - `ui_text_m4_virtual` go 60s 稳态斜率波动（28586.8 / 37791.2 / 32694.3），与 l1_spinner 一并归 soak 定性，不在门禁批下结论。
 
-**下一步：§2.2 剩余 ⬜ 项按序取（C6 / E1 / E3 / G3 / I1 / I2），取项前先登记载体。B2、B3、C1、C5 已 ✅。**
+**下一步：C6 已 ✅（方向 A 零代码收口）。§2.2 剩余 ⬜ 项按序取（E1 / E3 / G3 / I1 / I2），取项前先登记载体。B2、B3、C1、C5、C6 已 ✅。**
 
 **C1 顺带登记（非本项范围，2026-11-11 复核更正）**：既有金图漂移**不是 3 扇而是 21/22 窗**
 （唯一 0 是 ui_render_base_svg；dither 31.7164% / miscdraw 14.2041% / backdrop 6.3519% /
@@ -917,7 +925,7 @@ Wayland 原生截屏（portal/PipeWire 需人工授权，GNOME Shell 接口 Acce
 （RSS 12MB→302MB，需 2h soak 单独定性）。**停在停下报告待定口径**：`proc_tracker.go` 的
 `RSSSlopeValid` 只需 30s，直接默认开启会把爬坡误判；P0.1 写「≥30s，推荐 60s」，两者不一致。
 正本 `evidence/P2.6/c5-rss-slope-gate-assessment.md`（§5 复跑数据），待拍板门禁默认值/有效时长 |
-| C6 | P1.6 | `ui_base_batch_cap` p95 双后端 55.7/62.1ms 超 22ms 门禁（P1.4 同因同量级） | P2 性能线 | ⬜ |
+| C6 | P1.6 | `ui_base_batch_cap` p95 双后端 55.7/62.1ms 超 22ms 门禁（P1.4 同因同量级） | P2 性能线 | ✅ **2026-11-11 收口（拍板方向 A 零代码，`evidence/P2.6/c6-batch-cap-p95-scope-assessment.md`）**：非引擎性能洞——报告百分位是**末 256 采样环**（`ui/scheduler/metrics.go:24`），gate 模式收尾冻结在刻意超载档 vector-600（`main.go:420-437`），报告 p95 ≈ 该档自身 p95（现行树复现 52.98/59.89 ↔ 档内 53.0/59.1 逐值合证；p50>avg 即环域推论）；`windows.md:210` 标 `A/200s` 套了 thresholds.md:87 的 22ms 硬线，而 §3 适用域（动画/滚动/tick 窗）不含容量阶梯窗。处置：thresholds.md §3 适用域补「不适用容量阶梯窗」+ §9 修订表 C6 行；windows.md §7 修订表 C6 勘误行；判定=窗内逐级健康线与地板门（双后端过）。冻结基线只增不改。顺带发现归位：prims 金图漂移 0.1667% → 22 窗漂移专项；贴线档逐轮抖动数据在案 |
 | C7 | P1.6 | `ui_base_vram_cap` ladder 的 go 档在 GL 第 4 窗起 `eglMakeCurrent 0x3002`，8 窗阶梯跑不了；`baseline/vram/summary.md:18` | P2.4a/P2.4e（gles 多窗上下文） | 🔍 **2026-11-10 台账整理注**：X11 主修复随 P2.4e 落地（§7 1151/1306 行「C7 拆半」、J5「C7 修复后首次可达」已闭合）；Wayland「context-per-surface 第二机制」仍待核实，未擅自销账。原 2026-10-30 根因已解剖（`evidence/P2.4a/c7-dissection.md`）：开窗的 EGL 绑定操作跑在控制器线程，撞上唯一 GL 线程（ui/raster/hub）的 Submit keep 窗口期 → EGL 单绑定拒绝；竞态非确定窗号（P2.4a 生命周期复跑在嵌套 Wayland multiwin 第 8 窗同码复现——Wayland 为 context-per-surface，具体触发路径是**第二个待解剖机制**，随 P2.4e 一并解剖）；修复归 **P2.4e**（X11 推荐方案：开窗 GL 步骤投递 hub FrameJob），P2.4a 建设备收敛与本根因无交集。2026-10-30 P2.4b 门禁补跑复现**单窗形态**：`ui_l1_blank` go 单窗即报 `eglMakeCurrent 0x3002`（开窗 rc=1），另一形态是关窗死锁（hub 线程 `gles.(*AdapterContext).Destroy` 等 `AdapterContext` 互斥锁，主线程 `App.Close → Loop.RunSync` 等 hub）；同一合成器上 `55495fdd` 干净树同样复现，证据 `evidence/P2.4b/l1_blank_go_c7-0x3002.stderr`、`l1_blank_go_hang-stack.txt`、`ab-clean-55495fdd.stderr` |
 | D1 | P1.3 | T1：`gpu/rwgpu/queue_workdone_test.go:45` 失败后 cleanup `Release()` 在 `device_misc.go:313/314` SIGSEGV（原始栈 `baseline/tests/failures/queue_workdone_test.log`） | P2.4c/P2.4e | ✅ **2026-11-10 解剖销账（`evidence/P2.4e/d1-dissection.md`）**：根因 = 92ca9216 时代 `queueWorkDoneCallbackInfo` 缺 v29 `Mode` 字段（四字 vs 头文件 `webgpu.h:1677-1688` 五字按值）→ wgpu 按 v29 读四字结构错位一格，`callback` 槽拿到记录 id（首调=1）→ null future + `Device.Release` 结算 pending 回调跳地址 1（PC=0x1）。92ca9216 布局重放完整复现（null future + SIGSEGV PC=0x1/addr=0x1 与原始栈逐帧同构、寄存器逐位一致，`evidence/P2.4e/d1-repro-oldlayout.txt`，临时测试已删）；根因已由 v29 对齐修复消除（`queue_workdone.go` 补 Mode 字段/五参回调/枚举 v29 值），现行 HEAD 整文件 4 用例带 lib 全 PASS；按拍板销账 + 布局防回归钉 `TestQueueWorkDoneCallbackInfoV29Layout`（尺寸/偏移/Mode 枚举/Future ABI 纯 Go 断言，零行为改动）；零引擎代码改动、零公开 API |
 | D2 | P1.3 | 48 FAIL 分组归属：老 backend 并发 SIGABRT→P2.3；StubHost 假 X11 句柄→P2.4e；nil ImageCache / 共享布局未 pin / 无 GPU 前置 / depcheck 测试缝→P2.5；video 3 文件 + 顺序耦合→P2.6；CPU 彩色字形无 ink→P2.3（`baseline/tests/summary.md` §4） | 见左 | 🟡 **2026-11-10 台账整理注**：分组基本已结，余 ui/application SIGSEGV 等残留红，🟡 为有意保留、不擅改。P2.3 两组已结（2026-10-29）：老 backend 并发 SIGABRT 随 `integration_test.go` 一起删除；`m5_color_glyph_api` 4 用例在 `92ca9216` 与 HEAD 均 PASS（环境性 FAIL，非代码债）；2026-10-31 P2.5 收尾：nil ImageCache 组 P2.4e 已修（7 用例带 lib PASS）、depcheck 测试缝 `9cca54e6` 落地、ui/scene「无 GPU 前置」4 条本步前置 Skipf 修复、ui/application SIGSEGV 等残留红入 ui 红名单随 P2.6 前诊断 |
@@ -1429,6 +1437,8 @@ docs/render_gpu_converge/
 | 2026-11-11 | C1 screen check 抓黑图 | **🟡→✅ 收口**：真因=解析洞（xwininfo 窗口 id 行按首个冒号切，winID 恒空，xwd -id 分支死）+ 环境（Xwayland X root 不绘制）。22 窗收敛到 `examples/wrkit/screencheck.go`（正确解析 + xwd -id 为主 + 负向 env），native Wayland 显式 SKIP（screen_check_skipped）。验证：14 窗 + 8 个 p38 窗 screen check 全 0.0000%、强制回退负向 100% 红、Wayland 档 skipped=true；build/vet rc=0。 | `evidence/P2.6/c1-screen-grab-black-assessment.md`、`evidence/P2.6/c1-verify/` |
 
 | 2026-11-11 | C5 RSS 稳态斜率门禁 | **🟡→✅ 收口**：真因=统一门禁集无 RSS 判定 + 6 老窗不接门禁集。修法=GateOptions 默认 30000/60s + `rssSlopeVerdict` 单一真源 + 5 老窗薄接线，l1_spinner 另立 soak。验证：10 条 ≥30s 复跑（9/10 不复现，主因预热爬坡）、wrgate 5 单测、真窗 35s 不判/60s 判红、build/vet rc=0。 | `evidence/P2.6/c5-rss-slope-gate-assessment.md`、`evidence/P2.6/c5-recheck/` |
+
+| 2026-11-11 | C6 batch_cap p95 超门禁 | **⬜→✅ 收口（拍板方向 A，零代码）**：机制钉死=报告百分位取末 256 采样环（`ui/scheduler/metrics.go:24`）+ gate 收尾冻结在刻意超载档 vector-600（`main.go:420-437`）+ `windows.md:210` A/200s 套 22ms 硬线超 thresholds.md §3 适用域——报告 p95 ≈ vector-600 档自身 p95（现行树复现 52.98/59.89 ↔ 档内 53.0/59.1 逐值合证），**非引擎性能洞**。处置：thresholds.md §3 适用域补「不适用容量阶梯窗」+ §9 修订表 C6 行；windows.md §7 修订表 C6 勘误行；判定=窗内逐级健康线与地板门（双后端过）。方向 B 留待需要时另立、C 否决。顺带发现：prims 金图漂移 0.1667%（边缘列 1-LSB + 2px 竖缝，双后端同值）→ 归「22 窗金图漂移专项」；贴线档 p95 逐轮抖动（17.9–27.6 跨轮、跨后端）数据在案，无缺陷证据；跑窗覆写的两个被跟踪快照已 `git checkout` 还原。 | `evidence/P2.6/c6-batch-cap-p95-scope-assessment.md` |
 
 ## 8 修订记录
 
