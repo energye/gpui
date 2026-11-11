@@ -1,3 +1,5 @@
+//go:build !nogpu
+
 //----------------------------------------
 //
 // Copyright © yanghy. All Rights Reserved.
