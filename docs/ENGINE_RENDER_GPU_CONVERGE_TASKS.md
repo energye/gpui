@@ -72,6 +72,7 @@
 | 专项 | 结论 | 正本 |
 |---|---|---|
 | I1 ladder Wayland 卡死 | ✅ 2026-11-11 取证收口：嵌套 Wayland n=2 50.5fps / n=4 23.8fps+拒增 478 / n=8 fps 0.0；gdb 实锤 hub 阻塞在 `wgpuSurfacePresent → Mesa WSI → poll(-1)`；H1 成立/H2 排除；健壮化转 I5；隔离 X11 :3 与 headless Wayland PASS | `evidence/P2.4e/i1-verification/native-stack-verification.md`、`evidence/P2.4e/i1-dissection.md` |
+| I2 同尺寸 Resize | ✅ 2026-11-12 复跑 PASS：同尺寸 no-op + `MarkNeedsReconfigure` 显式重配，与 Impeller KHR/AHB 一致；e4 `03a630be` 已改绑，台账滞后销账 | `evidence/P2.4e/i2/closeout.md` |
 | M5 HDR 全链 | P0–P5 全批 ✅：RGBA16Float、格式参数化（设计面 22 文件，P1 实落 12 文件 43 处）、float RT、tonemap、真窗双后端 0.0000%（native 352 / go 357 presents，9/9 maxdiff=0）；HDR 直出不在本项 | `evidence/M5/closeout.md` |
 | SDF 覆盖线 | GPU 覆盖改解析真值预计算 LUT（1024 项 midrange）；P4.2 AA 带容差 24→8（19 场景 max 6）；K2 erode/dilate 传播 404px/max17→5、548px/max5（带外 0）；6 扇金图重种 0.0000% | `evidence/SDF/coverage-line.md` |
 | P4.3 阴影专项 | 跨帧阴影 tile 缓存；native 58.91fps / go 58.46fps，双后端金图 0.0000%；滤波源帧内累积已治根（同帧两笔阴影 max diff 38→0） | `evidence/P4.3/cache-impl.md`、`evidence/P4.3/root-cause2-fix.md` |
@@ -169,7 +170,7 @@
 | G3 | P2.1 | `TestPresentDamageX11` 在 X11/NVIDIA 失败（`full=12 partial=0` / `BadMatch` on `X_GetImage`），干净树同败 | GL 增量呈现线 | ✅ 2026-11-11：display 无 `EGL_KHR_partial_update`，SetDamageRegion 逐帧 FALSE 被静默吞回落整帧；`resolvePresentDamageCapabilities`（符号∩扩展串）创建时解析一次 + 能力位决策 + 降级计数/首次 Warn；`:0` FAIL→SKIP（全帧像素断言先过），解析单测 4 例，全包/-race ok；公开 API 零变化；`evidence/P2.6/g3-partial-present-assessment.md` |
 | H1 | P2.4a | `render/internal/gpu` 逐文件轮为无 GPU 假绿：门禁脚本未导出 `WGPU_NATIVE_PATH`，native 用例全 Skipf | P2.6 重放纪律 | ✅ 2026-10-31 skip 文案补 OOM 说明；规程=GPU 包逐文件门禁必须带 lib 或显式记「无 GPU 轮」 |
 | I1 | P2.4b | `ui_base_vram_cap` ladder native 在隔离嵌套 Wayland 8 窗卡死：hub 阻塞 `rwgpu.Surface.Present → wgpuSurfacePresent`，fps 0、拒增 +0、RUN_SECONDS 到期也退不出；干净树复现 | P2.4e；取证完 → I5 | ✅ 2026-11-11 取证收口：Mesa WSI `poll(-1)` 等合成器 release；H2 排除；环境相关；健壮化转 I5；`evidence/P2.4e/i1-verification/native-stack-verification.md` |
-| I2 | P2.4d | `TestS68_Swapchain_X11_MultiFramePresent` 期望第 6 帧同尺寸 `Resize(160,120)` 抬 `reconfigures`，实测 `reconfig=0`；产品侧 `swapchain_configure.go:213` 自 `34d9785e` 起把同尺寸 Resize 定为 no-op（避黑闪）；`8e4c0e99` 引入用例早于语义变更，干净树复现 | P2.4e：先拍板「改用例期望」还是「Resize 显式 force 重配口」，两边对齐 Skia/Flutter 后再动；禁止删断言凑绿 | ⬜ 未开工；`evidence/P2.4d/per-file-tests-notes.md` §4 |
+| I2 | P2.4d | `TestS68_Swapchain_X11_MultiFramePresent` 曾期望第 6 帧同尺寸 `Resize(160,120)` 抬 `reconfigures`；产品侧 `swapchain_configure.go` 自 `34d9785e` 起把同尺寸 Resize 定为 no-op（避 `Surface.Configure` thrash/黑闪）；`8e4c0e99` 引入用例早于语义变更 | P2.4e：已拍板「同尺寸 no-op + `MarkNeedsReconfigure` 显式重配口」，与 Impeller KHR/AHB 一致；不改 `Resize` 签名 | ✅ 2026-11-12 复跑 PASS（`reconfig=0`；`MarkNeedsReconfigure` 后 `>=1`）；e4 `03a630be` 已改绑，台账滞后销账；`evidence/P2.4e/i2/closeout.md` |
 | I3 | P2.4d | R20 `gray_red_band_matrix_exact @(408,274)` 红：GRAY 卡保持彩色，疑层录制未按新矩阵重录 | P2.6 前诊断 | ✅ 2026-11-10：现行树 scripted 5/5、金图 0.0000%、`final_gray_identity=false`，复现消失；按「核实后没问题如实收回」销账，无代码改动；`evidence/P2.6/c4-dissection.md` |
 | I4 | P2.4d | R20 `r20_steady.png` / `r20_recover.png` 全黑（1200×800 RGB 全 0、5585B），stderr `snapshot request timed out`；`r20_final.png` 正常 | P2.6 前诊断（SnapshotAsync 黑图） | ✅ 2026-11-11：根因=saveSnap 用 `Context().Image()` 读 CPU pixmap，真 swapchain GPU 帧不回写 pixmap；按 r1/c8 `PaintPresentTree` 先重画再存；两窗 steady/recover 960000/960000 px 非零，门禁 PASS；`evidence/P2.6/i4-midrun-snapshot-black.md`、提交 `46aa5454` |
 | I5 | I1 | **GPU present 健壮化**：Wayland 同步 Fifo present 在 Mesa WSI 等合成器 release，一窗卡住即全进程冻结；根因修复=native Wayland 默认非阻塞 present（Mailbox→Immediate→FifoRelaxed→Fifo）。旧 worker/每窗设备路线已被 2c/D1c 反证作废 | render 呈现口 + `gpu/webgpu` present 模式选择；旧设计标废弃 | 🟡 2026-11-12 v2 实现 + 真窗 A/B/负向/X11 回归已落盘（正轮 8 窗 mailbox、n=8 11.3fps、正常退出；负向 fifo n=8 冻结）；`gpu/webgpu` 逐文件 21 PASS、render present_* 5 PASS、五目标 build rc=0；金图 17.5273% 预存漂移待 P2.6，不标 ✅；`evidence/P2.4e/i5-v2/summary.md` |
@@ -476,6 +477,7 @@ docs/render_gpu_converge/
 | 2026-11-12 | I5 | 换向：旧 worker/每窗设备设计作废（2c/D1c 反证）；当前树级联 8 窗 Fifo 冻结 vs Mailbox 8 窗全 present+正常退出；新设计 `i5-v2/design.md` | `evidence/P2.4e/i5-v2/` |
 | 2026-11-12 | I5 | v2 实现：`SetPreferNonBlocking` + render 创建口 + `PresentModeName`；正轮 8 窗 mailbox/n=8 11.3fps/正常退出，负向 fifo/n=8 冻结，X11 回归 fifo rc=0；金图 17.5273% 预存漂移待 P2.6 | `evidence/P2.4e/i5-v2/summary.md` |
 | 2026-11-12 | I5 | 用户拍板：I5 留 🟡，17.5273% 交 P2.6「22 窗金图漂移」逐窗判定，禁止直接重种；功能/真窗/负向证据已齐 | `evidence/P2.4e/i5-v2/golden/assessment.md` |
+| 2026-11-12 | I2 | 复跑 PASS：同尺寸 Resize no-op + `MarkNeedsReconfigure` 显式口，Impeller KHR/AHB 对照一致；e4 已实现，台账滞后销账 | `evidence/P2.4e/i2/` |
 
 ## 8 修订记录（摘要；全文见存档）
 

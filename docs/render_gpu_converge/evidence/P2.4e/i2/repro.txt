@@ -1,0 +1,5 @@
+=== RUN   TestS68_Swapchain_X11_MultiFramePresent
+    swapchain_x11_linux_test.go:217: S6.8 swapchain multi-frame mode=fifo acquires=12 presents=12 reconfig=0 suboptimal=0 lastPresentMs=17.213
+--- PASS: TestS68_Swapchain_X11_MultiFramePresent (0.42s)
+PASS
+ok  	github.com/energye/gpui/gpu/webgpu	0.435s
