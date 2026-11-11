@@ -49,7 +49,15 @@
 
 **当前焦点（2026-11-11 起）：§2.2 待办池取项**
 
-**当前任务验证载体（C6：batch_cap 全程 p95 超门禁排查，2026-11-11 ✅ 收口，拍板方向 A 零代码）**
+**当前任务验证载体（E1：A 族超限 4 轮，2026-11-11 ✅ 收口，拍板方向 A 复测销账）**
+
+- 任务：P1.7 移交 A 族超限 4 轮——c3_list_scroll native（fps+p95+hitch 三红）、r7_virtlist 双后端（p95+hitch）、r7b_scroll_reuse native（p95 22.42 临界）。正本 `evidence/P2.6/e1-afamily-overrun-assessment.md`。
+- 复测：现行树 7 轮（c3 native Wayland + 强制 Xwayland :3 A/B、r7 双后端、r7b 双后端，RUN_SECONDS=60 单窗串行自退出），**四个基线超限全部不复现**：p95 19.46–21.22（<22）、hitch 0–3/min（基线 15–52）、p99 全落基线回归带（max 28.78 < 基线 max 32.0）。
+- 归因：显示路径变量排除（X11 A/B 同净）、后端变量排除（r7 双端同净）；基线毛刺=p50 vsync 锁定 + ~1.15s 周期 22–33ms 帧，现行树周期源消失；候选=SDF 覆盖 LUT / P4.1 resolve 修复 / **P4.3 mask 平面池化（机制最吻合）**（2026-10-29→11-11 时间窗，未 bisect，留档 §3.4）。
+- 处置（方向 A）：7 轮原始输出归档 `evidence/P2.6/e1/`；perf 基线冻结不改，P2.6 重放按现行树对照。B（bisect）/C（继续压 p95）未采纳。
+- 顺带归位：golden rc=1 全为漂移族（c3 2.5137% / r7 2.7033% / r7b 2.5134%，双后端同值）→「22 窗金图漂移专项」；r7b go NO_JSON 在 Wayland 路不复现（E3 线索）；跑窗覆写的两个被跟踪快照已还原；C6 证据文档显示环境表述勘误（见其 §1）。
+
+**上一任务验证载体（C6：batch_cap 全程 p95 超门禁排查，2026-11-11 ✅ 收口，拍板方向 A 零代码）**
 
 - 任务：判定 `ui_base_batch_cap` 全程 p95 55.7/62.1ms 超 22ms 门禁（P1.4/P1.6/P1.7 同因）是引擎性能洞还是门禁口径错配。正本 `evidence/P2.6/c6-batch-cap-p95-scope-assessment.md`。
 - 复现：隔离 rootless Xwayland `DISPLAY=:3` 单窗串行，gate 模式 RUN_SECONDS=200 自 Quit（标准关闭），native + `GPUI_BACKEND=go` 各一轮，现行树 p95 52.98/59.89 与基线同量级。
@@ -92,7 +100,7 @@
 - `ui_l1_spinner` 2h soak 定性（唯一 60s 仍过线 35161，RSS 12MB→302MB；按用户拍板单独立项，用 P0.1「2 小时 RSS 涨 ≤5%」档判真泄漏 vs 缓存上限）。
 - `ui_text_m4_virtual` go 60s 稳态斜率波动（28586.8 / 37791.2 / 32694.3），与 l1_spinner 一并归 soak 定性，不在门禁批下结论。
 
-**下一步：C6 已 ✅（方向 A 零代码收口）。§2.2 剩余 ⬜ 项按序取（E1 / E3 / G3 / I1 / I2），取项前先登记载体。B2、B3、C1、C5、C6 已 ✅。**
+**下一步：E1 已 ✅（方向 A 复测销账）。§2.2 剩余 ⬜ 项按序取（E3 / G3 / I1 / I2），取项前先登记载体。B2、B3、C1、C5、C6、E1 已 ✅。**
 
 **C1 顺带登记（非本项范围，2026-11-11 复核更正）**：既有金图漂移**不是 3 扇而是 21/22 窗**
 （唯一 0 是 ui_render_base_svg；dither 31.7164% / miscdraw 14.2041% / backdrop 6.3519% /
@@ -931,7 +939,7 @@ Wayland 原生截屏（portal/PipeWire 需人工授权，GNOME Shell 接口 Acce
 | D2 | P1.3 | 48 FAIL 分组归属：老 backend 并发 SIGABRT→P2.3；StubHost 假 X11 句柄→P2.4e；nil ImageCache / 共享布局未 pin / 无 GPU 前置 / depcheck 测试缝→P2.5；video 3 文件 + 顺序耦合→P2.6；CPU 彩色字形无 ink→P2.3（`baseline/tests/summary.md` §4） | 见左 | 🟡 **2026-11-10 台账整理注**：分组基本已结，余 ui/application SIGSEGV 等残留红，🟡 为有意保留、不擅改。P2.3 两组已结（2026-10-29）：老 backend 并发 SIGABRT 随 `integration_test.go` 一起删除；`m5_color_glyph_api` 4 用例在 `92ca9216` 与 HEAD 均 PASS（环境性 FAIL，非代码债）；2026-10-31 P2.5 收尾：nil ImageCache 组 P2.4e 已修（7 用例带 lib PASS）、depcheck 测试缝 `9cca54e6` 落地、ui/scene「无 GPU 前置」4 条本步前置 Skipf 修复、ui/application SIGSEGV 等残留红入 ui 红名单随 P2.6 前诊断 |
 | D3 | P1.2b | vet 3 条测试伪造指针 → P2.5 测试卫生；2 条 `unreachable`（`render/internal/gpu/gpu_render_context.go:4296,4344`）→ P2.5（`evidence/P1.2b/summary.md:53-54`） | P2.5 ✅ 2026-10-31 P2.5 闭合：3 条测试伪造指针改真实地址（`[1]byte` 防零尺寸同址）+ 2 条 unreachable 死块删除（禁用意图注释保留）；vet 基线 61/58→**56/56**（余量全部 ui/platform 线外 FFI） | ✅ |
 | D4 | P0.4/P1.6 | K1：`solid_gradient`/`text_image` 每轮 +2 条/+131072B（native/go 逐位一致），conformance JSON 上界暂时放宽 2/131072 | P2.4c（已写进正文：修完收紧回 0） | ✅ 2026-10-30 P2.4c 闭合：临时 `GPUI_VRAM_TRACE` 账本定位到 `TexturedQuadPipeline.destroyPipeline()` 漏销毁 `textured_quad_pipeline_bicubic`、`textured_quad_pipeline_bicubic_depth_clip` 与 `bicubicShader`，就地补销毁；上界收紧 0/0，双后端三场景 PASS；追踪代码 0 残留（`evidence/P2.4c/summary.md` §3） |
-| E1 | P1.7 | A 族超限 8 处集中 4 轮：c3_list_scroll（fps+p95+hitch）、r7_virtlist（p95+hitch）、r7b_scroll_reuse p95 22.42 临界 | P2 性能修复，修后按 `baseline/perf/perf_baseline.tsv` + p99 8ms 带复测 | ⬜ |
+| E1 | P1.7 | A 族超限 8 处集中 4 轮：c3_list_scroll（fps+p95+hitch）、r7_virtlist（p95+hitch）、r7b_scroll_reuse p95 22.42 临界 | P2 性能修复，修后按 `baseline/perf/perf_baseline.tsv` + p99 8ms 带复测 | ✅ **2026-11-11 收口（拍板方向 A 复测销账，`evidence/P2.6/e1-afamily-overrun-assessment.md`）**：现行树 7 轮复测（c3 native Wayland+Xwayland A/B、r7 双后端、r7b 双后端）**四项超限全部不复现**——p95 19.46–21.22、hitch 0–3/min、p99 全落基线回归带；显示路径/后端变量排除；基线毛刺（p50 锁定+~1.15s 周期）的周期源已消失，候选=SDF LUT/P4.1 resolve/P4.3 mask 池化（未 bisect 留档）；7 轮原始输出归档 `evidence/P2.6/e1/`，perf 基线冻结不改。golden rc=1 均为漂移族归 22 窗专项；r7b go NO_JSON Wayland 路不复现（E3 线索） |
 | E2 | P1.7 | `video_vr7_perf` 缺 `interval_p99_ms`（观测缺口） | P2（随 A2 字段统一一起补） ✅ 2026-10-31 随 A2 闭合：vr7 报告结构/buildReport/requiredKeys 补 `interval_p99_ms`；verify_perf 的 vr7 例外对冻结证据保留、P2.6 换代时退役 | ✅ |
 | E3 | P1.4/P1.7 | 6 轮采不了档（NO_JSON / BUILD_FAIL）沿用 P1.4 登记 | 随 C2 及对应窗修复 | ⬜ |
 | F1 | P1.8 | 一致性台 `gpu_ops` 计数下限是 1，单次跳绘抓不住 | P2 收紧为用例精确 op 数 | ✅ **2026-11-11 收紧（`evidence/P2.6/f1-f2-gate-probes.md`，零代码）**：三份用例 `min_gpu_ops` 1→精确值（3/3/2，当前树双后端 6 份 report 实测与 P0.4 归档逐值一致）；正常跑绿（ops==min 逐值相等）；负向 `GPUI_NEG_SKIP_DRAW` 原补丁重放（git apply 干净）→ 六路全红且每路首条即 `gpu_ops=2 < min=3`——计数门禁独立抓单次跳绘，还原复绿。口径：引擎 op 数合法变化会红=门禁意义（变化须被看见并有意重录） |
@@ -1439,6 +1447,8 @@ docs/render_gpu_converge/
 | 2026-11-11 | C5 RSS 稳态斜率门禁 | **🟡→✅ 收口**：真因=统一门禁集无 RSS 判定 + 6 老窗不接门禁集。修法=GateOptions 默认 30000/60s + `rssSlopeVerdict` 单一真源 + 5 老窗薄接线，l1_spinner 另立 soak。验证：10 条 ≥30s 复跑（9/10 不复现，主因预热爬坡）、wrgate 5 单测、真窗 35s 不判/60s 判红、build/vet rc=0。 | `evidence/P2.6/c5-rss-slope-gate-assessment.md`、`evidence/P2.6/c5-recheck/` |
 
 | 2026-11-11 | C6 batch_cap p95 超门禁 | **⬜→✅ 收口（拍板方向 A，零代码）**：机制钉死=报告百分位取末 256 采样环（`ui/scheduler/metrics.go:24`）+ gate 收尾冻结在刻意超载档 vector-600（`main.go:420-437`）+ `windows.md:210` A/200s 套 22ms 硬线超 thresholds.md §3 适用域——报告 p95 ≈ vector-600 档自身 p95（现行树复现 52.98/59.89 ↔ 档内 53.0/59.1 逐值合证），**非引擎性能洞**。处置：thresholds.md §3 适用域补「不适用容量阶梯窗」+ §9 修订表 C6 行；windows.md §7 修订表 C6 勘误行；判定=窗内逐级健康线与地板门（双后端过）。方向 B 留待需要时另立、C 否决。顺带发现：prims 金图漂移 0.1667%（边缘列 1-LSB + 2px 竖缝，双后端同值）→ 归「22 窗金图漂移专项」；贴线档 p95 逐轮抖动（17.9–27.6 跨轮、跨后端）数据在案，无缺陷证据；跑窗覆写的两个被跟踪快照已 `git checkout` 还原。 | `evidence/P2.6/c6-batch-cap-p95-scope-assessment.md` |
+
+| 2026-11-11 | E1 A 族超限 4 轮 | **⬜→🟡→✅ 收口（拍板方向 A 复测销账）**：载体登记后现行树 7 轮复测——c3 native（会话 Wayland + 显式 Xwayland :3 强制 X11 A/B 各一轮）、r7 native/go、r7b native/go，RUN_SECONDS=60 单窗串行自退出；**c3 fps+p95+hitch 三红、r7 双后端 p95+hitch、r7b native p95 临界全部不复现**（p95 19.46–21.22 / hitch 0–3 / p99 20.66–28.78 带内）。变量排除：X11/Wayland 双路径同净（A/B 轮）、双后端同净；基线毛刺 = p50 vsync 锁定 17.98 + ~1.15s 周期 22–33ms 帧，现行树双路径 hitch=0 周期源消失，候选改动（SDF 覆盖 LUT `4a41c660` / P4.1 resolve 修复 / P4.3 mask 平面池化——机制最吻合）留档未 bisect。处置：7 轮原始输出归档 `evidence/P2.6/e1/`；perf 基线冻结不改，P2.6 按现行树对照；方向 B（bisect）/C（无目标优化）未采纳。自查勘误：复测 1–6 轮与 C6 两轮实际显示路径为会话 Wayland（`WAYLAND_DISPLAY` 优先，`DISPLAY=:3` 未生效），C6 文档已加勘误（其结论不受影响）；r7b go NO_JSON 在 Wayland 路不复现 → E3 线索；golden 漂移 c3 2.5137% / r7 2.7033% / r7b 2.5134%（双后端同值）→ 22 窗漂移专项；两个被覆写快照已还原。 | `evidence/P2.6/e1-afamily-overrun-assessment.md`、`evidence/P2.6/e1/` |
 
 ## 8 修订记录
 

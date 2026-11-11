@@ -1,0 +1,4 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc00642c000 ctx=0xc0001b6d40
+snapshot: /tmp/gpui_ui_wr_r7_virtlist_snapshot.png
+FAIL: golden diff=2.7033% (20642/763584 px) baseline=examples/ui_wr_r7_virtlist/testdata/r7_virtlist_base.png

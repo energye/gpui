@@ -13,7 +13,7 @@
 | P1.7（`baseline/perf/perf_baseline.tsv:110-111`） | 53.11 | 63.15 | FAIL |
 | **本会话复现（2026-11-11，现行树）** | **52.98** | **59.89** | FAIL |
 
-复现命令（隔离 rootless Xwayland `DISPLAY=:3`，单窗串行，gate 模式 200s 窗内自 Quit=标准关闭，未硬杀）：
+复现命令（显示环境勘误 2026-11-11：两轮原意图隔离 rootless Xwayland `DISPLAY=:3`，实际因 `WAYLAND_DISPLAY` 在环境被平台层优先、跑在会话 Wayland 上（JSON `backend=wayland`）；结论不受影响——末 256 采样环机制与显示路径无关，且数值合证（§4）在单轮内自洽；勘误出处 `evidence/P2.6/e1-afamily-overrun-assessment.md` §5。单窗串行，gate 模式 200s 窗内自 Quit=标准关闭，未硬杀）：
 
 ```
 go build -o /tmp/c6/batch_cap ./examples/ui_base_batch_cap
