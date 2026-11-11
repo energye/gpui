@@ -13,11 +13,13 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"math"
 	"os"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -47,6 +49,10 @@ type GPURenderContext struct {
 	// built for. Zero means the historical BGRA8 session target (M5 P1); a float
 	// target sets it before the pipelines are created.
 	colorFormat types.TextureFormat
+
+	// offscreenFormatFalls counts float-format offscreen requests that fell
+	// back to the 8-bit target (M5 P2 observability, no silent degradation).
+	offscreenFormatFalls atomic.Uint64
 
 	// deviceGen is GPUShared.deviceGen at last session (re)build.
 	deviceGen uint64
@@ -195,9 +201,15 @@ func (o *offscreenRT) Release() {
 	}
 }
 
-// offscreenRTBytes is the real per-entry byte size (RGBA8).
+// offscreenRTBytes is the real per-entry byte size for the key's format
+// (RGBA16Float = 8 B/px, 8-bit = 4 B/px), so the layer-offscreen budget and the
+// hal VRAM ledger charge the same number (M5 P2).
 func offscreenRTBytes(k res.CacheKey) uint64 {
-	return uint64(k.W) * uint64(k.H) * 4
+	f := types.TextureFormat(k.Format)
+	if f == types.TextureFormatUndefined {
+		f = defaultColorFormat
+	}
+	return hal.VramTextureBytes(types.Extent3D{Width: k.W, Height: k.H, DepthOrArrayLayers: 1}, 1, 1, 1, f)
 }
 
 // pendingAdvancedLayer is a PopLayer advanced blend resolved at Flush.
@@ -4058,30 +4070,46 @@ func (rc *GPURenderContext) Device() hal.Device {
 // it as COLOR_TARGET in the same usage scope → TXFLUSHERR submit failed).
 // Record paths LoadOpClear before drawing, so stale pixels never show.
 // GPUI_NO_OFFSCREEN_POOL=1 restores always-fresh allocation.
+// CreateOffscreenTexture is the historical 8-bit entry (BGRA8). It keeps the
+// old contract: an empty view on failure, logged, never a panic. Float callers
+// use CreateOffscreenTextureFormat / CreateOffscreenTextureFormatOrFallback.
 func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func()) {
-	if rc.shared == nil {
-		slogger().Warn("CreateOffscreenTexture: shared is nil")
+	view, release, err := rc.CreateOffscreenTextureFormat(w, h, defaultColorFormat)
+	if err != nil {
+		slogger().Warn("CreateOffscreenTexture failed", "error", err, "width", w, "height", h)
 		return gpucontext.TextureView{}, nil
+	}
+	return view, release
+}
+
+// CreateOffscreenTextureFormat allocates/borrows a pooled layer RT in format
+// (zero = BGRA8). Unsupported formats fail closed with
+// ErrOffscreenFormatUnsupported before any allocation; other failures return
+// the underlying error. The caller owns the returned release.
+func (rc *GPURenderContext) CreateOffscreenTextureFormat(w, h int, format types.TextureFormat) (gpucontext.TextureView, func(), error) {
+	format = normalizeOffscreenFormat(format)
+	if !rc.offscreenFormatRenderable(format) {
+		return gpucontext.TextureView{}, nil, unsupportedOffscreenFormat(format)
+	}
+	if rc.shared == nil {
+		return gpucontext.TextureView{}, nil, fmt.Errorf("offscreen: shared is nil")
 	}
 	if !rc.shared.deviceReady {
 		rc.shared.mu.Lock()
 		err := rc.shared.ensureGPU()
 		rc.shared.mu.Unlock()
 		if err != nil {
-			slogger().Warn("CreateOffscreenTexture: ensureGPU failed", "error", err)
-			return gpucontext.TextureView{}, nil
+			return gpucontext.TextureView{}, nil, fmt.Errorf("offscreen: ensureGPU: %w", err)
 		}
 		if !rc.shared.deviceReady {
-			slogger().Warn("CreateOffscreenTexture: device not ready after ensureGPU")
-			return gpucontext.TextureView{}, nil
+			return gpucontext.TextureView{}, nil, fmt.Errorf("offscreen: device not ready after ensureGPU")
 		}
 	}
 	device := rc.shared.Device()
 	if device == nil {
-		slogger().Warn("CreateOffscreenTexture: device is nil")
-		return gpucontext.TextureView{}, nil
+		return gpucontext.TextureView{}, nil, fmt.Errorf("offscreen: device is nil")
 	}
-	key := offscreenKey(w, h)
+	key := offscreenKey(w, h, format)
 	poolOn := os.Getenv("GPUI_NO_OFFSCREEN_POOL") != "1"
 
 	cache, owner := rc.offscreenCacheFor()
@@ -4090,11 +4118,9 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		// release, the pre-cache contract.
 		rt, err := createOffscreenRT(device, key)
 		if err != nil {
-			slogger().Warn("CreateOffscreenTexture: allocation failed",
-				"error", err, "width", w, "height", h)
-			return gpucontext.TextureView{}, nil
+			return gpucontext.TextureView{}, nil, fmt.Errorf("offscreen: allocate %dx%d %v: %w", w, h, format, err)
 		}
-		return packView(rt.view), rt.Release
+		return packView(rt.view), rt.Release, nil
 	}
 	if !poolOn {
 		// Always-fresh mode: retire anything parked in the pool before the
@@ -4103,17 +4129,13 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 	}
 	ref, err := cache.Acquire(key)
 	if err != nil {
-		slogger().Warn("CreateOffscreenTexture: allocation failed",
-			"error", err, "width", w, "height", h)
-		return gpucontext.TextureView{}, nil
+		return gpucontext.TextureView{}, nil, fmt.Errorf("offscreen: acquire %dx%d %v: %w", w, h, format, err)
 	}
 	native := owner.Registry().NativeOf(ref)
 	rt, ok := native.(*offscreenRT)
 	if !ok || rt == nil || rt.view == nil {
 		cache.ReleaseRetire(ref)
-		slogger().Warn("CreateOffscreenTexture: unexpected pooled native",
-			"native", native, "width", w, "height", h)
-		return gpucontext.TextureView{}, nil
+		return gpucontext.TextureView{}, nil, fmt.Errorf("offscreen: unexpected pooled native for %dx%d %v", w, h, format)
 	}
 	retire := !poolOn
 	var once sync.Once
@@ -4126,13 +4148,44 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 			}
 		})
 	}
-	return packView(rt.view), release //nolint:gosec // Go spec Rule 1 (ADR-018)
+	return packView(rt.view), release, nil //nolint:gosec // Go spec Rule 1 (ADR-018)
 }
 
-// offscreenKey maps (w,h) to the pooled layer-RT cache key. RoleLayerRT keeps
-// these entries distinct from same-size surface trios.
-func offscreenKey(w, h int) res.CacheKey {
-	return res.CacheKey{W: uint32(w), H: uint32(h), Samples: 1, Role: res.RoleLayerRT}
+// CreateOffscreenTextureFormatOrFallback tries format and falls back to the
+// historical BGRA8 target when the format is unsupported, recording one
+// fallback. Other failures (OOM, device loss) do not silently degrade: they
+// return an empty view and Undefined.
+func (rc *GPURenderContext) CreateOffscreenTextureFormatOrFallback(w, h int, format types.TextureFormat) (gpucontext.TextureView, func(), types.TextureFormat) {
+	want := normalizeOffscreenFormat(format)
+	view, release, err := rc.CreateOffscreenTextureFormat(w, h, want)
+	if err == nil {
+		return view, release, want
+	}
+	if !errors.Is(err, ErrOffscreenFormatUnsupported) {
+		slogger().Warn("CreateOffscreenTextureFormatOrFallback failed", "error", err, "format", want)
+		return gpucontext.TextureView{}, nil, types.TextureFormatUndefined
+	}
+	rc.offscreenFormatFalls.Add(1)
+	slogger().Warn("offscreen format unsupported, falling back to BGRA8", "format", want)
+	view, release, err = rc.CreateOffscreenTextureFormat(w, h, defaultColorFormat)
+	if err != nil {
+		slogger().Warn("CreateOffscreenTextureFormatOrFallback: 8-bit fallback failed", "error", err)
+		return gpucontext.TextureView{}, nil, types.TextureFormatUndefined
+	}
+	return view, release, defaultColorFormat
+}
+
+// OffscreenFormatFallbacks reports how many offscreen requests fell back to
+// 8-bit because the requested format was unsupported (diagnostics).
+func (rc *GPURenderContext) OffscreenFormatFallbacks() uint64 {
+	return rc.offscreenFormatFalls.Load()
+}
+
+// offscreenKey maps (w,h,format) to the pooled layer-RT cache key. RoleLayerRT
+// keeps these entries distinct from same-size surface trios; Format keeps an
+// 8-bit target from being handed to a float request (M5 P2).
+func offscreenKey(w, h int, f types.TextureFormat) res.CacheKey {
+	return res.CacheKey{W: uint32(w), H: uint32(h), Format: uint32(f), Samples: 1, Role: res.RoleLayerRT}
 }
 
 // offscreenCacheFor returns this context's offscreen RT cache, creating the
@@ -4172,16 +4225,20 @@ func (rc *GPURenderContext) createOffscreenNative(key res.CacheKey) (res.Native,
 	return createOffscreenRT(device, key)
 }
 
-// createOffscreenRT allocates one BGRA8 layer/effect render target (texture
-// then view) for key.
+// createOffscreenRT allocates one layer/effect render target (texture then
+// view) in the key's format; zero Format keeps the historical BGRA8 target.
 func createOffscreenRT(device hal.Device, key res.CacheKey) (*offscreenRT, error) {
+	format := types.TextureFormat(key.Format)
+	if format == types.TextureFormatUndefined {
+		format = defaultColorFormat
+	}
 	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "offscreen_cache",
 		Size:          hal.Extent3D{Width: key.W, Height: key.H, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
-		Format:        types.TextureFormatBGRA8Unorm,
+		Format:        format,
 		Usage:         types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding,
 	})
 	if err != nil {
@@ -4189,7 +4246,7 @@ func createOffscreenRT(device hal.Device, key res.CacheKey) (*offscreenRT, error
 	}
 	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         "offscreen_cache_view",
-		Format:        types.TextureFormatBGRA8Unorm,
+		Format:        format,
 		Dimension:     types.TextureViewDimension2D,
 		Aspect:        types.TextureAspectAll,
 		MipLevelCount: 1,

@@ -107,6 +107,12 @@ type GPUShared struct {
 	device   hal.Device
 	queue    hal.Queue
 
+	// offscreenFormatProbe caches "a 1×1 clear pass accepted this format" per
+	// device generation (M5 P2). webgpu.Adapter.TextureFormatCapabilities is a
+	// stub, so a real pass is the only cross-backend answer.
+	offscreenFormatProbe    map[types.TextureFormat]bool
+	offscreenFormatProbeGen uint64
+
 	// Pipelines (immutable after creation, safe to share).
 	sdfRenderPipeline *SDFRenderPipeline
 	convexRenderer    *ConvexRenderer
