@@ -1,0 +1,22 @@
+{
+  "identical": {
+    "diff_px": 0
+  },
+  "shift1px": {
+    "diff_px": 31428,
+    "best_dx": 1,
+    "best_dy": 0,
+    "gain_pct": 100.0
+  },
+  "mutated1px": {
+    "diff_px": 1
+  },
+  "checks": {
+    "identical_diff_px": true,
+    "shift_diff_px_nonzero": true,
+    "shift_detected": true,
+    "shift_gain_positive": true,
+    "mutation_diff_px_one": true
+  },
+  "pass": true
+}

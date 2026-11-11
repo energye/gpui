@@ -151,8 +151,8 @@ func runLogicProbes() []probeResult {
 	add("webp_load_lossless_ok", losslessStd != nil, fmt.Sprintf("%dx%d", lossless.Width(), lossless.Height()))
 	add("webp_lossless_dimensions", lossless.Width() == 96 && lossless.Height() == 64,
 		fmt.Sprintf("got %dx%d want 96x64", lossless.Width(), lossless.Height()))
-	add("webp_lossless_format", lossless.Format() == render.FormatRGBA8,
-		fmt.Sprintf("format=%v want RGBA8", lossless.Format()))
+	add("webp_lossless_format", lossless.Format() == render.FormatRGBAPremul,
+		fmt.Sprintf("format=%v want RGBAPremul (P3.8 premul storage)", lossless.Format()))
 
 	ref, err := render.LoadImage(assetDir + "/webp_lossless_ref.png")
 	if err != nil {

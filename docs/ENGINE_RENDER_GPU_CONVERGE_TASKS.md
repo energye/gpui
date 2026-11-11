@@ -49,16 +49,16 @@
 
 ### 2.1 当前焦点
 
-**当前焦点（2026-11-12 起）：§2.2 待办池取项（C7 已收口）。**
+**当前焦点（2026-11-12 起）：§2.2 余项登记（22 窗金图漂移与 I5 已收口）。**
 
-- ✅ **C7 已收口**：Wayland per-surface EGLDisplay 生命周期修复（native display 引用计数；借用 Wayland display 不 terminate）；go/gles 8 窗 300s 全开/全 present/正常退出，无 SIGSEGV/0x3002。
-- 🟡 留项：**I5 v2**（金图 17.5273% 交 P2.6；功能/真窗已齐，暂不标 ✅）。
-- 余项：N1（可选）、D2（余留既有红，不擅自改）；主表 P0–P4 全 ✅。
-- 已收口：I1、I2、C7、G3、E1、E3、C5、C6、B2、B3、C1 等，详见 §2.2。
+- ✅ **22 窗金图漂移已收口**：44 轮双后端采集 → 21/22 判基线过期（未发现渲染洞）→ 用户确认 → 21 窗重种；native/go 42 轮复跑全 `0.0000%`；窗口级 1px 负向 12.9901% 红→还原绿；`ui_render_base_svg` 0.0000% 不重种。
+- ✅ **I5 v2 已收口**：`ui_base_vram_cap` 8 窗按既有证据重种；native Mailbox + go/gles 各 300s cascade，8/8 窗 `0.0000%`、像素 16/16、rc=0。
+- 余项：D2（余留既有红，有意保留）、N1（可选）、N3（`ui_base_vram_cap` 首窗 snapshot 偶发未写出，已登记）、soak 两项；主表 P0–P4 全 ✅。
+- 已收口：I1、I2、C7、I3、C1–C6、E1/E3、G3、B2/B3 等，详见 §2.2。
 - **任务总表（P0–P4）在本节末**；下面的专项索引只列不属于主表 / §2.2 待办池的已收口项。
-- **本节只保留 1 个「当前任务验证载体」**；任务收口时用一行索引替换它，不保留完整历史块（规则见 §6.1）。
+- **本节只保留 1 个「当前任务验证载体」**；当前无活动任务，收口块已用索引行替换（规则见 §6.1）。
 
-已收口：C7（gles 多窗 Wayland：EGLDisplay 按 native display 引用计数 + 借用 display 不 terminate；8 窗 300s 全开/全 present/正常退出）→ `evidence/P2.4e/c7-wayland-verify/closeout.md`。
+已收口：22 窗金图漂移（21 窗基线过期重种 + 双后端 0.0000% + 1px 负向）→ `evidence/P2.6/golden-drift/assessment.md`；I5 v2（Mailbox present + 8 窗金图债清）→ `evidence/P2.4e/i5-v2/summary.md`、`evidence/P2.6/golden-drift/i5-vram/closeout.md`；C7（gles 多窗 Wayland：EGLDisplay 按 native display 引用计数 + 借用 display 不 terminate；8 窗 300s 全开/全 present/正常退出）→ `evidence/P2.4e/c7-wayland-verify/closeout.md`。
 
 **§2.1 专项索引（主表未展开的细节 / 非主表专项）**
 
@@ -70,7 +70,8 @@
 | SDF 覆盖线 | GPU 覆盖改解析真值预计算 LUT（1024 项 midrange）；P4.2 AA 带容差 24→8（19 场景 max 6）；K2 erode/dilate 传播 404px/max17→5、548px/max5（带外 0）；6 扇金图重种 0.0000% | `evidence/SDF/coverage-line.md` |
 | P4.3 阴影专项 | 跨帧阴影 tile 缓存；native 58.91fps / go 58.46fps，双后端金图 0.0000%；滤波源帧内累积已治根（同帧两笔阴影 max diff 38→0） | `evidence/P4.3/cache-impl.md`、`evidence/P4.3/root-cause2-fix.md` |
 | P4.3 余项 | backdrop 损伤区 / 抖动两项经二轮量测判不修（用户拍板，正确性设计保留）；零引擎改动、零公开 API、金图不重种 | `evidence/P4.3/closeout.md` |
-| 22 窗金图漂移 | 21/22 窗历史金图漂移（唯一 0=`ui_render_base_svg`；dither 31.7164% / miscdraw 14.2041% 等，详见证据），修复前后/两档同值 ⇒ 与 C1/后端无关；须逐窗判渲染洞 vs 基线过期，禁重种。2026-11-12 补 `ui_base_vram_cap` 17.5273%（I5 v2 同值，差异集中 1px 边沿/HUD，内部点逐字节同，材料 `i5-v2/golden/assessment.md`），倾向基线过期待判 | `evidence/P2.6/c1-screen-grab-black-assessment.md` §9、`evidence/P2.4e/i5-v2/golden/` |
+| 22 窗金图漂移 | ✅ 2026-11-12 收口：44 轮采集 → 21/22 判基线过期（0.1880%–31.7164%），22 窗内容双后端逐字节同、平移 (0,0)、内部采样多数 100%；用户确认后 21 窗重种，42 轮复跑 0.0000%，1px 负向 12.9901% 红→还原绿；`ui_render_base_svg` 0.0000% 不重种 | `evidence/P2.6/golden-drift/assessment.md` |
+| I5 金图债 | ✅ 2026-11-12：`ui_base_vram_cap` 8 窗按 i5-v2 当前图重种；native Mailbox/go gles 各 300s cascade 8/8 `0.0000%`、像素 16/16；首轮 win1 snapshot 竞态登记 N3 | `evidence/P2.6/golden-drift/i5-vram/closeout.md` |
 | Wayland 原生截屏 | portal/PipeWire 需人工授权，GNOME Shell 接口 AccessDenied；另立后续独立批次 | 同上 |
 
 **余留登记（不阻塞当前焦点）**
@@ -166,7 +167,7 @@
 | I2 | P2.4d | `TestS68_Swapchain_X11_MultiFramePresent` 曾期望第 6 帧同尺寸 `Resize(160,120)` 抬 `reconfigures`；产品侧 `swapchain_configure.go` 自 `34d9785e` 起把同尺寸 Resize 定为 no-op（避 `Surface.Configure` thrash/黑闪）；`8e4c0e99` 引入用例早于语义变更 | P2.4e：已拍板「同尺寸 no-op + `MarkNeedsReconfigure` 显式重配口」，与 Impeller KHR/AHB 一致；不改 `Resize` 签名 | ✅ 2026-11-12 复跑 PASS（`reconfig=0`；`MarkNeedsReconfigure` 后 `>=1`）；e4 `03a630be` 已改绑，台账滞后销账；`evidence/P2.4e/i2/closeout.md` |
 | I3 | P2.4d | R20 `gray_red_band_matrix_exact @(408,274)` 红：GRAY 卡保持彩色，疑层录制未按新矩阵重录 | P2.6 前诊断 | ✅ 2026-11-10：现行树 scripted 5/5、金图 0.0000%、`final_gray_identity=false`，复现消失；按「核实后没问题如实收回」销账，无代码改动；`evidence/P2.6/c4-dissection.md` |
 | I4 | P2.4d | R20 `r20_steady.png` / `r20_recover.png` 全黑（1200×800 RGB 全 0、5585B），stderr `snapshot request timed out`；`r20_final.png` 正常 | P2.6 前诊断（SnapshotAsync 黑图） | ✅ 2026-11-11：根因=saveSnap 用 `Context().Image()` 读 CPU pixmap，真 swapchain GPU 帧不回写 pixmap；按 r1/c8 `PaintPresentTree` 先重画再存；两窗 steady/recover 960000/960000 px 非零，门禁 PASS；`evidence/P2.6/i4-midrun-snapshot-black.md`、提交 `46aa5454` |
-| I5 | I1 | **GPU present 健壮化**：Wayland 同步 Fifo present 在 Mesa WSI 等合成器 release，一窗卡住即全进程冻结；根因修复=native Wayland 默认非阻塞 present（Mailbox→Immediate→FifoRelaxed→Fifo）。旧 worker/每窗设备路线已被 2c/D1c 反证作废 | render 呈现口 + `gpu/webgpu` present 模式选择；旧设计标废弃 | 🟡 2026-11-12 v2 实现 + 真窗 A/B/负向/X11 回归已落盘（正轮 8 窗 mailbox、n=8 11.3fps、正常退出；负向 fifo n=8 冻结）；`gpu/webgpu` 逐文件 21 PASS、render present_* 5 PASS、五目标 build rc=0；金图 17.5273% 预存漂移待 P2.6，不标 ✅；`evidence/P2.4e/i5-v2/summary.md` |
+| I5 | I1 | **GPU present 健壮化**：Wayland 同步 Fifo present 在 Mesa WSI 等合成器 release，一窗卡住即全进程冻结；根因修复=native Wayland 默认非阻塞 present（Mailbox→Immediate→FifoRelaxed→Fifo）。旧 worker/每窗设备路线已被 2c/D1c 反证作废 | render 呈现口 + `gpu/webgpu` present 模式选择；旧设计标废弃 | ✅ 2026-11-12 收口：v2 实现 + 真窗 A/B/负向/X11 回归已落盘；`ui_base_vram_cap` 8 窗按既有证据重种，native Mailbox/go gles 各 300s cascade 8/8 `0.0000%`、像素 16/16、rc=0；`evidence/P2.4e/i5-v2/summary.md`、`evidence/P2.6/golden-drift/i5-vram/closeout.md` |
 | J1 | P2.4d 收口审计 | `res.Registry` idle 回调电平触发 + `res.Cache.repool` 无查重：同一 `Ref` 双重 Release 时池桶重复入桶，后续可能把在借条目标死 | P2.4e：repool 查重 + 回调边沿触发 + 补负向用例 | ✅ 2026-11-09 源码实证：`res/cache.go:252-255` 已查重；`registry.go` idle 回调已边沿触发 |
 | J2 | P2.4d 收口审计 | `rwgpu` work-done 记录包级 map 仅在 `FutureDone`/`WaitForFuture` 观察时删除；`directSubmit.drain/invalidate` 不解 token → 设备切换/丢失时记录滞留 | P2.4e：drain 补观察 + invalidate 清理出口 | ✅ 2026-11-09：`direct_submit.go:139-141` `drain()` 已 `token.Done()`；`invalidate()` 已标注丢弃 |
 | J3 | P2.4d 收口审计 | 疑点「`Submission.Begin` 丢未决 jobs → inflight 泄漏」经全调用点核查收回：`Begin` 生产零调用，`endSubmission` 5 处同步点 + Destroy WaitIdle + Invalidate 配对闭合 | 无需修复（防重查） | ✅ 2026-10-31 核查闭合 |
@@ -189,6 +190,8 @@
 | M5 | P3.7 D5 | 真 HDR float 全链在 render 层代码量为零（`FloatTarget` 仅 CPU、`GPURenderTarget` 无 Format、呈现固定 BGRA8、离屏 RT 全 8-bit） | 渲染专项（HDR 全链） | ✅ 2026-11-11 全批收口：RGBA16Float、格式参数化（设计面 22 文件，P1 实落 12 文件 43 处）、float RT、tonemap、真窗双后端 0.0000%；`evidence/M5/closeout.md` |
 | M6 | P3.7 批 2 前置探针 | `SetEffectSurface(true)` 下 `ExportImageBuf` R/B 互换（同一绘制 `(255,0,0)` → `(0,0,255)`，两档都真走 GPU） | 色空间/通道口径单点化 | ✅ 2026-11-05：真病灶=`filter_ops_gpu.go:806-813` 无条件走不翻通道读回，而效果面发布 BGRA8；按纹理真实格式选读回 + 未知格式 fail-closed；两钉 + 负向 N15/N16；`evidence/P3.7/m6-export-byteorder.md` |
 | N1 | P4.3 收口 | backdrop 损伤区裁剪的「静止帧 + retained/hybrid」增量二轮未做：二轮 `damage_area_px` 恒 960000 是测量窗每帧 `ScheduleFrame` 全量重绘 + `PresentPolicyFullPaint` 标签造成，非 backdrop 造成 | 渲染专项（可选）：改测量窗不每帧调度、切 retained/hybrid，看 `damage_area_px` 是否收敛到 153600；须给客观收益 + 双后端逐位 + 负向，否则维持不优化 | ⬜ 可选后续（2026-11-10 用户拍板 P4.3 收口时登记，不阻塞） |
+| N2 | P2.6 22 窗漂移 | `ui_render_base_webp` 逻辑探针 `webp_lossless_format` 仍期望 `FormatRGBA8`，P3.8 `d5f9af60` 已把 `FromStdImage` 统一为 `FormatRGBAPremul`（`render/internal/image/io.go:313-355`）；像素探针 24/24、alpha 直方图 379/64/5701 全过，仅格式标签过期 | P2.6（随 21 窗金图重种批） | ✅ 2026-11-12 已改为期望 `FormatRGBAPremul`；重种后复跑 logic 19/19、pixel 24/24、golden 0.0000% |
+| N3 | P2.6 I5 金图重种 | `ui_base_vram_cap` gate 首窗 `snapshot:` 偶发未写出：native 300s 第一轮 7/8 行（win1 缺），gate 读取陈旧 `vram_win1.png` 误报 17.5273%；第二轮 8/8 行、全 0.0000% | P2.6/P2.4e（查 `runOnGL` 关闭竞态，补「snapshot 未写出」显式失败） | 🟡 2026-11-12 登记；不阻塞 I5 语义收口 |
 
 ## 3 每个任务的开工条件与完成标准
 
@@ -472,6 +475,7 @@ docs/render_gpu_converge/
 | 2026-11-12 | I5 | 用户拍板：I5 留 🟡，17.5273% 交 P2.6「22 窗金图漂移」逐窗判定，禁止直接重种；功能/真窗/负向证据已齐 | `evidence/P2.4e/i5-v2/golden/assessment.md` |
 | 2026-11-12 | I2 | 复跑 PASS：同尺寸 Resize no-op + `MarkNeedsReconfigure` 显式口，Impeller KHR/AHB 对照一致；e4 已实现，台账滞后销账 | `evidence/P2.4e/i2/` |
 | 2026-11-12 | C7 | 闭合 Wayland 第二机制：per-surface context 各自 `eglTerminate` 同一 native display → 关窗 SIGSEGV；修=EGLDisplay 按 native display 引用计数 + 借用 Wayland display 不 terminate；8 窗 300s 全开/全 present/正常退出 | `evidence/P2.4e/c7-wayland-verify/closeout.md` |
+| 2026-11-12 | 22 窗金图漂移/I5 | 44 轮双后端采集 → 21/22 判基线过期（0.1880%–31.7164%，svg 0.0000% 对照）；用户确认后 21 窗重种，42 轮复跑 0.0000%、1px 负向 12.9901% 红→还原绿；I5 `ui_base_vram_cap` 8 窗重种，native/go 各 300s 8/8 0.0000%；webp 探针改 premul；首窗 snapshot 竞态登记 N3 | `evidence/P2.6/golden-drift/` |
 
 ## 8 修订记录（摘要；全文见存档）
 
@@ -487,3 +491,4 @@ docs/render_gpu_converge/
 | 2026-11-10 | §2.2 台账整理（P0 文档清理）：11 行补回状态列、K6 重号改 K7、表格连续化；「无消费者」不作删除理由的判定口径写入证据 |
 | 2026-11-12 | 收敛版（内容截至 2026-11-11）：主文件压缩为当前状态/口径/决策/证据指针；§2.1 历史载体块、§7 全量流水、§8 全量修订冻结到 `docs/render_gpu_converge/archive/ENGINE_RENDER_GPU_CONVERGE_TASKS_2026-11-11_full.md`，逐字保留不丢精度 |
 | 2026-11-12 | I5 设计换向：从 present worker/设备隔离改为 native Wayland 非阻塞 present（Mailbox）根因修复；旧设计标废弃，v2 设计与诊断证据落盘 |
+| 2026-11-12 | 金图重种口径：只对「基线过期」重种，须有双后端内容逐字节同 + 平移 (0,0) + 内部采样 + 对照窗（SDF LUT 后重种窗 0%）证据；重种后双后端复跑 0.0000% + 1px 负向；禁止无证据重种 |

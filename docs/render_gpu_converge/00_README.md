@@ -40,7 +40,7 @@
 | `baseline/perf/` | **P1.7 性能基线**：`summary.md`（首帧/A 族/p99 基线 + 门禁适用域 + 字段契约定性 + P2 移交）、`perf_baseline.tsv`（366 轮逐轮 A/H 族字段 + 门禁判定 + P1.4 状态交叉）、`tools/`（extract_perf 再生成 + verify_perf 机器校验） | 不装阈值（归 P0.1 §2/§3）；不装原始窗口 JSON（归 P1.4 `baseline/windows/`）；不修 FAIL（归 P2） |
 | `baseline/negative/` | **P1.8 负向对照**：`summary.md`（三破坏红/还原绿 + 尝试记录 + P2 移交）、`shift1px/`（像素断言红）、`skipdraw/`（红 + report 证据：gpu_ops 计数下限偏松）、`skipforget/`（K1 上界收紧红 + 还原绿 + 第一方案不红的语义发现）、`green-baseline.txt`/`green-after-revert.txt`、`patch.diff`（临时补丁全文，已还原）、`threshold-mutation.txt`（§8.2 三态）、`tools/`（verify_negative） | 不装新阈值（归 P0.1）；破坏注入只留红/绿输出与 diff，不留任何代码改动 |
 
-## 当前进度（P0 与 P1 基线冻结全部收口；正式基线 tag `baseline-p1` 已打在 `92ca9216`，P2 待开工）
+## 当前进度（P0–P4 主表全部收口；22 窗金图漂移 / I5 金图债 2026-11-12 已收口；余项见 TASKS §2.2）
 
 > 状态真源是 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2；本表只是索引镜像，两边不一致以台账为准。
 
@@ -60,6 +60,10 @@
 | P1.6 | 显存账本快照 | ✅ 2026-10-29 | `baseline/vram/`：三 cap 窗全协议 × 双后端 8 轮（隔离 :3 串行标准关闭）；ladder native 账本峰值 372.0MB 未破 0.9 水线、拒增曲线 4/8 窗触发；oom 注入后账本精确回落 delta 0.00（双后端一致）；batch 双后端 p95 FAIL（55.7/62.1ms，同 P1.4 登记）；ladder go 档 GL 4 窗 MakeCurrent 跑不了（stderr 证据在案）；K1 复核逐位复现每轮 +2 条/+131072B；RSS 盘点 223 条、10 条 PASS 过 30000 泄漏线登记 P2；机器校验 14 断言 ALL PASS |
 | P1.7 | 性能基线 | ✅ 2026-10-29 | `baseline/perf/`：P1.4 存量 366 轮纯分析零补采零 GPU；首帧 275 轮 0 FAIL（median 174ms / max 515ms，文本/IME 紧预算 18 轮全达标）；A 族 44 轮默认门禁超限 8 处集中 4 轮（c3/r7/r7b）与 P1.4 状态零冲突；p99 观测基线 median 20.7ms 落盘（P2 起 8ms 回归带对照）；「缺 A 族字段」定性为字段两代命名、别名映射解决、契约统一登记 P2；机器校验 8 断言 ALL PASS |
 | P1.8 | 负向对照 | ✅ 2026-10-29 | `baseline/negative/`：三破坏全转红——偏移 1px（像素断言双后端红）、跳过一次绘制（红；gpu_ops 计数下限 1 抓不住单跳登记 P2）、少释放一次（K1 释放缺口真实现场 + 用例上界收紧 → 账本断言双后端红）；全部当场还原复绿、代码零残留；§8.2 阈值文件变异对成立（22→4 红 / 30→0 漏报 / 还原→4 报警）；机器校验 9 断言 ALL PASS。P1 基线冻结全部收口 |
+| P2.1–P2.6 | 框架代码调整与整合 + 行为零变化总验收 | ✅ 2026-11-01 | `evidence/P2.1/`–`P2.6/`：shader 合并、删旧原型、入口/预算/释放收敛、包组织、P2.6 基线重放（374 轮真窗、364 去重、嫌疑 0） |
+| P3.0–P3.9b | 缺失能力（色彩/shader/富文本/滤镜/几何/图片/2.5D/SVG/mesh/MSAA 基准） | ✅ 2026-11-09 | `evidence/P3.0/`–`P3.9b/`：每项三证据 + 双后端金图收口 |
+| P4.1–P4.4 | 半成品完整实现（正确性/模糊一致/性能/COLRv1） | ✅ 2026-11-10 | `evidence/P4.1/`–`P4.4/`：MSAA even-odd、分数裁剪、DrawShadow、模糊对齐、mask 池化、COLRv1 变量轴 |
+| §2.2 余项 | I5 / C7 / 22 窗金图漂移 / D2 / N1 / N3 | I5 ✅ 2026-11-12（金图 0.0000%）；C7 ✅；22 窗 ✅（21 窗重种 0.0000%）；D2 🟡 既有红；N1 ⬜ 可选；N3 🟡 首窗 snapshot 竞态 | `evidence/P2.6/golden-drift/`、`evidence/P2.4e/i5-v2/`、`evidence/P2.4e/c7-wayland-verify/` |
 
 ## 先看哪个
 

@@ -1,0 +1,82 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_render_base_backdrop: logic backdrop_empty_is_identity             pass=true
+ui_render_base_backdrop: logic backdrop_dims_content                  pass=true
+ui_render_base_backdrop: logic backdrop_outside_fill_untouched        pass=true
+ui_render_base_backdrop: logic backdrop_pop_opacity_half              pass=true
+ui_render_base_backdrop: logic backdrop_layer_child_stays_sharp       pass=true
+ui_render_base_backdrop: logic backdrop_clip_keeps_outside            pass=true
+ui_render_base_backdrop: logic backdrop_blur_softens_edge             pass=true
+ui_render_base_backdrop: logic backdrop_blur_keeps_child_sharp        pass=true
+ui_render_base_backdrop: logic backdrop_nested_sees_outer_layer       pass=true
+ui_render_base_backdrop: logic backdrop_nested_band_outside_dim       pass=true
+ui_render_base_backdrop: logic backdrop_sees_parent_draw_order        pass=true
+ui_render_base_backdrop: logic backdrop_then_parent_draw_on_top       pass=true
+ui_render_base_backdrop: logic backdrop_twice_composes                pass=true
+ui_render_base_backdrop: logic backdrop_opacity_zero_noop             pass=true
+ui_render_base_backdrop: event #1 type=wake
+ui_render_base_backdrop: event #2 type=wake
+ui_render_base_backdrop: event #3 type=wake
+ui_render_base_backdrop: event #4 type=wake
+ui_render_base_backdrop: event #5 type=wake
+ui_render_base_backdrop: event #6 type=wake
+ui_render_base_backdrop: event #7 type=wake
+ui_render_base_backdrop: event #8 type=wake
+ui_render_base_backdrop: event #9 type=wake
+ui_render_base_backdrop: event #10 type=wake
+ui_render_base_backdrop: event #11 type=wake
+ui_render_base_backdrop: event #12 type=wake
+ui_render_base_backdrop: event #13 type=wake
+ui_render_base_backdrop: event #14 type=wake
+ui_render_base_backdrop: event #15 type=wake
+ui_render_base_backdrop: event #16 type=wake
+ui_render_base_backdrop: event #17 type=wake
+ui_render_base_backdrop: event #18 type=wake
+ui_render_base_backdrop: event #19 type=wake
+ui_render_base_backdrop: event #20 type=wake
+ui_render_base_backdrop: event #21 type=wake
+ui_render_base_backdrop: event #22 type=wake
+ui_render_base_backdrop: event #23 type=wake
+ui_render_base_backdrop: event #24 type=wake
+ui_render_base_backdrop: event #25 type=wake
+ui_render_base_backdrop: event #26 type=wake
+ui_render_base_backdrop: event #27 type=wake
+ui_render_base_backdrop: event #28 type=wake
+ui_render_base_backdrop: event #29 type=wake
+ui_render_base_backdrop: event #30 type=wake
+ui_render_base_backdrop: event #31 type=wake
+ui_render_base_backdrop: event #32 type=wake
+ui_render_base_backdrop: event #33 type=wake
+ui_render_base_backdrop: event #34 type=wake
+ui_render_base_backdrop: event #35 type=wake
+ui_render_base_backdrop: event #36 type=wake
+ui_render_base_backdrop: event #37 type=wake
+ui_render_base_backdrop: event #38 type=wake
+ui_render_base_backdrop: event #39 type=wake
+ui_render_base_backdrop: event #40 type=wake
+ui_render_base_backdrop: event #41 type=wake
+ui_render_base_backdrop: event #42 type=wake
+snapshot: /tmp/opencode/p26-golden/neg-backdrop/showcase_backdrop.png
+ui_render_base_backdrop: pixel a_stripe_out     A 面板外条纹原样 = teal                                     @( 322, 230) got=(0.180,0.780,0.698) want=(0.180,0.780,0.700) ok=true
+ui_render_base_backdrop: pixel a_teal_in        A 面板内 teal 被压暗 50%                                   @( 368, 230) got=(0.094,0.400,0.357) want=(0.090,0.390,0.350) ok=true
+ui_render_base_backdrop: pixel a_blue_in        A 面板内 blue 条纹被压暗 50%                                 @( 398, 230) got=(0.149,0.275,0.475) want=(0.150,0.275,0.475) ok=true
+ui_render_base_backdrop: pixel a_above          A 面板上方（y<24）条纹原样 = teal                              @( 508, 150) got=(0.180,0.780,0.698) want=(0.180,0.780,0.700) ok=true
+ui_render_base_backdrop: pixel a_chip           A 层内后画 chip 不受压暗 = 白                                 @( 508, 275) got=(1.000,1.000,1.000) want=(1.000,1.000,1.000) ok=true
+ui_render_base_backdrop: pixel b_black_center   B 黑条纹中心被抹平 + 15% 白 ≈ 0.575                           @( 868, 230) got=(0.588,0.588,0.588) want=(0.575,0.575,0.575) ok=true
+ui_render_base_backdrop: pixel b_white_center   B 白条纹中心被抹平 + 15% 白 ≈ 0.575                           @( 878, 230) got=(0.561,0.561,0.561) want=(0.575,0.575,0.575) ok=true
+ui_render_base_backdrop: pixel b_bg_out         B 玻璃面板外卡片底色原样（平色模糊不改变）                               @( 772, 230) got=(0.122,0.133,0.165) want=(0.120,0.135,0.165) ok=true
+ui_render_base_backdrop: pixel b_chip           B Pop 之后画的子内容依旧锐利 = 白                                @( 958, 275) got=(1.000,1.000,1.000) want=(1.000,1.000,1.000) ok=true
+ui_render_base_backdrop: pixel c_teal_in        C 裁剪面板内 teal 压暗 50%                                  @( 408, 482) got=(0.090,0.392,0.349) want=(0.090,0.390,0.350) ok=true
+ui_render_base_backdrop: pixel c_out_left       C 面板左侧条纹原样 = teal                                    @( 322, 482) got=(0.180,0.780,0.698) want=(0.180,0.780,0.700) ok=true
+ui_render_base_backdrop: pixel c_out_right      C 面板右侧条纹原样 = blue                                    @( 688, 482) got=(0.298,0.549,0.949) want=(0.300,0.550,0.950) ok=true
+ui_render_base_backdrop: pixel c_edge_out       C 裁剪边界外 4px = blue 原样                                @( 384, 482) got=(0.298,0.549,0.949) want=(0.300,0.550,0.950) ok=true
+ui_render_base_backdrop: pixel c_edge_in        C 裁剪边界内 4px = blue 压暗 50%                            @( 392, 482) got=(0.149,0.275,0.475) want=(0.150,0.275,0.475) ok=true
+ui_render_base_backdrop: pixel c_above          C 面板上方（y<20）条纹原样 = teal                              @( 508, 400) got=(0.180,0.780,0.698) want=(0.180,0.780,0.700) ok=true
+ui_render_base_backdrop: pixel d_band_out       D 外层 teal 带在暗条外 = teal 原样                            @( 778, 432) got=(0.180,0.780,0.698) want=(0.180,0.780,0.700) ok=true
+ui_render_base_backdrop: pixel d_band_in        D 暗条内 teal 带压暗 50%（快照看到外层图层）                         @( 898, 432) got=(0.090,0.392,0.349) want=(0.090,0.390,0.350) ok=true
+ui_render_base_backdrop: pixel d_lower_in       D 暗条内 blue 带压暗 50%                                   @( 898, 532) got=(0.149,0.275,0.475) want=(0.150,0.275,0.475) ok=true
+ui_render_base_backdrop: pixel d_lower_out      D 暗条右缘外 blue 带原样 = blue                              @(1078, 532) got=(0.298,0.549,0.949) want=(0.300,0.550,0.950) ok=true
+ui_render_base_backdrop: pixel d_chip           D 外层 Pop 之后画的 chip = 白                               @(1126, 443) got=(1.000,1.000,1.000) want=(1.000,1.000,1.000) ok=true
+ui_render_base_backdrop: pixel d_card_bg        D 外层带外（x>330）卡片底色原样                                  @(1148, 482) got=(0.122,0.133,0.165) want=(0.120,0.135,0.165) ok=true
+golden showcase_backdrop.png: diff=0.0000% over 627200 px
+ui_render_base_backdrop: screen check diff=0.0000% over 627200 px tol=±2 (/tmp/gpui_backdrop_screen.png)
+ui_render_base_backdrop: OK presents=46 logic=14/14 pixel=21/21 golden=0.0000% screen=true resize=0 1200x800 mode=gate elapsed=6.3s
