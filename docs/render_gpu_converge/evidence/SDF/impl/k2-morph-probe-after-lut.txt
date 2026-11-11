@@ -1,0 +1,22 @@
+=== RUN   TestK2MorphologyPropagationProbe
+K2 raw      diff_px=476 max=6 white_bbox=(60,50)-(119,109) diff_bbox=(59,49)-(120,110) hist[1..8]=[0 0 0 240 0 236 0 0]
+K2 raw      (59,55) gpu=29/29/34/255 cpu=25/25/30/255
+K2 raw      (60,55) gpu=249/249/249/255 cpu=255/255/255/255
+K2 raw      (64,55) gpu=255/255/255/255 cpu=255/255/255/255
+K2 raw      (65,55) gpu=255/255/255/255 cpu=255/255/255/255
+K2 raw      (66,55) gpu=255/255/255/255 cpu=255/255/255/255
+K2 erode5   diff_px=404 max=5 white_bbox=(65,55)-(115,105) diff_bbox=(64,54)-(116,106) hist[1..8]=[0 0 0 0 404 0 0 0]
+K2 erode5   (59,55) gpu=25/25/30/255 cpu=25/25/30/255
+K2 erode5   (60,55) gpu=25/25/30/255 cpu=25/25/30/255
+K2 erode5   (64,55) gpu=30/30/34/255 cpu=25/25/30/255
+K2 erode5   (65,55) gpu=250/250/250/255 cpu=255/255/255/255
+K2 erode5   (66,55) gpu=250/250/250/255 cpu=255/255/255/255
+K2 dilate5  diff_px=548 max=5 white_bbox=(56,46)-(124,114) diff_bbox=(55,45)-(125,115) hist[1..8]=[0 0 0 0 548 0 0 0]
+K2 dilate5  (59,55) gpu=255/255/255/255 cpu=255/255/255/255
+K2 dilate5  (60,55) gpu=255/255/255/255 cpu=255/255/255/255
+K2 dilate5  (64,55) gpu=255/255/255/255 cpu=255/255/255/255
+K2 dilate5  (65,55) gpu=255/255/255/255 cpu=255/255/255/255
+K2 dilate5  (66,55) gpu=255/255/255/255 cpu=255/255/255/255
+--- PASS: TestK2MorphologyPropagationProbe (0.56s)
+PASS
+ok  	github.com/energye/gpui/render	0.649s

@@ -105,6 +105,16 @@ type SDFRenderPipeline struct {
 	maskBindLayout  hal.BindGroupLayout
 	maskLayoutOwned bool
 
+	// SDF 覆盖 LUT（覆盖线 2026-11-11，evidence/SDF/coverage-line.md）：
+	// device-level constant table（1024×1 RGBA8，解析真值 midrange 预计算），
+	// group 3 绑定。who-creates-who-destroys：createPipeline 建、
+	// destroyPipeline 放（VRAM 账本由 hal CreateTexture/Destroy 双端自动记）。
+	covLutTex     hal.Texture
+	covLutView    hal.TextureView
+	covLutSampler hal.Sampler
+	covLutBG      hal.BindGroup
+	covLutLayout  hal.BindGroupLayout
+
 	// MSAA and resolve textures for offscreen rendering (standalone mode).
 	// When used via GPURenderSession, these are nil -- the session owns textures.
 	msaaTex     hal.Texture
@@ -370,9 +380,13 @@ func (p *SDFRenderPipeline) createPipeline() error {
 	if p.maskBindLayout == nil {
 		return fmt.Errorf("sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)")
 	}
+	// 覆盖 LUT 资源（group 3）：建表纹理 + 采样器 + bind group（幂等）。
+	if err := p.ensureCoverageLUT(); err != nil {
+		return err
+	}
 	pipeLayout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "sdf_render_pipe_layout",
-		BindGroupLayouts: []hal.BindGroupLayout{p.uniformLayout, clipLayout, p.maskBindLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{p.uniformLayout, clipLayout, p.maskBindLayout, p.covLutLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create pipeline layout: %w", err)
@@ -515,6 +529,91 @@ func (p *SDFRenderPipeline) ensureDepthClipPipeline() error {
 	return nil
 }
 
+// ensureCoverageLUT builds the group-3 coverage LUT resources (idempotent):
+// a 1024×1 RGBA8 ramp uploaded from render.SDFCoverageLUT1024 (the analytic
+// midrange table), a filtering sampler, their bind group, and the group
+// layout. 4 KB of VRAM, registered by the hal CreateTexture ledger on both
+// backends; destroyed in destroyPipeline.
+func (p *SDFRenderPipeline) ensureCoverageLUT() error {
+	if p.covLutBG != nil {
+		return nil
+	}
+	lutLayout, err := p.device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+		Label: "sdf_cov_lut_layout",
+		Entries: []types.BindGroupLayoutEntry{
+			{
+				Binding:   0,
+				Visibility: types.ShaderStageFragment,
+				Texture:   &types.TextureBindingLayout{SampleType: types.TextureSampleTypeFloat, ViewDimension: types.TextureViewDimension2D},
+			},
+			{
+				Binding:   1,
+				Visibility: types.ShaderStageFragment,
+				Sampler:   &types.SamplerBindingLayout{Type: types.SamplerBindingTypeFiltering},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create coverage lut layout: %w", err)
+	}
+	p.covLutLayout = lutLayout
+
+	lutTex, err := p.device.CreateTexture(&hal.TextureDescriptor{
+		Label:         "sdf_cov_lut_tex",
+		Size:          hal.Extent3D{Width: 1024, Height: 1, DepthOrArrayLayers: 1},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     types.TextureDimension2D,
+		Format:        types.TextureFormatRGBA8Unorm,
+		Usage:         types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return fmt.Errorf("create coverage lut texture: %w", err)
+	}
+	p.covLutTex = lutTex
+	data := make([]byte, 1024*4)
+	lut := render.SDFCoverageLUT1024()
+	for i := 0; i < 1024; i++ {
+		data[i*4] = lut[i]
+		data[i*4+1] = lut[i]
+		data[i*4+2] = lut[i]
+		data[i*4+3] = 255
+	}
+	if err := p.queue.WriteTexture(&hal.ImageCopyTexture{Texture: lutTex, MipLevel: 0, Origin: hal.Origin3D{}, Aspect: types.TextureAspectAll},
+		data, &hal.ImageDataLayout{Offset: 0, BytesPerRow: 1024 * 4, RowsPerImage: 1},
+		&hal.Extent3D{Width: 1024, Height: 1, DepthOrArrayLayers: 1}); err != nil {
+		return fmt.Errorf("upload coverage lut: %w", err)
+	}
+	lutView, err := p.device.CreateTextureView(lutTex, &hal.TextureViewDescriptor{
+		Label: "sdf_cov_lut_view", Format: types.TextureFormatRGBA8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
+	if err != nil {
+		return fmt.Errorf("create coverage lut view: %w", err)
+	}
+	p.covLutView = lutView
+	samp, err := p.device.CreateSampler(&hal.SamplerDescriptor{
+		Label: "sdf_cov_lut_sampler", MagFilter: types.FilterModeLinear, MinFilter: types.FilterModeLinear,
+		AddressModeU: types.AddressModeClampToEdge, AddressModeV: types.AddressModeClampToEdge,
+	})
+	if err != nil {
+		return fmt.Errorf("create coverage lut sampler: %w", err)
+	}
+	p.covLutSampler = samp
+	bg, err := p.device.CreateBindGroup(&hal.BindGroupDescriptor{
+		Label: "sdf_cov_lut_bg", Layout: lutLayout,
+		Entries: []hal.BindGroupEntry{
+			{Binding: 0, TextureView: lutView},
+			{Binding: 1, Sampler: samp},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create coverage lut bind group: %w", err)
+	}
+	p.covLutBG = bg
+	return nil
+}
+
 // RecordDraws records SDF shape draws into an existing render pass.
 // The render pass is owned by GPURenderSession. This method uses the
 // pipelineWithStencil variant because the session's render pass includes
@@ -564,6 +663,11 @@ func (p *SDFRenderPipeline) RecordDraws(rp hal.RenderPassEncoder, resources *sdf
 	if maskBG != nil {
 		rp.SetBindGroup(2, maskBG, nil)
 	}
+	// 覆盖 LUT（group 3，管线常量）：每次 SetPipeline 后重绑——wgpu 的 bind
+	// group 随管线切换失效。skipBind 快路径下同管线仍持有旧绑定，无需重绑。
+	if p.covLutBG != nil {
+		rp.SetBindGroup(3, p.covLutBG, nil)
+	}
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	rp.Draw(resources.vertCount, 1, resources.firstVertex, 0)
 	if ledger != nil {
@@ -592,6 +696,28 @@ func (p *SDFRenderPipeline) destroyPipeline() {
 		p.pipeLayout.Destroy()
 		p.pipeLayout = nil
 		p.pipeLayoutHasClip = false
+	}
+	// 覆盖 LUT（group 3，who-creates-who-destroys）：BG/采样器/视图/纹理/布局
+	// 逆创建序释放；hal CreateTexture 的账本销毁侧双端自动记账。
+	if p.covLutBG != nil {
+		p.covLutBG.Destroy()
+		p.covLutBG = nil
+	}
+	if p.covLutSampler != nil {
+		p.covLutSampler.Destroy()
+		p.covLutSampler = nil
+	}
+	if p.covLutView != nil {
+		p.covLutView.Destroy()
+		p.covLutView = nil
+	}
+	if p.covLutTex != nil {
+		p.covLutTex.Destroy()
+		p.covLutTex = nil
+	}
+	if p.covLutLayout != nil {
+		p.covLutLayout.Destroy()
+		p.covLutLayout = nil
 	}
 	if p.defaultClipBindLayout != nil {
 		p.defaultClipBindLayout.Destroy()

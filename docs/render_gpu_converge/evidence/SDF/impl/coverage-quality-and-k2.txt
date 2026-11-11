@@ -1,0 +1,57 @@
+=== RUN   TestSDFFilledEllipseCoverageVsTruth
+=== RUN   TestSDFFilledEllipseCoverageVsTruth/fractional
+    sdf_coverage_quality_test.go:100: fractional: edge-px=132 avg=0.026 max=0.3
+=== RUN   TestSDFFilledEllipseCoverageVsTruth/wide-flat
+    sdf_coverage_quality_test.go:100: wide-flat: edge-px=132 avg=0.021 max=0.1
+--- PASS: TestSDFFilledEllipseCoverageVsTruth (0.33s)
+    --- PASS: TestSDFFilledEllipseCoverageVsTruth/fractional (0.17s)
+    --- PASS: TestSDFFilledEllipseCoverageVsTruth/wide-flat (0.16s)
+=== RUN   TestSDFFilledRRectCoverageVsTruth
+=== RUN   TestSDFFilledRRectCoverageVsTruth/rounded-card
+    sdf_coverage_quality_test.go:150: rounded-card: edge-px=104 avg=0.010 max=0.1
+=== RUN   TestSDFFilledRRectCoverageVsTruth/nearly-circle
+    sdf_coverage_quality_test.go:150: nearly-circle: edge-px=92 avg=0.022 max=0.1
+=== RUN   TestSDFFilledRRectCoverageVsTruth/tight-corners
+    sdf_coverage_quality_test.go:150: tight-corners: edge-px=20 avg=0.030 max=0.0
+--- PASS: TestSDFFilledRRectCoverageVsTruth (1.87s)
+    --- PASS: TestSDFFilledRRectCoverageVsTruth/rounded-card (0.83s)
+    --- PASS: TestSDFFilledRRectCoverageVsTruth/nearly-circle (0.45s)
+    --- PASS: TestSDFFilledRRectCoverageVsTruth/tight-corners (0.59s)
+=== RUN   TestSDFFilledCircleCoverageVsTruth
+=== RUN   TestSDFFilledCircleCoverageVsTruth/fractional-center-r
+    sdf_coverage_quality_test.go:204: fractional-center-r: edge-px=160 avg=0.263 max=1.2 (0-255 scale)
+=== RUN   TestSDFFilledCircleCoverageVsTruth/integral-center
+    sdf_coverage_quality_test.go:204: integral-center: edge-px=148 avg=0.270 max=0.6 (0-255 scale)
+=== RUN   TestSDFFilledCircleCoverageVsTruth/small-badge
+    sdf_coverage_quality_test.go:204: small-badge: edge-px=90 avg=0.261 max=0.6 (0-255 scale)
+--- PASS: TestSDFFilledCircleCoverageVsTruth (0.01s)
+    --- PASS: TestSDFFilledCircleCoverageVsTruth/fractional-center-r (0.01s)
+    --- PASS: TestSDFFilledCircleCoverageVsTruth/integral-center (0.00s)
+    --- PASS: TestSDFFilledCircleCoverageVsTruth/small-badge (0.00s)
+=== RUN   TestSDFFilledCircleCoverage
+=== RUN   TestSDFFilledCircleCoverage/center
+=== RUN   TestSDFFilledCircleCoverage/inside
+=== RUN   TestSDFFilledCircleCoverage/near_boundary
+=== RUN   TestSDFFilledCircleCoverage/just_outside
+=== RUN   TestSDFFilledCircleCoverage/far_outside
+--- PASS: TestSDFFilledCircleCoverage (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/center (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/inside (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/near_boundary (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/just_outside (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/far_outside (0.00s)
+=== RUN   TestSDFFilledRRectCoverage
+=== RUN   TestSDFFilledRRectCoverage/center
+=== RUN   TestSDFFilledRRectCoverage/inside
+=== RUN   TestSDFFilledRRectCoverage/far_outside
+--- PASS: TestSDFFilledRRectCoverage (0.00s)
+    --- PASS: TestSDFFilledRRectCoverage/center (0.00s)
+    --- PASS: TestSDFFilledRRectCoverage/inside (0.00s)
+    --- PASS: TestSDFFilledRRectCoverage/far_outside (0.00s)
+=== RUN   TestK2MorphologyPropagation
+    k2_morphology_propagation_test.go:118: K2 raw      diff_px=476 max=6 outside_band=0
+    k2_morphology_propagation_test.go:118: K2 erode5   diff_px=404 max=5 outside_band=0
+    k2_morphology_propagation_test.go:118: K2 dilate5  diff_px=548 max=5 outside_band=0
+--- PASS: TestK2MorphologyPropagation (0.58s)
+PASS
+ok  	github.com/energye/gpui/render	2.832s

@@ -69,6 +69,17 @@ struct MaskParams {
 @group(2) @binding(1) var mask_samp: sampler;
 @group(2) @binding(2) var<uniform> mask_u: MaskParams;
 
+// --- SDF coverage LUT (覆盖线 2026-11-11, evidence/SDF/coverage-line.md) ---
+// 1024×1 RGBA8 ramp: normalized signed distance → pixel coverage, precomputed
+// on the CPU as the midrange of the analytic row-integration truth over a
+// full circle sweep per entry (midrange minimizes the MAX error; spread/2
+// ≈ 5.5/255 is the single-variable model floor). Domain [-1,1] px around the
+// shape edge; clamp-to-edge saturates outside. Hardware linear interpolation
+// between entries; r≥5 hits the avg≤2/max≤8 gate, r<5 sits at its curvature
+// floor (~8.8 vs the shipped smoothstep's 18.9).
+@group(3) @binding(0) var cov_lut_tex: texture_2d<f32>;
+@group(3) @binding(1) var cov_lut_samp: sampler;
+
 // rrect_clip_coverage computes anti-aliased coverage for the RRect clip
 // region at the given fragment position. Returns 1.0 when clip is disabled.
 // All math is naga-safe (no abs/min/max/clamp/smoothstep builtins).
@@ -222,15 +233,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let effective_dist = d + in.is_stroked * (abs_d - in.half_stroke - d);
 
     // --- Coverage computation ---
-    // AA path: smoothstep over ~1.5px (half-width 0.75, matches CPU sdfAntialiasWidth).
-    // Wider than the old fixed 1px zone so diagonals/circles are less stair-stepped.
-    let aa_hw = 0.75;
-    let t_raw = effective_dist / (2.0 * aa_hw) + 0.5;
-    // clamp(t_raw, 0, 1) via arithmetic
-    let t_pos = (t_raw + sqrt(t_raw * t_raw)) * 0.5;
-    let t_diff = t_pos - 1.0;
-    let t = (t_pos + 1.0 - sqrt(t_diff * t_diff)) * 0.5;
-    let aa_coverage = 1.0 - t * t * (3.0 - 2.0 * t);
+    // AA path (覆盖线 2026-11-11): coverage LUT lookup replaces the 0.75px
+    // hermite smoothstep. The table is the midrange of the analytic
+    // row-integration truth (1024 entries over [-1,1] px, clamp-to-edge);
+    // linear interpolation is hardware-side. Quality vs the CPU analytic:
+    // avg≈1.0/max≤8 (r≥5), curvature floor ≈8.8 (r<5) — shipped smoothstep
+    // was avg 3.1/max 18.9 (evidence/SDF/coverage-line.md).
+    let lut_x = (effective_dist + 1.0) * 0.5;
+    let aa_coverage = textureSampleLevel(cov_lut_tex, cov_lut_samp, vec2<f32>(lut_x, 0.5), 0.0).r;
 
     // No-AA path: binary step (inside=1.0, outside=0.0).
     // Uses steep ramp via naga-safe arithmetic (same max/min pattern).

@@ -1,0 +1,31 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_render_base_pathshape: logic trim_len             pass=true
+ui_render_base_pathshape: logic trim_ends            pass=true
+ui_render_base_pathshape: logic trim_open            pass=true
+ui_render_base_pathshape: logic trim_empty_inverted  pass=true
+ui_render_base_pathshape: logic corner_quads         pass=true
+ui_render_base_pathshape: logic corner_open_ends     pass=true
+ui_render_base_pathshape: logic corner_clone_r0      pass=true
+ui_render_base_pathshape: logic corner_clamp         pass=true
+ui_render_base_pathshape: logic dash_period          pass=true
+ui_render_base_pathshape: logic dash_deterministic   pass=true
+ui_render_base_pathshape: logic jit_two_sided        pass=true
+ui_render_base_pathshape: logic jit_deterministic    pass=true
+ui_render_base_pathshape: logic wave_dash_duty       pass=true
+ui_render_base_pathshape: logic wave_jit_two_sided   pass=true
+snapshot: examples/ui_render_base_pathshape/testdata/showcase_pathshape.png
+ui_render_base_pathshape: pixel A_trim_on      @( 462, 288) got=(0.949,0.549,0.200) want=(0.950,0.550,0.200) ok=true
+ui_render_base_pathshape: pixel A_trim_off     @( 470, 191) got=(0.298,0.341,0.420) want=(0.300,0.340,0.420) ok=true
+ui_render_base_pathshape: pixel A_trim_end_dot @( 402, 281) got=(0.980,0.851,0.251) want=(0.980,0.850,0.250) ok=true
+ui_render_base_pathshape: pixel B_corner_cut   @( 964, 232) got=(0.349,0.298,0.451) want=(0.350,0.300,0.450) ok=true
+ui_render_base_pathshape: pixel B_corner_round @( 958, 226) got=(0.200,0.722,0.678) want=(0.200,0.720,0.680) ok=true
+ui_render_base_pathshape: pixel B_edge         @( 886, 204) got=(0.200,0.722,0.678) want=(0.200,0.720,0.680) ok=true
+ui_render_base_pathshape: pixel C_dash_on      @( 359, 531) got=(0.451,0.851,0.400) want=(0.450,0.850,0.400) ok=true
+ui_render_base_pathshape: pixel C_dash_gap     @( 366, 523) got=(0.298,0.341,0.420) want=(0.300,0.340,0.420) ok=true
+ui_render_base_pathshape: pixel D_jit_plus     @( 815, 535) got=(0.851,0.349,0.749) want=(0.850,0.350,0.750) ok=true
+ui_render_base_pathshape: pixel D_jit_minus    @( 818, 510) got=(0.851,0.349,0.749) want=(0.850,0.350,0.750) ok=true
+ui_render_base_pathshape: pixel D_jit_mirror   @( 803, 527) got=(0.122,0.133,0.165) want=(0.120,0.135,0.165) ok=true
+golden showcase_pathshape.png: diff=1.1473% over 627200 px
+{"ability_id":"A-pathshape","scenario":"ui_render_base_pathshape","backend":"wayland","present_policy":"full_paint","target_hz":60,"fps_wall":54.87506699183283,"fps_interval":59.33452000174266,"interval_avg_ms":16.853595511864423,"interval_p50_ms":16.719198000000002,"interval_p95_ms":19.449108,"interval_p99_ms":25.533275,"hitch_count":0,"hitch_rate_per_min":0,"vsync_source":"true","frame_build_ms":0.322884,"frame_raster_ms":107.789688,"pipeline_depth":0,"pipeline_max":2,"layout_count":1,"paint_count":296,"damage_area_px":960000,"damage_ratio":1,"present_mode":"full","present_count":297,"frame_count":296,"cpu_pct_avg":40.59079518626084,"cpu_ui_pct":3.051936054730423,"cpu_raster_pct":37.538859131530415,"rss_start_kb":51848,"rss_end_kb":322068,"rss_peak_kb":322068,"rss_slope_kb_per_min":673662.9547642414,"rss_slope_valid":false,"rss_warmup_sec":15,"rss_after_close_kb":321864,"gpu_ops":10695,"cpu_fallback_ops":0,"frame_flushes":1,"last_cpu_fallback":"","gpu_backend":"integrated","gpu_fallbacks":0,"warmup":true,"time_to_first_present_ms":289.318627,"first_present_paint_count":1,"elapsed_sec":5.412294076,"boundary_rerecord":0,"boundary_skip":0,"filter_layer_count":0,"boundary_count":5,"boundary_max_depth":1,"picture_op_count":36,"measure_cache_hit":0,"measure_cache_miss":14,"debug_repaint_draws":0,"debug_repaint_on":false,"pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":2,"evictions":0,"purged":0,"entries":2,"idle":2,"bytes":11520000,"peak_bytes":11520000,"budget":134217728}],"ruler_name":null,"ruler_cpu_pct":null,"ruler_rss_mb":null,"ruler_ratio_cpu":null,"ruler_ratio_rss":null,"ability_extra":{"apis":"Trim,WithCorners,Discrete","client_px":"1200x800","fps_gate":"off_correctness","logic_bad":null,"logic_keys_missing":null,"logic_pass":true,"logic_probes_ok":14,"logic_probes_total":14,"pixel_golden_diff_pct":1.1473214285714286,"pixel_golden_first_run":false,"pixel_golden_total_px":627200,"pixel_probes_ok":11,"pixel_probes_total":11,"resize_events":0,"slope_gate":"off"}}
+FAIL: pixel_golden_diff_pct=1.1473 want 0 over 627200 px
+exit status 1

@@ -16,14 +16,16 @@ import (
 //
 // The headline contract is the filter kernels: outside the 1px antialiasing
 // band the GPU leg and the CPU leg must agree within p42InteriorTol. The AA
-// band itself is a separate, registered defect (GPU SDF coverage smoothstep vs
-// the CPU analytic coverage, evidence/P3.8/batch4f); it is bounded here by
-// p42EdgeTol so a regression still trips the gate, but it is not claimed as
-// fixed by this task.
+// band is the SDF coverage line (evidence/SDF/coverage-line.md): the GPU now
+// samples a precomputed analytic coverage LUT instead of the old 0.75px
+// smoothstep, so the band error dropped from 18 to <=6 and is bounded here by
+// p42EdgeTol = 8. That 8 is the single-variable LUT floor (~5.5/255 spread at
+// a fixed distance), not a remaining defect: a hard edge can never be
+// bit-identical across the two legs without a second LUT axis.
 const (
 	p42W, p42H     = 96, 96
 	p42InteriorTol = 2
-	p42EdgeTol     = 24
+	p42EdgeTol     = 8
 )
 
 type p42Scene struct {

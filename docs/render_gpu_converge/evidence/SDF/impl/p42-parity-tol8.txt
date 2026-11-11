@@ -1,0 +1,61 @@
+=== RUN   TestP42GPUCPUFilterParity
+=== RUN   TestP42GPUCPUFilterParity/blur2
+P42 blur2            interior_max=0 edge_max=1 edge_px=2264
+=== RUN   TestP42GPUCPUFilterParity/blur4
+P42 blur4            interior_max=1 edge_max=1 edge_px=3220
+=== RUN   TestP42GPUCPUFilterParity/blur8
+P42 blur8            interior_max=1 edge_max=1 edge_px=3668
+=== RUN   TestP42GPUCPUFilterParity/blur16
+P42 blur16           interior_max=1 edge_max=0 edge_px=0
+=== RUN   TestP42GPUCPUFilterParity/blur24
+P42 blur24           interior_max=1 edge_max=0 edge_px=0
+=== RUN   TestP42GPUCPUFilterParity/blur3_5
+P42 blur3_5          interior_max=1 edge_max=1 edge_px=2948
+=== RUN   TestP42GPUCPUFilterParity/blur12_7
+P42 blur12_7         interior_max=1 edge_max=1 edge_px=1956
+=== RUN   TestP42GPUCPUFilterParity/blurxy_6_2
+P42 blurxy_6_2       interior_max=1 edge_max=1 edge_px=2360
+=== RUN   TestP42GPUCPUFilterParity/shadow_colored
+P42 shadow_colored   interior_max=0 edge_max=6 edge_px=956
+=== RUN   TestP42GPUCPUFilterParity/circle_blur
+P42 circle_blur      interior_max=1 edge_max=1 edge_px=3045
+=== RUN   TestP42GPUCPUFilterParity/blurxy
+P42 blurxy           interior_max=1 edge_max=6 edge_px=2592
+=== RUN   TestP42GPUCPUFilterParity/dropshadow
+P42 dropshadow       interior_max=0 edge_max=6 edge_px=956
+=== RUN   TestP42GPUCPUFilterParity/linear_ramp
+P42 linear_ramp      interior_max=1 edge_max=1 edge_px=1532
+=== RUN   TestP42GPUCPUFilterParity/radial_ramp
+P42 radial_ramp      interior_max=1 edge_max=1 edge_px=4704
+=== RUN   TestP42GPUCPUFilterParity/alpha_square
+P42 alpha_square     interior_max=0 edge_max=4 edge_px=1340
+=== RUN   TestP42GPUCPUFilterParity/invert_half_alpha
+P42 invert_half_alpha interior_max=0 edge_max=3 edge_px=1340
+=== RUN   TestP42GPUCPUFilterParity/grayscale
+P42 grayscale        interior_max=0 edge_max=1 edge_px=1340
+=== RUN   TestP42GPUCPUFilterParity/mask_filter
+P42 mask_filter      interior_max=1 edge_max=1 edge_px=3804
+=== RUN   TestP42GPUCPUFilterParity/bloom
+P42 bloom            interior_max=1 edge_max=4 edge_px=1572
+--- PASS: TestP42GPUCPUFilterParity (0.66s)
+    --- PASS: TestP42GPUCPUFilterParity/blur2 (0.03s)
+    --- PASS: TestP42GPUCPUFilterParity/blur4 (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/blur8 (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/blur16 (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/blur24 (0.02s)
+    --- PASS: TestP42GPUCPUFilterParity/blur3_5 (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/blur12_7 (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/blurxy_6_2 (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/shadow_colored (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/circle_blur (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/blurxy (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/dropshadow (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/linear_ramp (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/radial_ramp (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/alpha_square (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/invert_half_alpha (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/grayscale (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/mask_filter (0.01s)
+    --- PASS: TestP42GPUCPUFilterParity/bloom (0.01s)
+PASS
+ok  	github.com/energye/gpui/render	0.715s
