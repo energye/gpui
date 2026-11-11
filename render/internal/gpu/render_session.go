@@ -2647,7 +2647,38 @@ type sdfFrameResources struct {
 // F17 VRAM: stencil / image / depth-clip / text are ensured on demand so a
 // clear/solid present does not compile the full pipeline set (first-frame
 // +~128MiB on 940MX was mostly unused stage compile + driver heaps).
+// applyColorFormat stamps the session's target format onto every pipeline
+// owner that is already instantiated. M5 P4: an RGBA16Float session target
+// rebuilds the pipelines with that format; the zero value keeps BGRA8.
+func (s *GPURenderSession) applyColorFormat() {
+	if s == nil {
+		return
+	}
+	if s.depthClipPipeline != nil {
+		s.depthClipPipeline.colorFormat = s.colorFormat
+	}
+	if s.sdfPipeline != nil {
+		s.sdfPipeline.colorFormat = s.colorFormat
+	}
+	if s.convexRenderer != nil {
+		s.convexRenderer.colorFormat = s.colorFormat
+	}
+	if s.stencilRenderer != nil {
+		s.stencilRenderer.colorFormat = s.colorFormat
+	}
+	if s.imagePipeline != nil {
+		s.imagePipeline.colorFormat = s.colorFormat
+	}
+	if s.textPipeline != nil {
+		s.textPipeline.colorFormat = s.colorFormat
+	}
+	if s.glyphMaskPipeline != nil {
+		s.glyphMaskPipeline.colorFormat = s.colorFormat
+	}
+}
+
 func (s *GPURenderSession) ensurePipelines() error {
+	s.applyColorFormat()
 	// Warm path: clip/mask layouts stable and core pipelines present.
 	if s.pipelinesReady &&
 		s.pipelinesReadyClip == s.clipBindLayout &&
@@ -2667,6 +2698,7 @@ func (s *GPURenderSession) ensurePipelines() error {
 
 	if s.sdfPipeline == nil {
 		s.sdfPipeline = NewSDFRenderPipeline(s.device, s.queue, s.sampleCount)
+		s.sdfPipeline.colorFormat = s.colorFormat
 		s.ownsShapePipelines = true
 	}
 	if s.ownsShapePipelines {
@@ -2683,6 +2715,7 @@ func (s *GPURenderSession) ensurePipelines() error {
 
 	if s.convexRenderer == nil {
 		s.convexRenderer = NewConvexRenderer(s.device, s.queue, s.sampleCount)
+		s.convexRenderer.colorFormat = s.colorFormat
 		s.ownsShapePipelines = true
 	}
 	if s.ownsShapePipelines {
@@ -2714,6 +2747,7 @@ func (s *GPURenderSession) ensureStencilPipelines() error {
 	}
 	if s.stencilRenderer == nil {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
+		s.stencilRenderer.colorFormat = s.colorFormat
 		s.ownsShapePipelines = true
 	}
 	s.stencilRenderer.setSurfaceCache(s.surfaceCache)
@@ -2747,6 +2781,7 @@ func (s *GPURenderSession) ensureImagePipeline() error {
 	}
 	if s.imagePipeline == nil {
 		s.imagePipeline = NewTexturedQuadPipeline(s.device, s.queue, s.sampleCount)
+		s.imagePipeline.colorFormat = s.colorFormat
 	}
 	// The textured_quad shader declares clip params at group(1): the layout
 	// must include the clip BGL or CreateRenderPipeline fails validation
@@ -2783,6 +2818,7 @@ func (s *GPURenderSession) ensureYUVSessionPipelines() error {
 	}
 	if s.imagePipeline == nil {
 		s.imagePipeline = NewTexturedQuadPipeline(s.device, s.queue, s.sampleCount)
+		s.imagePipeline.colorFormat = s.colorFormat
 	}
 	if err := s.ensureClipBindLayout(); err != nil {
 		return fmt.Errorf("ensure clip bind layout: %w", err)
@@ -2801,6 +2837,7 @@ func (s *GPURenderSession) ensureImageBlitPipeline() error {
 	}
 	if s.imagePipeline == nil {
 		s.imagePipeline = NewTexturedQuadPipeline(s.device, s.queue, s.sampleCount)
+		s.imagePipeline.colorFormat = s.colorFormat
 	}
 	// Wire the shared RRect clip layout: clipped subtrees are cacheable since
 	// C8, so compositor blits can carry a rounded clip (ensureBlitPipeline
@@ -3240,6 +3277,7 @@ func (s *GPURenderSession) ClipBindLayout() hal.BindGroupLayout {
 func (s *GPURenderSession) ensureTextPipeline() error {
 	if s.textPipeline == nil {
 		s.textPipeline = NewMSDFTextPipeline(s.device, s.queue, s.sampleCount)
+		s.textPipeline.colorFormat = s.colorFormat
 	}
 	s.textPipeline.SetClipBindLayout(s.clipBindLayout)
 	if err := s.textPipeline.ensurePipelineWithStencil(); err != nil {
@@ -5833,6 +5871,7 @@ func (s *GPURenderSession) resetImageSliceScratch() {
 func (s *GPURenderSession) ensureGlyphMaskPipeline(hasLCD bool) error {
 	if s.glyphMaskPipeline == nil {
 		s.glyphMaskPipeline = NewGlyphMaskPipeline(s.device, s.queue, s.sampleCount)
+		s.glyphMaskPipeline.colorFormat = s.colorFormat
 	}
 	s.glyphMaskPipeline.SetClipBindLayout(s.clipBindLayout)
 	if err := s.glyphMaskPipeline.ensurePipelineWithStencil(); err != nil {
@@ -5852,6 +5891,7 @@ func (s *GPURenderSession) ensureGlyphMaskPipeline(hasLCD bool) error {
 func (s *GPURenderSession) ensureColorGlyphPipeline() error {
 	if s.glyphMaskPipeline == nil {
 		s.glyphMaskPipeline = NewGlyphMaskPipeline(s.device, s.queue, s.sampleCount)
+		s.glyphMaskPipeline.colorFormat = s.colorFormat
 	}
 	s.glyphMaskPipeline.SetClipBindLayout(s.clipBindLayout)
 	if err := s.glyphMaskPipeline.ensureColorPipelineWithStencil(); err != nil {

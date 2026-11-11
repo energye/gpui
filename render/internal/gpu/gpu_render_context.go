@@ -54,6 +54,11 @@ type GPURenderContext struct {
 	// back to the 8-bit target (M5 P2 observability, no silent degradation).
 	offscreenFormatFalls atomic.Uint64
 
+	// tonemapPipe lazily builds the 16F→8bit tonemap pass for TonemapView (P4).
+	// Guarded by tonemapMu; destroyed in Close.
+	tonemapMu   sync.Mutex
+	tonemapPipe *tonemapPipeline
+
 	// deviceGen is GPUShared.deviceGen at last session (re)build.
 	deviceGen uint64
 
@@ -2938,6 +2943,21 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	// graphs can seed from the full surface (advanced blend mid-flush / D140).
 	hadPending := rc.PendingCount() > 0
 	viewNil := target.View.IsNil()
+	// M5 P4: the render target's own texture format decides the session's
+	// color attachment format (Skia: the surface color type drives the
+	// pipeline). A float target forces 1x (D5) and session-owned pipelines;
+	// 8-bit targets keep the historical shared-pipeline path byte-identical.
+	targetFormat := defaultColorFormat
+	if !target.View.IsNil() {
+		if tv := unpackView(target.View); tv != nil {
+			if tex := tv.Texture(); tex != nil {
+				if f := tex.Format(); f != types.TextureFormatUndefined {
+					targetFormat = f
+				}
+			}
+		}
+	}
+	rc.colorFormat = targetFormat
 	defer func() {
 		// After a successful encode path, pending queues are cleared. If we had
 		// work and targeted the CPU-backed surface, pixmap Data is authoritative.
@@ -3056,13 +3076,20 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		}
 	}
 
+	wantSC := rc.shared.SampleCount()
+	if rc.preferSampleCount1 || targetFormat != defaultColorFormat {
+		wantSC = 1
+	}
+	if rc.session != nil && (colorFormatOr(rc.session.colorFormat) != targetFormat || rc.session.sampleCount != wantSC) {
+		// Target format or sample count changed (HDR float target ⟷ 8-bit
+		// surface): pipelines are baked per format, so rebuild the session.
+		rc.session.Destroy()
+		rc.session = nil
+	}
 	// Ensure session exists with all renderers.
 	if rc.session == nil {
-		sc := rc.shared.SampleCount()
-		if rc.preferSampleCount1 {
-			sc = 1
-		}
-		rc.session = NewGPURenderSessionWithRegistry(device, queue, sc, sharedReg, sharedSurface)
+		rc.session = NewGPURenderSessionWithRegistry(device, queue, wantSC, sharedReg, sharedSurface)
+		rc.session.colorFormat = targetFormat
 		rc.session.SetDirectSubmit(sharedDirect)
 		for _, v := range rc.seededViews {
 			rc.session.MarkColorContent(v)
@@ -3078,7 +3105,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		// own mask/clip BGL objects, so coverPipeMaskLayout mismatches and rebuilds
 		// WGSL+pipelines (~40% CPU on continuous glow). Also sampleCount may differ
 		// (shared=4 vs effect=1). Main/window contexts keep shared pipelines.
-		if rc.preferSampleCount1 {
+		if rc.preferSampleCount1 || targetFormat != defaultColorFormat {
 			rc.session.MarkOwnsShapePipelines()
 		} else {
 			rc.session.SetSDFPipeline(sdfPipeline)
@@ -4338,6 +4365,7 @@ func (rc *GPURenderContext) PurgeSurfaceResources() {
 // Close releases this context's GPU resources. Shared resources are NOT
 // released — they are owned by GPUShared.
 func (rc *GPURenderContext) Close() {
+	rc.destroyTonemap()
 	if rc.shared != nil {
 		rc.shared.unregisterContext(rc)
 	}
