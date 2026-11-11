@@ -136,11 +136,16 @@
 | ui_render_base_imagepattern | 0.0000% | 1.3844% | **重种**，复验 0.0000%（logic 18/18、pixel 25/25） |
 | ui_render_base_svg | 0.0000% | 0.2915% | **重种**，复验 0.0000%（SVG 烘焙恒 CPU 本身未变，差在卡片圆角边；该窗 screen-check 环境红既有） |
 | ui_wr_p35_rrect4 | 2.9210%（旧金图 vs 新 LUT） | 重种后 0.0000% | 已在上表 |
+| ui_wr_p41_drawshadow | 0.0000%（d6cdb2b2 worktree 实测） | 3.2402% | **重种**（2026-11-11 M5 P2 回归发现；native+go 复验 0.0000%） |
 | ui_render_base_recording | 2.5893% | 4.2275% | **不重种**：金图在旧 shader 下也已过期（既有红），另立 |
 | ui_wr_ime_r1_editor | 0.0847% | 2.7563% | **不重种**：同上（旧 shader 已 0.0847% 既有漂移） |
 | ui_render_base_sweepgradient | 24.1642% + logic 8/14 红 | 25.2975% | **不重种**：既有红（logic 与 SDF 无关） |
 | engine/anim --case=fsm | 73.6752% | 73.6747% | **不重种**：既有红（动画相位/窗口金图过期，与 SDF 无关） |
 | ui_base_multiwin_cap | 未跑 | 未跑 | 8 窗批量，按 GPU 安全纪律须隔离显示；本批不跑，登记待复验 |
+
+> **扫描口径补记（2026-11-11，M5 P2 回归）**：只 grep DrawCircle/DrawRRect/DrawOval/DrawEllipse 会漏窗——
+> 经 `DetectShape` 路径检测进 SDF 的图形同样受影响（`ui_wr_p41_drawshadow` 的圆角卡片+投影即此类）。
+> 后续 SDF/覆盖改动按「形状检测入口」扫窗，不只看调用名。
 
 **无内部回归证据**（逐像素，不用 mean）：对每个重种窗做旧/新快照差分，统计「7×7 邻域变化 ≤2」
 的平坦区差像素——pathshape/pathlow/imagepattern/ant 内区 **0 枚**；p34 内区 36 枚、max **1**
