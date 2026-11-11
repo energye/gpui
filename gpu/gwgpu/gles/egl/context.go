@@ -20,12 +20,12 @@ import (
 
 // Context wraps an EGL rendering context with its display, config, and surface.
 type Context struct {
-	display      EGLDisplay
-	config       EGLConfig
-	context      EGLContext
-	pbuffer      EGLSurface
-	windowKind   WindowKind
-	displayOwner *DisplayOwner // owns native display connection (X11); closed after eglTerminate
+	display    EGLDisplay
+	config     EGLConfig
+	context    EGLContext
+	pbuffer    EGLSurface
+	windowKind WindowKind
+	displayKey displayKey // native-display lifetime key (EGLDisplay handles vary per context)
 }
 
 // ContextConfig holds configuration options for creating an EGL context.
@@ -87,7 +87,16 @@ func NewContext(config ContextConfig) (*Context, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get EGL display: %w", err)
 	}
-	return newContextOnDisplay(display, windowKind, displayOwner, config)
+	key := displayKey{kind: windowKind, native: config.NativeDisplay}
+	if key.native == 0 {
+		if displayOwner != nil {
+			key.native = displayOwner.display
+		} else {
+			// Surfaceless/default display: the EGL handle is the identity.
+			key.native = uintptr(display)
+		}
+	}
+	return newContextOnDisplay(display, windowKind, displayOwner, key, config)
 }
 
 // NewContextOnDisplay creates an EGL context on an already-opened EGL display
@@ -100,12 +109,14 @@ func NewContextOnDisplay(display EGLDisplay, config ContextConfig) (*Context, er
 	if display == NoDisplay {
 		return nil, fmt.Errorf("no display")
 	}
-	return newContextOnDisplay(display, WindowKindSurfaceless, nil, config)
+	key := displayKey{kind: WindowKindSurfaceless, native: uintptr(display)}
+	return newContextOnDisplay(display, WindowKindSurfaceless, nil, key, config)
 }
 
 // newContextOnDisplay runs the shared Initialize→BindAPI→chooseConfig→
-// createContext→pbuffer flow on a known display.
-func newContextOnDisplay(display EGLDisplay, windowKind WindowKind, displayOwner *DisplayOwner, config ContextConfig) (*Context, error) {
+// createContext→pbuffer flow on a known display. key identifies the native
+// display whose EGL lifetime is refcounted across contexts.
+func newContextOnDisplay(display EGLDisplay, windowKind WindowKind, displayOwner *DisplayOwner, key displayKey, config ContextConfig) (*Context, error) {
 
 	// closeOwner is a helper to close the display owner on error paths.
 	closeOwner := func() {
@@ -120,6 +131,10 @@ func newContextOnDisplay(display EGLDisplay, windowKind WindowKind, displayOwner
 		closeOwner()
 		return nil, fmt.Errorf("eglInitialize failed: error 0x%x", GetError())
 	}
+	// Every context on this display holds one display claim; Destroy only
+	// terminates when the last claim drops (Wayland shares one EGLDisplay
+	// across per-surface contexts).
+	retainDisplay(key, display, displayOwner)
 
 	// Bind OpenGL or OpenGL ES API
 	api := OpenGLAPI
@@ -127,24 +142,21 @@ func newContextOnDisplay(display EGLDisplay, windowKind WindowKind, displayOwner
 		api = OpenGLESAPI
 	}
 	if BindAPI(api) == False {
-		Terminate(display)
-		closeOwner()
+		releaseDisplay(key)
 		return nil, fmt.Errorf("eglBindAPI failed: error 0x%x", GetError())
 	}
 
 	// Choose EGL frame buffer configuration
 	eglConfig, err := chooseEGLConfig(display, config)
 	if err != nil {
-		Terminate(display)
-		closeOwner()
+		releaseDisplay(key)
 		return nil, fmt.Errorf("failed to choose EGL config: %w", err)
 	}
 
 	// Create EGL context
 	eglContext := createEGLContext(display, eglConfig, config)
 	if eglContext == NoContext {
-		Terminate(display)
-		closeOwner()
+		releaseDisplay(key)
 		return nil, fmt.Errorf("eglCreateContext failed: error 0x%x", GetError())
 	}
 
@@ -164,19 +176,18 @@ func newContextOnDisplay(display EGLDisplay, windowKind WindowKind, displayOwner
 		pbuffer = createPbufferSurface(display, eglConfig)
 		if pbuffer == NoSurface {
 			DestroyContext(display, eglContext)
-			Terminate(display)
-			closeOwner()
+			releaseDisplay(key)
 			return nil, fmt.Errorf("eglCreatePbufferSurface failed and no surfaceless support: error 0x%x", GetError())
 		}
 	}
 
 	return &Context{
-		display:      display,
-		config:       eglConfig,
-		context:      eglContext,
-		pbuffer:      pbuffer,
-		windowKind:   windowKind,
-		displayOwner: displayOwner,
+		display:    display,
+		config:     eglConfig,
+		context:    eglContext,
+		pbuffer:    pbuffer,
+		windowKind: windowKind,
+		displayKey: key,
 	}, nil
 }
 
@@ -359,14 +370,14 @@ func (c *Context) Destroy() {
 		c.pbuffer = NoSurface
 	}
 	if c.display != NoDisplay {
-		Terminate(c.display)
 		c.display = NoDisplay
-	}
-	// Close native display connection AFTER eglTerminate.
-	// For X11 this calls XCloseDisplay; for other platforms displayOwner is nil.
-	if c.displayOwner != nil {
-		c.displayOwner.Close()
-		c.displayOwner = nil
+		// releaseDisplay terminates the native display only when the last
+		// context on it drops its claim. Wayland returns a distinct EGLDisplay
+		// handle per per-surface context even though all handles share one
+		// wl_display; terminating each handle invalidates the shared native
+		// display and crashed on the last close (C7).
+		releaseDisplay(c.displayKey)
+		c.displayKey = displayKey{}
 	}
 }
 

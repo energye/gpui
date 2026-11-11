@@ -49,23 +49,16 @@
 
 ### 2.1 当前焦点
 
-**当前焦点（2026-11-11 起）：§2.2 待办池取项。**
+**当前焦点（2026-11-12 起）：§2.2 待办池取项（C7 已收口）。**
 
-- 🟡 已换向：**I5 GPU present 健壮化 v2**（Wayland Mailbox 非阻塞 present；v2-0 复现、v2-1 实现、v2-2 真窗 A/B/负向/X11 回归已落盘；金图 17.5273% 预存漂移待 P2.6，暂不标 ✅）。
-- 下一个 ⬜：**I2**（`TestS68_Swapchain_X11_MultiFramePresent` 同尺寸 Resize 语义；先拍板「改用例期望」还是「Resize 显式 force 重配口」）。
-- 已收口：I1（取证）、G3、E1、E3、C5、C6、B2、B3、C1 等，详见 §2.2。
+- ✅ **C7 已收口**：Wayland per-surface EGLDisplay 生命周期修复（native display 引用计数；借用 Wayland display 不 terminate）；go/gles 8 窗 300s 全开/全 present/正常退出，无 SIGSEGV/0x3002。
+- 🟡 留项：**I5 v2**（金图 17.5273% 交 P2.6；功能/真窗已齐，暂不标 ✅）。
+- 余项：N1（可选）、D2（余留既有红，不擅自改）；主表 P0–P4 全 ✅。
+- 已收口：I1、I2、C7、G3、E1、E3、C5、C6、B2、B3、C1 等，详见 §2.2。
 - **任务总表（P0–P4）在本节末**；下面的专项索引只列不属于主表 / §2.2 待办池的已收口项。
 - **本节只保留 1 个「当前任务验证载体」**；任务收口时用一行索引替换它，不保留完整历史块（规则见 §6.1）。
 
-**当前任务验证载体（I5 v2：Wayland present 非阻塞化，2026-11-12 换向）**
-
-- 任务：native Wayland 交换链默认 Mailbox present（Mailbox→Immediate→FifoRelaxed→Fifo），移除同步 Fifo present 的合成器 release 等待；X11/Windows/macOS 不变。
-- 能力单测：`gpu/webgpu/swapchain_configure_nonblocking_internal_test.go` :: `TestPickPresentMode_NonBlocking`（新增）；`render/present_mode_wayland_test.go` :: `TestPresentPreferNonBlocking`（新增）；`gpu/webgpu` 逐文件 21 PASS、`render` present_* 五文件 PASS；vet rc=0；五目标 build（含 nogpu）rc=0。
-- 真窗：`examples/ui_base_vram_cap -cascade` 级联 8 窗（`-auto-only`，`RUN_SECONDS=300`，嵌套 gnome-shell Wayland）；另 `ui_wr_c6_savelayer_group` 20s 单窗节流对照。
-- 金图：`examples/ui_base_vram_cap/testdata/vram_win{1..8}_base.png`，容差 0；17.5273% 为 P2.6 已登记预存漂移（`i5-v2/golden/assessment.md`），未重种，待专项判定。
-- 双后端：native Wayland 本项验（8 窗 mailbox、n=8 11.3fps、正常退出）；X11 :3 native 回归 fifo/rc=0；go/gles Wayland 70s 探针未冻（C7 域，未跑满 300s，未标绿）。
-- 负向对照：强制 `presentPreferNonBlocking=false` → n=8 冻结、150s SIGQUIT 不退出（已跑红）；还原 → 8 窗 presents>0 且正常退出。
-- 证据：`evidence/P2.4e/i5-v2/`（design.md、summary.md、diagnosis/、positive/、negative/、x11/、go-wayland/、golden/）。
+已收口：C7（gles 多窗 Wayland：EGLDisplay 按 native display 引用计数 + 借用 display 不 terminate；8 窗 300s 全开/全 present/正常退出）→ `evidence/P2.4e/c7-wayland-verify/closeout.md`。
 
 **§2.1 专项索引（主表未展开的细节 / 非主表专项）**
 
@@ -155,7 +148,7 @@
 | C4 | P1.4 重审 | T2：`ui_wr_r1_layout`/`r20_filter`/`r22_selection_stub`/`c6_savelayer_group` 两轮 rc=1 而 JSON 自报通过、金图 diff=0 | P2.6 前诊断 | ✅ 2026-11-10/11：机制=窗先打印 JSON 后评门，rc 才是判定；r1/c6=U21 快照回读顶破 hitch、r22 同族压线、r20=门与现行拓扑脱节；修 r20 门 + 引擎快照回读不计 hitch（可嵌套 Pause/ResumeHitchCount）；四窗双后端 8 轮 30s PASS；`evidence/P2.6/c4-dissection.md` |
 | C5 | P1.6 | 10 条 PASS 记录 RSS 稳态斜率过 30000KB/min 泄漏线（r17_bg_throttle 88801 最高） | P2 判定窗门禁集是否含 RSS 线 | ✅ 2026-11-11：`wrgate.EvaluateGates` 无 RSS 判定，6 老窗不调用；`GateOptions` 加 30000/60s（短窗只观测）+ 5 窗接线；10 条复跑 9/10 不复现；60s 32694.3 判红；l1_spinner 另立 soak；`evidence/P2.6/c5-rss-slope-gate-assessment.md` |
 | C6 | P1.6 | `ui_base_batch_cap` p95 双后端 55.7/62.1ms 超 22ms 门禁（P1.4 同因同量级） | P2 性能线 | ✅ 2026-11-11：非引擎洞——报告百分位是末 256 采样环（`ui/scheduler/metrics.go:24`），gate 收尾冻结在刻意超载档 vector-600（`main.go:420-437`），报告 p95≈档内 p95（52.98/59.89 ↔ 53.0/59.1）；容量阶梯窗不适用 22ms 硬线。零代码，thresholds/windows 修订表补勘误；`evidence/P2.6/c6-batch-cap-p95-scope-assessment.md` |
-| C7 | P1.6 | `ui_base_vram_cap` ladder go 档 GL 第 4 窗起 `eglMakeCurrent 0x3002`，8 窗阶梯跑不了 | P2.4a/P2.4e（gles 多窗上下文） | 🔍 部分闭合：X11 主修复随 P2.4e 落地（J5 已闭合）；Wayland「context-per-surface 第二机制」待核实，不擅自销账；`evidence/P2.4a/c7-dissection.md`、`evidence/P2.4b/l1_blank_go_c7-0x3002.stderr` |
+| C7 | P1.6 | `ui_base_vram_cap` ladder go 档 GL 第 4 窗起 `eglMakeCurrent 0x3002`，8 窗阶梯跑不了 | P2.4a/P2.4e（gles 多窗上下文） | ✅ 2026-11-12 闭合：X11/0x3002 随 e4/J5 已闭；Wayland 关窗 SIGSEGV 根因=per-surface context 各自 `eglTerminate` 同一 native display；修=EGLDisplay 按 native display 引用计数 + 借用 Wayland display 不 terminate；go/gles 8 窗 300s 全开/全 present/正常退出，X11 go smoke rc=0；金图 17.5273% 为 P2.6 预存漂移；`evidence/P2.4e/c7-wayland-verify/closeout.md` |
 | D1 | P1.3 | `gpu/rwgpu/queue_workdone_test.go:45` 失败后 cleanup `Release()` 在 `device_misc.go:313/314` SIGSEGV | P2.4c/P2.4e | ✅ 2026-11-10：根因=92ca9216 时代 `queueWorkDoneCallbackInfo` 缺 v29 `Mode` 字段，结构错位、callback 槽拿到记录 id → 跳地址 1；v29 对齐后现行 HEAD 4 用例 PASS；布局钉 `TestQueueWorkDoneCallbackInfoV29Layout`；`evidence/P2.4e/d1-dissection.md` |
 | D2 | P1.3 | 48 FAIL 分组归属：老 backend 并发 SIGABRT→P2.3；StubHost 假 X11 句柄→P2.4e；nil ImageCache/共享布局/无 GPU 前置/depcheck→P2.5；video 3 文件+顺序耦合→P2.6；CPU 彩色字形无 ink→P2.3 | 见左 | 🟡 分组基本已结；余 `ui/application` SIGSEGV 等残留红为有意保留，不擅改 |
 | D3 | P1.2b | vet 3 条测试伪造指针 → P2.5 测试卫生；2 条 `unreachable`（`gpu_render_context.go:4296,4344`）→ P2.5 | P2.5 | ✅ 2026-10-31：3 条改真实地址 + 2 条死块删除；vet 61/58→56/56 |
@@ -478,6 +471,7 @@ docs/render_gpu_converge/
 | 2026-11-12 | I5 | v2 实现：`SetPreferNonBlocking` + render 创建口 + `PresentModeName`；正轮 8 窗 mailbox/n=8 11.3fps/正常退出，负向 fifo/n=8 冻结，X11 回归 fifo rc=0；金图 17.5273% 预存漂移待 P2.6 | `evidence/P2.4e/i5-v2/summary.md` |
 | 2026-11-12 | I5 | 用户拍板：I5 留 🟡，17.5273% 交 P2.6「22 窗金图漂移」逐窗判定，禁止直接重种；功能/真窗/负向证据已齐 | `evidence/P2.4e/i5-v2/golden/assessment.md` |
 | 2026-11-12 | I2 | 复跑 PASS：同尺寸 Resize no-op + `MarkNeedsReconfigure` 显式口，Impeller KHR/AHB 对照一致；e4 已实现，台账滞后销账 | `evidence/P2.4e/i2/` |
+| 2026-11-12 | C7 | 闭合 Wayland 第二机制：per-surface context 各自 `eglTerminate` 同一 native display → 关窗 SIGSEGV；修=EGLDisplay 按 native display 引用计数 + 借用 Wayland display 不 terminate；8 窗 300s 全开/全 present/正常退出 | `evidence/P2.4e/c7-wayland-verify/closeout.md` |
 
 ## 8 修订记录（摘要；全文见存档）
 

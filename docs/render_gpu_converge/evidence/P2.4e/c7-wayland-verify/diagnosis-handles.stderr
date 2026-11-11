@@ -1,0 +1,268 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+C7DBG retain display=0x7c30440db4a0 refs=1 owner=false
+J5TRACE Open device=0xc006404000 ctx=0xc000036cc0
+ui_base_vram_cap: win 1 present_mode=fifo
+C7DBG retain display=0x7c3044cafe10 refs=1 owner=false
+ui_base_vram_cap: win 2 present_mode=fifo
+ui_base_vram_cap: phase n=2 shared=2 fps_min=53.1 refusals=+0 (total 4) live=91.7MB (max 91.7) fair/win=96.0MB
+C7DBG retain display=0x7c3045270a20 refs=1 owner=false
+ui_base_vram_cap: win 3 present_mode=fifo
+C7DBG retain display=0x7c3045365410 refs=1 owner=false
+ui_base_vram_cap: win 4 present_mode=fifo
+ui_base_vram_cap: phase n=4 shared=4 fps_min=28.5 refusals=+571 (total 775) live=176.7MB (max 176.7) fair/win=48.0MB
+C7DBG retain display=0x7c304593b6e0 refs=1 owner=false
+ui_base_vram_cap: win 5 present_mode=fifo
+C7DBG retain display=0x7c30459a55d0 refs=1 owner=false
+ui_base_vram_cap: win 6 present_mode=fifo
+C7DBG retain display=0x7c3045a9a630 refs=1 owner=false
+ui_base_vram_cap: win 7 present_mode=fifo
+C7DBG retain display=0x7c3045d3e620 refs=1 owner=false
+ui_base_vram_cap: win 8 present_mode=fifo
+ui_base_vram_cap: phase n=8 shared=8 fps_min=14.2 refusals=+855 (total 1909) live=346.9MB (max 346.9) fair/win=24.0MB
+C7DBG release display=0x7c3044cafe10 refs=0 owner=false -> terminate
+C7DBG release display=0x7c3045270a20 refs=0 owner=false -> terminate
+C7DBG release display=0x7c3045365410 refs=0 owner=false -> terminate
+C7DBG release display=0x7c304593b6e0 refs=0 owner=false -> terminate
+C7DBG release display=0x7c30459a55d0 refs=0 owner=false -> terminate
+C7DBG release display=0x7c3045a9a630 refs=0 owner=false -> terminate
+C7DBG release display=0x7c3045d3e620 refs=0 owner=false -> terminate
+C7DBG release display=0x7c30440db4a0 refs=0 owner=false -> terminate
+SIGSEGV: segmentation violation
+PC=0x7c306400e86e m=7 sigcode=1 addr=0x124
+signal arrived during cgo execution
+
+goroutine 15 gp=0xc000102a80 m=7 mp=0xc000100808 [syscall, locked to thread]:
+runtime.cgocall(0x71dd40, 0xc00e406580)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/cgocall.go:167 +0x4b fp=0xc004bb3740 sp=0xc004bb3708 pc=0x4747cb
+github.com/ebitengine/purego.syscall_SyscallN(0x7c3056df7350, {0xc004bb3908, 0x20, 0x200?}, {0xc004bb3a18, 0x20, 0xc004bb3990?}, 0x0)
+	/home/yanghy/app/projects/gogpu/purego/syscall.go:50 +0x549 fp=0xc004bb38c0 sp=0xc004bb3740 pc=0x71c4e9
+github.com/ebitengine/purego.SyscallN(0x7c3056df7350?, {0xc00c3262b0?, 0xc000100808?, 0xc009eb3a10?})
+	/home/yanghy/app/projects/gogpu/purego/syscall.go:92 +0x11c fp=0xc004bb3b58 sp=0xc004bb38c0 pc=0x71c8bc
+github.com/energye/gpui/gpu/gwgpu/ffishim.CallFunction(0x1346640, 0x7c3056df7350, 0xc00c3262a8, {0xc009eb3a10, 0x1, 0x1})
+	/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/ffishim/ffishim.go:184 +0x24b fp=0xc004bb3be0 sp=0xc004bb3b58 pc=0x776d4b
+github.com/energye/gpui/gpu/gwgpu/gles/egl.Terminate(0x7c30440db4a0)
+	/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/egl/egl.go:501 +0x8a fp=0xc004bb3c28 sp=0xc004bb3be0 pc=0x77b7ea
+github.com/energye/gpui/gpu/gwgpu/gles/egl.releaseDisplay(0x7c30440db4a0)
+	/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/egl/display_ref.go:86 +0x1bb fp=0xc004bb3cb0 sp=0xc004bb3c28 pc=0x77999b
+github.com/energye/gpui/gpu/gwgpu/gles/egl.(*Context).Destroy(0xc0001ff8c0)
+	/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/egl/context.go:370 +0xa5 fp=0xc004bb3ce0 sp=0xc004bb3cb0 pc=0x777ec5
+github.com/energye/gpui/gpu/gwgpu/gles.(*AdapterContext).Destroy(0xc000036cc0)
+	/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/adapter_context_linux.go:249 +0x8a fp=0xc004bb3d18 sp=0xc004bb3ce0 pc=0x83650a
+github.com/energye/gpui/gpu/gwgpu/gles.(*AdapterContext).release(0xc000036cc0)
+	/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/adapter_context_linux.go:78 +0x86 fp=0xc004bb3d40 sp=0xc004bb3d18 pc=0x835c06
+github.com/energye/gpui/gpu/gwgpu/gles.(*Device).Release(0xc006404000)
+	/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:974 +0xb7 fp=0xc004bb3d80 sp=0xc004bb3d40 pc=0x84c5f7
+github.com/energye/gpui/render.releaseShared()
+	/home/yanghy/app/projects/gogpu/gpui/render/present_construct.go:289 +0x119 fp=0xc004bb3dc0 sp=0xc004bb3d80 pc=0x8b75f9
+github.com/energye/gpui/render.(*PresentTarget).Close(0xc00c307c20)
+	/home/yanghy/app/projects/gogpu/gpui/render/present_frame.go:452 +0x1ee fp=0xc004bb3e38 sp=0xc004bb3dc0 pc=0x8bbfae
+github.com/energye/gpui/ui/embedder.(*PipelineApp).Close.func1()
+	/home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1192 +0x9d fp=0xc004bb3e60 sp=0xc004bb3e38 pc=0x9f91fd
+github.com/energye/gpui/ui/embedder.(*PipelineApp).runOnGL.func1()
+	/home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1217 +0x13 fp=0xc004bb3e70 sp=0xc004bb3e60 pc=0x9f9373
+github.com/energye/gpui/ui/raster.(*Loop).exec(0xc009f5f3e0, {0xc00d484510?, 0xc00fce6770?})
+	/home/yanghy/app/projects/gogpu/gpui/ui/raster/loop.go:119 +0xc9 fp=0xc004bb3f00 sp=0xc004bb3e70 pc=0x9eb7e9
+github.com/energye/gpui/ui/raster.(*hub).sweep(0x13474e0)
+	/home/yanghy/app/projects/gogpu/gpui/ui/raster/hub.go:163 +0xd1 fp=0xc004bb3f60 sp=0xc004bb3f00 pc=0x9eb451
+github.com/energye/gpui/ui/raster.(*hub).run(0x13474e0)
+	/home/yanghy/app/projects/gogpu/gpui/ui/raster/hub.go:143 +0xa5 fp=0xc004bb3fc8 sp=0xc004bb3f60 pc=0x9eb305
+github.com/energye/gpui/ui/raster.(*hub).runJob.func1.gowrap1()
+	/home/yanghy/app/projects/gogpu/gpui/ui/raster/hub.go:110 +0x25 fp=0xc004bb3fe0 sp=0xc004bb3fc8 pc=0x9eb1a5
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc004bb3fe8 sp=0xc004bb3fe0 pc=0x47eba1
+created by github.com/energye/gpui/ui/raster.(*hub).runJob.func1 in goroutine 12
+	/home/yanghy/app/projects/gogpu/gpui/ui/raster/hub.go:110 +0x56
+
+goroutine 1 gp=0xc000002380 m=nil [chan receive]:
+runtime.gopark(0x7c30acf81108?, 0xc007d9acc0?, 0x8?, 0x40?, 0xc006658328?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc0066582d8 sp=0xc0066582b8 pc=0x47736e
+runtime.chanrecv(0xc00fce6770, 0xc0066583a8, 0x1)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/chan.go:667 +0x473 fp=0xc006658350 sp=0xc0066582d8 pc=0x410c53
+runtime.chanrecv1(0xc267e0?, 0x1?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/chan.go:509 +0x12 fp=0xc006658378 sp=0xc006658350 pc=0x4107b2
+github.com/energye/gpui/ui/raster.(*Loop).RunSync(0xc009f5f3e0, 0xc00d484510)
+	/home/yanghy/app/projects/gogpu/gpui/ui/raster/loop.go:234 +0x10f fp=0xc0066583c8 sp=0xc006658378 pc=0x9ebd4f
+github.com/energye/gpui/ui/embedder.(*PipelineApp).runOnGL(0xc00a528008, 0xc00d484500)
+	/home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1216 +0x89 fp=0xc006658420 sp=0xc0066583c8 pc=0x9f92c9
+github.com/energye/gpui/ui/embedder.(*PipelineApp).Close(0xc00a528008)
+	/home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1173 +0x66 fp=0xc006658440 sp=0xc006658420 pc=0x9f9126
+main.main()
+	/home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:530 +0xf0d fp=0xc006659f50 sp=0xc006658440 pc=0xb3db4d
+runtime.main()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:285 +0x29d fp=0xc006659fe0 sp=0xc006659f50 pc=0x443dbd
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc006659fe8 sp=0xc006659fe0 pc=0x47eba1
+
+goroutine 2 gp=0xc000002e00 m=nil [force gc (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000066fa8 sp=0xc000066f88 pc=0x47736e
+runtime.goparkunlock(...)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:466
+runtime.forcegchelper()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:373 +0xb3 fp=0xc000066fe0 sp=0xc000066fa8 pc=0x4440f3
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc000066fe8 sp=0xc000066fe0 pc=0x47eba1
+created by runtime.init.7 in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:361 +0x1a
+
+goroutine 3 gp=0xc000003340 m=nil [GC sweep wait]:
+runtime.gopark(0x1?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000067780 sp=0xc000067760 pc=0x47736e
+runtime.goparkunlock(...)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:466
+runtime.bgsweep(0xc000090000)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgcsweep.go:323 +0xdf fp=0xc0000677c8 sp=0xc000067780 pc=0x42d6ff
+runtime.gcenable.gowrap1()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:212 +0x25 fp=0xc0000677e0 sp=0xc0000677c8 pc=0x421705
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc0000677e8 sp=0xc0000677e0 pc=0x47eba1
+created by runtime.gcenable in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:212 +0x66
+
+goroutine 4 gp=0xc000003500 m=nil [GC scavenge wait]:
+runtime.gopark(0x17e14a0?, 0x161137a?, 0x0?, 0x0?, 0x0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000067f78 sp=0xc000067f58 pc=0x47736e
+runtime.goparkunlock(...)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:466
+runtime.(*scavengerState).park(0x1347700)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgcscavenge.go:425 +0x49 fp=0xc000067fa8 sp=0xc000067f78 pc=0x42b189
+runtime.bgscavenge(0xc000090000)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgcscavenge.go:658 +0x59 fp=0xc000067fc8 sp=0xc000067fa8 pc=0x42b739
+runtime.gcenable.gowrap2()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:213 +0x25 fp=0xc000067fe0 sp=0xc000067fc8 pc=0x4216a5
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc000067fe8 sp=0xc000067fe0 pc=0x47eba1
+created by runtime.gcenable in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:213 +0xa5
+
+goroutine 5 gp=0xc000003a40 m=nil [GOMAXPROCS updater (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000068788 sp=0xc000068768 pc=0x47736e
+runtime.goparkunlock(...)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:466
+runtime.updateMaxProcsGoroutine()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:6720 +0xe7 fp=0xc0000687e0 sp=0xc000068788 pc=0x4520c7
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc0000687e8 sp=0xc0000687e0 pc=0x47eba1
+created by runtime.defaultGOMAXPROCSUpdateEnable in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:6708 +0x37
+
+goroutine 6 gp=0xc0000b0000 m=nil [finalizer wait]:
+runtime.gopark(0x453095?, 0x419065?, 0xb8?, 0x1?, 0xc000002380?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000066620 sp=0xc000066600 pc=0x47736e
+runtime.runFinalizers()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mfinal.go:210 +0x107 fp=0xc0000667e0 sp=0xc000066620 pc=0x420607
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc0000667e8 sp=0xc0000667e0 pc=0x47eba1
+created by runtime.createfing in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mfinal.go:172 +0x3d
+
+goroutine 7 gp=0xc0000b01c0 m=nil [cleanup wait]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000068f68 sp=0xc000068f48 pc=0x47736e
+runtime.goparkunlock(...)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:466
+runtime.(*cleanupQueue).dequeue(0x1347b20)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mcleanup.go:439 +0xc5 fp=0xc000068fa0 sp=0xc000068f68 pc=0x41d825
+runtime.runCleanups()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mcleanup.go:635 +0x45 fp=0xc000068fe0 sp=0xc000068fa0 pc=0x41dee5
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc000068fe8 sp=0xc000068fe0 pc=0x47eba1
+created by runtime.(*cleanupQueue).createGs in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mcleanup.go:589 +0xa5
+
+goroutine 8 gp=0xc0000b0380 m=nil [GC worker (idle)]:
+runtime.gopark(0x1c1c2e4c85659?, 0x1?, 0x0?, 0x66?, 0x0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000064f38 sp=0xc000064f18 pc=0x47736e
+runtime.gcBgMarkWorker(0xc00009c310)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1463 +0xeb fp=0xc000064fc8 sp=0xc000064f38 pc=0x423deb
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1373 +0x25 fp=0xc000064fe0 sp=0xc000064fc8 pc=0x423cc5
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc000064fe8 sp=0xc000064fe0 pc=0x47eba1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1373 +0x105
+
+goroutine 9 gp=0xc0000b0540 m=nil [GC worker (idle)]:
+runtime.gopark(0x1c1c2e4c837a1?, 0x3?, 0xf7?, 0x37?, 0x0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000065738 sp=0xc000065718 pc=0x47736e
+runtime.gcBgMarkWorker(0xc00009c310)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1463 +0xeb fp=0xc0000657c8 sp=0xc000065738 pc=0x423deb
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1373 +0x25 fp=0xc0000657e0 sp=0xc0000657c8 pc=0x423cc5
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc0000657e8 sp=0xc0000657e0 pc=0x47eba1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1373 +0x105
+
+goroutine 10 gp=0xc0000b0700 m=nil [GC worker (idle)]:
+runtime.gopark(0x1c1c2e4c85195?, 0x1?, 0x94?, 0x7?, 0x0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000065f38 sp=0xc000065f18 pc=0x47736e
+runtime.gcBgMarkWorker(0xc00009c310)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1463 +0xeb fp=0xc000065fc8 sp=0xc000065f38 pc=0x423deb
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1373 +0x25 fp=0xc000065fe0 sp=0xc000065fc8 pc=0x423cc5
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc000065fe8 sp=0xc000065fe0 pc=0x47eba1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1373 +0x105
+
+goroutine 11 gp=0xc0000b08c0 m=nil [GC worker (idle)]:
+runtime.gopark(0x1c1c2e4e3f7f6?, 0x1?, 0xca?, 0xc6?, 0x0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc000076f38 sp=0xc000076f18 pc=0x47736e
+runtime.gcBgMarkWorker(0xc00009c310)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1463 +0xeb fp=0xc000076fc8 sp=0xc000076f38 pc=0x423deb
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1373 +0x25 fp=0xc000076fe0 sp=0xc000076fc8 pc=0x423cc5
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc000076fe8 sp=0xc000076fe0 pc=0x47eba1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/mgc.go:1373 +0x105
+
+goroutine 20 gp=0xc0000b0fc0 m=nil [chan receive]:
+runtime.gopark(0xc48dc0?, 0xc00d21d660?, 0xf0?, 0xf5?, 0xc00cf5afc0?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/proc.go:460 +0xce fp=0xc00730f530 sp=0xc00730f510 pc=0x47736e
+runtime.chanrecv(0xc00cf3ed90, 0xc00730f600, 0x1)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/chan.go:667 +0x473 fp=0xc00730f5a8 sp=0xc00730f530 pc=0x410c53
+runtime.chanrecv1(0xc267e0?, 0x1?)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/chan.go:509 +0x12 fp=0xc00730f5d0 sp=0xc00730f5a8 pc=0x4107b2
+github.com/energye/gpui/ui/raster.(*Loop).RunSync(0xc009f5f3e0, 0xc00cf5afb0)
+	/home/yanghy/app/projects/gogpu/gpui/ui/raster/loop.go:234 +0x10f fp=0xc00730f620 sp=0xc00730f5d0 pc=0x9ebd4f
+github.com/energye/gpui/ui/embedder.(*PipelineApp).runOnGL(0xc00a528008, 0xc00cf5afa0)
+	/home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1216 +0x89 fp=0xc00730f678 sp=0xc00730f620 pc=0x9f92c9
+github.com/energye/gpui/ui/embedder.(*PipelineApp).Close(0xc00a528008)
+	/home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1173 +0x66 fp=0xc00730f698 sp=0xc00730f678 pc=0x9f9126
+github.com/energye/gpui/ui/embedder.(*PipelineApp).Run.deferwrap1()
+	/home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1235 +0x25 fp=0xc00730f6b0 sp=0xc00730f698 pc=0x9fc365
+github.com/energye/gpui/ui/embedder.(*PipelineApp).Run(0xc00a528008)
+	/home/yanghy/app/projects/gogpu/gpui/ui/embedder/pipeline_app.go:1876 +0x178a fp=0xc00730ff00 sp=0xc00730f6b0 pc=0x9fab2a
+main.main.func3.1(0x7, 0xc00009c310?)
+	/home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:383 +0x79 fp=0xc00730ffc0 sp=0xc00730ff00 pc=0xb43059
+main.main.func3.gowrap1()
+	/home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:388 +0x28 fp=0xc00730ffe0 sp=0xc00730ffc0 pc=0xb42fa8
+runtime.goexit({})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc00730ffe8 sp=0xc00730ffe0 pc=0x47eba1
+created by main.main.func3 in goroutine 12
+	/home/yanghy/app/projects/gogpu/gpui/examples/ui_base_vram_cap/main.go:381 +0xb9
+
+rax    0x4
+rbx    0x24
+rcx    0x36
+rdx    0x75
+rdi    0x7c30547c40e5
+rsi    0x7c305765e900
+rbp    0x7c305c002200
+rsp    0x7c305765e8e0
+r8     0x51868400000000
+r9     0x1
+r10    0x3
+r11    0x3
+r12    0x2
+r13    0x7c30547d49b8
+r14    0x2
+r15    0x2
+rip    0x7c306400e86e
+rflags 0x10202
+cs     0x33
+fs     0x0
+gs     0x0

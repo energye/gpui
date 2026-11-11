@@ -1,0 +1,12 @@
+=== go test egl display_ref
+ok  	github.com/energye/gpui/gpu/gwgpu/gles/egl	0.004s
+=== go test gles adapter/surface ownership
+ok  	github.com/energye/gpui/gpu/gwgpu/gles	0.070s
+=== go vet
+vet_rc=0
+=== cross linux/arm64
+rc=0
+=== cross windows/amd64
+rc=0
+=== linux nogpu
+rc=0

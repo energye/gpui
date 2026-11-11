@@ -1,0 +1,14 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0000b60f0 ctx=0xc0000362c0
+ui_base_vram_cap: win 1 present_mode=fifo
+ui_base_vram_cap: win 2 present_mode=fifo
+ui_base_vram_cap: phase n=2 shared=2 fps_min=53.7 refusals=+0 (total 4) live=91.7MB (max 91.7) fair/win=96.0MB
+ui_base_vram_cap: win 3 present_mode=fifo
+ui_base_vram_cap: win 4 present_mode=fifo
+ui_base_vram_cap: phase n=4 shared=4 fps_min=28.9 refusals=+580 (total 806) live=176.7MB (max 176.7) fair/win=48.0MB
+ui_base_vram_cap: win 5 present_mode=fifo
+ui_base_vram_cap: win 6 present_mode=fifo
+ui_base_vram_cap: win 7 present_mode=fifo
+ui_base_vram_cap: win 8 present_mode=fifo
+ui_base_vram_cap: phase n=8 shared=8 fps_min=16.3 refusals=+981 (total 2123) live=346.9MB (max 346.9) fair/win=24.0MB
+ui_base_vram_cap: OK presents=5010 refusals=1501 ledger_peak=346.9MB px=0/0 golden=0.0000% mode=manual elapsed=45.3s
