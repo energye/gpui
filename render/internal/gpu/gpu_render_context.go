@@ -86,6 +86,12 @@ type GPURenderContext struct {
 	pendingStencilPaths       []StencilPathCommand
 	pendingImageCommands      []ImageDrawCommand
 	pendingGPUTextureCommands []GPUTextureDrawCommand
+	// pendingLinearFixedReqs counts fixed-function draws that requested linear
+	// blending while their target view was still unknown (public Context draws
+	// queue before FlushGPUWithView binds the target). Flush resolves them
+	// against the format actually rendered to, so telemetry never reports a
+	// degradation that the sRGB target already avoids.
+	pendingLinearFixedReqs int
 	// Brush cover results retained until after Flush (no-readback N1/N2).
 	pendingBrushCoverResults []brushCoverResult
 	pendingTextBatches       []TextBatch
@@ -638,6 +644,8 @@ type presentPendingStash struct {
 	glyphQuads      []GlyphMaskQuad
 	scissorSegments []scissorSegment
 	baseLayer       *GPUTextureDrawCommand
+	// pendingLinearFixedReqs moves with the commands it explains.
+	pendingLinearFixedReqs int
 }
 
 // offscreenPass holds the ENTIRE pending command stream while an isolated
@@ -681,6 +689,8 @@ type offscreenPass struct {
 	flushedToData    bool
 	pendingAdvLayers []pendingAdvancedLayer
 	layerReleaseHold []func()
+	// pendingLinearFixedReqs moves with the suspended main pass.
+	pendingLinearFixedReqs int
 }
 
 // BeginOffscreenPass suspends the main pass entirely: every piece of pending
@@ -765,6 +775,7 @@ func (rc *GPURenderContext) BeginOffscreenPass(target render.GPURenderTarget) fu
 	o.flushedToData, rc.flushedPendingToData = rc.flushedPendingToData, false
 	o.pendingAdvLayers, rc.pendingAdvancedLayers = rc.pendingAdvancedLayers, nil
 	o.layerReleaseHold, rc.layerReleaseHold = rc.layerReleaseHold, nil
+	o.pendingLinearFixedReqs, rc.pendingLinearFixedReqs = rc.pendingLinearFixedReqs, 0
 
 	return func() { rc.EndOffscreenPass() }
 }
@@ -812,6 +823,8 @@ func (rc *GPURenderContext) EndOffscreenPass() {
 	// Restore the suspended main pass verbatim (move back).
 	rc.pendingTarget, rc.hasPendingTarget = o.target, o.hasTarget
 	o.target, o.hasTarget = render.GPURenderTarget{}, false
+	rc.pendingLinearFixedReqs = o.pendingLinearFixedReqs
+	o.pendingLinearFixedReqs = 0
 
 	rc.pendingShapes = append(rc.pendingShapes[:0], o.shapes...)
 	o.shapes = o.shapes[:0]
@@ -949,6 +962,8 @@ func (rc *GPURenderContext) stashPresentPending() {
 	if s.baseLayer == nil {
 		s.baseLayer = rc.baseLayer
 	}
+	s.pendingLinearFixedReqs += rc.pendingLinearFixedReqs
+	rc.pendingLinearFixedReqs = 0
 	s.active = true
 
 	rc.pendingShapes = rc.pendingShapes[:0]
@@ -1050,6 +1065,8 @@ func (rc *GPURenderContext) unstashPresentPending() {
 	if rc.baseLayer == nil {
 		rc.baseLayer = s.baseLayer
 	}
+	rc.pendingLinearFixedReqs += s.pendingLinearFixedReqs
+	s.pendingLinearFixedReqs = 0
 	// Reset stash (keep capacity for next frame).
 	s.active = false
 	s.shapes = s.shapes[:0]
@@ -1066,6 +1083,7 @@ func (rc *GPURenderContext) unstashPresentPending() {
 	s.glyphQuads = s.glyphQuads[:0]
 	s.scissorSegments = s.scissorSegments[:0]
 	s.baseLayer = nil
+	s.pendingLinearFixedReqs = 0
 }
 
 // PrepareTarget is the exported entry for Context.setGPUClipRect / callers that
@@ -1803,6 +1821,24 @@ func (rc *GPURenderContext) queueBrushCoverTexture(
 		x0, y0, x1-x0, y1-y0, 1.0, vpW, vpH)
 }
 
+// sourceSRGBForView reports whether a queued GPU texture view is an sRGB
+// format. Sampling such a view yields linear light, which the composite shader
+// must not decode again (P3.1b-3 boundary conversion).
+func sourceSRGBForView(view gpucontext.TextureView) bool {
+	if view.IsNil() {
+		return false
+	}
+	tv := unpackView(view)
+	if tv == nil {
+		return false
+	}
+	tex := tv.Texture()
+	if tex == nil {
+		return false
+	}
+	return isSRGBFormat(tex.Format())
+}
+
 // QueueGPUTextureDraw queues a GPU-to-GPU texture compositing command.
 // The texture view is sampled directly — zero CPU readback, zero upload.
 func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, view gpucontext.TextureView,
@@ -1816,6 +1852,7 @@ func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, v
 		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		U0: 0, V0: 0, U1: 1, V1: 1,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+		SourceSRGB: sourceSRGBForView(view),
 	})
 	rc.pendingTarget = target
 	rc.hasPendingTarget = true
@@ -1836,7 +1873,8 @@ func (rc *GPURenderContext) QueueGPUTextureDrawBlend(target render.GPURenderTarg
 		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		U0: 0, V0: 0, U1: 1, V1: 1,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
-		BlendMode: blendMode,
+		BlendMode:  blendMode,
+		SourceSRGB: sourceSRGBForView(view),
 	})
 	rc.pendingTarget = target
 	rc.hasPendingTarget = true
@@ -1856,6 +1894,7 @@ func (rc *GPURenderContext) QueueGPUTextureDrawQuad(target render.GPURenderTarge
 		TLX: tlX, TLY: tlY, TRX: trX, TRY: trY, BRX: brX, BRY: brY, BLX: blX, BLY: blY,
 		U0: 0, V0: 0, U1: 1, V1: 1,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+		SourceSRGB: sourceSRGBForView(view),
 	})
 	rc.pendingTarget = target
 	rc.hasPendingTarget = true
@@ -1878,6 +1917,7 @@ func (rc *GPURenderContext) QueueGPUTextureDrawQuadUV(target render.GPURenderTar
 		TLX: tlX, TLY: tlY, TRX: trX, TRY: trY, BRX: brX, BRY: brY, BLX: blX, BLY: blY,
 		U0: u0, V0: v0, U1: u1, V1: v1,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+		SourceSRGB: sourceSRGBForView(view),
 	})
 	rc.pendingTarget = target
 	rc.hasPendingTarget = true
@@ -1900,6 +1940,7 @@ func (rc *GPURenderContext) QueueGPUTextureDrawUV(target render.GPURenderTarget,
 		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		U0: u0, V0: v0, U1: u1, V1: v1,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+		SourceSRGB: sourceSRGBForView(view),
 	})
 	rc.pendingTarget = target
 	rc.hasPendingTarget = true
@@ -2187,22 +2228,49 @@ func (rc *GPURenderContext) DrawShapedColorGlyphs(target render.GPURenderTarget,
 // proceeds in the sRGB domain by design until the P3.1b sRGB-target switch.
 // The mode tables are re-checked here so the counter stays honest regardless
 // of call site — advanced modes own the dual-tex linear path and never count.
-func (rc *GPURenderContext) noteLinearFixedFunctionFallback(paint *render.Paint) {
-	rc.noteLinearFixedFunctionFallbackForTarget(paint, isSRGBFormat(colorFormatOr(rc.colorFormat)))
+//
+// The per-draw target view is authoritative when known. Public Context draws
+// queue before FlushGPUWithView binds the target, so a nil View defers the
+// decision to Flush, where the actual attachment format is known; counting at
+// queue time would charge the previous frame's format.
+func (rc *GPURenderContext) noteLinearFixedFunctionFallback(target render.GPURenderTarget, paint *render.Paint) {
+	if !paintNeedsLinearFixedFunctionAccount(paint) {
+		return
+	}
+	if target.View.IsNil() {
+		rc.pendingLinearFixedReqs++
+		return
+	}
+	rc.noteLinearFixedFunctionFallbackForTarget(paint, rc.isLinearTarget(target))
+}
+
+// paintNeedsLinearFixedFunctionAccount reports whether paint asks for linear
+// blending on a fixed-function-only mode (advanced modes own the linear path).
+func paintNeedsLinearFixedFunctionAccount(paint *render.Paint) bool {
+	if paint == nil || paint.BlendSpace != render.BlendSpaceLinear {
+		return false
+	}
+	return paintSupportsGPUFixedBlend(paint) && !paintSupportsGPUAdvancedBlend(paint)
 }
 
 func (rc *GPURenderContext) noteLinearFixedFunctionFallbackForTarget(paint *render.Paint, linearTarget bool) {
-	if paint == nil || paint.BlendSpace != render.BlendSpaceLinear {
-		return
-	}
 	// Opt-in linear target (P3.1b): hardware sRGB blending already runs in
 	// linear light, so fixed-function modes no longer degrade.
-	if linearTarget {
+	if linearTarget || !paintNeedsLinearFixedFunctionAccount(paint) {
 		return
 	}
-	if paintSupportsGPUFixedBlend(paint) && !paintSupportsGPUAdvancedBlend(paint) {
-		rc.shared.linearFixedFunctionFallbacks.Add(1)
+	rc.shared.linearFixedFunctionFallbacks.Add(1)
+}
+
+// LinearFixedFunctionFallbacks reports how many fixed-function linear draws
+// have been degraded to the encoded domain since the process started. Opt-in
+// sRGB targets blend in linear light and never count. Read as a delta around
+// a frame to attribute the count to that frame.
+func (rc *GPURenderContext) LinearFixedFunctionFallbacks() int64 {
+	if rc == nil || rc.shared == nil {
+		return 0
 	}
+	return rc.shared.linearFixedFunctionFallbacks.Load()
 }
 
 // isLinearTarget reports whether the draw target is an opt-in sRGB/linear
@@ -2258,7 +2326,7 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		// P0-2: native GPU gradient / image-pattern fill (no large-area ColorAt).
 		// Reaching here without the advanced gate means a fixed-function
 		// (SourceOver) domain: linear requests degrade until P3.1b.
-		rc.noteLinearFixedFunctionFallbackForTarget(paint, rc.isLinearTarget(target))
+		rc.noteLinearFixedFunctionFallback(target, paint)
 		if err := rc.fillBrushNative(target, path, paint); err == nil {
 			return nil
 		}
@@ -2275,7 +2343,7 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	// opt-in sRGB target the helper returns without counting: hardware blend
 	// is already linear.
 	if isGPUSolidPaint(paint) {
-		rc.noteLinearFixedFunctionFallbackForTarget(paint, rc.isLinearTarget(target))
+		rc.noteLinearFixedFunctionFallback(target, paint)
 	}
 	if !rc.shared.gpuReady {
 		rc.shared.mu.Lock()
@@ -2442,7 +2510,7 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		// Solid stroke with a fixed-function mode: linear requests degrade to
 		// the sRGB domain until the P3.1b sRGB-target switch (advanced strokes
 		// already went through the dual-tex linear path via FillPath).
-		rc.noteLinearFixedFunctionFallbackForTarget(paint, rc.isLinearTarget(target))
+		rc.noteLinearFixedFunctionFallback(target, paint)
 	} else {
 		// Non-solid: SourceOver bootstrap/native or advanced dual-tex only.
 		if !paintUsesSourceOver(paint) && !paintSupportsGPUAdvancedBlend(paint) {
@@ -2763,6 +2831,11 @@ func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape rende
 		}
 	}
 
+	// Fixed-function SourceOver on an encoded-domain target also degrades a
+	// linear request (semi-transparent SourceOver is not gamma-invariant), and
+	// this SDF shape path carries it instead of FillPath. Account it here so the
+	// 13 fixed-function modes are all visible to the counter.
+	rc.noteLinearFixedFunctionFallback(target, paint)
 	return rc.QueueShape(target, shape, paint, false)
 }
 
@@ -2804,6 +2877,9 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 		}
 	}
 
+	// Same accounting as FillShape: the SDF stroke path is fixed-function
+	// SourceOver and degrades a linear request on a UNORM target.
+	rc.noteLinearFixedFunctionFallback(target, paint)
 	return rc.QueueShape(target, shape, paint, true)
 }
 
@@ -2988,6 +3064,15 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		}
 	}
 	rc.colorFormat = targetFormat
+	// Resolve deferred linear fixed-function telemetry against the format that
+	// is actually rendered to. Public Context draws queue while the view is
+	// still unknown; the previous frame's format must not decide the count.
+	if rc.pendingLinearFixedReqs > 0 {
+		if !isSRGBFormat(colorFormatOr(targetFormat)) {
+			rc.shared.linearFixedFunctionFallbacks.Add(int64(rc.pendingLinearFixedReqs))
+		}
+		rc.pendingLinearFixedReqs = 0
+	}
 	defer func() {
 		// After a successful encode path, pending queues are cleared. If we had
 		// work and targeted the CPU-backed surface, pixmap Data is authoritative.
@@ -3059,7 +3144,13 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		// Skip ensureGPU body on the warm present path (was every Flush).
 		rc.shared.registerFilterGraphIfNeeded()
 	}
-	rc.shared.ensurePipelines()
+	// Opt-in sRGB/linear targets own their shape pipelines in the target
+	// format; compiling the shared default-format pipelines here would create
+	// a second, stale pipeline set (and the first draw could bind it before
+	// the session is created). Default 8-bit targets keep the shared fast path.
+	if !isSRGBFormat(colorFormatOr(targetFormat)) {
+		rc.shared.ensurePipelines()
+	}
 
 	device := rc.shared.device
 	queue := rc.shared.queue

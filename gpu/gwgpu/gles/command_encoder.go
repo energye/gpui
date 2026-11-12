@@ -471,6 +471,16 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 		e.setupColorAttachment(desc, rpe)
 	}
 
+	// GL_FRAMEBUFFER_SRGB is framebuffer-wide: enable it for an sRGB color
+	// attachment so shader outputs and fixed-function blending are linear,
+	// then encoded on write; disable it for Unorm/float attachments. The
+	// command sits after the FBO bind and before clears/draws.
+	if desc != nil && len(desc.ColorAttachments) > 0 {
+		e.commands = append(e.commands, &SetFramebufferSRGBCommand{
+			enabled: colorAttachmentIsSRGB(desc.ColorAttachments[0].View),
+		})
+	}
+
 	// Set draw buffers for MRT.
 	if desc != nil && len(desc.ColorAttachments) > 0 {
 		e.commands = append(e.commands, &SetDrawColorBuffersCommand{
@@ -525,10 +535,6 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 // all color attachments of a render pass. For surface targets only attachment[0]
 // is used (surfaces are always single-target). For offscreen targets, all
 // attachments are bound to GL_COLOR_ATTACHMENT0..N.
-// setupColorAttachment configures framebuffer, viewport, and MSAA resolve for
-// all color attachments of a render pass. For surface targets only attachment[0]
-// is used (surfaces are always single-target). For offscreen targets, all
-// attachments are bound to GL_COLOR_ATTACHMENT0..N.
 func (e *CommandEncoder) setupColorAttachment(desc *hal.RenderPassDescriptor, rpe *RenderPassEncoder) {
 	ca := desc.ColorAttachments[0]
 	tv, ok := ca.View.(*TextureView)
@@ -548,13 +554,34 @@ func (e *CommandEncoder) setupColorAttachment(desc *hal.RenderPassDescriptor, rp
 	e.setupOffscreenTarget(desc, tv, rpe)
 }
 
-// setupSurfaceTarget binds the Surface's swapchain offscreen framebuffer and
-// sets viewport to surface dimensions. The swapchain FBO is a persistent GL
-// framebuffer owned by the Surface (allocated in Surface.Configure). User
-// render passes target this FBO — never the default framebuffer (FBO 0) —
-// because the scene is intentionally rendered upside-down via the in-shader
-// Y-flip (WriterFlagAdjustCoordinateSpace). Queue.Present performs an explicit
-// Y-flipping glBlitFramebuffer from this FBO to FBO 0 before SwapBuffers.
+// colorAttachmentIsSRGB reports whether the color attachment is an sRGB
+// format. GL_FRAMEBUFFER_SRGB is only honored for those attachments; Unorm and
+// float attachments would be written raw either way, so the flag stays off.
+func colorAttachmentIsSRGB(view any) bool {
+	tv, ok := view.(*TextureView)
+	if !ok || tv == nil {
+		return false
+	}
+	if tv.isSurface {
+		if tv.surfaceTex == nil || tv.surfaceTex.surface == nil {
+			return false
+		}
+		cfg := tv.surfaceTex.surface.config
+		return cfg != nil && isSRGBFormat(cfg.Format)
+	}
+	return tv.texture != nil && isSRGBFormat(tv.texture.format)
+}
+
+// isSRGBFormat reports whether format is an sRGB-encoded color format.
+func isSRGBFormat(format gputypes.TextureFormat) bool {
+	switch format {
+	case gputypes.TextureFormatRGBA8UnormSrgb, gputypes.TextureFormatBGRA8UnormSrgb:
+		return true
+	default:
+		return false
+	}
+}
+
 // setupSurfaceTarget binds the Surface's swapchain offscreen framebuffer and
 // sets viewport to surface dimensions. The swapchain FBO is a persistent GL
 // framebuffer owned by the Surface (allocated in Surface.Configure). User

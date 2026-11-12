@@ -35,25 +35,76 @@ fn linear_to_srgb(c: f32) -> f32 {
 }
 `
 
-const linearOutputWGSL = colorSpaceWGSL + `
+const linearOutputWGSL = `
 const LINEAR_OUT: bool = false;
+
+// Premultiplied sRGB bytes <-> linear-light premultiplied values. The
+// conversion must un-premultiply before applying the transfer curve and
+// re-premultiply afterwards; converting the premultiplied channels directly
+// darkens semi-transparent pixels (Skia SkColorSpaceXform / Impeller do the
+// same premul-aware conversion).
+fn premul_srgb_to_linear(c: vec4<f32>) -> vec4<f32> {
+    if (c.a <= 0.0) {
+        return c;
+    }
+    return vec4<f32>(
+        srgb_to_linear(c.r / c.a) * c.a,
+        srgb_to_linear(c.g / c.a) * c.a,
+        srgb_to_linear(c.b / c.a) * c.a,
+        c.a,
+    );
+}
+
+fn premul_linear_to_srgb(c: vec4<f32>) -> vec4<f32> {
+    if (c.a <= 0.0) {
+        return c;
+    }
+    return vec4<f32>(
+        linear_to_srgb(c.r / c.a) * c.a,
+        linear_to_srgb(c.g / c.a) * c.a,
+        linear_to_srgb(c.b / c.a) * c.a,
+        c.a,
+    );
+}
+
 fn encode_out(c: vec4<f32>) -> vec4<f32> {
     if (LINEAR_OUT) {
-        return vec4<f32>(srgb_to_linear(c.r), srgb_to_linear(c.g), srgb_to_linear(c.b), c.a);
+        return premul_srgb_to_linear(c);
+    }
+    return c;
+}
+
+// encode_src converts a sampled texel from the source color space to the
+// destination's shader output space. src_linear=true means the source texture
+// is an sRGB format, so textureSample already decoded it to linear light.
+fn encode_src(c: vec4<f32>, src_linear: bool) -> vec4<f32> {
+    if (LINEAR_OUT) {
+        if (src_linear) {
+            return c;
+        }
+        return premul_srgb_to_linear(c);
+    }
+    if (src_linear) {
+        return premul_linear_to_srgb(c);
     }
     return c;
 }
 `
 
+const linearTargetPreludeWGSL = colorSpaceWGSL + linearOutputWGSL
+
+func flipLinearOut(prefix string, linear bool) string {
+	if linear {
+		return strings.Replace(prefix, "const LINEAR_OUT: bool = false;", "const LINEAR_OUT: bool = true;", 1)
+	}
+	return prefix
+}
+
 // shaderSourceForTarget prepends the shared color-space helpers and flips the
 // LINEAR_OUT const when the target is an opt-in sRGB/linear target. The shader
 // body must return encode_out(color) at every color-writing fragment entry.
 func shaderSourceForTarget(src string, linear bool) string {
-	prefix := linearOutputWGSL
-	if linear {
-		prefix = strings.Replace(prefix, "const LINEAR_OUT: bool = false;", "const LINEAR_OUT: bool = true;", 1)
-	}
-	return prefix + src
+	return flipLinearOut(linearTargetPreludeWGSL, linear) + src
 }
 
 func clamp01(v float64) float64 {

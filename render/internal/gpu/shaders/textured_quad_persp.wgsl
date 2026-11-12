@@ -98,5 +98,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let texel = textureSample(image_texture, image_sampler, in.tex_coord);
     let clip_cov = rrect_clip_coverage(in.position.xy);
     let opacity = uniforms.opacity_pad.x * clip_cov;
-    return texel * opacity * in.tint;
+    // opacity_pad.y = 1 when the source texture is an sRGB format (already
+    // linear light), matching the affine textured-quad path.
+    let src_linear = uniforms.opacity_pad.y > 0.5;
+    return encode_src(texel * opacity * in.tint, src_linear);
 }

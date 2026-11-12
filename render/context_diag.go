@@ -31,6 +31,9 @@ func (c *Context) RenderPathStats() RenderPathStats {
 	s := c.pathStats
 	if c.gpuCtx != nil {
 		s.StagedWriteOverlaps = c.gpuCtx.StagedWriteOverlaps()
+		if lf, ok := c.gpuCtx.(interface{ LinearFixedFunctionFallbacks() int64 }); ok {
+			s.LinearFixedFunctionFallbacks = lf.LinearFixedFunctionFallbacks()
+		}
 	}
 	return s
 }

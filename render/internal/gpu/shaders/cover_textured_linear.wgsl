@@ -187,5 +187,5 @@ fn fs_main(in: CoverVertexOutput) -> @location(0) vec4<f32> {
     var ru = (tt - u.t_min) * u.inv_span;
     ru = clamp(ru, 0.0, 1.0);
     let color = textureSampleLevel(ramp_tex, ramp_samp, vec2<f32>(ru, 0.5), 0.0);
-    return color * final_cov;
+    return encode_out(color * final_cov);
 }

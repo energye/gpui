@@ -89,9 +89,9 @@
 |---|---|---|
 | P3.1b-0 | 1×1/小图探针：sRGB FBO 写/混合/blit/readback、`GL_FRAMEBUFFER_SRGB`、webgpu sRGB swapchain/offscreen 格式 | ✅ 2026-11-12 四项探针 PASS |
 | P3.1b-1 | 颜色转换地基：显式 `sRGB↔linear` GPU WGSL + CPU Go 函数；`CreateOffscreenTextureFormat` 加 sRGB 白名单；单测先红后绿 | ✅ 2026-11-12 单测 + GPU/CPU 逐值对拍 PASS |
-| P3.1b-2 | opt-in linear 目标：sRGB 目标格式 + `BlendSpaceLinear` 固定功能 13 模式不降级；管线/池键/读回跟随 | 🟡 2a 已过：solid convex/cover/cover_aa 输出线性化 + Plus 线性混合/计数钉 PASS；2b 待补 image/text/gradient/advanced/CPU 回退策略 + 13 模式全表 + 新窗 |
-| P3.1b-3 | 线性目标呈现/合成：linear RT → 呈现前显式 `LinearToSRGB`（或目标本身是 sRGB swapchain）；层/backdrop 边界转换 | 待开工 |
-| P3.1b-4 | 新真窗 + 负向 + 收口；默认窗全部保持旧基线，不重采 | 待开工 |
+| P3.1b-2 | opt-in linear 目标：sRGB 目标格式 + `BlendSpaceLinear` 固定功能 13 模式不降级；管线/池键/读回跟随 | ✅ 2a solid；2b shader 覆盖 image/text/glyph/SDF/textured cover + 公开 Context 逐值 PASS（原「单填充红」判读已收回）；13 模式全表、渐变/文本、advanced、CPU-only fail-closed 均有能力钉；降级计数按 Flush 目标格式解析 |
+| P3.1b-3 | 线性目标呈现/合成：linear RT → 呈现前显式 `LinearToSRGB`（或目标本身是 sRGB swapchain）；层/backdrop 边界转换 | ✅ 2026-11-12：GPU 纹理合成按源/目标色空间显式转换（四组合 + premul）；GL `FRAMEBUFFER_SRGB` 按附件格式开关 + present blit 关闭；真窗 go/native 双后端 0.0000% |
+| P3.1b-4 | 新真窗 + 负向 + 收口；默认窗全部保持旧基线，不重采 | ✅ 2026-11-12：`ui_wr_p31b_srgb_chain` 双后端 7/7 + 金图 0.0000%；四条负向红还原（含 GL sRGB 写状态/合成源标记）；默认 miscdraw/webp 双后端 0.0000% |
 | P3.1b-5 | 旁路：若后续要全局默认线性，按 A 路线单独立项（不在本项） | — |
 
 ## 4 验证方案
@@ -151,12 +151,14 @@
 
 ## 7 状态
 
-- P3.1b 🟡 2026-11-12：路线 **opt-in 线性目标**；默认 sRGB 不变、默认金图不重采。
+- P3.1b ✅ 2026-11-12：路线 **opt-in 线性目标**；默认 sRGB 不变、默认金图不重采；0/1/2a/2b/3/4 全收口。
 - P3.1b-0 ✅：四项探针 PASS（native sRGB target、GLES sRGB FBO/`GL_FRAMEBUFFER_SRGB`、X11 sRGB swapchain、GLES sRGB↔Unorm blit）。
 - P3.1b-1 ✅：`colorSpaceWGSL` + Go `srgbToLinear`/`linearToSRGB` 单一真源；GPU/CPU 256 点逐值对拍 PASS；`CreateOffscreenTextureFormat` sRGB 白名单 + 4 B/px 账本/clear 测试 PASS；dual-tex 改用共享 snippet，既有测试全 PASS。
 - P3.1b-2a ✅：convex/cover/cover_aa shader 输出经 `encode_out` 线性化；pipeline 按 sRGB 目标选 `LINEAR_OUT` 变体；solid fixed-function linear 在 sRGB 目标不计数、Unorm 照常计数；`TestP31bLinearTargetFixedBlend` PASS；默认 miscdraw 双后端金图 0.0000%。
-- P3.1b-2b 待做：image/text/gradient/advanced/backdrop/video 的输出线性化、CPU 回退策略、固定功能 13 模式全表、新真窗。
-- 下一步：P3.1b-2b，再 P3.1b-3（呈现/合成）。
+- P3.1b-2b ✅：shader 覆盖 `cover_textured_*` / `textured_quad*` / `msdf_text` / `glyph_*` / `sdf_render`；公开 `Context.Fill` → `FlushGPUWithView` 与低层逐值一致（sRGB Plus 141 / Unorm Plus 192 / 单填充 128 恒等），原「单填充红」判读已收回（§11）；降级计数改为 Flush 目标格式解析。
+- P3.1b-3 ✅：GPU 纹理合成按源/目标色空间转换（四组合 + premul-aware）；GL 腿与 native 逐值一致；`p31b-3-composite.txt`。
+- P3.1b-4 ✅：`ui_wr_p31b_srgb_chain` native/go 双后端 7/7、金图 0.0000%、默认卡降级 14 / 线性卡 0；两条负向红还原；默认窗双后端 0.0000%；`p31b-4-window.md`。
+- 余项（不阻塞本项收口）：video 的 sRGB 目标输出变体。线性目标 CPU 回退策略已钉为 GPU-only fail-closed（`TestP31bContextSrgbCPUFallbackPolicy`）；advanced dual-tex 由 `TestP31bAdvancedBlendSrgbTarget` 钉住（Screen 线性 138，Unorm/sRGB 双目标一致），13 模式全表由 `TestP31bLinearTargetAllFixedBlendModes` 钉住，渐变/文本由 `TestP31bSrgbTargetGradientText` 钉住。
 
 ## 10 P3.1b-2a solid 固定功能线性目标（2026-11-12）
 
@@ -218,3 +220,22 @@
 - 白名单：`offscreenEngineFormats` 加 `RGBA8UnormSrgb`/`BGRA8UnormSrgb`；`CreateOffscreenTextureFormat` 可建/清/记账（4 B/px），sRGB 与 Unorm 池键分开。
 - 默认路径：`BlendSpaceSRGB`/Unorm 目标未改；dual-tex/blendspace 既有测试全 PASS。
 - 证据：`p31b-1-tests.txt`。
+
+## 11 P3.1b-2b 公开 Context sRGB 目标路径（2026-11-12 收口；原「红」判读已收回）
+
+- **公开路径绿**：`TestP31bContextSrgbOffscreen`（`render`）无 SKIP PASS——单填充 sRGB 目标 `[128 64 26]`（sRGB 输入恒等回环），线性光 Plus `[141 90 70]`，Unorm 对照 `[192 128 89]`；`GPUOps=1/2`、`CPUFallbackOps=0`。与低层 `TestP31bLinearTargetFixedBlend` 逐值一致。
+- **收回旧判读**：旧测试把 `render.RGBA{0.5,...}` 当线性光，期望单填充读回 188；但公开颜色契约是 sRGB 编码（§1），128 才是正确回环，188 反而意味着 shader 漏了解码。旧读回 `ReadbackViewRGBA` 固定按 BGRA 交换通道，sRGB 目标是 RGBA 纹理，已改用 `ReadbackViewStraightRGBA`。原「首个 shape 管线早于目标格式」归因不成立。
+- **顺带修指标诚实性**：公开 Context 先排队后绑目标，固定功能线性降级计数原按上一帧格式在排队时判定，sRGB 目标误记 1 次。改为 `target.View` 为空时记入 `rc.pendingLinearFixedReqs`，Flush 按真实 `targetFormat` 解析（sRGB→0、Unorm→+1），stash/offscreenPass 随命令流迁移；`TestP31bPublicFlowLinearTelemetry` PASS；`RenderPathStats.LinearFixedFunctionFallbacks` 公开只读口。
+- 证据：`p31b-2b-public-context.txt`。
+
+## 12 P3.1b-3/4 呈现合成与真窗（2026-11-12）
+
+- **合成边界**：`GPUTextureDrawCommand.SourceSRGB` 按源视图格式在 queue 时判定；纹理 quad 三个变体（affine/bicubic/persp）经 `encode_src` 做一次源→目标转换；`src_linear=true` 表示 sRGB 纹理采样已线性化。sRGB↔linear 统一为 premul-aware（先 unpremul、过曲线、再 premul）。
+- **四组合单测**：{Unorm,sRGB} 源 × {Unorm,sRGB} 目标不透明内容均读回 102/51/25-26；半透明直接填充 sRGB 93/α128、Unorm 64/α128，四组合按目标约定落 64/93。GL 腿与 native 逐值一致。
+- **其余能力钉**：`TestP31bLinearTargetAllFixedBlendModes` 13 个固定功能模式逐模式对线性参考；`TestP31bSrgbTargetGradientText` 渐变 + Ahem 全墨字形内部与 Unorm 控制逐值一致；`TestP31bAdvancedBlendSrgbTarget` Screen 线性 138（双目标一致）；`TestP31bContextSrgbCPUFallbackPolicy` 线性目标 GPU-only，无 GPU 时建目标显式失败（不交空目标）。
+- **GL 腿**：`BeginRenderPass` 按颜色附件格式开关 `GL_FRAMEBUFFER_SRGB`（sRGB 附件编码/线性混合，Unorm/float 关闭），present 前 swapchain→FBO0 blit 显式关闭避免解码变暗；负向：不启用时 GL 单填充读回 55/13/3、go 真窗金图 30.1565% 红，还原后复绿。
+- **真窗**：`examples/ui_wr_p31b_srgb_chain` 左卡 Unorm / 右卡 sRGB，同内容 13 个固定功能模式 + 半透明底条；native/go 各 7/7 像素探针、金图 0.0000% / 821184 px、默认卡降级 14 / 线性卡 0、卡 GPU 29 / CPU 回退 0。
+- **负向**：线性卡强制 Unorm → 降级 14、Normal 166≠171、金图 21.2337% 红；摘掉线性输出转换 → Normal 211≠171、金图 30.1565% 红；摘 GL sRGB 写状态 / 摘合成源 sRGB 标记各一条红；均还原后复绿（`negatives/`）。
+- **默认路径**：`ui_render_base_miscdraw` / `ui_render_base_webp` native/go 均 0.0000%。
+- **跨平台/门禁**：windows amd64、darwin arm64、linux arm64 交叉编译 + `-tags nogpu` + `go vet` 过；`CGO_ENABLED=1 -race` 两文件过；本机无 Metal 运行时，按 §6 标不可验。
+- 证据：`p31b-3-composite.txt`、`p31b-4-window.md`、`p31b-2b-tests.txt`、`negatives/`、`default-regression.txt`、`snapshots/`、`p31b-gate.txt`。

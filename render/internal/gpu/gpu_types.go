@@ -88,6 +88,10 @@ type GPUTextureDrawCommand struct {
 	// view rides alongside and resolves at flush time.
 	UVView res.View
 	IsYUV  bool
+	// SourceSRGB marks View as an sRGB-format texture: textureSample decodes
+	// it to linear light, so the composite shader must not decode it again
+	// (and must encode it when the destination is a Unorm target).
+	SourceSRGB bool
 	// Rigid quad corners (transform compositing): CTM-transformed TL/TR/BR/BL
 	// in device pixels. Zero corners = axis-aligned fallback using Dst rect
 	// (bit-identical to before). Lets rigid bodies record once and replay

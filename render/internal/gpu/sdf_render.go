@@ -345,7 +345,7 @@ func (p *SDFRenderPipeline) createPipeline() error {
 
 	shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "sdf_render_shader",
-		WGSL:  sdfRenderShaderSource,
+		WGSL:  shaderSourceForTarget(sdfRenderShaderSource, isSRGBFormat(colorFormatOr(p.colorFormat))),
 	})
 	if err != nil {
 		return fmt.Errorf("compile sdf_render shader: %w", err)

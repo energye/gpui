@@ -1,0 +1,42 @@
+P3.1b-3 线性目标呈现/合成边界（2026-11-12）
+
+实现：
+- GPUTextureDrawCommand 新增 SourceSRGB（按源视图纹理格式在 queue 时判定），
+  合并键纳入该位，纹理 quad 三个变体（affine/bicubic/persp）经
+  encode_src(texel, src_linear) 做一次源→目标色空间转换。
+- encode_src 的 src_linear=true 表示 sRGB 纹理采样已硬件解码为线性光；目标
+  Unorm 时显式 linear_to_srgb，目标 sRGB 时原样交给硬件编码。
+- sRGB↔linear 转换统一改为 premul-aware（先 unpremul、过曲线、再 premul），
+  半透明像素不再被直接按 alpha 缩放通道而偏暗；encode_out 同步修正。
+- image uniform 的 opacity_pad.y 传 src_linear；image/gpuTex uniform cache
+  键与 256B slab 布局不变（只用了原 padding 位）。
+
+能力单测（native webgpu）：
+- TestP31bCompositeSourceColorSpace：{Unorm,sRGB} 源 × {Unorm,sRGB} 目标
+  四组合，不透明内容均读回 102/51/25-26。
+- TestP31bSemiTransparentSrgbTarget：直接填充 sRGB=93/α128、Unorm=64/α128；
+  四组合合成后分别落在目标的 premul 约定（64/93），无二次转换。
+GL 腿：TestP31bContextSrgbOffscreenGL（boxed gles）与 native 逐值一致；
+真窗 `ui_wr_p31b_srgb_chain` 的 go 腿另见 p31b-4-window.md。
+
+原始输出：
+=== P3.1b-3 composite conversion (native webgpu) ===
+=== RUN   TestP31bCompositeSourceColorSpace
+    p31b_composite_test.go:102: P3.1b composite src=unorm dst=unorm center=[102 51 25 255]
+    p31b_composite_test.go:102: P3.1b composite src=unorm dst=srgb center=[102 51 25 255]
+    p31b_composite_test.go:102: P3.1b composite src=srgb dst=unorm center=[102 51 26 255]
+    p31b_composite_test.go:102: P3.1b composite src=srgb dst=srgb center=[102 51 26 255]
+--- PASS: TestP31bCompositeSourceColorSpace (0.53s)
+=== RUN   TestP31bSemiTransparentSrgbTarget
+--- PASS: TestP31bSemiTransparentSrgbTarget (0.07s)
+PASS
+ok  	github.com/energye/gpui/render	0.673s
+=== P3.1b-3 GL leg (boxed gles) ===
+=== RUN   TestP31bContextSrgbOffscreenGL
+J5TRACE Open device=0xc0003c6000 ctx=0xc00038c040
+    p31b_context_srgb_linux_test.go:19: P3.1b context leg format=RGBA8UnormSrgb plus=false lfBefore=0 stats={GPUOps:1 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:0}
+    p31b_context_srgb_linux_test.go:25: P3.1b context leg format=RGBA8UnormSrgb plus=true lfBefore=0 stats={GPUOps:2 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:0}
+    p31b_context_srgb_linux_test.go:34: P3.1b context leg format=RGBA8Unorm plus=true lfBefore=0 stats={GPUOps:2 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:1}
+--- PASS: TestP31bContextSrgbOffscreenGL (0.62s)
+PASS
+ok  	github.com/energye/gpui/render	0.640s

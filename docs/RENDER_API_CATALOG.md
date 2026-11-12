@@ -108,7 +108,7 @@
 | BeginGPUFrame/FlushGPU/FlushGPUWithView/FlushGPUWithViewDamage/FlushGPUWithViewDamageRects/GPURenderContext/DropGPURenderContext | 每帧 GPU 状态重置、把累积 GPU 命令提交并解析到 pixmap/视图（带单/多损伤区）、per-context GPU 会话 | GPU 提交 | ✅ |
 | `BeginOffscreenPass()` | 开离屏子通道并返回还原 func（调用方须 defer）：激活期间队列命令/裁剪时间线/LoadOp 跟踪独占归子目标，主通路状态挂起、还原时恢复；同时挂起画布裁剪防 scissor 泄漏进子视口。使帧中 retained 纹理重录安全（Skia GrRecordingContext / Flutter EntityPass pass-ownership 语义）；无 GPU ops 时返回空 func | 离屏子通道 | ✅ ui/scene/textured.go:430,513 retained 重录消费 |
 | `BeginPassScratch(r)` / `CommitPassScratchToView(view)` | retained 纹理重录子通道内的 CPU 暂存交换：Begin 把画布 pixmap 换成同尺寸透明暂存（CPU 回退像素落暂存而非主画布，半路 GPU 提交读回到暂存，顺序精确）；Commit 把脏区经 WriteTexture 直写视图并标已渲染使收尾提交 Load（干净暂存跳过零开销）。只在 GPU 会话有效时武装，CPU 模式零行为变化 | 离屏子通道 | ✅ ui/scene/textured.go recordWith/recordLocalWith 消费（2026-09-15 修染色混画黑卡） |
-| RenderPathStats/ResetRenderPathStats/LastCPUFallbackReason/StagedWriteOverlaps/MemDigCmdBufs/Close | GPU/CPU 路由计数、最近 CPU 回退原因、后台上传守卫（同趟重叠写，0=健康）、残留命令缓冲诊断、关闭释放 | 诊断/资源 | 🔗 |
+| RenderPathStats/ResetRenderPathStats/LastCPUFallbackReason/StagedWriteOverlaps/MemDigCmdBufs/Close | GPU/CPU 路由计数、最近 CPU 回退原因、后台上传守卫（同趟重叠写，0=健康）、残留命令缓冲诊断、关闭释放；2026-11-12 P3.1b 加 `LinearFixedFunctionFallbacks`（固定功能线性请求在编码域目标上的降级计数，进程级；opt-in sRGB 目标不计数） | 诊断/资源 | 🔗 |
 | `DebugLayerViews()` | 返回 C5VIEWDBG=1 下跟踪的层视图纹理（临时诊断，R20 滤镜线） | 诊断 | 🔗 ui/scene/textured.go 消费 |
 | `PixmapForTest()` / `RecordCPUFallbackForTest(reason)` | 测试接缝：前者暴露实时 pixmap（含子通道暂存交换期的暂存）；后者走生产回退漏斗标脏暂存。仅 deterministic 模拟 CPU 回退落像素，不依赖设备相关 GPU 拒收路径 | 测试接缝 | 🧪 仅测试（render/pass_scratch_test.go E6 懒暂存契约消费，2026-09-23） |
 
@@ -399,7 +399,7 @@
 
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|
-| `Context.CreateOffscreenTextureFormat(w, h, format)` | 按格式建离屏面（BGRA8/RGBA8/RGBA16Float）；不支持格式具名拒绝且零分配；绘制用 `FlushGPUWithView`，合成用 `DrawGPUTexture` | 格式化离屏面 | 🔗 真窗 `ui_wr_m5_hdr` 双后端 0.0000% |
+| `Context.CreateOffscreenTextureFormat(w, h, format)` | 按格式建离屏面（BGRA8/RGBA8/RGBA16Float + P3.1b opt-in sRGB 目标）；不支持格式具名拒绝且零分配；绘制用 `FlushGPUWithView`，合成用 `DrawGPUTexture`（按源/目标色空间显式转换，P3.1b-3） | 格式化离屏面 | 🔗 真窗 `ui_wr_m5_hdr` 双后端 0.0000%；sRGB 目标单测 `TestP31bCompositeSourceColorSpace` / `TestP31bSemiTransparentSrgbTarget` |
 | `Context.TonemapView(src, w, h, exposure)` | RGBA16Float 视图 → 新的 8bit 池化视图；曝光(0,16]→Reinhard→sRGB，与 `hdr.Encode` 同式（GPU vs CPU max_diff=0） | tonemap 出口 | 🔗 同上 |
 | `Context.OffscreenFormatFallbacks()` | 该上下文 float 面请求回退 8bit 的累计次数（能力不支持时；0=无静默降级） | 回退诊断 | 🔗 真窗 JSON `offscreen_fmt_fallbacks` |
 

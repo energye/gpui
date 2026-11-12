@@ -107,6 +107,12 @@ type glExecState struct {
 	fbDraw    uint32
 	fbDrawSet bool
 
+	// srgbWriteSet/srgbWriteEnabled track GL_FRAMEBUFFER_SRGB. It is a
+	// framebuffer-wide write conversion, not a per-attachment state, so it
+	// must be re-evaluated at every render pass from the attachment format.
+	srgbWriteSet     bool
+	srgbWriteEnabled bool
+
 	attribs map[uint32]attribState
 
 	// Indexed buffer binds (UNIFORM_BUFFER / SHADER_STORAGE_BUFFER per index).
@@ -382,6 +388,18 @@ func (s *glExecState) bindFramebuffer(fbo uint32) bool {
 		return false
 	}
 	s.fbSet, s.fb = true, fbo
+	return true
+}
+
+// setFramebufferSRGB gates GL_FRAMEBUFFER_SRGB writes. The GL state is global,
+// so a pass targeting an sRGB attachment must turn it on and a pass targeting
+// a linear/Unorm attachment must turn it off; the gate keeps the per-pass
+// transition free when consecutive passes share the same encoding.
+func (s *glExecState) setFramebufferSRGB(enabled bool) bool {
+	if s.srgbWriteSet && s.srgbWriteEnabled == enabled {
+		return false
+	}
+	s.srgbWriteSet, s.srgbWriteEnabled = true, enabled
 	return true
 }
 

@@ -156,7 +156,7 @@ func (p *MSDFTextPipeline) createPipeline() error {
 
 	shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "msdf_text_shader",
-		WGSL:  msdfTextShaderSource,
+		WGSL:  shaderSourceForTarget(msdfTextShaderSource, isSRGBFormat(colorFormatOr(p.colorFormat))),
 	})
 	if err != nil {
 		return fmt.Errorf("compile msdf_text shader: %w", err)

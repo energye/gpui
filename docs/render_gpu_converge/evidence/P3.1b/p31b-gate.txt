@@ -1,0 +1,30 @@
+=== P3.1b 收口门禁（2026-11-12） ===
+$ GOOS=windows GOARCH=amd64 go build ./gpu/gwgpu/gles/... ./render/...
+rc=0
+$ GOOS=darwin GOARCH=arm64 go build ./render/...
+rc=0
+$ GOOS=linux GOARCH=arm64 go build ./gpu/gwgpu/gles/... ./render/...
+rc=0
+$ go build -tags nogpu ./render/... ./gpu/gwgpu/gles/...
+rc=0
+$ go build ./...
+rc=0
+$ go vet ./render ./render/internal/gpu ./gpu/gwgpu/gles ./gpu/webgpu
+rc=0
+$ CGO_ENABLED=1 WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test -race ./render/internal/gpu -run TestP31b -count=1
+ok  	github.com/energye/gpui/render/internal/gpu	6.849s
+
+$ CGO_ENABLED=1 DISPLAY=:0 WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test -race ./render -run TestP31b -count=1
+ok  	github.com/energye/gpui/render	4.439s
+
+说明：Metal/Windows 运行时本机不可验（Linux 无 macOS/Windows 真机），只做交叉编译；按台账 §6 不留空白格。
+
+=== 整包补充（2026-11-12） ===
+$ DISPLAY=:0 go test ./gpu/gwgpu/gles -count=1
+ok  	github.com/energye/gpui/gpu/gwgpu/gles	2.473s
+
+$ WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render/internal/gpu -count=1
+ok  	github.com/energye/gpui/render/internal/gpu	26.323s
+
+$ DISPLAY=:0 WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render -count=1
+FAIL（仅余 K6 已登记的整包全局污染 + S69 计时门；R72/RasterizerValueMatchesAnalytic/S3c_M3_* 单文件单跑均 PASS，S69 单跑各轮红项不同，属计时波动，不属 P3.1b 回归）

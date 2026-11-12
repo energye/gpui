@@ -1,0 +1,35 @@
+P3.1b-2b 公开 Context sRGB 目标路径（2026-11-12 收口，原「红」判读已收回）
+
+结论：
+- render.RGBA 是 sRGB 编码颜色。单块不透明填充在 sRGB 目标上是
+  「shader sRGB→linear + 硬件 linear→sRGB」恒等回环，读回 128/64/26 正确；
+  188 反而代表 shader 漏了 sRGB→linear 解码（双重编码），不是目标。
+- 真正的判别器是线性光 Plus：sRGB 目标 141（线性加），Unorm 对照 192
+  （编码域加），与低层 TestP31bLinearTargetFixedBlend 逐值一致。
+- 旧读回 ReadbackViewRGBA 固定按 BGRA 源交换通道；sRGB 目标是 RGBA 纹理，
+  已改用 ReadbackViewStraightRGBA。
+- 顺带修指标诚实性：公开 Context 先排队后绑目标，固定功能线性降级计数
+  原按排队时上一帧格式判定；改为 pendingLinearFixedReqs 延迟到 Flush 按
+  真实 targetFormat 解析（sRGB→0、Unorm→+1），stash/offscreenPass 随命令流迁移。
+- 回归：逐文件单测、go vet ./render/... ./gpu/...、go build ./...、
+  CGO_ENABLED=1 -race（p31b 两文件 + 公开窗）均过。
+
+原始输出：
+=== P3.1b-2b public Context sRGB target (native webgpu) ===
+=== RUN   TestP31bContextSrgbOffscreen
+    p31b_context_srgb_test.go:29: P3.1b context leg format=RGBA8UnormSrgb plus=false lfBefore=0 stats={GPUOps:1 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:0}
+    p31b_context_srgb_test.go:36: P3.1b context leg format=RGBA8UnormSrgb plus=true lfBefore=0 stats={GPUOps:2 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:0}
+    p31b_context_srgb_test.go:50: P3.1b context leg format=RGBA8Unorm plus=true lfBefore=0 stats={GPUOps:2 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:1}
+--- PASS: TestP31bContextSrgbOffscreen (1.14s)
+PASS
+ok  	github.com/energye/gpui/render	1.357s
+=== P3.1b-2b telemetry (internal/gpu) ===
+=== RUN   TestNoteLinearFixedFunctionFallback
+--- PASS: TestNoteLinearFixedFunctionFallback (0.00s)
+=== RUN   TestP31bLinearTargetFixedBlend
+    p31b_linear_target_test.go:96: P3.1b-2a sRGB target=[141 90 70 255] fallback=0; Unorm target=[192 128 90 255] fallback=1
+--- PASS: TestP31bLinearTargetFixedBlend (0.67s)
+=== RUN   TestP31bPublicFlowLinearTelemetry
+--- PASS: TestP31bPublicFlowLinearTelemetry (0.35s)
+PASS
+ok  	github.com/energye/gpui/render/internal/gpu	1.036s

@@ -80,5 +80,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let clip_cov = rrect_clip_coverage(in.position.xy);
     let color = uniforms.color;
     let a = alpha * color.a * clip_cov;
-    return vec4<f32>(color.rgb * a, a);
+    return encode_out(vec4<f32>(color.rgb * a, a));
 }

@@ -63,5 +63,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex = textureSample(atlas_texture, atlas_sampler, in.tex_coord);
     let clip_cov = rrect_clip_coverage(in.position.xy);
     let cov = clip_cov * uniforms.color.a;
-    return vec4<f32>(tex.rgb * cov, tex.a * cov);
+    return encode_out(vec4<f32>(tex.rgb * cov, tex.a * cov));
 }

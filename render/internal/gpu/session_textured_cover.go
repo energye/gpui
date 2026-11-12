@@ -72,7 +72,7 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 
 	shader, err := sr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "cover_textured_linear",
-		WGSL:  coverTexturedLinearShaderSource,
+		WGSL:  shaderSourceForTarget(coverTexturedLinearShaderSource, isSRGBFormat(colorFormatOr(sr.colorFormat))),
 	})
 	if err != nil {
 		return fmt.Errorf("textured cover shader: %w", err)
@@ -427,7 +427,7 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 
 	shader, err := sr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "cover_textured_pattern",
-		WGSL:  coverTexturedPatternShaderSource,
+		WGSL:  shaderSourceForTarget(coverTexturedPatternShaderSource, isSRGBFormat(colorFormatOr(sr.colorFormat))),
 	})
 	if err != nil {
 		return fmt.Errorf("pattern cover shader: %w", err)

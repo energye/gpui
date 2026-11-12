@@ -125,9 +125,10 @@ type SubmitPathStats struct {
 // Draw counts are post-merge GPU draw calls; quad/shape counts are geometry units.
 // imageUniformLastKey tracks last uploaded image/gpu-tex uniform.
 type imageUniformLastKey struct {
-	w, h    uint32
-	opacity float32
-	valid   bool
+	w, h      uint32
+	opacity   float32
+	srcLinear bool
+	valid     bool
 }
 
 // gpuTexBGSlotCache holds up to 4 view→bind-group pairs for one uniform slot
@@ -2731,6 +2732,16 @@ func (s *GPURenderSession) ensurePipelines() error {
 		return fmt.Errorf("mask defaults: %w", err)
 	}
 
+	// Opt-in linear targets need the stencil/cover pipeline in the same
+	// target format as the SDF/convex pipelines; otherwise a stencil-then-
+	// cover fill still uses the shared default-format cover shader and writes
+	// raw values into the sRGB attachment (P3.1b-2b window).
+	if isSRGBFormat(colorFormatOr(s.colorFormat)) {
+		if err := s.ensureStencilPipelines(); err != nil {
+			return err
+		}
+	}
+
 	s.pipelinesReady = true
 	s.pipelinesReadyClip = s.clipBindLayout
 	s.pipelinesReadyMask = s.maskBindLayout
@@ -2744,6 +2755,15 @@ func (s *GPURenderSession) ensureStencilPipelines() error {
 	}
 	if err := s.ensureMaskBindLayout(); err != nil {
 		return err
+	}
+	// A session that owns its shape pipelines must not keep a shared stencil
+	// renderer whose shaders/pipelines were baked for another target format:
+	// mutating colorFormat after the fact would leave the cover shader and its
+	// pipeline in the old format. Drop the borrowed reference and build one
+	// owned by this session.
+	if s.ownsShapePipelines && s.stencilRenderer != nil &&
+		colorFormatOr(s.stencilRenderer.colorFormat) != colorFormatOr(s.colorFormat) {
+		s.stencilRenderer = nil
 	}
 	if s.stencilRenderer == nil {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
@@ -5640,6 +5660,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		texView              hal.TextureView
 		uvView               hal.TextureView
 		isYUV                bool
+		srcLinear            bool
 		firstVertex, vertCnt uint32
 		cmdStart, cmdCount   uint32 // span in the GPU-texture command list (group slicing)
 		blendMode            render.BlendMode
@@ -5671,6 +5692,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		slot := gpuTexSlot{
 			opacity:     cmd.Opacity,
 			texView:     texView,
+			srcLinear:   cmd.SourceSRGB,
 			firstVertex: uint32(i * 6),       //nolint:gosec
 			vertCnt:     uint32((j - i) * 6), //nolint:gosec
 			cmdStart:    uint32(i),           //nolint:gosec
@@ -5739,7 +5761,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		if !needUpload {
 			for i := range slots {
 				lastU := &s.gpuTexUniformLast[i]
-				if !lastU.valid || lastU.w != w || lastU.h != h || lastU.opacity != slots[i].opacity {
+				if !lastU.valid || lastU.w != w || lastU.h != h || lastU.opacity != slots[i].opacity || lastU.srcLinear != slots[i].srcLinear {
 					needUpload = true
 					break
 				}
@@ -5758,9 +5780,10 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			}
 			for i := range slots {
 				off := i * imageUniformSlotStride
-				putImageUniform(s.gpuTexUniformScratch[off:off+imageUniformSlotStride], w, h, slots[i].opacity)
+				putImageUniformSrc(s.gpuTexUniformScratch[off:off+imageUniformSlotStride], w, h, slots[i].opacity, slots[i].srcLinear)
 				s.gpuTexUniformLast[i].w, s.gpuTexUniformLast[i].h = w, h
 				s.gpuTexUniformLast[i].opacity = slots[i].opacity
+				s.gpuTexUniformLast[i].srcLinear = slots[i].srcLinear
 				s.gpuTexUniformLast[i].valid = true
 			}
 			if err := s.queueWriteBuffer(s.gpuTexUniformSlab, 0, s.gpuTexUniformScratch[:packBytes]); err != nil {

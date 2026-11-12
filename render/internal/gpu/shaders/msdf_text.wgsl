@@ -185,7 +185,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let final_alpha = alpha * clip_cov;
 
     // Apply alpha to text color (premultiplied alpha output).
-    return vec4<f32>(in.color.rgb * final_alpha, in.color.a * final_alpha);
+    return encode_out(vec4<f32>(in.color.rgb * final_alpha, in.color.a * final_alpha));
 }
 
 // ============================================================================
@@ -227,7 +227,7 @@ fn fs_main_outline(in: VertexOutput) -> @location(0) vec4<f32> {
     let fill = vec4<f32>(in.color.rgb * fill_alpha, in.color.a * fill_alpha);
     let outline = vec4<f32>(outline_color.rgb * outline_diff, outline_color.a * outline_diff);
 
-    return fill + outline;
+    return encode_out(fill + outline);
 }
 
 // fs_main_shadow: Render text with drop shadow effect.
@@ -260,5 +260,5 @@ fn fs_main_shadow(in: VertexOutput) -> @location(0) vec4<f32> {
     let shadow = vec4<f32>(shadow_color.rgb * shadow_alpha, shadow_color.a * shadow_alpha);
     let fill = vec4<f32>(in.color.rgb * fill_alpha, in.color.a * fill_alpha);
 
-    return fill + shadow * (1.0 - fill.a);
+    return encode_out(fill + shadow * (1.0 - fill.a));
 }

@@ -1,0 +1,4 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0001c6000 ctx=0xc0002f6040
+snapshot: examples/ui_wr_p31b_srgb_chain/testdata/p31b_final.png
+ui_wr_p31b_srgb_chain: OK presents=357 pixel=7/7 golden=0.0000% default_fb=14 linear_fb=0 elapsed=6.7s

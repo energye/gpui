@@ -270,5 +270,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     // Output premultiplied color scaled by coverage.
-    return in.color * final_coverage;
+    return encode_out(in.color * final_coverage);
 }

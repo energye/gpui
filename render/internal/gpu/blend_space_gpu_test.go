@@ -49,22 +49,22 @@ func TestPackDualTexParamsLinearFlag(t *testing.T) {
 func TestNoteLinearFixedFunctionFallback(t *testing.T) {
 	rc := &GPURenderContext{shared: &GPUShared{}}
 
-	rc.noteLinearFixedFunctionFallback(&render.Paint{BlendMode: render.BlendMultiply, BlendSpace: render.BlendSpaceLinear})
+	rc.noteLinearFixedFunctionFallbackForTarget(&render.Paint{BlendMode: render.BlendMultiply, BlendSpace: render.BlendSpaceLinear}, false)
 	if got := rc.shared.linearFixedFunctionFallbacks.Load(); got != 0 {
 		t.Fatalf("advanced+linear must not count (dual-tex path), got %d", got)
 	}
 
-	rc.noteLinearFixedFunctionFallback(&render.Paint{BlendMode: render.BlendPlus, BlendSpace: render.BlendSpaceLinear})
+	rc.noteLinearFixedFunctionFallbackForTarget(&render.Paint{BlendMode: render.BlendPlus, BlendSpace: render.BlendSpaceLinear}, false)
 	if got := rc.shared.linearFixedFunctionFallbacks.Load(); got != 1 {
 		t.Fatalf("fixed-function+linear counted %d, want 1", got)
 	}
 
-	rc.noteLinearFixedFunctionFallback(&render.Paint{BlendMode: render.BlendPlus})
+	rc.noteLinearFixedFunctionFallbackForTarget(&render.Paint{BlendMode: render.BlendPlus}, false)
 	if got := rc.shared.linearFixedFunctionFallbacks.Load(); got != 1 {
 		t.Fatalf("sRGB-space paint counted, total %d, want still 1", got)
 	}
 
-	rc.noteLinearFixedFunctionFallback(nil)
+	rc.noteLinearFixedFunctionFallbackForTarget(nil, false)
 	if got := rc.shared.linearFixedFunctionFallbacks.Load(); got != 1 {
 		t.Fatalf("nil paint counted, total %d, want still 1", got)
 	}

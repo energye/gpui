@@ -120,5 +120,5 @@ fn fs_main(in: CoverVertexOutput) -> @location(0) vec4<f32> {
     let fy = floor(sy);
     let uv = (vec2<f32>(fx, fy) + vec2<f32>(0.5, 0.5)) / max(u.pat_size, vec2<f32>(1.0, 1.0));
     let color = textureSampleLevel(pat_tex, pat_samp, uv, 0.0);
-    return color * u.opacity * final_cov;
+    return encode_out(color * u.opacity * final_cov);
 }

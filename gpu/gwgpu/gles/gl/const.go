@@ -148,6 +148,7 @@ const (
 	RGBA8             = 0x8058
 	SRGB8             = 0x8C41
 	SRGB8_ALPHA8      = 0x8C43
+	FRAMEBUFFER_SRGB  = 0x8DB9
 	RGB16F            = 0x881B
 	RGBA16F           = 0x881A
 	RGB32F            = 0x8815

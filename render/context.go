@@ -265,4 +265,10 @@ type RenderPathStats struct {
 	// 等; the draw still falls to the CPU skip per the P3.2 contract, this
 	// counter just makes the failure observable.
 	ShaderBackendFails int
+	// LinearFixedFunctionFallbacks counts, process-wide, paints that requested
+	// BlendSpaceLinear on a fixed-function mode whose target can only blend in
+	// the encoded domain. Opt-in sRGB targets blend in linear light on the
+	// hardware and do not count (P3.1b). Read it as a delta around a frame to
+	// attribute the count to that frame.
+	LinearFixedFunctionFallbacks int64
 }

@@ -88,7 +88,7 @@ fn lcd_composite_white_dest(uv: vec2<f32>, frag_pos: vec2<f32>) -> vec4<f32> {
     let color = uniforms.color;
     let out_rgb = color.rgb * cov + (vec3<f32>(1.0, 1.0, 1.0) - cov);
     let a_max = max(cov.r, max(cov.g, cov.b));
-    return vec4<f32>(out_rgb, max(a_max, max(out_rgb.r, max(out_rgb.g, out_rgb.b))));
+    return encode_out(vec4<f32>(out_rgb, max(a_max, max(out_rgb.r, max(out_rgb.g, out_rgb.b)))));
 }
 
 // Pass 1: emit coverage as src color for blend dst * (1 - src)
@@ -97,7 +97,7 @@ fn lcd_composite_white_dest(uv: vec2<f32>, frag_pos: vec2<f32>) -> vec4<f32> {
 fn fs_darken(in: VertexOutput) -> @location(0) vec4<f32> {
     let cov = lcd_cov(in.tex_coord, in.position.xy);
     let a = max(cov.r, max(cov.g, cov.b));
-    return vec4<f32>(cov, a);
+    return encode_out(vec4<f32>(cov, a));
 }
 
 // Pass 2: emit color*cov for additive blend
@@ -107,16 +107,16 @@ fn fs_add(in: VertexOutput) -> @location(0) vec4<f32> {
     let cov = lcd_cov(in.tex_coord, in.position.xy);
     let color = uniforms.color;
     let a = max(cov.r, max(cov.g, cov.b));
-    return vec4<f32>(color.rgb * cov, a);
+    return encode_out(vec4<f32>(color.rgb * cov, a));
 }
 
 // Optional single-pass white-dest (Replace). Not used when two-pass is active.
 @fragment
 fn fs_lcd(in: VertexOutput) -> @location(0) vec4<f32> {
-    return lcd_composite_white_dest(in.tex_coord, in.position.xy);
+    return encode_out(lcd_composite_white_dest(in.tex_coord, in.position.xy));
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return lcd_composite_white_dest(in.tex_coord, in.position.xy);
+    return encode_out(lcd_composite_white_dest(in.tex_coord, in.position.xy));
 }

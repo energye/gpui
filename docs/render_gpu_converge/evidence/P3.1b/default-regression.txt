@@ -1,0 +1,8 @@
+=== ui_render_base_miscdraw native ===
+ui_render_base_miscdraw: OK presents=297 logic=14/14 pixel=17/17 golden=0.0000% screen=false resize=0 1200x800 mode=gate elapsed=5.8s
+=== ui_render_base_miscdraw go ===
+ui_render_base_miscdraw: OK presents=290 logic=14/14 pixel=17/17 golden=0.0000% screen=false resize=0 1200x800 mode=gate elapsed=5.8s
+=== ui_render_base_webp native ===
+ui_render_base_webp: OK presents=291 logic=19/19 pixel=24/24 golden=0.0000% screen=false resize=0 1200x800 mode=gate elapsed=5.3s
+=== ui_render_base_webp go ===
+ui_render_base_webp: OK presents=288 logic=19/19 pixel=24/24 golden=0.0000% screen=false resize=0 1200x800 mode=gate elapsed=5.4s

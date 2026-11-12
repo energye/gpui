@@ -198,7 +198,7 @@ func (p *GlyphMaskPipeline) ensureSharedResources() error {
 	if p.shader == nil {
 		shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 			Label: "glyph_mask_shader",
-			WGSL:  glyphMaskShaderSource,
+			WGSL:  shaderSourceForTarget(glyphMaskShaderSource, isSRGBFormat(colorFormatOr(p.colorFormat))),
 		})
 		if err != nil {
 			return fmt.Errorf("compile glyph_mask shader: %w", err)
@@ -382,7 +382,7 @@ func (p *GlyphMaskPipeline) ensureColorPipelineWithStencil() error {
 	}
 	shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "glyph_color_shader",
-		WGSL:  glyphColorShaderSource,
+		WGSL:  shaderSourceForTarget(glyphColorShaderSource, isSRGBFormat(colorFormatOr(p.colorFormat))),
 	})
 	if err != nil {
 		return fmt.Errorf("compile glyph_color shader: %w", err)
@@ -560,7 +560,7 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 
 	lcdShader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "glyph_mask_lcd_shader",
-		WGSL:  glyphMaskLCDShaderSource,
+		WGSL:  shaderSourceForTarget(glyphMaskLCDShaderSource, isSRGBFormat(colorFormatOr(p.colorFormat))),
 	})
 	if err != nil {
 		return fmt.Errorf("compile glyph_mask_lcd shader: %w", err)

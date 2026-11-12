@@ -1,0 +1,11 @@
+[4] 摘掉合成源 sRGB 标记（SourceSRGB 恒 false）
+=== RUN   TestP31bCompositeSourceColorSpace
+    p31b_composite_test.go:102: P3.1b composite src=unorm dst=unorm center=[102 51 25 255]
+    p31b_composite_test.go:102: P3.1b composite src=unorm dst=srgb center=[102 51 25 255]
+    p31b_composite_test.go:99: src=srgb dst=unorm center=[34 8 3 255], want [102 51 26]±3
+--- FAIL: TestP31bCompositeSourceColorSpace (0.52s)
+FAIL
+FAIL	github.com/energye/gpui/render	0.563s
+FAIL
+
+还原后：p31b-2b-tests.txt 全 PASS；p31b-2b-window.txt 双后端 0.0000%/7 像素；p31b-2b-default-windows.txt 双后端 0.0000%。

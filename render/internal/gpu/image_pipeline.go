@@ -393,7 +393,7 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 	if p.bicubicShader == nil {
 		shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 			Label: "textured_quad_bicubic_shader",
-			WGSL:  texturedQuadBicubicShaderSource,
+			WGSL:  shaderSourceForTarget(texturedQuadBicubicShaderSource, isSRGBFormat(colorFormatOr(p.colorFormat))),
 		})
 		if err != nil {
 			return fmt.Errorf("compile textured quad bicubic shader: %w", err)
@@ -481,7 +481,7 @@ func (p *TexturedQuadPipeline) ensurePerspectivePipelines() error {
 	if p.perspShader == nil {
 		shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 			Label: "textured_quad_persp_shader",
-			WGSL:  texturedQuadPerspShaderSource,
+			WGSL:  shaderSourceForTarget(texturedQuadPerspShaderSource, isSRGBFormat(colorFormatOr(p.colorFormat))),
 		})
 		if err != nil {
 			return fmt.Errorf("compile textured quad persp shader: %w", err)
@@ -890,7 +890,7 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 	// Shader module.
 	shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "textured_quad_shader",
-		WGSL:  texturedQuadShaderSource,
+		WGSL:  shaderSourceForTarget(texturedQuadShaderSource, isSRGBFormat(colorFormatOr(p.colorFormat))),
 	})
 	if err != nil {
 		return fmt.Errorf("compile textured_quad shader: %w", err)
@@ -1366,6 +1366,9 @@ func canMergeGPUTextureDraw(a, b *GPUTextureDrawCommand) bool {
 	if a.BlendMode != b.BlendMode {
 		return false
 	}
+	if a.SourceSRGB != b.SourceSRGB {
+		return false
+	}
 	if a.ViewportWidth != b.ViewportWidth || a.ViewportHeight != b.ViewportHeight {
 		return false
 	}
@@ -1542,6 +1545,14 @@ func makeImageUniformInto(buf []byte, viewportW, viewportH uint32, opacity float
 // dst must have length >= imageUniformSize. Bytes beyond the 80-byte payload
 // are left untouched (important for 256-byte slab slots).
 func putImageUniform(dst []byte, viewportW, viewportH uint32, opacity float32) {
+	putImageUniformSrc(dst, viewportW, viewportH, opacity, false)
+}
+
+// putImageUniformSrc is putImageUniform plus the source color-space flag:
+// srcLinear=true tells the shader that textureSample already returned linear
+// light (the source is an sRGB-format texture), so it must not decode again.
+// The flag rides opacity_pad.y (0 = historically sRGB-encoded source).
+func putImageUniformSrc(dst []byte, viewportW, viewportH uint32, opacity float32, srcLinear bool) {
 	if len(dst) < int(imageUniformSize) {
 		panic("putImageUniform: dst too small")
 	}
@@ -1558,6 +1569,9 @@ func putImageUniform(dst []byte, viewportW, viewportH uint32, opacity float32) {
 	binary.LittleEndian.PutUint32(dst[52:], math.Float32bits(1.0))
 	binary.LittleEndian.PutUint32(dst[60:], math.Float32bits(1.0))
 	binary.LittleEndian.PutUint32(dst[64:], math.Float32bits(opacity))
+	if srcLinear {
+		binary.LittleEndian.PutUint32(dst[68:], math.Float32bits(1.0))
+	}
 }
 
 // SamplerFor returns the sampler for the command filter mode (I.03).

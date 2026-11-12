@@ -132,5 +132,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // edge taps mirror the CPU path (internal/image bicubicInterp) and Skia
     // (direct weighted sum, no renormalization).
     let color = acc;
-    return color * opacity * in.tint;
+    // opacity_pad.y = 1 when the source texture is an sRGB format (already
+    // linear light), matching the affine textured-quad path.
+    let src_linear = uniforms.opacity_pad.y > 0.5;
+    return encode_src(color * opacity * in.tint, src_linear);
 }

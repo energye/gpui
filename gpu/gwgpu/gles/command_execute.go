@@ -84,6 +84,25 @@ func (c *BindFramebufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 	}
 }
 
+// SetFramebufferSRGBCommand toggles GL_FRAMEBUFFER_SRGB. Render passes that
+// write to an sRGB (SRGB8_ALPHA8 / sRGB swapchain) attachment must enable it so
+// fragment outputs and fixed-function blending happen in linear light and are
+// encoded on write; passes to Unorm/float attachments disable it.
+type SetFramebufferSRGBCommand struct {
+	enabled bool
+}
+
+func (c *SetFramebufferSRGBCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if !st.setFramebufferSRGB(c.enabled) {
+		return
+	}
+	if c.enabled {
+		ctx.Enable(gl.FRAMEBUFFER_SRGB)
+	} else {
+		ctx.Disable(gl.FRAMEBUFFER_SRGB)
+	}
+}
+
 // BindSurfaceFramebufferCommand binds the Surface's swapchain offscreen
 // framebuffer. Reads surface.swapchainFBO at execute time so reconfigure
 // (e.g. window resize) between encode and submit is handled correctly.

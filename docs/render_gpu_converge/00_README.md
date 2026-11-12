@@ -62,8 +62,9 @@
 | P1.8 | 负向对照 | ✅ 2026-10-29 | `baseline/negative/`：三破坏全转红——偏移 1px（像素断言双后端红）、跳过一次绘制（红；gpu_ops 计数下限 1 抓不住单跳登记 P2）、少释放一次（K1 释放缺口真实现场 + 用例上界收紧 → 账本断言双后端红）；全部当场还原复绿、代码零残留；§8.2 阈值文件变异对成立（22→4 红 / 30→0 漏报 / 还原→4 报警）；机器校验 9 断言 ALL PASS。P1 基线冻结全部收口 |
 | P2.1–P2.6 | 框架代码调整与整合 + 行为零变化总验收 | ✅ 2026-11-01 | `evidence/P2.1/`–`P2.6/`：shader 合并、删旧原型、入口/预算/释放收敛、包组织、P2.6 基线重放（374 轮真窗、364 去重、嫌疑 0） |
 | P3.0–P3.9b | 缺失能力（色彩/shader/富文本/滤镜/几何/图片/2.5D/SVG/mesh/MSAA 基准） | ✅ 2026-11-09 | `evidence/P3.0/`–`P3.9b/`：每项三证据 + 双后端金图收口 |
+| P3.1b | opt-in 线性目标（默认 sRGB 不变；fixed-function 13 模式在 linear 目标硬件线性混合；sRGB↔linear 显式转换） | ✅ 2026-11-12 | `evidence/P3.1b/`：0/1/2a/2b/3/4 全链；公开 Context 141 vs Unorm 192；四组合 + premul；13 模式全表/渐变文本/advanced/CPU-only fail-closed；真窗 native/go 7/7、金图 0.0000%；四条负向红还原；跨平台/nogpu/vet/`-race` 过 |
 | P4.1–P4.4 | 半成品完整实现（正确性/模糊一致/性能/COLRv1） | ✅ 2026-11-10 | `evidence/P4.1/`–`P4.4/`：MSAA even-odd、分数裁剪、DrawShadow、模糊对齐、mask 池化、COLRv1 变量轴 |
-| §2.2 余项 | I5 / C7 / 22 窗金图漂移 / D2 / N1 / N3 | I5 ✅ 2026-11-12（金图 0.0000%）；C7 ✅；22 窗 ✅（21 窗重种 0.0000%）；D2 🟡 既有红；N1 ⬜ 可选；N3 🟡 首窗 snapshot 竞态 | `evidence/P2.6/golden-drift/`、`evidence/P2.4e/i5-v2/`、`evidence/P2.4e/c7-wayland-verify/` |
+| §2.2 余项 | I5 / C7 / 22 窗金图漂移 / D2 / N1 / N3 | I5 ✅ 2026-11-12（金图 0.0000%）；C7 ✅；22 窗 ✅（21 窗重种 0.0000%）；D2 🟡 既有红；N1 ⬜ 可选；N3 ✅ 2026-11-12（snapshot 竞态已修） | `evidence/P2.6/golden-drift/`、`evidence/P2.4e/i5-v2/`、`evidence/P2.4e/c7-wayland-verify/` |
 
 ## 先看哪个
 

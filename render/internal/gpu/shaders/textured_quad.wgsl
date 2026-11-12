@@ -100,5 +100,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // then multiply the straight tint (premultiplied on the CPU side so
     // texel*tint keeps premultiplied-alpha blending correct).
     let opacity = uniforms.opacity_pad.x * clip_cov;
-    return texel * opacity * in.tint;
+    // opacity_pad.y = 1 when the source texture is an sRGB format: the sample
+    // is already linear light and must not be decoded a second time.
+    let src_linear = uniforms.opacity_pad.y > 0.5;
+    return encode_src(texel * opacity * in.tint, src_linear);
 }

@@ -142,6 +142,12 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []i
 		return
 	}
 
+	// Present is a raw byte move to the window back buffer. GL_FRAMEBUFFER_SRGB
+	// may still be on from the last render pass; when the swapchain FBO is an
+	// sRGB attachment, leaving it on decodes the bytes during the blit and the
+	// window goes dark (P3.1b-0 blit probe). Disable it for the copy.
+	glCtx.Disable(gl.FRAMEBUFFER_SRGB)
+
 	glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, s.swapchainFBO)
 	glCtx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
 

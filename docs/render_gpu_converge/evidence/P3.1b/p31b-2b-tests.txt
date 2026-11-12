@@ -1,0 +1,78 @@
+=== P3.1b 能力单测（native webgpu + gles）2026-11-12 ===
+$ WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render/internal/gpu -run TestP31b -count=1 -v
+=== RUN   TestP31bColorSpaceGPUMatchesCPU
+--- PASS: TestP31bColorSpaceGPUMatchesCPU (0.26s)
+=== RUN   TestP31bColorSpaceConversions
+--- PASS: TestP31bColorSpaceConversions (0.00s)
+=== RUN   TestP31bColorSpaceWGSLSingleSource
+--- PASS: TestP31bColorSpaceWGSLSingleSource (0.00s)
+=== RUN   TestP31bOffscreenSrgbWhitelist
+--- PASS: TestP31bOffscreenSrgbWhitelist (0.00s)
+=== RUN   TestP31bOffscreenSrgbRenderable
+--- PASS: TestP31bOffscreenSrgbRenderable (0.20s)
+=== RUN   TestP31bOffscreenSrgbTargetAccounting
+--- PASS: TestP31bOffscreenSrgbTargetAccounting (0.24s)
+=== RUN   TestP31bAdvancedBlendSrgbTarget
+--- PASS: TestP31bAdvancedBlendSrgbTarget (0.47s)
+=== RUN   TestP31bLinearTargetFixedBlend
+    p31b_linear_target_test.go:96: P3.1b-2a sRGB target=[141 90 70 255] fallback=0; Unorm target=[192 128 90 255] fallback=1
+--- PASS: TestP31bLinearTargetFixedBlend (0.20s)
+=== RUN   TestP31bPublicFlowLinearTelemetry
+--- PASS: TestP31bPublicFlowLinearTelemetry (0.16s)
+=== RUN   TestP31bLinearTargetAllFixedBlendModes
+--- PASS: TestP31bLinearTargetAllFixedBlendModes (0.41s)
+=== RUN   TestP31bSrgbTargetProbe
+    srgb_target_probe_test.go:210: P3.1b-0 sRGB target blend bytes=[188 165 149 191]; Unorm target blend bytes=[127 95 76 191]
+--- PASS: TestP31bSrgbTargetProbe (0.12s)
+PASS
+ok  	github.com/energye/gpui/render/internal/gpu	2.126s
+
+$ DISPLAY=:0 WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./render -run TestP31b -count=1 -v
+=== RUN   TestP31bCompositeSourceColorSpace
+    p31b_composite_test.go:102: P3.1b composite src=unorm dst=unorm center=[102 51 25 255]
+    p31b_composite_test.go:102: P3.1b composite src=unorm dst=srgb center=[102 51 25 255]
+    p31b_composite_test.go:102: P3.1b composite src=srgb dst=unorm center=[102 51 26 255]
+    p31b_composite_test.go:102: P3.1b composite src=srgb dst=srgb center=[102 51 26 255]
+--- PASS: TestP31bCompositeSourceColorSpace (0.53s)
+=== RUN   TestP31bSemiTransparentSrgbTarget
+--- PASS: TestP31bSemiTransparentSrgbTarget (0.07s)
+=== RUN   TestP31bContextSrgbOffscreenGL
+J5TRACE Open device=0xc00040e000 ctx=0xc000398040
+    p31b_context_srgb_linux_test.go:25: P3.1b context leg format=RGBA8UnormSrgb plus=false lfBefore=0 stats={GPUOps:1 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:0}
+    p31b_context_srgb_linux_test.go:31: P3.1b context leg format=RGBA8UnormSrgb plus=true lfBefore=0 stats={GPUOps:2 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:0}
+    p31b_context_srgb_linux_test.go:40: P3.1b context leg format=RGBA8Unorm plus=true lfBefore=0 stats={GPUOps:2 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:1}
+--- PASS: TestP31bContextSrgbOffscreenGL (0.38s)
+=== RUN   TestP31bContextSrgbOffscreen
+    p31b_context_srgb_test.go:29: P3.1b context leg format=RGBA8UnormSrgb plus=false lfBefore=0 stats={GPUOps:1 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:0}
+    p31b_context_srgb_test.go:36: P3.1b context leg format=RGBA8UnormSrgb plus=true lfBefore=0 stats={GPUOps:2 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:0}
+    p31b_context_srgb_test.go:50: P3.1b context leg format=RGBA8Unorm plus=true lfBefore=0 stats={GPUOps:2 CPUFallbackOps:0 LastCPUFallbackReason: FrameFlushes:1 BrushBootstrapOps:0 LastBrushBootstrapReason: StagedWriteOverlaps:0 MaterialSkips:0 ShaderBackendFails:0 LinearFixedFunctionFallbacks:1}
+--- PASS: TestP31bContextSrgbOffscreen (0.20s)
+=== RUN   TestP31bContextSrgbCPUFallbackPolicy
+--- PASS: TestP31bContextSrgbCPUFallbackPolicy (0.00s)
+=== RUN   TestP31bSrgbTargetGradientText
+--- PASS: TestP31bSrgbTargetGradientText (0.04s)
+PASS
+ok  	github.com/energye/gpui/render	1.383s
+
+$ DISPLAY=:0 go test ./gpu/gwgpu/gles -run P31b -count=1 -v
+=== RUN   TestP31bSrgbBlitProbe
+    srgb_blit_probe_test.go:139: P3.1b-0 GLES blit base: sRGB FBO=[188 137 89 255] Unorm FBO=[127 64 25 255]
+    srgb_blit_probe_test.go:153: P3.1b-0 GLES blit sRGB→Unorm enabled=[128 64 26 255] disabled=[188 137 89 255]; Unorm→sRGB enabled=[187 137 88 255] disabled=[127 64 25 255]
+--- PASS: TestP31bSrgbBlitProbe (0.08s)
+=== RUN   TestP31bSrgbFBOProbe
+    srgb_fbo_probe_test.go:45: GL offscreen: 3.3.0 NVIDIA 580.178.04
+    srgb_fbo_probe_test.go:147: P3.1b-0 GLES sRGB FBO base=[188 137 89 255] blend=[188 165 149 191]; Unorm FBO base=[127 64 25 255] blend=[127 95 76 191]
+--- PASS: TestP31bSrgbFBOProbe (0.00s)
+PASS
+ok  	github.com/energye/gpui/gpu/gwgpu/gles	0.104s
+
+$ WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so go test ./gpu/webgpu -run P31b -count=1 -v
+=== RUN   TestP31bSrgbSwapchainFormatProbe
+    srgb_swapchain_probe_test.go:51: P3.1b-0 X11 surface formats: [BGRA8UnormSrgb BGRA8Unorm]
+    srgb_swapchain_probe_test.go:109: P3.1b-0 sRGB swapchain format BGRA8UnormSrgb configure/clear/present OK
+--- PASS: TestP31bSrgbSwapchainFormatProbe (0.29s)
+PASS
+ok  	github.com/energye/gpui/gpu/webgpu	0.305s
+
+注：`go test ./gpu/gwgpu/gles -count=1` 整包也 PASS；`go test ./render/internal/gpu -count=1` 整包 PASS。
+`go test ./render -count=1` 整包仅余 K6 已登记的全局污染/计时门（R72/Rasterizer/S3c 单文件单跑均 PASS；S69 单跑计时门波动），不属 P3.1b 回归。
