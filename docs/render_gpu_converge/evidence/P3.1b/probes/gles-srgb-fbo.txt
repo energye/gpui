@@ -1,0 +1,6 @@
+=== RUN   TestP31bSrgbFBOProbe
+    srgb_fbo_probe_test.go:43: GL offscreen: 3.3.0 NVIDIA 580.178.04
+    srgb_fbo_probe_test.go:145: P3.1b-0 GLES sRGB FBO base=[188 137 89 255] blend=[188 165 149 191]; Unorm FBO base=[127 64 25 255] blend=[127 95 76 191]
+--- PASS: TestP31bSrgbFBOProbe (0.12s)
+PASS
+ok  	github.com/energye/gpui/gpu/gwgpu/gles	0.134s

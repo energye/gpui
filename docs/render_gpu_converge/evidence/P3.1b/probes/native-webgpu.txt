@@ -1,0 +1,5 @@
+=== RUN   TestP31bSrgbTargetProbe
+    srgb_target_probe_test.go:210: P3.1b-0 sRGB target blend bytes=[188 165 149 191]; Unorm target blend bytes=[127 95 76 191]
+--- PASS: TestP31bSrgbTargetProbe (0.29s)
+PASS
+ok  	github.com/energye/gpui/render/internal/gpu	0.301s
