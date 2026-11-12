@@ -544,10 +544,11 @@ func TestEvaluatePoolGates(t *testing.T) {
 	}
 }
 
-// C5 (evidence/P2.6/c5-rss-slope-gate-assessment.md): the shared gate set owns
-// the RSS steady-slope leak verdict. Default 30000 KB/min, but only a >=60s
-// verdict window may judge — a 30-35s window still carries warmup cache growth
-// (10 historical PASS records: 9/10 did not reproduce at 35s).
+// C5/O3 (evidence/P2.6/o1-rss-plateau/o3-criterion/analysis.md): the shared
+// gate set owns the RSS steady-slope leak verdict. Default 30000 KB/min, and
+// only a >=120s verdict window (60s warmup + 60s measured) may judge. A 60s
+// run cannot separate the Go heap startup ramp from a slow leak, so it stays
+// inconclusive — explicitly not green.
 func TestEvaluateGates_RSSSteadySlope(t *testing.T) {
 	mk := func(valid bool, elapsed, steady float64) wrgate.Report {
 		snap := scheduler.FrameMetrics{
@@ -570,25 +571,33 @@ func TestEvaluateGates_RSSSteadySlope(t *testing.T) {
 	}
 	opt := wrgate.GateOptions{MinPresents: 1}
 
-	// 1) Default gate is ON: 60s + valid + over line must fail.
-	if err := wrgate.EvaluateGates(mk(true, 60.5, 35161), opt); err == nil || !strings.Contains(err.Error(), "rss_slope_steady_kb_per_min") {
+	// 1) Default gate is ON: 120s + valid + over line must fail.
+	if err := wrgate.EvaluateGates(mk(true, 120.5, 35161), opt); err == nil || !strings.Contains(err.Error(), "rss_slope_steady_kb_per_min") {
 		t.Fatalf("want RSS leak FAIL, got %v", err)
 	}
-	// 2) Same over-line slope on a 35s window: observation only, no verdict.
-	if err := wrgate.EvaluateGates(mk(true, 35.0, 90000), opt); err != nil {
-		t.Fatalf("35s warmup must not be judged, got %v", err)
+	// 2) Same over-line slope on a 60s window: screening only, no verdict.
+	r60 := mk(true, 60.5, 90000)
+	if err := wrgate.EvaluateGates(r60, opt); err != nil {
+		t.Fatalf("60s run must not be judged, got %v", err)
+	}
+	if r60.RSSVerdict != "inconclusive" {
+		t.Fatalf("60s rss_verdict=%q want inconclusive", r60.RSSVerdict)
 	}
 	// 3) valid=false: cannot conclude, never a verdict.
-	if err := wrgate.EvaluateGates(mk(false, 60.5, 90000), opt); err != nil {
+	if err := wrgate.EvaluateGates(mk(false, 120.5, 90000), opt); err != nil {
 		t.Fatalf("invalid slope must not be judged, got %v", err)
 	}
-	// 4) Under the line at 60s stays green (m4_virtual 60s measured 28586.8).
-	if err := wrgate.EvaluateGates(mk(true, 60.5, 28586.8), opt); err != nil {
-		t.Fatalf("under-line 60s run must pass, got %v", err)
+	// 4) Under the line at 120s stays green and reports pass.
+	rOK := mk(true, 120.5, 28586.8)
+	if err := wrgate.EvaluateGates(rOK, opt); err != nil {
+		t.Fatalf("under-line 120s run must pass, got %v", err)
+	}
+	if rOK.RSSVerdict != "pass" {
+		t.Fatalf("120s under-line rss_verdict=%q want pass", rOK.RSSVerdict)
 	}
 	// 5) Explicit thresholds are honored (not hardcoded).
-	if err := wrgate.EvaluateGates(mk(true, 60.5, 100), wrgate.GateOptions{
-		MinPresents: 1, MaxRSSSlopeSteadyKBPerMin: 50, MinRSSVerdictSec: 30,
+	if err := wrgate.EvaluateGates(mk(true, 120.5, 100), wrgate.GateOptions{
+		MinPresents: 1, MaxRSSSlopeSteadyKBPerMin: 50, MinRSSVerdictSec: 120,
 	}); err == nil || !strings.Contains(err.Error(), "rss_slope_steady_kb_per_min") {
 		t.Fatalf("want explicit-threshold FAIL, got %v", err)
 	}

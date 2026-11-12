@@ -1,0 +1,4 @@
+ui_l1_spinner: running 60s (RUN_SECONDS); close window to exit safely
+ui_l1_spinner: backend=wayland presents=3592 ~59.6 fps over 60.3s (cap 60s) layout_flushes=1 raster_layers=2
+ui_l1_spinner: avg=16.71ms max=39.32ms p50=16.73 p99=18.22 hitches=1 vsync=true
+ui_l1_spinner: rss start=12560 end=216340 peak=216340 after_close=216308 KB cpu_avg=21.0%

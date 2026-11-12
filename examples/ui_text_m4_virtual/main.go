@@ -4,6 +4,9 @@
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	RUN_SECONDS=30 go run ./examples/ui_text_m4_virtual
 //
+// RSS verdict requires RUN_SECONDS>=120 (60s warmup + 60s measured, O3);
+// shorter runs are screening only (rss_verdict=inconclusive).
+//
 // Window: 1200x800. Headless probes: GPUI_M4_SELFTEST=1 (no GPU window).
 //
 // 行内容来自 testdata/log_sample.txt（40 条代表性日志），窗内按序循环复用

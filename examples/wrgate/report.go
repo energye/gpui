@@ -62,13 +62,16 @@ type Report struct {
 	// report the raw startup-inclusive slope above and false here.
 	RSSSlopeSteadyKBPerMin float64 `json:"rss_slope_steady_kb_per_min,omitempty"`
 	RSSSlopeValid          bool    `json:"rss_slope_valid"`
-	RSSWarmupSec           float64 `json:"rss_warmup_sec,omitempty"`
-	RSSAfterCloseKB        int64   `json:"rss_after_close_kb,omitempty"`
-	RSSUnavailable         bool    `json:"rss_unavailable,omitempty"`
-	GPUOps                 int64   `json:"gpu_ops"`
-	CPUFallbackOps         int64   `json:"cpu_fallback_ops"`
-	FrameFlushes           int64   `json:"frame_flushes,omitempty"`
-	LastCPUFallback        string  `json:"last_cpu_fallback"`
+	// RSSVerdict is the three-state leak verdict: pass / fail / inconclusive.
+	// Inconclusive (60s runs, invalid slope) is explicitly NOT green.
+	RSSVerdict      string  `json:"rss_verdict,omitempty"`
+	RSSWarmupSec    float64 `json:"rss_warmup_sec,omitempty"`
+	RSSAfterCloseKB int64   `json:"rss_after_close_kb,omitempty"`
+	RSSUnavailable  bool    `json:"rss_unavailable,omitempty"`
+	GPUOps          int64   `json:"gpu_ops"`
+	CPUFallbackOps  int64   `json:"cpu_fallback_ops"`
+	FrameFlushes    int64   `json:"frame_flushes,omitempty"`
+	LastCPUFallback string  `json:"last_cpu_fallback"`
 	// Multiwindow 1.3: actual adapter category + open-time downgrade count.
 	GPUBackend   string `json:"gpu_backend"`
 	GPUFallbacks int    `json:"gpu_fallbacks"`
@@ -262,6 +265,7 @@ func BuildReport(in BuildInput) Report {
 	if r.RSSStartKB == 0 && r.RSSEndKB == 0 && r.RSSPeakKB == 0 {
 		r.RSSUnavailable = true
 	}
+	r.RSSVerdict = rssVerdictName(r, DefaultMaxRSSSlopeSteadyKBPerMin, DefaultMinRSSVerdictSec)
 	if r.CPUPctAvg == 0 && r.CPUUIPct == 0 && r.CPURasterPct == 0 && in.Snap.LastBuildMs == 0 && in.Snap.LastRasterMs == 0 {
 		// May still be legitimate zeros; mark unavailable only when no process sample path.
 		// Leave cpu_unavailable false if path proxies exist from notes.
@@ -498,14 +502,29 @@ func numExtra(extra map[string]any, key string) (int64, bool) {
 // recommended 60s"). Both are overridable via GateOptions.
 const (
 	DefaultMaxRSSSlopeSteadyKBPerMin = 30000.0
-	DefaultMinRSSVerdictSec          = 60.0
+	// O3: verdict = 60s warmup + 60s measured. A 60s run cannot separate the
+	// Go heap startup ramp from a slow leak (m4 55s 34MB/min vs 300s 1.6MB/min),
+	// so shorter runs are screening only and report inconclusive.
+	DefaultMinRSSVerdictSec = 120.0
 )
+
+// rssVerdictName is the single three-state RSS verdict: pass / fail /
+// inconclusive. A short or invalid run is inconclusive, never a pass.
+func rssVerdictName(r Report, maxSlope, minVerdict float64) string {
+	if !r.RSSSlopeValid || r.ElapsedSec < minVerdict {
+		return "inconclusive"
+	}
+	if r.RSSSlopeSteadyKBPerMin > maxSlope {
+		return "fail"
+	}
+	return "pass"
+}
 
 // rssSlopeVerdict is the single RSS leak verdict used by EvaluateGates and by
 // legacy windows that build a Report but do not run the full gate set. A short
 // or invalid run cannot be judged (warmup cache growth, not a leak).
 func rssSlopeVerdict(r Report, maxSlope, minVerdict float64) error {
-	if r.RSSSlopeValid && r.ElapsedSec >= minVerdict && r.RSSSlopeSteadyKBPerMin > maxSlope {
+	if rssVerdictName(r, maxSlope, minVerdict) == "fail" {
 		return fmt.Errorf("FAIL: rss_slope_steady_kb_per_min=%.1f > %.0f (verdict window %.1fs >= %.0fs)",
 			r.RSSSlopeSteadyKBPerMin, maxSlope, r.ElapsedSec, minVerdict)
 	}
@@ -514,8 +533,9 @@ func rssSlopeVerdict(r Report, maxSlope, minVerdict float64) error {
 
 // CheckRSSSlopeSteady applies the default RSS verdict to a Report. Exported for
 // legacy windows (r17/m4_virtual/c5/r6/r10) that build a Report but do not call
-// EvaluateGates; l1_spinner is deliberately excluded — it is covered by a
-// separate 2h soak item (evidence/P2.6/c5-rss-slope-gate-assessment.md §5).
+// EvaluateGates. l1_spinner is a raw metrics window (no wrgate Report); its
+// 120s verdict is checked from the JSON fields in
+// evidence/P2.6/o1-rss-plateau/o3-criterion/analysis.md.
 func CheckRSSSlopeSteady(r Report) error {
 	return rssSlopeVerdict(r, DefaultMaxRSSSlopeSteadyKBPerMin, DefaultMinRSSVerdictSec)
 }

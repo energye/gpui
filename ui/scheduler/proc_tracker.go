@@ -41,11 +41,13 @@ const rssSampleGapSec = 0.5
 
 // Steady-state leak verdict requires a warmup long enough to clear the
 // one-time startup ramp (device creation, font/image caches, Go heap growth).
-// A 5s window's 25% cut is only 1.25s, which still reports the ramp as a leak;
-// 15s warmup + 15s post-warmup span makes the smallest honest verdict a 30s run.
+// Measured ramp on this tree lasts ~60s (m4_virtual: 55s steady 34MB/min,
+// 300s 1.6MB/min), so a 60s run cannot separate ramp from a slow leak (O3).
+// The verdict is 60s warmup + 60s measured = a 120s run; shorter runs report
+// valid=false (INCONCLUSIVE), never a PASS/FAIL.
 const (
-	rssSteadyMinWarmupSec = 15.0
-	rssSteadyMinSpanSec   = 15.0
+	rssSteadyMinWarmupSec = 60.0
+	rssSteadyMinSpanSec   = 60.0
 )
 
 // Start records baseline RSS and wall clock (and CPU jiffies when available).
@@ -149,12 +151,13 @@ func (t *ProcessTracker) RSSSlopeKBPerMin() float64 {
 }
 
 // RSSSlopeSteadyKBPerMin returns the least-squares RSS trend over samples after
-// max(elapsed/4, 15s), plus the warmup actually used and whether the result is
-// valid as a leak verdict (M-RSS-SLOPE-STEADY). Valid requires at least 15s of
-// post-warmup samples, so the smallest honest verdict is a 30s run; a 5s/15s
-// window returns valid=false and callers must not treat it as a leak. warmupSec
-// is still returned when invalid so the JSON can explain why. Zero/false when
-// not started, no wall span, stub /proc, or fewer than 2 points.
+// max(elapsed/4, 60s), plus the warmup actually used and whether the result is
+// valid as a leak verdict (M-RSS-SLOPE-STEADY). Valid requires at least 60s of
+// post-warmup samples, so the smallest honest verdict is a 120s run; 60s runs
+// (and shorter) return valid=false (INCONCLUSIVE) and callers must neither fail
+// nor pass them. warmupSec is still returned when invalid so the JSON can
+// explain why. Zero/false when not started, no wall span, stub /proc, or fewer
+// than 2 points.
 func (t *ProcessTracker) RSSSlopeSteadyKBPerMin() (slopeKBPerMin, warmupSec float64, valid bool) {
 	if t == nil || !t.started || t.ElapsedSec <= 1e-9 {
 		return 0, 0, false

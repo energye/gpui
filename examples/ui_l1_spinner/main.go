@@ -4,7 +4,9 @@
 //	go run ./examples/ui_l1_spinner
 //
 // Auto window backend: Wayland or X11 (ui/platform.Open; force via platform.Options.Backend).
-// Duration: default 60s; override with RUN_SECONDS.
+// Duration: default 60s; override with RUN_SECONDS. The RSS leak verdict
+// requires RUN_SECONDS>=120 (60s warmup + 60s measured, O3); shorter runs
+// are screening only (rss_verdict=inconclusive).
 // P0 closeout: RSS/CPU process samples in JSON (rss_*_kb, cpu_pct_avg).
 package main
 

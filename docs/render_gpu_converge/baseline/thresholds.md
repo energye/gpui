@@ -119,7 +119,7 @@
 | 指标 | 硬门禁 | 说明 | 来源 |
 |---|---|---|---|
 | `rss_start_kb` / `rss_end_kb` / `rss_peak_kb` | 必采 | Linux 缺失 → FAIL | `docs/ENGINE_UI_WIDGET_RENDER.md` §2.2.4（:160 附近） |
-| `rss_slope_steady_kb_per_min` | `> 30000 KB/min` → FAIL | **只在 `rss_slope_valid=true`（≥30s，推荐 60s）时判**；默认建议值，场景可收紧 | 同上（:160） |
+| `rss_slope_steady_kb_per_min` | `> 30000 KB/min` → FAIL | **只在 `rss_slope_valid=true`（≥120s = 60s 预热 + 60s 测量）时判**；60s/更短轮只出 `rss_verdict=inconclusive`（筛查，不是绿）；默认建议值，场景可收紧 | 同上（:160）；O3 量测 `evidence/P2.6/o1-rss-plateau/o3-criterion/analysis.md` |
 | `rss_slope_kb_per_min` | 短窗必采，只观测 | `rss_slope_valid=false` = 不能下结论，**不是没漏**；禁止拿 5s/15s 斜率当泄漏结论 | 同上（:160） |
 | 回归带（相对基线） | RSS 斜率增量 `≤ 2000 KB/min` | **[治理值]** soak 友好带，非产品 SLO | `ui/scheduler/baseline.go` `DefaultBaselineTolerance()` |
 | `cpu_pct_avg`（短窗 <30s） | 只必采，尖峰记日志 | 不判红 | 同上 §2.2.3（:150） |
@@ -208,5 +208,6 @@ P0.2 的窗表每行必填 `金图路径 | 容差 | 依据`。本文件只给总
 |---|---|---|
 | 2026-10-28 | 首版：环境清单 + 首帧/滚动/p95/p99/显存/内存/CPU/金图/生命周期阈值；p99 定为观测 + 8ms 回归带；显存三条线（768 / 0.9 / 0.8）分列 | P0.1 任务定义；来源见各行 |
 | 2026-11-11 | C6：§3 A 族适用域补「不适用容量阶梯窗（ui_base_batch_cap）」——报告百分位为末 256 采样环（`ui/scheduler/metrics.go:24`）且 gate 收尾冻结在超载档 vector-600，22ms 硬线对其量到的是天花板数据非缺陷；该窗判定=窗内逐级健康线与地板门。P1.4/P1.6/P1.7 三轮 p95 FAIL 行由本行勘误解释，冻结数据不改 | `evidence/P2.6/c6-batch-cap-p95-scope-assessment.md`（用户拍板方向 A，2026-11-11） |
+| 2026-11-12 | O3：§5 RSS 正式判据由「≥30s，推荐 60s」改为 **≥120s（60s 预热 + 60s 测量）**；60s/更短轮 `rss_slope_valid=false` 且 `rss_verdict=inconclusive`（筛查，不冒充 PASS/FAIL）。线 30000 不动。依据：60s 内爬坡与慢泄漏不可分（真泄漏 43.9/活堆 12.4 vs 爬坡 38.0/13.6MB/min），60–120s 可分（修前 l1 32 / m4 26 / 修后 l1 2） | `evidence/P2.6/o1-rss-plateau/o3-criterion/analysis.md`（用户拍板 A，2026-11-12） |
 
 **待用户确认点（不阻塞执行）**：p99 回归带 8ms 与「RSS 回归带 2000 KB/min」均为治理值，如认为应更严，改 §3/§5 数值并记入本表即可，不影响其他条目。

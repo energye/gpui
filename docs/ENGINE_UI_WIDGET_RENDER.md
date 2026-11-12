@@ -157,7 +157,7 @@ fps_interval = 1000 / interval_avg_ms        // 稳态帧率，门禁优先
 | 指标 | **硬 FAIL 默认** |
 |------|------------------|
 | `rss_start_kb` / `rss_end_kb` / `rss_peak_kb` | **必采**（Linux）；缺失 → FAIL |
-| `rss_slope_kb_per_min` / `rss_slope_steady_kb_per_min` / `rss_slope_valid` | **判漏只认 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`**（≥30s，推荐 60s）：slope **&gt; 预算** → FAIL（默认建议 **&gt;30000 KB/min** 极端爬升，场景可收紧到更低）。短功能窗必采原始 `rss_slope_kb_per_min`，`rss_slope_valid=false` = **不能下结论**，不是没漏；`rss_warmup_sec` 一并输出。禁止把 5s/15s 原始斜率当泄漏结论 |
+| `rss_slope_kb_per_min` / `rss_slope_steady_kb_per_min` / `rss_slope_valid` / `rss_verdict` | **判漏只认 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`**（≥120s = 60s 预热 + 60s 测量；2026-11-12 O3）：slope **&gt; 预算** → FAIL（默认建议 **&gt;30000 KB/min** 极端爬升，场景可收紧到更低）。60s/更短轮必采原始 `rss_slope_kb_per_min`，`rss_slope_valid=false` + `rss_verdict=inconclusive` = **只筛查，不是绿、也不是红**；`rss_warmup_sec` 一并输出。禁止把 5s/15s 原始斜率当泄漏结论 |
 | `rss_after_close_kb` | 能采则采；关闭后相对 peak **无故不降** 记 WARN，soak 可升 FAIL |
 
 #### 2.2.5 每个真窗 JSON 最小外壳（实现模板）

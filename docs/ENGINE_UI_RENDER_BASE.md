@@ -571,7 +571,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | M-RSS-END | 结束 VmRSS | — | ProcessTracker | KB | **A** | — |
 | M-RSS-PEAK | 峰值 RSS | — | ProcessTracker | KB | **A** | 有解释 |
 | M-RSS-SLOPE | 原始斜率 KB/min | 趋势 | **rss_slope_kb_per_min** · ProcessTracker.Apply | KB/min | **A** | 短跑含启动爬坡，不作泄漏结论；非 Linux stub=0 |
-| M-RSS-SLOPE-STEADY | 稳态斜率 KB/min | 泄漏 | **rss_slope_steady_kb_per_min** · ProcessTracker.RSSSlopeSteadyKBPerMin | KB/min | **A** | 预热 max(25%,15s)，≥30s 才有效；60s soak ≈0 |
+| M-RSS-SLOPE-STEADY | 稳态斜率 KB/min | 泄漏 | **rss_slope_steady_kb_per_min** · ProcessTracker.RSSSlopeSteadyKBPerMin | KB/min | **A** | 预热 max(25%,60s)，≥120s 才有效（60s 预热+60s 测量，2026-11-12 O3）；60s 轮 inconclusive |
 | M-RSS-WARMUP | 稳态预热秒数 | 口径 | **rss_warmup_sec** · SetRSSSlopeSteady | s | **A** | 短跑也报，解释 valid=false |
 | M-RSS-VALID | 稳态斜率是否可判漏 | 诚实 | **rss_slope_valid** · SetRSSSlopeSteady | bool | **A** | false=跑太短/无 RSS，不能判漏 |
 | M-RSS-AFTER-CLOSE | 关闭后 RSS | 释放 | ProcessTracker | KB | **A** 观察 | 可解释下降 |
@@ -580,7 +580,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | M-GOROUTINES | 协程数 | 泄漏 | **无** | count | D | 稳定 |
 | M-VRAM | 显存/驱动池 | — | **无** | MB | D | 不爬升 |
 
-> **RSS 判漏口径（2026-10-21 复核）：** `rss_slope_kb_per_min` 是原始趋势，5s/15s 窗包含设备初始化、字体/图片缓存和 Go 堆启动爬坡；**判漏只看 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`**。稳态预热取 `max(25% elapsed, 15s)`，再加至少 15s 采样，所以最小可判漏时长是 30s，推荐 60s soak。`rss_slope_valid=false` 只表示“不能下结论”，不是“没漏”。
+> **RSS 判漏口径（2026-10-21 复核；2026-11-12 O3 修订）：** `rss_slope_kb_per_min` 是原始趋势，5s/15s 窗包含设备初始化、字体/图片缓存和 Go 堆启动爬坡；**判漏只看 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`**。稳态预热取 `max(25% elapsed, 60s)`，再加至少 60s 采样，所以最小可判漏时长是 120s（O3 实测 60s 内爬坡与慢泄漏不可分）。60s/更短轮 `rss_slope_valid=false`、`rss_verdict=inconclusive`，只筛查，不是“没漏”。
 
 #### F. GPU / 提交 / 回退
 
