@@ -1,0 +1,20 @@
+gc 1 @0.006s 2%: 0.034+0.64+0.051 ms clock, 0.13+0/0.53/0.54+0.20 ms cpu, 17->17->16 MB, 17 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 2 @0.018s 1%: 0.014+0.34+0.012 ms clock, 0.056+0/0.32/0.60+0.048 ms cpu, 35->35->35 MB, 35 MB goal, 0 MB stacks, 0 MB globals, 4 P
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+gc 3 @0.507s 0%: 0.042+10+0.043 ms clock, 0.17+0.55/4.1/0.59+0.17 ms cpu, 70->71->60 MB, 72 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 4 @1.611s 0%: 0.085+2.2+0.024 ms clock, 0.34+0/2.0/0+0.096 ms cpu, 128->128->104 MB, 128 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 5 @2.783s 0%: 0.067+11+0.014 ms clock, 0.26+0.12/4.5/12+0.057 ms cpu, 206->206->147 MB, 210 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 6 @10.746s 0%: 0.083+9.0+0.051 ms clock, 0.33+0/9.0/17+0.20 ms cpu, 288->288->157 MB, 294 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 7 @19.522s 0%: 0.21+10+0.012 ms clock, 0.87+0.33/10/21+0.050 ms cpu, 306->306->159 MB, 314 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 8 @28.464s 0%: 0.10+13+0.012 ms clock, 0.40+0.28/7.4/20+0.048 ms cpu, 309->309->159 MB, 319 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 9 @37.291s 0%: 0.20+9.8+0.013 ms clock, 0.80+0.17/9.3/17+0.053 ms cpu, 310->310->160 MB, 320 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 10 @46.216s 0%: 0.044+10+0.013 ms clock, 0.17+0.081/10/15+0.053 ms cpu, 310->311->160 MB, 320 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 11 @55.463s 0%: 0.046+13+0.010 ms clock, 0.18+0.086/9.8/17+0.042 ms cpu, 317->317->160 MB, 321 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 12 @64.721s 0%: 0.045+11+0.022 ms clock, 0.18+0.093/10/24+0.089 ms cpu, 317->318->161 MB, 321 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 13 @74.099s 0%: 0.18+12+0.012 ms clock, 0.72+0/9.5/26+0.048 ms cpu, 319->319->161 MB, 322 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 14 @83.444s 0%: 0.22+11+0.011 ms clock, 0.88+0.27/9.7/24+0.045 ms cpu, 319->319->161 MB, 323 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 15 @92.789s 0%: 0.089+10+0.014 ms clock, 0.35+0.096/10/23+0.058 ms cpu, 320->320->160 MB, 324 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 16 @102.047s 0%: 0.20+10+0.011 ms clock, 0.82+0.21/9.1/20+0.047 ms cpu, 316->316->160 MB, 320 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 17 @111.316s 0%: 0.22+14+0.017 ms clock, 0.91+0.20/13/18+0.071 ms cpu, 317->317->160 MB, 321 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 18 @120.636s 0%: 0.17+9.8+0.015 ms clock, 0.71+0.20/9.6/19+0.060 ms cpu, 318->318->161 MB, 322 MB goal, 0 MB stacks, 0 MB globals, 4 P
+FAIL: 帧时不达标 fps=58.9 p95=22.21毫秒(要≥55fps且p95≤22毫秒)

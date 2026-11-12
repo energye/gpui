@@ -1,0 +1,51 @@
+gc 1 @0.013s 5%: 0.80+0.58+0.051 ms clock, 3.2+0/0.51/0.49+0.20 ms cpu, 17->17->16 MB, 17 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 2 @0.026s 3%: 0.071+1.7+0.019 ms clock, 0.28+0/0.90/0+0.077 ms cpu, 36->36->35 MB, 36 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 3 @0.062s 1%: 0.022+0.55+0.012 ms clock, 0.089+0/0.48/0.46+0.048 ms cpu, 77->77->57 MB, 77 MB goal, 0 MB stacks, 0 MB globals, 4 P
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+gc 4 @0.381s 0%: 0.025+4.1+0.39 ms clock, 0.10+0/3.6/5.3+1.5 ms cpu, 113->114->110 MB, 114 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 5 @3.112s 0%: 0.18+10+0.010 ms clock, 0.72+0.45/9.5/3.7+0.041 ms cpu, 216->216->113 MB, 220 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 6 @6.433s 0%: 0.093+8.0+0.010 ms clock, 0.37+0.18/8.0/16+0.042 ms cpu, 222->222->115 MB, 227 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 7 @9.753s 0%: 0.057+10+0.011 ms clock, 0.22+0.27/10/11+0.044 ms cpu, 226->226->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 8 @13.138s 0%: 0.062+12+0.010 ms clock, 0.24+0.21/11/20+0.042 ms cpu, 228->228->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 9 @16.511s 0%: 0.057+9.2+0.011 ms clock, 0.23+0.17/8.6/18+0.044 ms cpu, 229->229->117 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 10 @19.948s 0%: 0.10+12+0.011 ms clock, 0.40+0.10/10/12+0.045 ms cpu, 230->230->118 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 11 @23.384s 0%: 0.047+13+0.011 ms clock, 0.19+0.21/13/8.6+0.045 ms cpu, 232->232->117 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 12 @26.804s 0%: 0.32+8.8+0.011 ms clock, 1.3+0.29/8.4/11+0.045 ms cpu, 231->231->116 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 13 @30.225s 0%: 0.14+12+0.024 ms clock, 0.58+0.11/12/13+0.097 ms cpu, 230->230->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 14 @33.645s 0%: 0.081+9.4+0.011 ms clock, 0.32+0.24/8.8/14+0.045 ms cpu, 231->232->117 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 15 @37.067s 0%: 0.058+8.4+0.017 ms clock, 0.23+0.056/8.3/18+0.070 ms cpu, 230->230->118 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 16 @40.519s 0%: 0.22+14+0.011 ms clock, 0.88+0.26/12/19+0.047 ms cpu, 232->232->117 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 17 @43.941s 0%: 0.065+9.3+0.016 ms clock, 0.26+0.15/8.9/19+0.065 ms cpu, 231->231->116 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 18 @47.327s 0%: 0.099+10+0.010 ms clock, 0.39+0.26/9.0/23+0.042 ms cpu, 230->230->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 19 @50.797s 0%: 0.073+10+0.011 ms clock, 0.29+0.28/8.7/17+0.047 ms cpu, 232->232->117 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 20 @54.198s 0%: 0.16+12+0.016 ms clock, 0.65+0.44/12/18+0.064 ms cpu, 231->231->118 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 21 @57.674s 0%: 0.10+10+0.010 ms clock, 0.41+0.21/9.3/16+0.041 ms cpu, 232->232->117 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 22 @61.142s 0%: 0.25+13+0.012 ms clock, 1.0+0.64/11/12+0.049 ms cpu, 231->231->116 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 23 @64.596s 0%: 0.080+14+0.012 ms clock, 0.32+3.7/10/15+0.048 ms cpu, 230->230->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 24 @68.065s 0%: 0.17+10+0.011 ms clock, 0.68+0.23/9.9/18+0.046 ms cpu, 232->232->117 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 25 @71.484s 0%: 0.11+12+0.010 ms clock, 0.45+0.54/11/13+0.042 ms cpu, 230->231->118 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 26 @74.955s 0%: 0.25+14+0.013 ms clock, 1.0+0.38/14/12+0.055 ms cpu, 233->233->117 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 27 @78.411s 0%: 0.097+11+0.012 ms clock, 0.39+0.087/11/15+0.050 ms cpu, 231->231->118 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 28 @81.865s 0%: 0.27+12+0.015 ms clock, 1.1+0.28/9.0/17+0.060 ms cpu, 233->233->117 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 29 @85.318s 0%: 0.36+10+0.012 ms clock, 1.4+0.40/10/15+0.051 ms cpu, 232->232->117 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 30 @88.738s 0%: 0.35+12+0.069 ms clock, 1.4+3.8/10/18+0.27 ms cpu, 230->231->118 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 31 @92.195s 0%: 0.074+9.7+0.015 ms clock, 0.29+0.066/8.9/13+0.060 ms cpu, 233->233->117 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 32 @95.630s 0%: 0.27+11+0.010 ms clock, 1.1+0.32/11/10+0.043 ms cpu, 231->231->118 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 33 @99.150s 0%: 0.24+11+0.012 ms clock, 0.97+0.34/10/14+0.049 ms cpu, 233->233->117 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 34 @102.587s 0%: 0.29+10+0.017 ms clock, 1.1+0.82/9.1/16+0.068 ms cpu, 232->232->117 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 35 @105.979s 0%: 0.054+7.4+0.013 ms clock, 0.21+0.87/7.3/17+0.052 ms cpu, 231->231->118 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 36 @109.410s 0%: 0.062+11+0.011 ms clock, 0.24+0.070/10/18+0.045 ms cpu, 232->232->117 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 37 @112.831s 0%: 0.18+11+0.015 ms clock, 0.74+0.33/11/13+0.062 ms cpu, 231->231->118 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 38 @116.301s 0%: 0.24+13+0.013 ms clock, 0.96+0.58/11/12+0.055 ms cpu, 233->233->117 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 39 @119.740s 0%: 0.21+12+0.016 ms clock, 0.85+0/11/25+0.066 ms cpu, 232->232->117 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+snapshot: examples/ui_wr_m5_hdr/testdata/m5_hdr_final.png
+ui_wr_m5_hdr: pixel exp=0.50 rect=0 ok=true gpu=188/124/94 cpu=188/124/94 maxdiff=0
+ui_wr_m5_hdr: pixel exp=0.50 rect=1 ok=true gpu=94/178/203 cpu=94/178/203 maxdiff=0
+ui_wr_m5_hdr: pixel exp=0.50 rect=2 ok=true gpu=62/124/213 cpu=62/124/213 maxdiff=0
+ui_wr_m5_hdr: pixel exp=1.00 rect=0 ok=true gpu=213/156/124 cpu=213/156/124 maxdiff=0
+ui_wr_m5_hdr: pixel exp=1.00 rect=1 ok=true gpu=124/206/225 cpu=124/206/225 maxdiff=0
+ui_wr_m5_hdr: pixel exp=1.00 rect=2 ok=true gpu=85/156/231 cpu=85/156/231 maxdiff=0
+ui_wr_m5_hdr: pixel exp=4.00 rect=0 ok=true gpu=242/213/188 cpu=242/213/188 maxdiff=0
+ui_wr_m5_hdr: pixel exp=4.00 rect=1 ok=true gpu=188/239/246 cpu=188/239/246 maxdiff=0
+ui_wr_m5_hdr: pixel exp=4.00 rect=2 ok=true gpu=146/213/248 cpu=146/213/248 maxdiff=0
+ui_wr_m5_hdr: OK presents=7122 pixel=9/9 golden=0.0000% gpu_ops=12 elapsed=120.6s

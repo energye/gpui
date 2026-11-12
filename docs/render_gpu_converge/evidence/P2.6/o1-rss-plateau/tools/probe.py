@@ -65,6 +65,7 @@ def main():
     ap.add_argument("--secs", type=int, default=55)
     ap.add_argument("--interval", type=float, default=0.25)
     ap.add_argument("--smaps-at", default="", help="comma-separated seconds for smaps snapshots")
+    ap.add_argument("--arg", action="append", default=[], help="extra child argument (repeatable)")
     ap.add_argument("--env", action="append", default=[])
     args = ap.parse_args()
 
@@ -83,7 +84,7 @@ def main():
     smaps_done = set()
     t0 = time.time()
     with open(stdout_path, "w") as so, open(stderr_path, "w") as se:
-        proc = subprocess.Popen([args.bin], stdout=so, stderr=se, env=env)
+        proc = subprocess.Popen([args.bin] + args.arg, stdout=so, stderr=se, env=env)
         samples = []
         while True:
             now = time.time() - t0

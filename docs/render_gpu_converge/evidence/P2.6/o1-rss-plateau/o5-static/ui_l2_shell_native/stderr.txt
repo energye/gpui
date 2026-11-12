@@ -1,0 +1,3 @@
+ui_l2_shell: 10s — tap / pan / focus / overlay (example)
+  green=tap  slate+blue handle=drag pan  grey/yellow=focus  blue btn / O=overlay
+ui_l2_shell: backend=wayland elapsed=10.3s presents=2 taps=0 pans=0/0 focus="" overlay=0 arena=0

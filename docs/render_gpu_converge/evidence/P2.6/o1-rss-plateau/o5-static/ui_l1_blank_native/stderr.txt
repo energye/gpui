@@ -1,0 +1,2 @@
+ui_l1_blank: running 10s (RUN_SECONDS); close window to exit safely
+ui_l1_blank: backend=wayland presents=4590 ~458.7 fps (wall 10.0s, cap 10s) avg=2.11ms max=24.86ms last=2.39ms hitches(>33.4ms)=0

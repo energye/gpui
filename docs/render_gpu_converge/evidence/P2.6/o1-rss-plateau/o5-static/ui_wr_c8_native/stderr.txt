@@ -1,0 +1,25 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_wr_c8_hit_overlay_xf: probe @(350,122) want="target-rot" got="target-rot" ok=true
+ui_wr_c8_hit_overlay_xf: probe @(449,120) want="target-scale" got="target-scale" ok=true
+ui_wr_c8_hit_overlay_xf: probe @(548,115) want="target-round" got="target-round" ok=true
+ui_wr_c8_hit_overlay_xf: probe @(650,111) want="target-clipped" got="target-clipped" ok=true
+ui_wr_c8_hit_overlay_xf: probe @(680,141) want="-" got="-" ok=true
+ui_wr_c8_hit_overlay_xf: probe @(753,120) want="target-top" got="target-top" ok=true
+ui_wr_c8_hit_overlay_xf: probe @(1009,554) want="-" got="-" ok=true
+embedder: snapshot request timed out
+snapshot steady: examples/ui_wr_c8_hit_overlay_xf/testdata/c8_steady.png
+ui_wr_c8_hit_overlay_xf: pixel @(349,121) want="target-rot" ok=true
+ui_wr_c8_hit_overlay_xf: pixel @(449,119) want="target-scale" ok=true
+ui_wr_c8_hit_overlay_xf: pixel @(548,115) want="target-round" ok=true
+ui_wr_c8_hit_overlay_xf: pixel @(649,110) want="target-clipped" ok=true
+ui_wr_c8_hit_overlay_xf: pixel @(679,140) want="-" ok=true
+ui_wr_c8_hit_overlay_xf: pixel @(752,119) want="target-top" ok=true
+ui_wr_c8_hit_overlay_xf: pixel @(1008,553) want="-" ok=true
+ui_wr_c8_hit_overlay_xf: probe barrier-consume   band=1 got=""
+ui_wr_c8_hit_overlay_xf: probe barrier-consume   band=2 got=""
+ui_wr_c8_hit_overlay_xf: probe entry-child       band=2 got="ov-button"
+ui_wr_c8_hit_overlay_xf: probe fallthrough       band=1 got="lbl-7"
+ui_wr_c8_hit_overlay_xf: probe restore           band=1 got="lbl-7"
+embedder: snapshot request timed out
+snapshot recover: examples/ui_wr_c8_hit_overlay_xf/testdata/c8_recover.png
+FAIL: golden diff=0.7967% (6542/821184 px) baseline=examples/ui_wr_c8_hit_overlay_xf/testdata/c8_recover_base.png

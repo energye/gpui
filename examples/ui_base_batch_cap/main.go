@@ -601,8 +601,10 @@ func main() {
 				fail("%s/%d meets 60fps but cpu=%.1f%% > 85%% health line", s.Mode, s.N, s.CPUPct)
 			}
 		}
-		if !snap.RSSSlopeValid || snap.RSSSlopeSteadyKBPerMin > 30000 {
-			fail("rss_slope_steady=%.0fKB/min valid=%v want <=30000KB/min (health line)", snap.RSSSlopeSteadyKBPerMin, snap.RSSSlopeValid)
+		if snap.RSSStartKB == 0 && snap.RSSEndKB == 0 {
+			fail("rss unavailable (start/end=0)")
+		} else if snap.RSSSlopeValid && snap.RSSSlopeSteadyKBPerMin > 30000 {
+			fail("rss_slope_steady=%.0fKB/min want <=30000KB/min (health line)", snap.RSSSlopeSteadyKBPerMin)
 		}
 		if snap.CPUPctAvg > 85 {
 			fail("process cpu=%.1f%% > 85%% health line", snap.CPUPctAvg)

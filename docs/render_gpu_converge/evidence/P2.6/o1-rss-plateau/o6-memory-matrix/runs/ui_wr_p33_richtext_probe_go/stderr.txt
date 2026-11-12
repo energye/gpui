@@ -1,0 +1,40 @@
+gc 1 @0.015s 0%: 0.026+1.3+0.016 ms clock, 0.10+0/0.51/1.3+0.067 ms cpu, 17->17->16 MB, 17 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 2 @0.028s 0%: 0.014+3.0+0.019 ms clock, 0.059+0/0.31/0.86+0.079 ms cpu, 36->36->35 MB, 36 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 3 @0.064s 0%: 0.022+0.43+0.008 ms clock, 0.088+0/0.40/0.37+0.033 ms cpu, 77->77->57 MB, 77 MB goal, 0 MB stacks, 0 MB globals, 4 P
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0002f0000 ctx=0xc0002b2040
+gc 4 @0.235s 0%: 0.023+7.2+0.056 ms clock, 0.095+0/6.5/2.4+0.22 ms cpu, 112->115->110 MB, 114 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 5 @2.769s 0%: 0.070+25+1.9 ms clock, 0.28+0/20/21+7.7 ms cpu, 217->217->112 MB, 221 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 6 @7.408s 0%: 0.088+7.6+0.011 ms clock, 0.35+0.29/7.3/16+0.044 ms cpu, 222->222->115 MB, 226 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 7 @12.047s 0%: 0.17+10+0.022 ms clock, 0.70+0.62/9.9/10+0.089 ms cpu, 225->225->115 MB, 230 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 8 @16.669s 0%: 0.40+11+0.010 ms clock, 1.6+0.15/11/3.4+0.042 ms cpu, 226->226->115 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 9 @21.326s 0%: 0.15+11+0.010 ms clock, 0.60+0.14/11/7.7+0.041 ms cpu, 226->226->116 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 10 @26.096s 0%: 0.041+11+0.010 ms clock, 0.16+0.17/9.0/16+0.042 ms cpu, 228->228->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 11 @30.801s 0%: 1.4+9.1+0.014 ms clock, 5.8+0.71/8.1/10+0.058 ms cpu, 228->228->115 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 12 @35.572s 0%: 0.050+10+0.051 ms clock, 0.20+0.36/10/11+0.20 ms cpu, 227->227->115 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 13 @40.325s 0%: 0.19+11+0.011 ms clock, 0.76+0.20/9.3/10+0.044 ms cpu, 227->227->115 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 14 @45.164s 0%: 0.10+14+0.015 ms clock, 0.42+1.9/8.0/19+0.060 ms cpu, 227->228->116 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 15 @49.986s 0%: 0.043+13+0.011 ms clock, 0.17+0.12/8.1/22+0.044 ms cpu, 228->228->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 16 @54.825s 0%: 0.27+8.8+0.015 ms clock, 1.1+0.55/8.4/14+0.061 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 17 @59.587s 0%: 0.31+8.1+0.011 ms clock, 1.2+0.29/7.8/12+0.046 ms cpu, 229->229->115 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 18 @64.302s 0%: 0.13+9.4+0.014 ms clock, 0.53+0.75/8.1/11+0.057 ms cpu, 227->227->115 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 19 @69.043s 0%: 0.12+7.7+0.020 ms clock, 0.50+0.23/7.7/14+0.080 ms cpu, 228->228->115 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 20 @73.754s 0%: 0.049+11+0.012 ms clock, 0.19+0.075/11/15+0.051 ms cpu, 228->228->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 21 @78.501s 0%: 0.18+10+0.026 ms clock, 0.75+0.27/9.7/14+0.10 ms cpu, 228->228->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 22 @83.264s 0%: 0.23+8.6+0.012 ms clock, 0.93+0.32/7.4/14+0.048 ms cpu, 229->229->115 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 23 @87.987s 0%: 0.083+6.3+0.023 ms clock, 0.33+0.081/5.1/16+0.093 ms cpu, 227->227->115 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 24 @92.737s 0%: 0.10+11+0.016 ms clock, 0.42+0.18/11/20+0.065 ms cpu, 227->227->115 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 25 @97.547s 0%: 0.086+9.4+0.013 ms clock, 0.34+0.61/9.0/15+0.052 ms cpu, 228->228->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 26 @102.297s 0%: 0.40+9.4+0.21 ms clock, 1.6+0.42/8.8/14+0.84 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 27 @107.056s 0%: 0.22+8.0+0.011 ms clock, 0.88+0.29/7.3/7.7+0.044 ms cpu, 229->229->115 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 28 @111.810s 0%: 0.088+7.6+0.013 ms clock, 0.35+0.21/6.8/16+0.054 ms cpu, 227->227->115 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 29 @116.635s 0%: 0.18+8.1+0.010 ms clock, 0.72+0.16/7.6/15+0.042 ms cpu, 227->228->116 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 30 @120.708s 0%: 0.24+11+0.043 ms clock, 0.99+0/9.8/17+0.17 ms cpu, 230->230->122 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+snapshot: examples/ui_wr_p33_richtext/testdata/p33_final.png
+ui_wr_p33_richtext: pixel p33_a_red_run          ok=true hits=1
+ui_wr_p33_richtext: pixel p33_a_cyan_run         ok=true hits=1
+ui_wr_p33_richtext: pixel p33_a_yellow_run       ok=true hits=1
+ui_wr_p33_richtext: pixel p33_b_justify_reach    ok=true hits=1
+ui_wr_p33_richtext: pixel p33_c_ellipsis_tail    ok=true hits=1
+FAIL: golden diff 0.1722% want 0 over 322800 px
+ui_wr_p33_richtext: OK presents=7096 pixel=5/5 golden=0.1722% gate=false elapsed=120.6s

@@ -1,0 +1,80 @@
+mapping	rss_kb
+'[anon: Go: heap]'	237080
+'/usr/lib/x86_64-linux-gnu/libLLVM-15.so.1'	41728
+'/usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.580.178.04'	19884
+'/tmp/o6/bin/ui_wr_p35_rrect4'	14180
+'/usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.580.178.04'	9716
+'[heap]'	7476
+'(anon)'	7264
+'/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so'	5804
+'[anon: Go: immortal metadata]'	5140
+'/usr/lib/x86_64-linux-gnu/libvulkan_intel.so'	3208
+'/usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.580.178.04'	2744
+'/usr/lib/x86_64-linux-gnu/libvulkan_radeon.so'	1992
+'/usr/lib/x86_64-linux-gnu/libvulkan_lvp.so'	1988
+'/usr/lib/x86_64-linux-gnu/libc.so.6'	1812
+'/usr/lib/x86_64-linux-gnu/libvulkan_intel_hasvk.so'	1800
+'/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30'	1376
+'[anon: Go: gc bits]'	1152
+'/memfd:state table (deleted)'	1104
+'/usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.580.178.04'	1004
+'/usr/lib/x86_64-linux-gnu/libvulkan_virtio.so'	876
+'/usr/lib/x86_64-linux-gnu/libicuuc.so.70.1'	600
+'/usr/lib/x86_64-linux-gnu/libX11.so.6.4.0'	588
+'/usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.580.178.04'	536
+'/usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.204'	436
+'/usr/lib/x86_64-linux-gnu/libm.so.6'	312
+'/usr/lib/x86_64-linux-gnu/libxml2.so.2.9.13'	292
+'/usr/lib/x86_64-linux-gnu/libxkbcommon.so.0.0.0'	280
+'/usr/lib/x86_64-linux-gnu/libzstd.so.1.4.8'	272
+'/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2'	236
+'/memfd:gpui-csd (deleted)'	204
+'/usr/lib/x86_64-linux-gnu/libexpat.so.1.8.7'	196
+'/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0'	168
+'/usr/lib/x86_64-linux-gnu/libtinfo.so.6.3'	140
+'[anon: Go: allspans array]'	108
+'/usr/lib/x86_64-linux-gnu/libedit.so.2.0.68'	108
+'/usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.580.178.04'	104
+'/usr/lib/x86_64-linux-gnu/libz.so.1.2.11'	104
+'/usr/lib/x86_64-linux-gnu/libgcc_s.so.1'	100
+'[stack]'	100
+'/usr/lib/x86_64-linux-gnu/libxcb-glx.so.0.0.0'	92
+'/usr/lib/x86_64-linux-gnu/libdrm.so.2.4.0'	88
+'/usr/lib/x86_64-linux-gnu/liblzma.so.5.2.5'	84
+'/usr/lib/x86_64-linux-gnu/libelf-0.186.so'	84
+'/usr/lib/x86_64-linux-gnu/libXext.so.6.4.0'	80
+'/usr/lib/x86_64-linux-gnu/libbsd.so.0.11.5'	72
+'/usr/lib/x86_64-linux-gnu/libwayland-client.so.0.20.0'	64
+'/usr/lib/x86_64-linux-gnu/libVkLayer_MESA_device_select.so'	60
+'/usr/lib/x86_64-linux-gnu/libxcb-randr.so.0.1.0'	56
+'/usr/lib/x86_64-linux-gnu/libffi.so.8.1.0'	48
+'/usr/lib/x86_64-linux-gnu/libdrm_amdgpu.so.1.0.0'	40
+'/usr/lib/x86_64-linux-gnu/libmd.so.0.0.5'	40
+'/usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0'	36
+'/usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0'	32
+'/usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0'	28
+'/usr/lib/x86_64-linux-gnu/libnvidia-tls.so.580.178.04'	24
+'/usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0'	24
+'/usr/lib/x86_64-linux-gnu/libXau.so.6.0.0'	24
+'/usr/lib/x86_64-linux-gnu/libxcb-present.so.0.0.0'	20
+'[anon: Go: page alloc]'	20
+'/usr/lib/x86_64-linux-gnu/libicudata.so.70.1'	16
+'/usr/lib/x86_64-linux-gnu/librt.so.1'	16
+'/usr/lib/x86_64-linux-gnu/libxshmfence.so.1.0.0'	16
+'/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0'	16
+'/usr/lib/x86_64-linux-gnu/libpthread.so.0'	16
+'/usr/lib/x86_64-linux-gnu/libdl.so.2'	16
+'/usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0'	16
+'[anon: Go: page alloc index]'	8
+'[vdso]'	8
+'/memfd:mutter-shared (deleted)'	4
+'[anon: Go: profiler hash buckets]'	4
+'[anon: Go: heap index]'	4
+'[anon: Go: scavenge index]'	4
+'/dev/nvidiactl'	4
+'[anon: Go: heap reservation]'	0
+'anon_inode:i915.gem'	0
+'/home/yanghy/.cache/mesa_shader_cache/index'	0
+'[anon: Go: page summary]'	0
+'[vvar]'	0
+'[vsyscall]'	0

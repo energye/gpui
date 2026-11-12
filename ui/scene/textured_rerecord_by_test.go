@@ -55,3 +55,76 @@ func TestPictureTextureCache_RerecordAttributionLocal(t *testing.T) {
 		t.Fatalf("key 21 full=%d want 1 (snap=%v)", n, snap[21])
 	}
 }
+
+// O4: the diagnostics attribution map must not grow with dead cache keys.
+// A virtual list visits a new layer key per scrolled row; keeping every key
+// forever leaked ~1.3MB/min in the 300s m4 soak. BeginFrame already sweeps
+// admission counts against liveKeys; the attribution map must join it.
+func TestPictureTextureCache_RerecordAttributionSweepsDeadKeys(t *testing.T) {
+	tex := NewPictureTextureCache(nil, 0)
+	tex.mu.Lock()
+	tex.noteRerecord(11, "full")
+	tex.noteRerecord(11, "full")
+	tex.noteRerecord(22, "local")
+	tex.mu.Unlock()
+
+	tex.SetLiveKeys([]uint64{11})
+	tex.BeginFrame()
+	snap := tex.RerecordByKeySnapshot()
+	if _, ok := snap[22]; ok {
+		t.Fatalf("dead key 22 kept after BeginFrame: %v", snap)
+	}
+	if n := snap[11]["full"]; n != 2 {
+		t.Fatalf("live key 11 full=%d want 2 (snap=%v)", n, snap)
+	}
+}
+
+// Without live-key info (unit tests / non-retained users) the map is kept:
+// under-counting attribution is worse than keeping it.
+func TestPictureTextureCache_RerecordAttributionKeptWithoutLiveKeys(t *testing.T) {
+	tex := NewPictureTextureCache(nil, 0)
+	tex.mu.Lock()
+	tex.noteRerecord(33, "full")
+	tex.mu.Unlock()
+
+	tex.BeginFrame()
+	if n := tex.RerecordByKeySnapshot()[33]["full"]; n != 1 {
+		t.Fatalf("key 33 full=%d want 1 without live keys", n)
+	}
+}
+
+// O4: attribution is diagnostics, not correctness; it must be hard-bounded.
+// m4 keeps measured rows in the live set, so the live-key sweep alone cannot
+// stop growth (300s reached 6.5MB). Cap at maxRerecordAttrEntries with an
+// oldest-first eviction that prefers dead keys.
+func TestPictureTextureCache_RerecordAttributionBounded(t *testing.T) {
+	const capN = maxRerecordAttrEntries
+	tex := NewPictureTextureCache(nil, 0)
+	tex.mu.Lock()
+	for i := uint64(1); i <= capN+32; i++ {
+		tex.noteRerecord(i, "full")
+	}
+	tex.mu.Unlock()
+	snap := tex.RerecordByKeySnapshot()
+	if len(snap) > capN {
+		t.Fatalf("attribution map=%d want <=%d", len(snap), capN)
+	}
+	if _, ok := snap[capN+32]; !ok {
+		t.Fatal("newest key evicted; want oldest-first eviction")
+	}
+}
+
+// A live (in-tree) key must survive eviction even when it is the oldest.
+func TestPictureTextureCache_RerecordAttributionKeepsLiveKey(t *testing.T) {
+	const capN = maxRerecordAttrEntries
+	tex := NewPictureTextureCache(nil, 0)
+	tex.SetLiveKeys([]uint64{1})
+	tex.mu.Lock()
+	for i := uint64(1); i <= capN+32; i++ {
+		tex.noteRerecord(i, "full")
+	}
+	tex.mu.Unlock()
+	if _, ok := tex.RerecordByKeySnapshot()[1]; !ok {
+		t.Fatal("live key 1 evicted; eviction must prefer dead keys")
+	}
+}

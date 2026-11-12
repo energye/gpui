@@ -1,0 +1,76 @@
+gc 1 @0.005s 3%: 0.061+0.43+0.064 ms clock, 0.24+0/0.40/0.75+0.25 ms cpu, 17->17->16 MB, 17 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 2 @0.016s 2%: 0.013+0.88+0.24 ms clock, 0.055+0/0.43/0.73+0.98 ms cpu, 35->35->35 MB, 35 MB goal, 0 MB stacks, 0 MB globals, 4 P
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_wr_p35_rrect4: logic six_type_reduction                     ok=true 六态判定 empty/rect/oval/simple/nine-patch/complex（错 0，Complex 串形="complex"）
+ui_wr_p35_rrect4: logic normalisation_rules                    ok=true NaN/±Inf 与单轴 0 全部归直角（UL{0 0} UR{0 0} LR{0 0} LL{0 0} 全 0=true）；60×40 内 50 重叠→等比缩放 上边和=40.000≤60 左边和=40.000≤40 比例保持=true
+ui_wr_p35_rrect4: logic uniform_equals_roundrect               ok=true verbs=10 vs 10，坐标最大差 0.0666 ≤1%半径（两套三次圆弧常数 0.5523/0.5486 之差）
+ui_wr_p35_rrect4: logic per_corner_radius_independently_honoured ok=true 逐角独立：单角缺口面积 worst=1.02e-03 rel（三次弧 vs 真圆缺口的固有差）；离屏填充只该角不入色（错 0 测0:0111 测1:1011 测2:1101 测3:1110）；verb/cubic 结构错 0（单圆角=1 cubic、7 verb）
+ui_wr_p35_rrect4: logic complex_rrect_area                     ok=true Area()=25287.1801 解析=25286.4489 rel=2.89e-05；纯直线参照=25287.1801 rel=2.66e-09
+ui_wr_p35_rrect4: logic clip_rrect_all_routes_clip             ok=true uniform(SDF 快路): 内=true 角=true；complex(精确路径): 内=true 角=true；oval(精确路径): 内=true 角=true；
+gc 3 @0.559s 0%: 0.044+0.82+0.016 ms clock, 0.17+0/0.58/0.34+0.066 ms cpu, 79->79->53 MB, 79 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 4 @0.690s 0%: 0.030+0.76+0.023 ms clock, 0.12+0.083/0.65/0.44+0.095 ms cpu, 104->105->83 MB, 107 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 5 @1.525s 0%: 0.072+11+0.020 ms clock, 0.29+0/7.2/10+0.082 ms cpu, 164->164->112 MB, 168 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 6 @3.747s 0%: 0.25+10+0.11 ms clock, 1.0+0.50/9.8/7.6+0.45 ms cpu, 221->222->113 MB, 225 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 7 @6.019s 0%: 0.19+7.4+0.012 ms clock, 0.76+0.41/7.1/12+0.051 ms cpu, 224->224->114 MB, 228 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 8 @8.304s 0%: 0.088+9.5+0.043 ms clock, 0.35+0.14/9.3/16+0.17 ms cpu, 226->226->116 MB, 230 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 9 @10.622s 0%: 0.36+9.4+0.013 ms clock, 1.4+0.66/8.3/14+0.053 ms cpu, 229->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 10 @12.962s 0%: 0.045+10+0.012 ms clock, 0.18+0.070/9.2/17+0.048 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 11 @15.230s 0%: 0.22+9.2+0.013 ms clock, 0.88+0.13/6.0/13+0.053 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 12 @17.510s 0%: 0.076+10+0.013 ms clock, 0.30+0.29/8.3/9.0+0.052 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 13 @19.817s 0%: 0.25+9.8+0.017 ms clock, 1.0+0.20/9.7/11+0.068 ms cpu, 229->230->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 14 @22.138s 0%: 0.21+8.7+0.011 ms clock, 0.87+0.22/8.5/11+0.045 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 15 @24.457s 0%: 0.28+7.7+0.048 ms clock, 1.1+0.73/6.3/13+0.19 ms cpu, 230->230->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 16 @26.777s 0%: 0.21+9.7+0.029 ms clock, 0.86+0.16/9.2/11+0.11 ms cpu, 230->230->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 17 @29.091s 0%: 0.051+8.3+0.012 ms clock, 0.20+0.13/8.0/13+0.049 ms cpu, 230->230->115 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 18 @31.382s 0%: 0.072+8.7+0.014 ms clock, 0.28+0.22/8.5/15+0.056 ms cpu, 228->228->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 19 @33.663s 0%: 0.046+10+0.012 ms clock, 0.18+0.12/8.0/18+0.049 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 20 @35.969s 0%: 0.30+9.6+0.011 ms clock, 1.2+0.19/9.3/10+0.047 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 21 @38.240s 0%: 0.057+11+0.011 ms clock, 0.23+0.16/8.1/14+0.046 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 22 @40.526s 0%: 0.22+9.8+0.004 ms clock, 0.91+0.29/7.2/12+0.018 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 23 @42.827s 0%: 0.089+7.7+0.039 ms clock, 0.35+0.14/6.7/14+0.15 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 24 @45.146s 0%: 0.066+16+0.075 ms clock, 0.26+0.34/15/6.6+0.30 ms cpu, 229->230->117 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 25 @47.468s 0%: 0.33+9.6+0.013 ms clock, 1.3+0.19/9.5/11+0.055 ms cpu, 230->231->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 26 @49.767s 0%: 0.36+9.6+0.012 ms clock, 1.4+0.27/9.3/15+0.048 ms cpu, 229->230->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 27 @52.090s 0%: 0.081+9.8+0.012 ms clock, 0.32+0.17/7.6/16+0.048 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 28 @54.408s 0%: 0.059+12+0.012 ms clock, 0.23+0.44/10/10+0.050 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 29 @56.759s 0%: 0.22+10+0.010 ms clock, 0.91+0.20/9.0/11+0.041 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 30 @59.081s 0%: 0.051+11+0.011 ms clock, 0.20+0.20/10/13+0.044 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 31 @61.409s 0%: 0.15+10+0.052 ms clock, 0.61+0/8.5/21+0.20 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 32 @63.737s 0%: 0.25+8.7+0.014 ms clock, 1.0+0.65/8.0/11+0.057 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 33 @66.055s 0%: 0.12+7.6+0.011 ms clock, 0.49+0.94/7.0/12+0.047 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 34 @68.343s 0%: 0.30+8.3+0.20 ms clock, 1.2+0.79/6.8/11+0.81 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 35 @70.628s 0%: 0.15+12+0.034 ms clock, 0.63+0.38/10/9.4+0.13 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 36 @72.933s 0%: 0.095+8.3+0.016 ms clock, 0.38+0.12/8.1/11+0.065 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 37 @75.232s 0%: 0.046+10+0.030 ms clock, 0.18+3.2/10/19+0.12 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 38 @77.536s 0%: 0.11+9.2+0.011 ms clock, 0.45+0.087/8.3/13+0.045 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 39 @79.841s 0%: 0.28+7.9+0.012 ms clock, 1.1+0.19/7.7/12+0.049 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 40 @82.140s 0%: 0.17+11+0.010 ms clock, 0.70+0.59/10/8.3+0.043 ms cpu, 229->230->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 41 @84.444s 0%: 0.32+8.9+0.013 ms clock, 1.2+3.5/7.5/10+0.052 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 42 @86.761s 0%: 0.25+11+0.022 ms clock, 1.0+0.30/11/8.1+0.088 ms cpu, 230->230->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 43 @89.051s 0%: 0.072+8.9+0.012 ms clock, 0.29+0.18/8.9/15+0.048 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 44 @91.370s 0%: 0.24+10+0.012 ms clock, 0.98+3.4/9.5/19+0.050 ms cpu, 230->231->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 45 @93.691s 0%: 0.052+9.9+0.038 ms clock, 0.20+0.088/9.3/9.3+0.15 ms cpu, 230->231->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 46 @96.025s 0%: 0.053+11+0.015 ms clock, 0.21+0.11/8.4/13+0.062 ms cpu, 230->231->117 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 47 @98.378s 0%: 0.060+11+0.013 ms clock, 0.24+0.12/10/11+0.052 ms cpu, 230->231->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 48 @100.680s 0%: 0.27+9.2+0.011 ms clock, 1.0+0.20/8.2/11+0.046 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 49 @102.969s 0%: 0.040+11+0.018 ms clock, 0.16+0.061/11/15+0.073 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 50 @105.269s 0%: 0.059+8.9+0.013 ms clock, 0.23+0.14/7.8/14+0.053 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 51 @107.570s 0%: 0.20+8.5+0.010 ms clock, 0.81+0.25/8.4/9.6+0.042 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 52 @109.857s 0%: 0.083+9.1+0.031 ms clock, 0.33+2.7/8.5/14+0.12 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 53 @112.149s 0%: 0.088+7.6+0.011 ms clock, 0.35+0.10/6.2/12+0.047 ms cpu, 229->229->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 54 @114.411s 0%: 0.053+12+0.011 ms clock, 0.21+0.076/11/12+0.044 ms cpu, 228->229->116 MB, 232 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 55 @116.717s 0%: 0.073+8.5+0.022 ms clock, 0.29+0.14/8.2/15+0.088 ms cpu, 230->230->116 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 56 @119.031s 0%: 0.090+10+0.012 ms clock, 0.36+0.18/10/14+0.050 ms cpu, 230->230->116 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+snapshot: examples/ui_wr_p35_rrect4/testdata/p35_rrect4_final.png
+ui_wr_p35_rrect4: origins A={292 68} B={744 68} C={292 380}
+ui_wr_p35_rrect4: pixel A_square_UL_corner_inked         ok
+ui_wr_p35_rrect4: pixel A_LL_corner_outside_is_bg        ok
+ui_wr_p35_rrect4: pixel A_LL_inside_radius_inked         ok
+gc 57 @121.041s 0%: 0.071+32+0.12 ms clock, 0.28+0/26/48+0.51 ms cpu, 232->232->113 MB, 234 MB goal, 0 MB stacks, 0 MB globals, 4 P
+ui_wr_p35_rrect4: pixel A_past_rect_is_bg                ok
+ui_wr_p35_rrect4: pixel B_complex_square_LR_inked        ok
+ui_wr_p35_rrect4: pixel B_complex_round_UL_clear         ok
+ui_wr_p35_rrect4: pixel B_nested_intersection_mint       ok
+ui_wr_p35_rrect4: pixel B_nested_outside_clear           ok
+ui_wr_p35_rrect4: pixel C_complex_tile_square_corner     ok
+ui_wr_p35_rrect4: OK presents=7097 logic=6/6 golden=0.0000% seeded=false gate=false elapsed=120.3s

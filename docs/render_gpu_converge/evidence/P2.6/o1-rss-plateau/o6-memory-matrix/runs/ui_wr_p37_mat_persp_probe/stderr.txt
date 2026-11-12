@@ -1,0 +1,43 @@
+gc 1 @0.025s 1%: 0.067+6.0+0.29 ms clock, 0.27+0.10/1.0/0.25+1.1 ms cpu, 3->4->1 MB, 4 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 2 @0.049s 1%: 0.025+0.51+0.012 ms clock, 0.10+0.43/0.056/0.69+0.049 ms cpu, 3->3->1 MB, 4 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 3 @0.062s 1%: 0.047+6.2+0.060 ms clock, 0.18+0/1.3/0.20+0.24 ms cpu, 3->4->1 MB, 4 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 4 @0.076s 2%: 0.025+3.7+0.14 ms clock, 0.10+0/2.4/0.17+0.57 ms cpu, 18->18->16 MB, 18 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 5 @0.103s 1%: 0.056+2.4+0.011 ms clock, 0.22+0/0.49/0.24+0.047 ms cpu, 35->35->35 MB, 36 MB goal, 0 MB stacks, 0 MB globals, 4 P
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+gc 6 @0.169s 1%: 0.033+5.3+0.018 ms clock, 0.13+0/0.75/0+0.073 ms cpu, 73->73->72 MB, 73 MB goal, 0 MB stacks, 0 MB globals, 4 P
+mat_persp: window opened (backend=wayland display=:0)
+mat_persp: probe[refuse+matrix] 0.37s
+mat_persp: probe[paint-only] 0.00s
+mat_persp: probe[flush-only] 0.04s
+gc 7 @0.929s 0%: 0.037+9.9+0.20 ms clock, 0.14+0.089/8.9/0.97+0.80 ms cpu, 144->144->85 MB, 145 MB goal, 0 MB stacks, 0 MB globals, 4 P
+mat_persp: probe[window-paint] 0.05s
+mat_persp: probes done in 0.8s (9 probes)
+gc 8 @2.452s 0%: 0.058+6.2+0.011 ms clock, 0.23+0.30/5.6/4.1+0.044 ms cpu, 168->168->113 MB, 172 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 9 @6.837s 0%: 0.084+5.8+0.018 ms clock, 0.33+0.17/5.3/5.5+0.074 ms cpu, 223->224->114 MB, 228 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 10 @11.230s 0%: 0.075+5.2+0.013 ms clock, 0.30+0.10/4.2/8.2+0.055 ms cpu, 225->225->115 MB, 230 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 11 @15.618s 0%: 0.11+6.4+0.011 ms clock, 0.44+0.35/6.1/7.0+0.045 ms cpu, 227->227->116 MB, 231 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 12 @20.072s 0%: 0.070+7.0+0.010 ms clock, 0.28+0.25/5.3/7.2+0.042 ms cpu, 229->229->117 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 13 @24.543s 0%: 0.067+8.1+0.013 ms clock, 0.27+0.082/6.4/10+0.053 ms cpu, 231->231->118 MB, 235 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 14 @29.043s 0%: 0.047+6.6+0.013 ms clock, 0.19+0.14/6.0/6.5+0.054 ms cpu, 232->233->119 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 15 @33.620s 0%: 0.076+7.9+0.011 ms clock, 0.30+0.34/6.1/6.9+0.044 ms cpu, 234->234->120 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 16 @38.220s 0%: 0.11+7.5+0.036 ms clock, 0.45+0.10/7.3/7.4+0.14 ms cpu, 237->237->121 MB, 241 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 17 @42.828s 0%: 0.061+9.5+0.011 ms clock, 0.24+0.32/8.5/8.7+0.045 ms cpu, 238->238->121 MB, 242 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 18 @47.494s 0%: 0.060+9.3+0.040 ms clock, 0.24+0.15/4.8/10+0.16 ms cpu, 240->240->122 MB, 244 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 19 @52.245s 0%: 0.049+6.6+0.015 ms clock, 0.19+0.18/6.5/9.4+0.061 ms cpu, 241->242->123 MB, 245 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 20 @57.029s 0%: 0.13+8.8+0.011 ms clock, 0.52+0.12/8.3/4.7+0.044 ms cpu, 243->243->124 MB, 247 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 21 @61.782s 0%: 0.088+6.1+0.016 ms clock, 0.35+0.15/6.0/10+0.067 ms cpu, 245->245->125 MB, 249 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 22 @66.604s 0%: 0.072+7.7+0.012 ms clock, 0.29+0.092/7.3/11+0.048 ms cpu, 247->248->126 MB, 251 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 23 @71.575s 0%: 0.074+6.2+0.029 ms clock, 0.29+0/6.0/10+0.11 ms cpu, 250->250->119 MB, 254 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 24 @76.134s 0%: 0.14+5.2+0.013 ms clock, 0.59+0.13/4.8/8.4+0.055 ms cpu, 235->235->120 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 25 @80.746s 0%: 0.072+6.9+0.011 ms clock, 0.28+0.075/6.7/7.5+0.045 ms cpu, 236->236->120 MB, 240 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 26 @85.371s 0%: 0.11+6.2+0.012 ms clock, 0.44+0.076/6.0/6.1+0.051 ms cpu, 238->238->121 MB, 242 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 27 @90.162s 0%: 0.079+6.4+0.013 ms clock, 0.31+0.21/6.4/11+0.054 ms cpu, 240->240->121 MB, 244 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 28 @94.830s 0%: 0.047+6.3+0.049 ms clock, 0.19+0.071/6.0/11+0.19 ms cpu, 239->239->122 MB, 243 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 29 @99.543s 0%: 0.19+4.7+0.011 ms clock, 0.77+0.18/4.6/9.2+0.045 ms cpu, 241->241->123 MB, 245 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 30 @104.228s 0%: 0.072+6.1+0.011 ms clock, 0.29+0.11/6.0/6.9+0.045 ms cpu, 242->242->123 MB, 246 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 31 @109.052s 0%: 0.067+7.8+0.011 ms clock, 0.27+0.12/7.0/9.3+0.045 ms cpu, 244->244->123 MB, 248 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 32 @113.741s 0%: 0.10+6.2+0.012 ms clock, 0.43+0.23/5.8/12+0.048 ms cpu, 243->243->124 MB, 247 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 33 @118.441s 0%: 0.055+6.7+0.011 ms clock, 0.22+0.16/6.5/8.8+0.044 ms cpu, 244->244->125 MB, 248 MB goal, 0 MB stacks, 0 MB globals, 4 P
+snapshot: examples/ui_wr_p37_mat_persp/testdata/ui_wr_p37_mat_persp_final.png
+mat_persp: 常驻相末帧未定格（H15 只在门禁相成立），像素与金图只报数不判绿
+mat_persp: resident done backend=native presents=7057 probes_ok=true pixel_ok=true golden=2.2046%

@@ -132,8 +132,13 @@ type PictureTextureCache struct {
 	// and record cause: a global FrameRerecord counter cannot
 	// tell which grid keeps re-recording (HOT animation vs eviction
 	// thrash). Key = PictureLayer.CacheKey, cause = "full"/"full-extra"/
-	// "local". Guarded by mu; read via RerecordByKeySnapshot.
-	rerecordBy map[uint64]map[string]int64
+	// "local". Guarded by mu; read via RerecordByKeySnapshot. Bounded
+	// diagnostics (O4): dead keys are swept in BeginFrame against liveKeys,
+	// and the map is hard-capped at maxRerecordAttrEntries with oldest-first
+	// eviction (live keys preferred to survive) — m4 keeps measured rows in
+	// the live set, so the sweep alone cannot bound it.
+	rerecordBy    map[uint64]map[string]int64
+	rerecordOrder []uint64 // insertion order for oldest-first eviction
 	// stable counts consecutive unchanged sightings per cache key for texture
 	// admission (Flutter RasterCache accesses_since_visible:
 	// DisplayListRasterCacheItem::PrerollFinalize caches only when
@@ -151,6 +156,12 @@ type PictureTextureCache struct {
 	refused map[uint64]image.Rectangle
 }
 
+// maxRerecordAttrEntries hard-caps the diagnostics attribution map. The r10
+// per-grid gate only needs the live grid keys (a few dozen); older scrolled
+// rows are dropped oldest-first. 1024 keys ≈1.6MB measured (m4 300s reached
+// 6.5MB unbounded; attribution is diagnostics, never correctness).
+const maxRerecordAttrEntries = 1024
+
 // noteRerecord attributes one re-record to (key, cause). Callers hold c.mu.
 func (c *PictureTextureCache) noteRerecord(key uint64, cause string) {
 	if c.rerecordBy == nil {
@@ -158,10 +169,44 @@ func (c *PictureTextureCache) noteRerecord(key uint64, cause string) {
 	}
 	byCause := c.rerecordBy[key]
 	if byCause == nil {
+		for len(c.rerecordBy) >= maxRerecordAttrEntries && len(c.rerecordOrder) > 0 {
+			c.evictOldestRerecord()
+		}
+		if len(c.rerecordBy) >= maxRerecordAttrEntries {
+			// Defensive: order lost/empty; drop everything rather than grow.
+			clear(c.rerecordBy)
+			c.rerecordOrder = c.rerecordOrder[:0]
+		}
 		byCause = make(map[string]int64)
 		c.rerecordBy[key] = byCause
+		c.rerecordOrder = append(c.rerecordOrder, key)
 	}
 	byCause[cause]++
+}
+
+// evictOldestRerecord drops one attribution key, preferring the oldest key
+// that is not in the current live set. Callers hold c.mu.
+func (c *PictureTextureCache) evictOldestRerecord() {
+	idx := -1
+	for i, k := range c.rerecordOrder {
+		if _, ok := c.rerecordBy[k]; !ok {
+			idx = i // stale order entry
+			break
+		}
+		if len(c.liveKeys) > 0 {
+			if _, live := c.liveKeys[k]; live {
+				continue
+			}
+		}
+		idx = i
+		break
+	}
+	if idx < 0 {
+		idx = 0 // every tracked key is live: hard cap wins, drop the oldest
+	}
+	k := c.rerecordOrder[idx]
+	delete(c.rerecordBy, k)
+	c.rerecordOrder = append(c.rerecordOrder[:idx], c.rerecordOrder[idx+1:]...)
 }
 
 // RerecordByKeySnapshot returns a copy of the per-key re-record attribution
@@ -580,6 +625,23 @@ func (c *PictureTextureCache) BeginFrame() {
 			if _, ok := c.liveKeys[k]; !ok {
 				delete(c.churn, k)
 			}
+		}
+		// O4: diagnostics attribution is per cache key; a virtual list visits
+		// a new key per scrolled row. Sweep dead keys here like stable/churn,
+		// then compact the eviction order so it cannot grow stale.
+		for k := range c.rerecordBy {
+			if _, ok := c.liveKeys[k]; !ok {
+				delete(c.rerecordBy, k)
+			}
+		}
+		if len(c.rerecordOrder) > 0 {
+			kept := c.rerecordOrder[:0]
+			for _, k := range c.rerecordOrder {
+				if _, ok := c.rerecordBy[k]; ok {
+					kept = append(kept, k)
+				}
+			}
+			c.rerecordOrder = kept
 		}
 	}
 	c.drainDeferred(c.recordFrame)

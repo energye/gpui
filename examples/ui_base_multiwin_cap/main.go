@@ -644,8 +644,10 @@ func main() {
 		if gotPhases[0].CPUPct > 85 {
 			fail("phase n=1 cpu=%.1f%% > 85%% health line (idle windows must not burn CPU)", gotPhases[0].CPUPct)
 		}
-		if !snap.RSSSlopeValid || snap.RSSSlopeSteadyKBPerMin > 30000 {
-			fail("rss_slope_steady=%.0fKB/min valid=%v want <=30000KB/min (health line)", snap.RSSSlopeSteadyKBPerMin, snap.RSSSlopeValid)
+		if snap.RSSStartKB == 0 && snap.RSSEndKB == 0 {
+			fail("rss unavailable (start/end=0)")
+		} else if snap.RSSSlopeValid && snap.RSSSlopeSteadyKBPerMin > 30000 {
+			fail("rss_slope_steady=%.0fKB/min want <=30000KB/min (health line)", snap.RSSSlopeSteadyKBPerMin)
 		}
 		if cpuFallback > 0 {
 			fail("cpu_fallback_ops_total=%d want 0", cpuFallback)

@@ -1,0 +1,6 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: /tmp/c11_policy_switch/c11_final.png
+ui_wr_c11_policy_switch: pixel static_cell_survives_switches    @( 368, 126) got=(0.369,0.400,0.722) want=(0.370,0.400,0.720) ok=true
+ui_wr_c11_policy_switch: pixel static_note_text_density         text_px=819 (want >=120) ok=true
+golden baseline stored: /tmp/c11_policy_switch/c11_final_base.png
+FAIL: hitch_rate_per_min=8.02 > 5

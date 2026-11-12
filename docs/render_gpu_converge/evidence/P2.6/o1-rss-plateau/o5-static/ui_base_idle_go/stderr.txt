@@ -1,0 +1,10 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0002ea000 ctx=0xc0000f6040
+snapshot: examples/ui_base_idle/testdata/showcase_idle.png
+ui_base_idle: pixel body_bg            bg  @( 600, 400) got=(0.098,0.110,0.129) want=(0.100,0.110,0.130) ok=true
+ui_base_idle: pixel legend_bg          bg  @(  20, 300) got=(0.110,0.122,0.149) want=(0.110,0.120,0.150) ok=true
+ui_base_idle: pixel top_bg             bg  @( 600,  24) got=(0.122,0.141,0.180) want=(0.120,0.140,0.180) ok=true
+ui_base_idle: ink   title_ink          region=(  14,  16 260x18) ink_px=1137 want>=12 ok=true
+ui_base_idle: ink   legend_ink         region=(  24,  84 230x18) ink_px=386 want>=8 ok=true
+ui_base_idle: golden showcase_idle.png: diff=0.8489% over 873600 px
+FAIL: pixel_golden_diff_pct=0.8489 want 0 over 873600 px

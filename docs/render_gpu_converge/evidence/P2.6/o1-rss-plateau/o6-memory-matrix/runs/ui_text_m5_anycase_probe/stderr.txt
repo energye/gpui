@@ -1,0 +1,43 @@
+gc 1 @0.006s 2%: 0.076+0.55+0.047 ms clock, 0.30+0/0.40/0.41+0.18 ms cpu, 17->17->16 MB, 17 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 2 @0.015s 1%: 0.014+0.39+0.012 ms clock, 0.056+0/0.36/0.47+0.050 ms cpu, 35->35->35 MB, 35 MB goal, 0 MB stacks, 0 MB globals, 4 P
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+gc 3 @0.050s 0%: 0.023+0.42+0.010 ms clock, 0.093+0/0.38/0.72+0.043 ms cpu, 73->73->72 MB, 73 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 4 @0.276s 0%: 0.065+6.3+0.017 ms clock, 0.26+0/2.7/4.4+0.071 ms cpu, 156->156->129 MB, 156 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 5 @1.178s 0%: 0.076+6.5+0.015 ms clock, 0.30+0.066/4.9/8.3+0.061 ms cpu, 254->254->175 MB, 258 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 6 @6.063s 0%: 0.071+10+0.012 ms clock, 0.28+2.3/8.4/12+0.049 ms cpu, 347->348->178 MB, 351 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 7 @11.052s 0%: 0.082+11+0.010 ms clock, 0.32+0.22/8.2/18+0.043 ms cpu, 353->353->180 MB, 357 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 8 @16.090s 0%: 0.20+20+0.16 ms clock, 0.82+0.37/15/28+0.67 ms cpu, 358->359->183 MB, 362 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 9 @21.247s 0%: 0.062+9.0+0.015 ms clock, 0.24+0.22/8.6/23+0.062 ms cpu, 364->364->181 MB, 368 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 10 @26.317s 0%: 0.18+11+0.012 ms clock, 0.74+0.22/11/18+0.048 ms cpu, 360->360->182 MB, 364 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 11 @31.408s 0%: 0.050+9.8+0.011 ms clock, 0.20+0.20/9.3/22+0.044 ms cpu, 361->361->182 MB, 365 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 12 @36.529s 0%: 0.064+12+0.012 ms clock, 0.25+0.95/12/25+0.049 ms cpu, 362->362->183 MB, 366 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 13 @41.618s 0%: 0.046+11+0.029 ms clock, 0.18+0.11/9.5/25+0.11 ms cpu, 363->363->183 MB, 367 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 14 @46.758s 0%: 0.047+11+0.015 ms clock, 0.19+0.13/10/20+0.061 ms cpu, 364->364->182 MB, 368 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 15 @51.860s 0%: 0.14+11+0.010 ms clock, 0.57+0.43/9.3/25+0.043 ms cpu, 361->362->183 MB, 365 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 16 @56.984s 0%: 0.16+12+0.012 ms clock, 0.64+0.33/12/14+0.048 ms cpu, 363->363->183 MB, 367 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 17 @62.123s 0%: 0.092+11+0.017 ms clock, 0.36+1.5/11/21+0.070 ms cpu, 364->364->184 MB, 368 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 18 @67.260s 0%: 0.050+12+0.011 ms clock, 0.20+0.23/12/23+0.045 ms cpu, 364->365->184 MB, 368 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 19 @72.417s 0%: 0.077+11+0.011 ms clock, 0.31+0.092/11/18+0.046 ms cpu, 366->366->183 MB, 370 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 20 @77.520s 0%: 0.15+12+0.013 ms clock, 0.60+0.18/9.8/17+0.053 ms cpu, 362->363->183 MB, 366 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 21 @82.660s 0%: 0.12+11+0.009 ms clock, 0.50+0.21/10/24+0.037 ms cpu, 363->364->184 MB, 367 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 22 @87.781s 0%: 0.13+12+0.012 ms clock, 0.54+0.39/12/26+0.050 ms cpu, 364->364->184 MB, 368 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 23 @92.953s 0%: 0.17+11+0.013 ms clock, 0.70+0.32/11/25+0.052 ms cpu, 365->366->185 MB, 369 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 24 @98.109s 0%: 0.066+9.7+0.010 ms clock, 0.26+0.057/9.1/20+0.040 ms cpu, 366->366->183 MB, 370 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 25 @103.244s 0%: 0.16+12+0.009 ms clock, 0.67+0.44/11/22+0.039 ms cpu, 363->363->183 MB, 367 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 26 @108.382s 0%: 0.33+13+0.010 ms clock, 1.3+0.32/13/23+0.041 ms cpu, 364->364->184 MB, 368 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 27 @113.510s 0%: 0.095+10+0.039 ms clock, 0.38+0.063/10/19+0.15 ms cpu, 365->365->184 MB, 369 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 28 @118.632s 0%: 0.053+11+0.010 ms clock, 0.21+0.14/10/24+0.043 ms cpu, 365->365->184 MB, 369 MB goal, 0 MB stacks, 0 MB globals, 4 P
+snapshot: examples/ui_text_m5_anycase/testdata/showcase_text_m5.png
+ui_text_m5_anycase: pixel body_bg            bg  @( 884, 700) got=(0.098,0.110,0.129) want=(0.100,0.110,0.130) ok=true
+ui_text_m5_anycase: pixel legend_bg          bg  @(  32, 680) got=(0.110,0.122,0.149) want=(0.110,0.120,0.150) ok=true
+ui_text_m5_anycase: pixel top_bg             bg  @(1000,  24) got=(0.122,0.141,0.180) want=(0.120,0.140,0.180) ok=true
+ui_text_m5_anycase: ink   zone_a_label_ink   region=( 296,  60 260x14) ink_px=736 want>=20 ok=true
+ui_text_m5_anycase: ink   zone_a_text_ink    region=( 296,  80 540x170) ink_px=13110 want>=200 ok=true
+ui_text_m5_anycase: ink   zone_b_label_ink   region=( 296, 256 300x14) ink_px=813 want>=20 ok=true
+ui_text_m5_anycase: ink   zone_b_text_ink    region=( 296, 276 540x130) ink_px=10828 want>=100 ok=true
+ui_text_m5_anycase: ink   zone_c_label_ink   region=( 296, 414 340x14) ink_px=975 want>=20 ok=true
+ui_text_m5_anycase: ink   zone_c_text_ink    region=( 296, 432 540x112) ink_px=6296 want>=150 ok=true
+ui_text_m5_anycase: ink   zone_d_label_ink   region=( 296, 550 260x14) ink_px=665 want>=20 ok=true
+ui_text_m5_anycase: ink   zone_d_text_ink    region=( 296, 568 420x140) ink_px=6315 want>=150 ok=true
+ui_text_m5_anycase: golden showcase_text_m5.png: diff=3.3856% over 821184 px
+FAIL: pixel_golden_diff_pct=3.3856 want 0 over 821184 px

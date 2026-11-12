@@ -1,0 +1,86 @@
+gc 1 @0.013s 1%: 0.038+1.1+0.039 ms clock, 0.15+0/0.85/0+0.15 ms cpu, 17->17->16 MB, 17 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 2 @0.024s 2%: 0.016+1.0+0.018 ms clock, 0.067+0/0.90/0.77+0.073 ms cpu, 36->36->35 MB, 36 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 3 @0.063s 1%: 0.025+0.62+0.012 ms clock, 0.10+0/0.57/0.58+0.050 ms cpu, 77->77->57 MB, 77 MB goal, 0 MB stacks, 0 MB globals, 4 P
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+gc 4 @0.346s 0%: 0.022+3.1+0.19 ms clock, 0.089+0.15/2.1/4.3+0.78 ms cpu, 112->112->107 MB, 114 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 5 @1.993s 0%: 0.051+6.0+0.011 ms clock, 0.20+0.22/5.7/7.6+0.046 ms cpu, 212->212->115 MB, 216 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 6 @4.298s 0%: 0.060+8.0+0.016 ms clock, 0.24+0.19/7.5/9.2+0.065 ms cpu, 226->227->116 MB, 230 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 7 @6.695s 0%: 0.15+10+0.011 ms clock, 0.60+0.55/8.1/15+0.044 ms cpu, 229->230->117 MB, 233 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 8 @9.054s 0%: 0.094+6.8+0.010 ms clock, 0.37+0.10/6.2/14+0.043 ms cpu, 232->232->119 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 9 @11.437s 0%: 0.078+14+0.011 ms clock, 0.31+0.24/13/7.9+0.047 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 10 @13.824s 0%: 0.046+7.0+0.016 ms clock, 0.18+0.23/7.0/13+0.066 ms cpu, 235->235->118 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 11 @16.207s 0%: 0.28+9.9+0.010 ms clock, 1.1+0.85/9.7/6.1+0.042 ms cpu, 232->233->118 MB, 236 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 12 @18.577s 0%: 0.094+9.5+0.012 ms clock, 0.37+0.13/9.4/13+0.048 ms cpu, 233->233->118 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 13 @20.947s 0%: 0.046+9.6+0.014 ms clock, 0.18+0.11/9.5/9.5+0.057 ms cpu, 233->233->118 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 14 @23.365s 0%: 0.066+9.5+0.013 ms clock, 0.26+0.13/8.4/9.6+0.054 ms cpu, 233->233->118 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 15 @25.734s 0%: 0.068+10+0.012 ms clock, 0.27+0.18/10/20+0.051 ms cpu, 233->233->118 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 16 @28.138s 0%: 0.086+10+0.028 ms clock, 0.34+1.4/8.5/10+0.11 ms cpu, 234->234->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 17 @30.554s 0%: 0.093+9.2+0.010 ms clock, 0.37+0.088/6.6/16+0.043 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 18 @32.926s 0%: 0.16+10+0.012 ms clock, 0.67+0.29/10/15+0.050 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 19 @35.346s 0%: 0.14+10+0.011 ms clock, 0.56+0.21/10/16+0.047 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 20 @37.746s 0%: 0.21+8.9+0.032 ms clock, 0.87+0.69/8.7/17+0.13 ms cpu, 235->236->118 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 21 @40.169s 0%: 0.17+8.7+0.012 ms clock, 0.68+0.84/7.8/13+0.050 ms cpu, 234->234->118 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 22 @42.559s 0%: 0.074+6.1+0.011 ms clock, 0.29+0.17/5.9/12+0.045 ms cpu, 234->234->118 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 23 @44.974s 0%: 0.14+9.4+0.014 ms clock, 0.57+0.83/9.1/15+0.057 ms cpu, 234->234->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 24 @47.342s 0%: 0.18+11+0.012 ms clock, 0.74+0.41/11/21+0.048 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 25 @49.764s 0%: 0.093+11+0.012 ms clock, 0.37+0.22/11/9.2+0.050 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 26 @52.148s 0%: 0.17+8.6+0.012 ms clock, 0.69+0.44/7.4/10+0.050 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 27 @54.552s 0%: 0.14+9.3+0.012 ms clock, 0.57+0.22/8.0/11+0.051 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 28 @56.935s 0%: 0.25+9.8+0.013 ms clock, 1.0+0.22/9.4/11+0.052 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 29 @59.371s 0%: 0.30+8.8+0.012 ms clock, 1.2+1.1/7.5/7.6+0.050 ms cpu, 235->236->118 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 30 @61.757s 0%: 0.080+7.3+0.017 ms clock, 0.32+0.49/7.1/14+0.071 ms cpu, 234->234->118 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 31 @64.181s 0%: 0.33+8.3+0.012 ms clock, 1.3+0.60/7.3/9.6+0.049 ms cpu, 234->234->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 32 @66.576s 0%: 0.28+6.9+0.013 ms clock, 1.1+0.38/6.7/13+0.052 ms cpu, 234->234->118 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 33 @68.966s 0%: 0.20+9.0+0.013 ms clock, 0.82+0.50/8.6/14+0.053 ms cpu, 234->234->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 34 @71.334s 0%: 0.053+9.0+0.015 ms clock, 0.21+0.13/9.0/14+0.063 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 35 @73.724s 0%: 0.053+9.8+0.011 ms clock, 0.21+0.062/9.2/13+0.047 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 36 @76.151s 0%: 0.36+10+0.012 ms clock, 1.4+0.44/9.9/14+0.050 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 37 @78.576s 0%: 0.091+8.0+0.011 ms clock, 0.36+0.15/6.0/14+0.044 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 38 @81.002s 0%: 0.060+6.9+0.013 ms clock, 0.24+0.16/6.9/13+0.055 ms cpu, 235->235->118 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 39 @83.366s 0%: 0.043+10+0.011 ms clock, 0.17+0.11/10/15+0.046 ms cpu, 233->233->118 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 40 @85.751s 0%: 0.062+9.7+0.011 ms clock, 0.24+0.46/6.2/11+0.044 ms cpu, 233->234->119 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 41 @88.152s 0%: 0.24+11+0.015 ms clock, 0.98+0.13/11/8.9+0.062 ms cpu, 234->235->118 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 42 @90.552s 0%: 0.072+8.0+0.013 ms clock, 0.28+0.40/7.5/14+0.054 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 43 @92.960s 0%: 0.073+10+0.011 ms clock, 0.29+0.54/10/6.5+0.045 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 44 @95.346s 0%: 0.081+7.4+0.017 ms clock, 0.32+0.13/7.0/15+0.069 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 45 @97.750s 0%: 0.068+9.1+0.012 ms clock, 0.27+0.13/9.1/15+0.048 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 46 @100.134s 0%: 0.064+10+0.013 ms clock, 0.25+0.15/9.9/17+0.053 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 47 @102.504s 0%: 0.069+9.3+0.014 ms clock, 0.27+0.13/9.3/12+0.057 ms cpu, 235->235->118 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 48 @104.895s 0%: 0.046+6.4+0.012 ms clock, 0.18+0.085/6.2/12+0.048 ms cpu, 233->233->118 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 49 @107.275s 0%: 0.11+7.9+0.024 ms clock, 0.44+0.25/7.7/13+0.098 ms cpu, 233->233->118 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 50 @109.647s 0%: 0.12+8.9+0.010 ms clock, 0.50+1.0/8.8/10+0.042 ms cpu, 233->234->119 MB, 237 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 51 @112.046s 0%: 0.081+7.4+0.013 ms clock, 0.32+0.58/6.5/10+0.053 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 52 @114.419s 0%: 0.074+7.8+0.027 ms clock, 0.29+0.16/7.2/11+0.11 ms cpu, 234->235->119 MB, 238 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 53 @116.806s 0%: 0.085+9.7+0.011 ms clock, 0.34+0.47/9.2/12+0.047 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 54 @119.174s 0%: 0.083+8.9+0.013 ms clock, 0.33+0.12/8.9/14+0.055 ms cpu, 235->235->119 MB, 239 MB goal, 0 MB stacks, 0 MB globals, 4 P
+snapshot: examples/ui_wr_p34_filters/testdata/p34_final.png
+ui_wr_p34_filters: pixel p34_blur_core          ok=true avg=(254,254,254,255)
+ui_wr_p34_filters: pixel p34_blur_edge          ok=true avg=(216,216,217,255)
+ui_wr_p34_filters: pixel p34_blurxy_smear       ok=true avg=(74,76,82,255)
+ui_wr_p34_filters: pixel p34_blurxy_no_x        ok=true avg=(25,28,35,255)
+ui_wr_p34_filters: pixel p34_shadow_content     ok=true avg=(255,51,51,255)
+ui_wr_p34_filters: pixel p34_shadow_band        ok=true avg=(5,6,7,255)
+ui_wr_p34_filters: pixel p34_matrix_swapped     ok=true avg=(0,0,255,255)
+ui_wr_p34_filters: pixel p34_gray_equal         ok=true avg=(54,54,54,255)
+ui_wr_p34_filters: pixel p34_invert_yellow      ok=true avg=(255,255,0,255)
+ui_wr_p34_filters: pixel p34_erode_corner       ok=true avg=(25,28,35,255)
+ui_wr_p34_filters: pixel p34_erode_body         ok=true avg=(255,255,255,255)
+ui_wr_p34_filters: pixel p34_dilate_grown       ok=true avg=(255,255,255,255)
+ui_wr_p34_filters: pixel p34_dilate_far         ok=true avg=(25,28,35,255)
+ui_wr_p34_filters: pixel p34_offset_moved       ok=true avg=(254,254,254,255)
+ui_wr_p34_filters: pixel p34_offset_vacated     ok=true avg=(25,28,33,255)
+ui_wr_p34_filters: pixel p34_alpha_low_zeroed   ok=true avg=(25,28,33,255)
+ui_wr_p34_filters: pixel p34_alpha_high_kept    ok=true avg=(243,243,244,255)
+ui_wr_p34_filters: pixel p34_light_lit_side     ok=true avg=(77,77,77,255)
+ui_wr_p34_filters: pixel p34_light_dark_side    ok=true avg=(61,61,61,255)
+ui_wr_p34_filters: pixel p34_tile_cell          ok=true avg=(255,255,255,255)
+ui_wr_p34_filters: pixel p34_tile_gap           ok=true avg=(25,28,33,255)
+ui_wr_p34_filters: pixel p34_bloom_core         ok=true avg=(255,255,255,255)
+ui_wr_p34_filters: pixel p34_bloom_halo         ok=true avg=(42,45,52,255)
+ui_wr_p34_filters: pixel p34_disp_shifted       ok=true avg=(255,255,255,255)
+ui_wr_p34_filters: pixel p34_disp_vacated       ok=true avg=(25,28,35,255)
+ui_wr_p34_filters: pixel p34_merge_offset       ok=true avg=(51,255,102,255)
+ui_wr_p34_filters: pixel p34_merge_invert       ok=true avg=(204,0,153,255)
+ui_wr_p34_filters: pixel p34_mask_soft          ok=true avg=(80,58,38,255)
+ui_wr_p34_filters: pixel p34_mask_hard          ok=true avg=(25,28,35,255)
+ui_wr_p34_filters: OK presents=7108 pixel=29/29 golden=0.0000% gate=true elapsed=120.6s
