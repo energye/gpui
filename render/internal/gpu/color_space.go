@@ -9,7 +9,10 @@
 
 package gpu
 
-import "math"
+import (
+	"math"
+	"strings"
+)
 
 // P3.1b-1: single source for sRGB <-> linear-light conversion.
 //
@@ -31,6 +34,27 @@ fn linear_to_srgb(c: f32) -> f32 {
     return 1.055 * pow(c, 1.0 / 2.4) - 0.055;
 }
 `
+
+const linearOutputWGSL = colorSpaceWGSL + `
+const LINEAR_OUT: bool = false;
+fn encode_out(c: vec4<f32>) -> vec4<f32> {
+    if (LINEAR_OUT) {
+        return vec4<f32>(srgb_to_linear(c.r), srgb_to_linear(c.g), srgb_to_linear(c.b), c.a);
+    }
+    return c;
+}
+`
+
+// shaderSourceForTarget prepends the shared color-space helpers and flips the
+// LINEAR_OUT const when the target is an opt-in sRGB/linear target. The shader
+// body must return encode_out(color) at every color-writing fragment entry.
+func shaderSourceForTarget(src string, linear bool) string {
+	prefix := linearOutputWGSL
+	if linear {
+		prefix = strings.Replace(prefix, "const LINEAR_OUT: bool = false;", "const LINEAR_OUT: bool = true;", 1)
+	}
+	return prefix + src
+}
 
 func clamp01(v float64) float64 {
 	if v < 0 {

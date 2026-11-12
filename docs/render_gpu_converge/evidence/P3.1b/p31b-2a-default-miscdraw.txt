@@ -1,0 +1,6 @@
+=== miscdraw native ===
+golden showcase_miscdraw.png: diff=0.0000% over 737760 px
+ui_render_base_miscdraw: OK presents=297 logic=14/14 pixel=17/17 golden=0.0000% screen=false resize=0 1200x800 mode=gate elapsed=5.6s
+=== miscdraw go ===
+golden showcase_miscdraw.png: diff=0.0000% over 737760 px
+ui_render_base_miscdraw: OK presents=293 logic=14/14 pixel=17/17 golden=0.0000% screen=false resize=0 1200x800 mode=gate elapsed=5.9s

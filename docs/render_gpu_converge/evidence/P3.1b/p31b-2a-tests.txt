@@ -1,0 +1,10 @@
+=== P3.1b-2a linear target fixed blend ===
+=== RUN   TestP31bLinearTargetFixedBlend
+    p31b_linear_target_test.go:95: P3.1b-2a sRGB target=[141 90 70 255] fallback=0; Unorm target=[192 128 90 255] fallback=1
+--- PASS: TestP31bLinearTargetFixedBlend (0.58s)
+PASS
+ok  	github.com/energye/gpui/render/internal/gpu	0.602s
+=== fixed-function shader/pipeline regressions ===
+ok  	github.com/energye/gpui/render/internal/gpu	5.833s
+=== render P3.1 ===
+ok  	github.com/energye/gpui/render	0.564s

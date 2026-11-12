@@ -594,7 +594,7 @@ func (cr *ConvexRenderer) createPipeline() error {
 
 	shader, err := cr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "convex_shader",
-		WGSL:  convexShaderSource,
+		WGSL:  shaderSourceForTarget(convexShaderSource, isSRGBFormat(colorFormatOr(cr.colorFormat))),
 	})
 	if err != nil {
 		return fmt.Errorf("compile convex shader: %w", err)

@@ -53,7 +53,7 @@
 
 - ✅ **22 窗金图漂移已收口**：44 轮双后端采集 → 21/22 判基线过期（未发现渲染洞）→ 用户确认 → 21 窗重种；native/go 42 轮复跑全 `0.0000%`；窗口级 1px 负向 12.9901% 红→还原绿；`ui_render_base_svg` 0.0000% 不重种。
 - ✅ **I5 v2 已收口**：`ui_base_vram_cap` 8 窗按既有证据重种；native Mailbox + go/gles 各 300s cascade，8/8 窗 `0.0000%`、像素 16/16、rc=0。
-- 🟡 **P3.1b 路线已拍板 + 首批探针 PASS**：用户确认 **per-surface opt-in 线性目标**（默认 sRGB 路径/基线不动）；P3.1b-0 native webgpu sRGB 目标 + GLES `SRGB8_ALPHA8`/`GL_FRAMEBUFFER_SRGB` 探针均 PASS（线性混合字节 188/165/149）。下一步：swapchain/blit 探针 → 显式转换函数 → linear 目标固定功能 13 模式。
+- 🟡 **P3.1b 已过 P3.1b-0/1/2a**：opt-in sRGB 目标 + 颜色转换单一真源 + solid fixed-function 线性混合 PASS（sRGB Plus [141 90 70] vs Unorm [192 128 90]）；下一步 P3.1b-2b：image/text/gradient/advanced/CPU 回退策略 + 13 模式全表 + 新窗。
 - 余项：D2（余留既有红，有意保留）、N1（可选）、N3 ✅ 2026-11-12（snapshot 竞态已修）、soak 两项；主表 P0–P4 全 ✅。
 - 已收口：I1、I2、C7、I3、C1–C6、E1/E3、G3、B2/B3 等，详见 §2.2。
 - **任务总表（P0–P4）在本节末**；下面的专项索引只列不属于主表 / §2.2 待办池的已收口项。
@@ -62,12 +62,12 @@
 **当前任务验证载体（2026-11-12 开工登记，评估阶段）**
 
 - 任务：P3.1b opt-in 线性目标（默认 sRGB 不变；fixed-function 13 模式在 linear 目标走硬件线性混合）
-- 能力单测：新增 `render/p31b_linear_target_test.go`（目标格式选择/显式 sRGB↔linear/固定功能 13 模式 linear 路由）、`render/internal/gpu/color_space_test.go`、`color_space_gpu_test.go`、`offscreen_format_srgb_test.go`、`srgb_target_probe_test.go`、`gpu/gwgpu/gles/srgb_fbo_probe_test.go`、`gpu/gwgpu/gles/srgb_blit_probe_test.go`、`gpu/webgpu/srgb_swapchain_probe_test.go`；沿用 `render/p31_blend_space_test.go`、`render/internal/gpu/color_format_test.go`、`gpu/gwgpu/gles/convert_test.go`
+- 能力单测：新增 `render/internal/gpu/p31b_linear_target_test.go`（linear 目标固定功能 linear 混合/计数）、`render/internal/gpu/color_space_test.go`、`color_space_gpu_test.go`、`offscreen_format_srgb_test.go`、`srgb_target_probe_test.go`、`gpu/gwgpu/gles/srgb_fbo_probe_test.go`、`gpu/gwgpu/gles/srgb_blit_probe_test.go`、`gpu/webgpu/srgb_swapchain_probe_test.go`；沿用 `render/p31_blend_space_test.go`、`render/internal/gpu/color_format_test.go`、`gpu/gwgpu/gles/convert_test.go`
 - 真窗：新增 `examples/ui_wr_p31b_srgb_chain`（默认 sRGB 目标 vs opt-in linear 目标对照；固定功能 13 模式 + 半透明中间调；`-auto-only`）
 - 金图：新窗新金图，容差 0；默认窗旧金图保持不动（opt-in 路线不重采全量）
 - 双后端：webgpu native 必跑；gwgpu-gles go 必跑；metal darwin 仅交叉编译（本机不可验）
 - 负向对照：强制 Unorm 目标 → linear 降级/像素差红；摘 linear 目标输出转换 → 颜色偏差异红；默认 sRGB 路径旧金图保持 0（证明没被改）
-- 证据：`evidence/P3.1b/assessment.md`、`evidence/P3.1b/p31b-1-tests.txt`、`evidence/P3.1b/probes/`（native-webgpu / gles-srgb-fbo / webgpu-swapchain / gles-srgb-blit 已 PASS）
+- 证据：`evidence/P3.1b/assessment.md`、`evidence/P3.1b/p31b-1-tests.txt`、`evidence/P3.1b/p31b-2a-tests.txt`、`evidence/P3.1b/p31b-2a-default-miscdraw.txt`、`evidence/P3.1b/probes/`（native-webgpu / gles-srgb-fbo / webgpu-swapchain / gles-srgb-blit 已 PASS）
 
 已收口：22 窗金图漂移（21 窗基线过期重种 + 双后端 0.0000% + 1px 负向）→ `evidence/P2.6/golden-drift/assessment.md`；I5 v2（Mailbox present + 8 窗金图债清）→ `evidence/P2.4e/i5-v2/summary.md`、`evidence/P2.6/golden-drift/i5-vram/closeout.md`；C7（gles 多窗 Wayland：EGLDisplay 按 native display 引用计数 + 借用 display 不 terminate；8 窗 300s 全开/全 present/正常退出）→ `evidence/P2.4e/c7-wayland-verify/closeout.md`。
 
@@ -122,7 +122,7 @@
 | P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ✅ | `evidence/P2.6/` |
 | P3.0 | 依赖图 + 文档更新（PLAN §5 + `RENDER_API_CATALOG.md`），再实现 | P2.6 | ✅ | `evidence/P3.0/` |
 | P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | ✅ | `evidence/P3.1/` |
-| P3.1b | opt-in 线性目标（默认 sRGB 不变；fixed-function 13 模式在 linear 目标走硬件线性混合；sRGB↔linear 显式转换；HDR/广色域前置） | P3.1、M5 | 🟡 2026-11-12 P3.1b-0 四项探针 + P3.1b-1 颜色转换地基 PASS；下一步 linear 目标固定功能 13 模式 | `evidence/P3.1b/` |
+| P3.1b | opt-in 线性目标（默认 sRGB 不变；fixed-function 13 模式在 linear 目标走硬件线性混合；sRGB↔linear 显式转换；HDR/广色域前置） | P3.1、M5 | 🟡 2026-11-12 P3.1b-0/1 + 2a 已 PASS；2b 待补 image/text/gradient/advanced/CPU 回退 + 13 模式全表 + 新窗 | `evidence/P3.1b/` |
 | P3.2 | 自定义 shader（依赖 P2.1 翻译器 + 新公开 API） | P3.0、P2.1 | ✅ | `evidence/P3.2/` |
 | P3.3 | 富文本（含 `DrawParagraph` 逐 run 样式，原半成品前移） | P3.0 | ✅ | `evidence/P3.3/` |
 | P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1（软） | ✅ 2026-11-01 五批 + 真窗 6/6 双档 + 金图 diff 0；C 卡三根因闭合；2026-11-10 补 16 节点 CPU/GPU 单测 + `ui_wr_p34_filters` 4×4 十六卡（29 探针、0.0000%），displacement GPU 改 fail-closed | `evidence/P3.4/`、`evidence/P3.4/node-matrix.md` |
@@ -491,6 +491,7 @@ docs/render_gpu_converge/
 | 2026-11-12 | N3 | 首窗 snapshot 未写出根因=`runDone` Wait→Add 竞态（主 goroutine 提前 Close 置 target nil）；修=windowsOpened 屏障 + gate 前删旧 PNG + 缺文件显式 FAIL + embedder 报错；5×60s 与 native/go 300s 全 8/8，只读负向 8/8 红 | `evidence/P2.6/golden-drift/n3-snapshot-race/assessment.md` |
 | 2026-11-12 | P3.1b | 标准对齐复核后改 per-surface opt-in 线性目标（默认 sRGB 不动）；P3.1b-0 四项探针 PASS：native/GLES sRGB target、X11 sRGB swapchain、GLES sRGB↔Unorm blit | `evidence/P3.1b/` |
 | 2026-11-12 | P3.1b | P3.1b-1 颜色转换地基：`colorSpaceWGSL` + Go sRGB↔linear 单一真源；GPU/CPU 256 点逐值对拍 PASS；`CreateOffscreenTextureFormat` sRGB 白名单 + 4B/px 账本/clear PASS；dual-tex 共享 snippet，既有测试全过 | `evidence/P3.1b/p31b-1-tests.txt` |
+| 2026-11-12 | P3.1b | P3.1b-2a：convex/cover/cover_aa 输出 `encode_out`，sRGB 目标用 LINEAR_OUT 变体；solid fixed-function linear 在 sRGB 目标不降级/Unorm 计 1；能力钉 sRGB Plus [141 90 70] vs Unorm [192 128 90]；默认 miscdraw 双后端金图 0.0000% | `evidence/P3.1b/p31b-2a-tests.txt` |
 
 ## 8 修订记录（摘要；全文见存档）
 

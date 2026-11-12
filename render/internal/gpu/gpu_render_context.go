@@ -2188,12 +2188,35 @@ func (rc *GPURenderContext) DrawShapedColorGlyphs(target render.GPURenderTarget,
 // The mode tables are re-checked here so the counter stays honest regardless
 // of call site — advanced modes own the dual-tex linear path and never count.
 func (rc *GPURenderContext) noteLinearFixedFunctionFallback(paint *render.Paint) {
+	rc.noteLinearFixedFunctionFallbackForTarget(paint, isSRGBFormat(colorFormatOr(rc.colorFormat)))
+}
+
+func (rc *GPURenderContext) noteLinearFixedFunctionFallbackForTarget(paint *render.Paint, linearTarget bool) {
 	if paint == nil || paint.BlendSpace != render.BlendSpaceLinear {
+		return
+	}
+	// Opt-in linear target (P3.1b): hardware sRGB blending already runs in
+	// linear light, so fixed-function modes no longer degrade.
+	if linearTarget {
 		return
 	}
 	if paintSupportsGPUFixedBlend(paint) && !paintSupportsGPUAdvancedBlend(paint) {
 		rc.shared.linearFixedFunctionFallbacks.Add(1)
 	}
+}
+
+// isLinearTarget reports whether the draw target is an opt-in sRGB/linear
+// target. FillPath/StrokePath run before Flush sets rc.colorFormat, so the
+// per-draw target view is the authoritative signal here.
+func (rc *GPURenderContext) isLinearTarget(target render.GPURenderTarget) bool {
+	if !target.View.IsNil() {
+		if tv := unpackView(target.View); tv != nil {
+			if tex := tv.Texture(); tex != nil {
+				return isSRGBFormat(tex.Format())
+			}
+		}
+	}
+	return isSRGBFormat(colorFormatOr(rc.colorFormat))
 }
 
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint, matrix render.Matrix) error {
@@ -2235,7 +2258,7 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		// P0-2: native GPU gradient / image-pattern fill (no large-area ColorAt).
 		// Reaching here without the advanced gate means a fixed-function
 		// (SourceOver) domain: linear requests degrade until P3.1b.
-		rc.noteLinearFixedFunctionFallback(paint)
+		rc.noteLinearFixedFunctionFallbackForTarget(paint, rc.isLinearTarget(target))
 		if err := rc.fillBrushNative(target, path, paint); err == nil {
 			return nil
 		}
@@ -2246,6 +2269,13 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 			return rc.fillAdvancedBlendAsImage(target, path, paint)
 		}
 		return render.ErrFallbackToCPU
+	}
+	// P3.1b: solid fixed-function fills also participate in the linear-space
+	// telemetry (the non-solid branch below already records its own). On an
+	// opt-in sRGB target the helper returns without counting: hardware blend
+	// is already linear.
+	if isGPUSolidPaint(paint) {
+		rc.noteLinearFixedFunctionFallbackForTarget(paint, rc.isLinearTarget(target))
 	}
 	if !rc.shared.gpuReady {
 		rc.shared.mu.Lock()
@@ -2412,7 +2442,7 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		// Solid stroke with a fixed-function mode: linear requests degrade to
 		// the sRGB domain until the P3.1b sRGB-target switch (advanced strokes
 		// already went through the dual-tex linear path via FillPath).
-		rc.noteLinearFixedFunctionFallback(paint)
+		rc.noteLinearFixedFunctionFallbackForTarget(paint, rc.isLinearTarget(target))
 	} else {
 		// Non-solid: SourceOver bootstrap/native or advanced dual-tex only.
 		if !paintUsesSourceOver(paint) && !paintSupportsGPUAdvancedBlend(paint) {

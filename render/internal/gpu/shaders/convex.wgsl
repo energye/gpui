@@ -124,5 +124,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if final_coverage < 1.0 / 255.0 {
         discard;
     }
-    return in.color * final_coverage;
+    return encode_out(in.color * final_coverage);
 }

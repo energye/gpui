@@ -31,3 +31,8 @@ func colorFormatOr(f types.TextureFormat) types.TextureFormat {
 	}
 	return f
 }
+
+// isSRGBFormat reports whether f is an opt-in sRGB/linear render target.
+func isSRGBFormat(f types.TextureFormat) bool {
+	return f == types.TextureFormatRGBA8UnormSrgb || f == types.TextureFormatBGRA8UnormSrgb
+}

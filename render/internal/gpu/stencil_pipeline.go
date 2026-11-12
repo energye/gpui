@@ -96,7 +96,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 
 	coverShader, err := sr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 		Label: "cover_shader",
-		WGSL:  coverShaderSource,
+		WGSL:  shaderSourceForTarget(coverShaderSource, isSRGBFormat(colorFormatOr(sr.colorFormat))),
 	})
 	if err != nil {
 		return fmt.Errorf("compile cover shader: %w", err)
@@ -375,7 +375,7 @@ func (sr *StencilRenderer) createAABandPipelines() error {
 	if sr.aaCoverShader == nil {
 		sh, err := sr.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
 			Label: "cover_aa_shader",
-			WGSL:  coverAAShaderSource,
+			WGSL:  shaderSourceForTarget(coverAAShaderSource, isSRGBFormat(colorFormatOr(sr.colorFormat))),
 		})
 		if err != nil {
 			return fmt.Errorf("compile cover_aa shader: %w", err)

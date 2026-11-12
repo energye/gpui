@@ -93,5 +93,5 @@ fn fs_main(in: CoverVertexOutput) -> @location(0) vec4<f32> {
     if final_cov < 1.0 / 255.0 {
         discard;
     }
-    return u.color * final_cov;
+    return encode_out(u.color * final_cov);
 }

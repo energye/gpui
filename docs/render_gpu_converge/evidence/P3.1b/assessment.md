@@ -89,7 +89,7 @@
 |---|---|---|
 | P3.1b-0 | 1×1/小图探针：sRGB FBO 写/混合/blit/readback、`GL_FRAMEBUFFER_SRGB`、webgpu sRGB swapchain/offscreen 格式 | ✅ 2026-11-12 四项探针 PASS |
 | P3.1b-1 | 颜色转换地基：显式 `sRGB↔linear` GPU WGSL + CPU Go 函数；`CreateOffscreenTextureFormat` 加 sRGB 白名单；单测先红后绿 | ✅ 2026-11-12 单测 + GPU/CPU 逐值对拍 PASS |
-| P3.1b-2 | opt-in linear 目标：sRGB 目标格式 + `BlendSpaceLinear` 固定功能 13 模式不降级；管线/池键/读回跟随 | 待开工 |
+| P3.1b-2 | opt-in linear 目标：sRGB 目标格式 + `BlendSpaceLinear` 固定功能 13 模式不降级；管线/池键/读回跟随 | 🟡 2a 已过：solid convex/cover/cover_aa 输出线性化 + Plus 线性混合/计数钉 PASS；2b 待补 image/text/gradient/advanced/CPU 回退策略 + 13 模式全表 + 新窗 |
 | P3.1b-3 | 线性目标呈现/合成：linear RT → 呈现前显式 `LinearToSRGB`（或目标本身是 sRGB swapchain）；层/backdrop 边界转换 | 待开工 |
 | P3.1b-4 | 新真窗 + 负向 + 收口；默认窗全部保持旧基线，不重采 | 待开工 |
 | P3.1b-5 | 旁路：若后续要全局默认线性，按 A 路线单独立项（不在本项） | — |
@@ -154,7 +154,18 @@
 - P3.1b 🟡 2026-11-12：路线 **opt-in 线性目标**；默认 sRGB 不变、默认金图不重采。
 - P3.1b-0 ✅：四项探针 PASS（native sRGB target、GLES sRGB FBO/`GL_FRAMEBUFFER_SRGB`、X11 sRGB swapchain、GLES sRGB↔Unorm blit）。
 - P3.1b-1 ✅：`colorSpaceWGSL` + Go `srgbToLinear`/`linearToSRGB` 单一真源；GPU/CPU 256 点逐值对拍 PASS；`CreateOffscreenTextureFormat` sRGB 白名单 + 4 B/px 账本/clear 测试 PASS；dual-tex 改用共享 snippet，既有测试全 PASS。
-- 下一步：P3.1b-2（linear 目标固定功能 13 模式不降级 + 输出转换接线），再 P3.1b-3（呈现/合成）。
+- P3.1b-2a ✅：convex/cover/cover_aa shader 输出经 `encode_out` 线性化；pipeline 按 sRGB 目标选 `LINEAR_OUT` 变体；solid fixed-function linear 在 sRGB 目标不计数、Unorm 照常计数；`TestP31bLinearTargetFixedBlend` PASS；默认 miscdraw 双后端金图 0.0000%。
+- P3.1b-2b 待做：image/text/gradient/advanced/backdrop/video 的输出线性化、CPU 回退策略、固定功能 13 模式全表、新真窗。
+- 下一步：P3.1b-2b，再 P3.1b-3（呈现/合成）。
+
+## 10 P3.1b-2a solid 固定功能线性目标（2026-11-12）
+
+- 实现：`shaderSourceForTarget()` 给 shader 前置 `colorSpaceWGSL + LINEAR_OUT + encode_out`；`convex`/`cover`/`cover_aa` 的 fragment 输出改走 `encode_out`；`ConvexRenderer`/`StencilRenderer` 在目标为 sRGB 时创建 `LINEAR_OUT=true` 的 shader 变体。
+- 遥测：solid fixed-function 路径补 `noteLinearFixedFunctionFallbackForTarget`；sRGB 目标不计数（硬件已线性），Unorm 目标 `BlendPlus+BlendSpaceLinear` 计 1。
+- 能力钉：`TestP31bLinearTargetFixedBlend`——sRGB 目标 Plus 结果 `[141 90 70]`（线性加），Unorm 对照 `[192 128 90]`（编码域）；fallback 0/1。
+- 默认回归：`ui_render_base_miscdraw` native/go 各一次，金图均 `0.0000%`（737760 px），probe 全过。
+- 证据：`p31b-2a-tests.txt`、`p31b-2a-default-miscdraw.txt`。
+- 余量：image/gradient/text/advanced 的 shader 输出尚未包 `encode_out`；CPU 回退在 linear 目标上的策略未定；13 模式全表与新窗未做。
 
 ## 8 P3.1b-0 探针结果（2026-11-12）
 
