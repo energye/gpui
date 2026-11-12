@@ -87,11 +87,11 @@
 
 | 批 | 内容 | 门禁 |
 |---|---|---|
-| P3.1b-0 | 1×1/小图探针：sRGB FBO 写/混合/blit/readback、`GL_FRAMEBUFFER_SRGB`、webgpu sRGB swapchain/offscreen 格式 | 探针报告；默认行为不变 |
-| P3.1b-1 | 颜色转换地基：显式 `sRGB↔linear` GPU WGSL + CPU Go 函数；`CreateOffscreenTextureFormat` 加 sRGB 白名单；单测先红后绿 | 单测 + CPU/GPU 参考对拍 |
-| P3.1b-2 | opt-in linear 目标：sRGB 目标格式 + `BlendSpaceLinear` 固定功能 13 模式不降级；管线/池键/读回跟随 | 双后端真窗 + 负向 |
-| P3.1b-3 | 线性目标呈现/合成：linear RT → 呈现前显式 `LinearToSRGB`（或目标本身是 sRGB swapchain）；层/backdrop 边界转换 | 真窗 + 金图 |
-| P3.1b-4 | 新真窗 + 负向 + 收口；默认窗全部保持旧基线，不重采 | 三证据 + 双后端 |
+| P3.1b-0 | 1×1/小图探针：sRGB FBO 写/混合/blit/readback、`GL_FRAMEBUFFER_SRGB`、webgpu sRGB swapchain/offscreen 格式 | ✅ 2026-11-12 四项探针 PASS |
+| P3.1b-1 | 颜色转换地基：显式 `sRGB↔linear` GPU WGSL + CPU Go 函数；`CreateOffscreenTextureFormat` 加 sRGB 白名单；单测先红后绿 | ✅ 2026-11-12 单测 + GPU/CPU 逐值对拍 PASS |
+| P3.1b-2 | opt-in linear 目标：sRGB 目标格式 + `BlendSpaceLinear` 固定功能 13 模式不降级；管线/池键/读回跟随 | 待开工 |
+| P3.1b-3 | 线性目标呈现/合成：linear RT → 呈现前显式 `LinearToSRGB`（或目标本身是 sRGB swapchain）；层/backdrop 边界转换 | 待开工 |
+| P3.1b-4 | 新真窗 + 负向 + 收口；默认窗全部保持旧基线，不重采 | 待开工 |
 | P3.1b-5 | 旁路：若后续要全局默认线性，按 A 路线单独立项（不在本项） | — |
 
 ## 4 验证方案
@@ -151,10 +151,10 @@
 
 ## 7 状态
 
-- P3.1b 🟡 2026-11-12 路线已拍板：**opt-in 线性目标**（默认 sRGB 不变、默认金图不重采）。
-- P3.1b-0 已出四项探针：native webgpu sRGB 目标、GLES sRGB FBO + `GL_FRAMEBUFFER_SRGB`、webgpu X11 sRGB swapchain、GLES sRGB↔Unorm blit，均 PASS（见 §8）。
-- 结论：双后端 sRGB 目标/swapchain/blit 地基可用；GLES present 需要按 FBO 0 颜色空间显式管理 `GL_FRAMEBUFFER_SRGB`。
-- 下一步：P3.1b-1（显式 sRGB↔linear 函数 + `CreateOffscreenTextureFormat` sRGB 白名单 + 单测），再 P3.1b-2（linear 目标固定功能 13 模式）。
+- P3.1b 🟡 2026-11-12：路线 **opt-in 线性目标**；默认 sRGB 不变、默认金图不重采。
+- P3.1b-0 ✅：四项探针 PASS（native sRGB target、GLES sRGB FBO/`GL_FRAMEBUFFER_SRGB`、X11 sRGB swapchain、GLES sRGB↔Unorm blit）。
+- P3.1b-1 ✅：`colorSpaceWGSL` + Go `srgbToLinear`/`linearToSRGB` 单一真源；GPU/CPU 256 点逐值对拍 PASS；`CreateOffscreenTextureFormat` sRGB 白名单 + 4 B/px 账本/clear 测试 PASS；dual-tex 改用共享 snippet，既有测试全 PASS。
+- 下一步：P3.1b-2（linear 目标固定功能 13 模式不降级 + 输出转换接线），再 P3.1b-3（呈现/合成）。
 
 ## 8 P3.1b-0 探针结果（2026-11-12）
 
@@ -199,3 +199,11 @@
 - `CreateOffscreenTextureFormat` 加 sRGB 后的引擎级路径探针（P3.1b-1）。
 - 固定功能 13 模式在 sRGB 目标上的逐模式像素探针（P3.1b-2）。
 - Wayland/Windows surface sRGB 格式探针（本机仅 X11 已验）。
+
+## 9 P3.1b-1 颜色转换地基（2026-11-12）
+
+- 单一真源：`render/internal/gpu/color_space.go` 的 `colorSpaceWGSL`（WGSL 两份函数）+ Go `srgbToLinear`/`linearToSRGB`；`dual_tex_blend.go` 改用共享 snippet，删掉内联副本。
+- 逐值对拍：`TestP31bColorSpaceGPUMatchesCPU` 用 256×1 RGBA8Unorm 目标把 WGSL 输出原样读回，与 CPU 函数逐点比，±1.5/255 内全过。
+- 白名单：`offscreenEngineFormats` 加 `RGBA8UnormSrgb`/`BGRA8UnormSrgb`；`CreateOffscreenTextureFormat` 可建/清/记账（4 B/px），sRGB 与 Unorm 池键分开。
+- 默认路径：`BlendSpaceSRGB`/Unorm 目标未改；dual-tex/blendspace 既有测试全 PASS。
+- 证据：`p31b-1-tests.txt`。

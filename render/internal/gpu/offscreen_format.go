@@ -35,7 +35,8 @@ var ErrOffscreenFormatUnsupported = errors.New("gpu: offscreen render-target for
 // instead of relying on backend-specific validation text.
 func offscreenEngineFormats(f types.TextureFormat) bool {
 	switch f {
-	case types.TextureFormatBGRA8Unorm, types.TextureFormatRGBA8Unorm, types.TextureFormatRGBA16Float:
+	case types.TextureFormatBGRA8Unorm, types.TextureFormatRGBA8Unorm, types.TextureFormatRGBA16Float,
+		types.TextureFormatBGRA8UnormSrgb, types.TextureFormatRGBA8UnormSrgb:
 		return true
 	}
 	return false

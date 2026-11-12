@@ -31,7 +31,7 @@ import (
 // dual-tex advanced blend shader: sample dest + src, write composited premul RGBA.
 // Mode codes: 1=Mul 2=Screen 3=Overlay 4=Hue 5=Sat 6=Color 7=Lum
 // 8=Darken 9=Lighten 10=ColorDodge 11=ColorBurn 12=HardLight 13=SoftLight 14=Diff 15=Exclusion.
-const dualTexBlendWGSL = `
+const dualTexBlendWGSL = colorSpaceWGSL + `
 struct VSOut {
     @builtin(position) pos: vec4<f32>,
     @location(0) uv: vec2<f32>,
@@ -216,19 +216,6 @@ fn blend_fn(mode: u32, cb: vec3<f32>, cs: vec3<f32>) -> vec3<f32> {
         blend_channel_multiply(cb.g, cs.g),
         blend_channel_multiply(cb.b, cs.b),
     );
-}
-
-fn srgb_to_linear(c: f32) -> f32 {
-    if (c <= 0.04045) {
-        return c / 12.92;
-    }
-    return pow((c + 0.055) / 1.055, 2.4);
-}
-fn linear_to_srgb(c: f32) -> f32 {
-    if (c <= 0.0031308) {
-        return c * 12.92;
-    }
-    return 1.055 * pow(c, 1.0 / 2.4) - 0.055;
 }
 
 // W3C Compositing: backdrop b, source s; advanced color B(Cb,Cs).

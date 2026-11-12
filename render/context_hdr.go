@@ -24,7 +24,10 @@ import (
 
 // CreateOffscreenTextureFormat allocates an offscreen color target in format.
 // Supported: TextureFormatBGRA8Unorm / TextureFormatRGBA8Unorm /
-// TextureFormatRGBA16Float. An unsupported format (depth, compressed, unknown)
+// TextureFormatRGBA16Float, plus the opt-in linear-target formats
+// TextureFormatBGRA8UnormSrgb / TextureFormatRGBA8UnormSrgb (P3.1b-1; shader
+// output linearization is wired in P3.1b-2, so sRGB targets are not yet a
+// final-draw surface). An unsupported format (depth, compressed, unknown)
 // fails closed with an error before any GPU allocation.
 //
 // Render into it with FlushGPUWithView (the session adapts its pipelines to the

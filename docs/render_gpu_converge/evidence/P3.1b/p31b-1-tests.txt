@@ -1,0 +1,65 @@
+=== TestP31b* (render/internal/gpu) ===
+=== RUN   TestP31bColorSpaceGPUMatchesCPU
+--- PASS: TestP31bColorSpaceGPUMatchesCPU (0.30s)
+=== RUN   TestP31bColorSpaceConversions
+--- PASS: TestP31bColorSpaceConversions (0.00s)
+=== RUN   TestP31bColorSpaceWGSLSingleSource
+--- PASS: TestP31bColorSpaceWGSLSingleSource (0.00s)
+=== RUN   TestP31bOffscreenSrgbWhitelist
+--- PASS: TestP31bOffscreenSrgbWhitelist (0.00s)
+=== RUN   TestP31bOffscreenSrgbRenderable
+--- PASS: TestP31bOffscreenSrgbRenderable (0.22s)
+=== RUN   TestP31bOffscreenSrgbTargetAccounting
+--- PASS: TestP31bOffscreenSrgbTargetAccounting (0.26s)
+=== RUN   TestP31bSrgbTargetProbe
+    srgb_target_probe_test.go:210: P3.1b-0 sRGB target blend bytes=[188 165 149 191]; Unorm target blend bytes=[127 95 76 191]
+--- PASS: TestP31bSrgbTargetProbe (0.24s)
+PASS
+ok  	github.com/energye/gpui/render/internal/gpu	1.047s
+=== dualtex/blendspace (render/internal/gpu) ===
+=== RUN   TestPackDualTexParamsLinearFlag
+--- PASS: TestPackDualTexParamsLinearFlag (0.00s)
+=== RUN   TestDualTexOutPool_ByteBudgetEviction
+--- PASS: TestDualTexOutPool_ByteBudgetEviction (0.00s)
+=== RUN   TestDualTexOutPool_PerBucketCap
+--- PASS: TestDualTexOutPool_PerBucketCap (0.00s)
+=== RUN   TestDualTexOutPool_PurgeKeepsCheckedOut
+--- PASS: TestDualTexOutPool_PurgeKeepsCheckedOut (0.00s)
+=== RUN   TestP31bColorSpaceGPUMatchesCPU
+--- PASS: TestP31bColorSpaceGPUMatchesCPU (0.28s)
+=== RUN   TestP31bColorSpaceConversions
+--- PASS: TestP31bColorSpaceConversions (0.00s)
+=== RUN   TestP31bColorSpaceWGSLSingleSource
+--- PASS: TestP31bColorSpaceWGSLSingleSource (0.00s)
+=== RUN   TestP31bOffscreenSrgbWhitelist
+--- PASS: TestP31bOffscreenSrgbWhitelist (0.00s)
+=== RUN   TestP31bOffscreenSrgbRenderable
+--- PASS: TestP31bOffscreenSrgbRenderable (0.22s)
+=== RUN   TestP31bOffscreenSrgbTargetAccounting
+--- PASS: TestP31bOffscreenSrgbTargetAccounting (0.27s)
+=== RUN   TestOpt26_DualTexMultiBindGroup_ReusesSlot
+--- PASS: TestOpt26_DualTexMultiBindGroup_ReusesSlot (0.24s)
+=== RUN   TestOpt32_DualTexMultiIntoEncoder_OneFinish
+--- PASS: TestOpt32_DualTexMultiIntoEncoder_OneFinish (0.48s)
+=== RUN   TestOpt37_DualTexUniformSlotStride_Aligned
+--- PASS: TestOpt37_DualTexUniformSlotStride_Aligned (0.00s)
+=== RUN   TestOpt37_DualTexMultiUniformSlab_OneWrite
+--- PASS: TestOpt37_DualTexMultiUniformSlab_OneWrite (0.28s)
+=== RUN   TestOpt42_DualTexResolveScratchReuse
+--- PASS: TestOpt42_DualTexResolveScratchReuse (0.00s)
+=== RUN   TestR71_DualTexParamsPool_NoAllocHot
+--- PASS: TestR71_DualTexParamsPool_NoAllocHot (0.00s)
+=== RUN   TestR73_DualTexMultiBundle_DeferredSubmit
+--- PASS: TestR73_DualTexMultiBundle_DeferredSubmit (0.29s)
+=== RUN   TestP31bSrgbTargetProbe
+    srgb_target_probe_test.go:210: P3.1b-0 sRGB target blend bytes=[188 165 149 191]; Unorm target blend bytes=[127 95 76 191]
+--- PASS: TestP31bSrgbTargetProbe (0.24s)
+PASS
+ok  	github.com/energye/gpui/render/internal/gpu	2.344s
+=== p31/blendspace (render) ===
+=== RUN   TestBlendSpaceDefaultIsSRGB
+--- PASS: TestBlendSpaceDefaultIsSRGB (0.00s)
+=== RUN   TestP31DrawPaintLinearGPUDomain
+--- PASS: TestP31DrawPaintLinearGPUDomain (0.51s)
+PASS
+ok  	github.com/energye/gpui/render	0.628s
