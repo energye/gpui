@@ -1,0 +1,216 @@
+{
+ "window": "ui_wr_c4_shell_overlay",
+ "backend": "native",
+ "size": [
+  1200,
+  800
+ ],
+ "official_golden_pct": null,
+ "official_golden_px": null,
+ "full_diff_px": 34572,
+ "full_diff_pct": 3.60125,
+ "max_channel_delta": 209,
+ "channel_extrema": [
+  [
+   0,
+   209
+  ],
+  [
+   0,
+   191
+  ],
+  [
+   0,
+   186
+  ],
+  [
+   0,
+   1
+  ]
+ ],
+ "diff_bbox": [
+  0,
+  48,
+  1200,
+  728
+ ],
+ "alpha_diff_px": 1359,
+ "header_diff": 0,
+ "hud_diff": 1757,
+ "content_diff": 32815,
+ "content_px": 816000,
+ "content_edge_diff_px": 20604,
+ "content_edge_diff_pct_of_diff": 62.7884,
+ "interior_samples": {
+  "samples": 510,
+  "identical": 499,
+  "identical_pct": 97.8431,
+  "first_diffs": [
+   {
+    "x": 922,
+    "y": 210,
+    "base": [
+     31,
+     36,
+     54,
+     255
+    ],
+    "current": [
+     29,
+     32,
+     48,
+     255
+    ]
+   },
+   {
+    "x": 962,
+    "y": 210,
+    "base": [
+     33,
+     36,
+     54,
+     255
+    ],
+    "current": [
+     29,
+     32,
+     48,
+     255
+    ]
+   },
+   {
+    "x": 1002,
+    "y": 210,
+    "base": [
+     33,
+     36,
+     54,
+     255
+    ],
+    "current": [
+     29,
+     32,
+     48,
+     255
+    ]
+   },
+   {
+    "x": 1042,
+    "y": 210,
+    "base": [
+     35,
+     36,
+     54,
+     255
+    ],
+    "current": [
+     30,
+     32,
+     48,
+     255
+    ]
+   },
+   {
+    "x": 1082,
+    "y": 210,
+    "base": [
+     37,
+     36,
+     54,
+     255
+    ],
+    "current": [
+     31,
+     32,
+     48,
+     255
+    ]
+   },
+   {
+    "x": 1122,
+    "y": 210,
+    "base": [
+     37,
+     36,
+     54,
+     255
+    ],
+    "current": [
+     31,
+     32,
+     48,
+     255
+    ]
+   },
+   {
+    "x": 762,
+    "y": 330,
+    "base": [
+     28,
+     32,
+     41,
+     255
+    ],
+    "current": [
+     26,
+     29,
+     37,
+     255
+    ]
+   },
+   {
+    "x": 802,
+    "y": 330,
+    "base": [
+     28,
+     32,
+     41,
+     255
+    ],
+    "current": [
+     26,
+     29,
+     37,
+     255
+    ]
+   }
+  ]
+ },
+ "shift_search": {
+  "zero_px": 29060,
+  "best_px": 29060,
+  "best_dx": 0,
+  "best_dy": 0,
+  "best_gain_pct": 0.0
+ },
+ "delta_hist": {
+  "delta_1": 13954,
+  "delta_2_4": 3754,
+  "delta_5_16": 8216,
+  "delta_17_64": 1530,
+  "delta_gt64": 5361
+ },
+ "max_pixels": [
+  {
+   "x": 295,
+   "y": 578
+  },
+  {
+   "x": 296,
+   "y": 578
+  },
+  {
+   "x": 297,
+   "y": 578
+  },
+  {
+   "x": 298,
+   "y": 578
+  },
+  {
+   "x": 299,
+   "y": 578
+  }
+ ],
+ "pair": "steady"
+}

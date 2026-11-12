@@ -49,9 +49,17 @@
 
 ### 2.1 当前焦点
 
-**当前焦点（2026-11-13 起）：O6c 2h soak（待排期）。**
+**当前焦点（2026-11-13 起）：O7 既有金图/性能红归类。**
 
-**O6d 已收口索引（2026-11-13）**：22 窗 × native/go 44 轮 rc=0、golden 全 0.0000%（隔离 :3，串行自退）；O5 multiwin 8 窗 RSS 探针 inconclusive（O3 口径通过）；multiwin 0.4911% 金图与 go 8 窗 fps 为 pre-O2 同值/环境性能红（O7）。证据 `evidence/P2.6/o1-rss-plateau/o6d-golden/summary.md`。
+**当前任务验证载体（开工前必须填）**
+
+- 任务：O7——把 O5/O6d 抽检发现的既有红逐窗判「基线过期 vs 渲染洞」，不重种
+- 能力单测：无新能力；沿用 P2.6 golden-drift 的 current/base 对照与 ±2px 平移/内部采样分析
+- 真窗：`ui_base_idle` 60s、`ui_wr_c4_shell_overlay` 25s、`ui_wr_c8_hit_overlay_xf` 15s、`ui_wr_r4_composite` 15s、`ui_wr_r10_async_image` 30s、`ui_wr_p33_richtext` 5s、`ui_wr_c2_retained_scene` 15s、`ui_wr_p37_scene` 8s、`ui_base_multiwin_cap` 75s
+- 金图：各窗 current vs base；容差 0；隔离 `Xwayland :3` 串行
+- 双后端：native 归类（go 已有 O5/O6d 同值数据）
+- 负向：不重种；若判「渲染洞」则登记并修复，不靠重种掩盖
+- 证据：`evidence/P2.6/o1-rss-plateau/o7-classify/`
 
 **O5 已收口索引（2026-11-12）****O3 已收口索引（2026-11-12）**：60s RSS 判据改 **120s 正式判据**（60s 预热 + 60s 测量，线 30000 不动）；60s 轮 `rss_verdict=inconclusive`，不再误伤 Go 堆爬坡；数据证明 60s 内爬坡与慢泄漏不可分、60–120s 可分；120s 四轮真窗 l1 188/370、m4 21200/21344 KB/min 全 pass；先红后绿 + 跨平台/vet 过。证据 `evidence/P2.6/o1-rss-plateau/o3-criterion/analysis.md`。
 
@@ -207,8 +215,8 @@
 | O3 | O1 300s soak | m4 55s steady 34139KB/min >30000，但 120s 后回落到 2MB/min、300s 1581KB/min；60s 硬判会误伤 Go 堆高水位启动爬坡 | P0.1 判据口径复核（可选） | ✅ 2026-11-12 用户拍板 A：120s 正式判据（60s 预热+60s 测量，线 30000）；60s 轮 `rss_verdict=inconclusive`；l1 188/370、m4 21200/21344KB/min 四轮 120s 全 pass，60s 不 FAIL；先红后绿 + 跨平台/vet 过；`evidence/P2.6/o1-rss-plateau/o3-criterion/analysis.md` |
 | O4 | O1 pprof | m4 300s pprof 残差：`PictureTextureCache.noteRerecord` 归因 map 随滚动 cache key 增长 ~4MB/220s，`buildShapedCarets` ~4MB；300s 总斜率 1581 未破线 | m4 长跑缓存专项（可选） | 🟡 2026-11-12 修复：noteRerecord 无界→BeginFrame live-key 清扫 + 硬上限 1024 最老优先；300s `recordLocal` 1.5/1.5/1.5MB 持平、RSS 1212KB/min pass；buildShapedCarets 有界（9–16MB 非单调，layoutCache 4096 上限）；先红后绿 3 用例；2h soak 待拍板；`evidence/P2.6/o1-rss-plateau/o4-caches/analysis.md` |
 | O5 | O2 C 口径 | `present_count`/`fps` 改为真实 swapchain present 后，静态/idle 窗计数低于旧「raster job」口径；动画窗（l1/m4）已复验，静态窗门禁集未全量重放 | 门禁回归（可选） | ✅ 2026-11-12：5 窗抽检；`present_count` 真计数未误红（idle warmup 后 0 次呈现）；修掉 O3 遗留 `rss_slope_valid` 硬探针（idle/multiwin/batch 改 RSS 可用+不超线，60/75s 允许 inconclusive）；idle/c4/c8/r4 金图漂移与 c11 hitch 为 pre-O2 同值既有红（O7）；multiwin 8 窗跑待隔离显示；`evidence/P2.6/o1-rss-plateau/o5-static/analysis.md` |
-| O6 | 用户 2026-11-12 拍板 | **渲染层内存全量矩阵**：能力×后端×窗逐项记忆体验收（文本/图片/滤镜/图层/2.5D/视频/HDR/SVG/mesh/MSAA）；缓存/池逐个确认有界（上限 / live-key 清扫 / 预算账本）；代表窗 120s + 代表窗 2h；收尾跑 22 窗金图 + O5 静态窗回归；Windows/macOS/Metal 不可验端标「未验」 | 渲染层内存平台化（全量） | 🟡 2026-11-13：O6a 盘点+矩阵；O6b 26 native + 6 go 120s 全 PASS（38–9544KB/min）；O6d 22 窗 44 轮 golden 0.0000%、O5 multiwin RSS 探针通过；**余 O6c 2h（m4+video_vc2，隔离显示）待排期**；`evidence/P2.6/o1-rss-plateau/o6-memory-matrix/`、`o6d-golden/` |
-| O7 | O5/O6d 抽检 | 既有金图漂移/ hitch：`ui_base_idle` 0.8489%、`c4_shell_overlay` 2.8912%、`c8_hit_overlay_xf` 0.7967%+snapshot 超时、`r4_composite` 2.5367%、`c11_policy_switch` hitch 8.02>5、`ui_base_multiwin_cap` 0.4911%/窗;pre-O2 `7a7fc15d` 同值 → 非 O2/O3/O4；go multiwin `max_windows_60fps=1` 为隔离 XWayland 性能环境红 | 22 窗金图批/环境（后续） | ⬜ 按「22 窗漂移」同流程逐窗判基线过期 vs 渲染洞，再决定重种；`evidence/P2.6/o1-rss-plateau/o5-static/analysis.md`、`o6d-golden/summary.md` |
+| O6 | 用户 2026-11-12 拍板 | **渲染层内存全量矩阵**：能力×后端×窗逐项记忆体验收（文本/图片/滤镜/图层/2.5D/视频/HDR/SVG/mesh/MSAA）；缓存/池逐个确认有界（上限 / live-key 清扫 / 预算账本）；代表窗 120s + 代表窗 2h；收尾跑 22 窗金图 + O5 静态窗回归；Windows/macOS/Metal 不可验端标「未验」 | 渲染层内存平台化（全量） | 🟡 2026-11-13：O6a 盘点+矩阵；O6b 26 native + 6 go 120s 全 PASS（38–9544KB/min）；O6d 22 窗 44 轮 golden 0.0000%、O5 multiwin RSS 探针通过；**O6c 2h 运行中**（m4 go → video native，隔离 :3，过夜；PID/日志见运行目录，完成后随证据提交）；`evidence/P2.6/o1-rss-plateau/o6-memory-matrix/`、`o6d-golden/` |
+| O7 | O5/O6d 抽检 | 既有金图漂移/ hitch：`ui_base_idle` 0.8489%、`c4_shell_overlay` 2.8912%、`c8_hit_overlay_xf` 0.7967%+snapshot 超时、`r4_composite` 2.5367%、`c11_policy_switch` hitch 8.02>5、`ui_base_multiwin_cap` 0.4911%/窗；pre-O2 `7a7fc15d` 同值 → 非 O2/O3/O4；go multiwin `max_windows_60fps=1` 为隔离 XWayland 性能环境红 | 22 窗金图批/环境（后续） | 🟡 2026-11-13 归类完成：10 组金图红全判**基线过期**（内容在、平移 (0,0)、内部 97.8–100% 同、边缘/AA/动态点差异，无渲染洞）；c11/video 为性能/环境；待拍板重种（需补 go 档对照 + 重种后双后端 0.0000% + 1px 负向）；`evidence/P2.6/o1-rss-plateau/o7-classify/summary.md` |
 
 ## 3 每个任务的开工条件与完成标准
 
@@ -515,6 +523,8 @@ docs/render_gpu_converge/
 | 2026-11-12 | O6 | O6a 盘点+矩阵；O6b 第一批 7 能力窗 120s 全 PASS（38–9468KB/min，活堆走平）；P3.x 窗无内部 RSS/auto-only 固定帧 → 统一外置 probe；O6b-2/O6c 待拍板 | `evidence/P2.6/o1-rss-plateau/o6-memory-matrix/` |
 | 2026-11-13 | O6 | O6b 全矩阵：26 native + 6 go 全 PASS（max 9544KB/min，线 30000；活堆 <2MB/min）；覆盖 12 能力族；O6c 2h/O6d 收尾另批 | `evidence/P2.6/o1-rss-plateau/o6-memory-matrix/results.md` |
 | 2026-11-13 | O6d | 22 窗 × native/go 44 轮 rc=0、golden 全 0.0000%（隔离 :3 串行自退）；O5 multiwin RSS 探针 inconclusive 通过；multiwin 0.4911% 与 go fps 为 pre-O2/环境红（O7）；余 O6c 2h 待排期 | `evidence/P2.6/o1-rss-plateau/o6d-golden/summary.md` |
+| 2026-11-13 | O7 | 归类：10 组金图红全为基线过期（内容在、平移 0、内部 97.8–100% 同、边缘/AA/动态点差异），无渲染洞；c11/video 为性能/环境；不重种，待拍板补 go 对照后重种 | `evidence/P2.6/o1-rss-plateau/o7-classify/summary.md` |
+| 2026-11-13 | O6c | 2h soak 启动：m4 go → video native，隔离 :3 串行自关（PID 423570），RSS/gctrace/smaps 10/30/60/90/116min；完成后写 summary.txt；证据目录运行中，完成后提交 | 运行目录（待提交） |
 
 ## 8 修订记录（摘要；全文见存档）
 

@@ -1,0 +1,83 @@
+{
+ "window": "ui_base_multiwin_cap",
+ "backend": "native",
+ "size": [
+  480,
+  320
+ ],
+ "official_golden_pct": null,
+ "official_golden_px": null,
+ "full_diff_px": 937,
+ "full_diff_pct": 0.610026,
+ "max_channel_delta": 17,
+ "channel_extrema": [
+  [
+   0,
+   17
+  ],
+  [
+   0,
+   16
+  ],
+  [
+   0,
+   16
+  ],
+  [
+   0,
+   0
+  ]
+ ],
+ "diff_bbox": [
+  201,
+  121,
+  279,
+  199
+ ],
+ "alpha_diff_px": 0,
+ "header_diff": 277,
+ "hud_diff": 0,
+ "content_diff": 660,
+ "content_px": 96000,
+ "content_edge_diff_px": 660,
+ "content_edge_diff_pct_of_diff": 100.0,
+ "interior_samples": {
+  "samples": 60,
+  "identical": 60,
+  "identical_pct": 100.0,
+  "first_diffs": []
+ },
+ "shift_search": {
+  "zero_px": 660,
+  "best_px": 660,
+  "best_dx": 0,
+  "best_dy": 0,
+  "best_gain_pct": 0.0
+ },
+ "delta_hist": {
+  "delta_1": 8,
+  "delta_2_4": 16,
+  "delta_5_16": 632,
+  "delta_17_64": 4,
+  "delta_gt64": 0
+ },
+ "max_pixels": [
+  {
+   "x": 234,
+   "y": 152
+  },
+  {
+   "x": 245,
+   "y": 152
+  },
+  {
+   "x": 247,
+   "y": 154
+  },
+  {
+   "x": 247,
+   "y": 165
+  }
+ ],
+ "pair": "win8"
+}

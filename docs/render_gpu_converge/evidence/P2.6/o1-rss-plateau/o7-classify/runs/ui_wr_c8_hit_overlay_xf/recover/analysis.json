@@ -1,0 +1,200 @@
+{
+ "window": "ui_wr_c8_hit_overlay_xf",
+ "backend": "native",
+ "size": [
+  1200,
+  800
+ ],
+ "official_golden_pct": null,
+ "official_golden_px": null,
+ "full_diff_px": 13635,
+ "full_diff_pct": 1.420313,
+ "max_channel_delta": 81,
+ "channel_extrema": [
+  [
+   0,
+   81
+  ],
+  [
+   0,
+   65
+  ],
+  [
+   0,
+   17
+  ],
+  [
+   0,
+   1
+  ]
+ ],
+ "diff_bbox": [
+  0,
+  48,
+  1200,
+  728
+ ],
+ "alpha_diff_px": 1360,
+ "header_diff": 0,
+ "hud_diff": 1512,
+ "content_diff": 12123,
+ "content_px": 816000,
+ "content_edge_diff_px": 5387,
+ "content_edge_diff_pct_of_diff": 44.4362,
+ "interior_samples": {
+  "samples": 510,
+  "identical": 503,
+  "identical_pct": 98.6275,
+  "first_diffs": [
+   {
+    "x": 442,
+    "y": 90,
+    "base": [
+     71,
+     114,
+     224,
+     255
+    ],
+    "current": [
+     71,
+     115,
+     224,
+     255
+    ]
+   },
+   {
+    "x": 562,
+    "y": 90,
+    "base": [
+     47,
+     104,
+     68,
+     255
+    ],
+    "current": [
+     48,
+     106,
+     69,
+     255
+    ]
+   },
+   {
+    "x": 642,
+    "y": 90,
+    "base": [
+     69,
+     63,
+     42,
+     255
+    ],
+    "current": [
+     33,
+     34,
+     35,
+     255
+    ]
+   },
+   {
+    "x": 722,
+    "y": 90,
+    "base": [
+     58,
+     57,
+     42,
+     255
+    ],
+    "current": [
+     49,
+     49,
+     39,
+     255
+    ]
+   },
+   {
+    "x": 762,
+    "y": 90,
+    "base": [
+     242,
+     216,
+     89,
+     255
+    ],
+    "current": [
+     242,
+     217,
+     89,
+     255
+    ]
+   },
+   {
+    "x": 642,
+    "y": 130,
+    "base": [
+     229,
+     191,
+     76,
+     255
+    ],
+    "current": [
+     185,
+     156,
+     67,
+     255
+    ]
+   },
+   {
+    "x": 722,
+    "y": 130,
+    "base": [
+     58,
+     57,
+     42,
+     255
+    ],
+    "current": [
+     49,
+     49,
+     39,
+     255
+    ]
+   }
+  ]
+ },
+ "shift_search": {
+  "zero_px": 8367,
+  "best_px": 8367,
+  "best_dx": 0,
+  "best_dy": 0,
+  "best_gain_pct": 0.0
+ },
+ "delta_hist": {
+  "delta_1": 8673,
+  "delta_2_4": 2594,
+  "delta_5_16": 696,
+  "delta_17_64": 120,
+  "delta_gt64": 40
+ },
+ "max_pixels": [
+  {
+   "x": 669,
+   "y": 91
+  },
+  {
+   "x": 669,
+   "y": 92
+  },
+  {
+   "x": 669,
+   "y": 93
+  },
+  {
+   "x": 669,
+   "y": 94
+  },
+  {
+   "x": 669,
+   "y": 95
+  }
+ ],
+ "pair": "recover"
+}

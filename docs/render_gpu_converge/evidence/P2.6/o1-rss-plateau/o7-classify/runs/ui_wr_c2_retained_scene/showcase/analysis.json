@@ -1,0 +1,204 @@
+{
+ "window": "ui_wr_c2_retained_scene",
+ "backend": "native",
+ "size": [
+  1200,
+  800
+ ],
+ "official_golden_pct": null,
+ "official_golden_px": null,
+ "full_diff_px": 23780,
+ "full_diff_pct": 2.477083,
+ "max_channel_delta": 13,
+ "channel_extrema": [
+  [
+   0,
+   12
+  ],
+  [
+   0,
+   10
+  ],
+  [
+   0,
+   13
+  ],
+  [
+   0,
+   1
+  ]
+ ],
+ "diff_bbox": [
+  0,
+  48,
+  1200,
+  728
+ ],
+ "alpha_diff_px": 1360,
+ "header_diff": 0,
+ "hud_diff": 3929,
+ "content_diff": 19851,
+ "content_px": 816000,
+ "content_edge_diff_px": 13602,
+ "content_edge_diff_pct_of_diff": 68.5205,
+ "interior_samples": {
+  "samples": 510,
+  "identical": 500,
+  "identical_pct": 98.0392,
+  "first_diffs": [
+   {
+    "x": 922,
+    "y": 90,
+    "base": [
+     26,
+     34,
+     38,
+     255
+    ],
+    "current": [
+     25,
+     30,
+     34,
+     255
+    ]
+   },
+   {
+    "x": 922,
+    "y": 130,
+    "base": [
+     26,
+     34,
+     38,
+     255
+    ],
+    "current": [
+     25,
+     30,
+     34,
+     255
+    ]
+   },
+   {
+    "x": 922,
+    "y": 170,
+    "base": [
+     26,
+     35,
+     40,
+     255
+    ],
+    "current": [
+     25,
+     30,
+     35,
+     255
+    ]
+   },
+   {
+    "x": 402,
+    "y": 210,
+    "base": [
+     226,
+     49,
+     50,
+     255
+    ],
+    "current": [
+     237,
+     50,
+     51,
+     255
+    ]
+   },
+   {
+    "x": 922,
+    "y": 210,
+    "base": [
+     26,
+     35,
+     40,
+     255
+    ],
+    "current": [
+     25,
+     30,
+     35,
+     255
+    ]
+   },
+   {
+    "x": 922,
+    "y": 250,
+    "base": [
+     26,
+     34,
+     37,
+     255
+    ],
+    "current": [
+     25,
+     30,
+     34,
+     255
+    ]
+   },
+   {
+    "x": 922,
+    "y": 290,
+    "base": [
+     26,
+     34,
+     37,
+     255
+    ],
+    "current": [
+     25,
+     30,
+     34,
+     255
+    ]
+   },
+   {
+    "x": 562,
+    "y": 530,
+    "base": [
+     143,
+     130,
+     58,
+     255
+    ],
+    "current": [
+     145,
+     131,
+     59,
+     255
+    ]
+   }
+  ]
+ },
+ "shift_search": {
+  "zero_px": 16095,
+  "best_px": 16095,
+  "best_dx": 0,
+  "best_dy": 0,
+  "best_gain_pct": 0.0
+ },
+ "delta_hist": {
+  "delta_1": 7785,
+  "delta_2_4": 4554,
+  "delta_5_16": 7512,
+  "delta_17_64": 0,
+  "delta_gt64": 0
+ },
+ "max_pixels": [
+  {
+   "x": 484,
+   "y": 249
+  },
+  {
+   "x": 473,
+   "y": 260
+  }
+ ],
+ "pair": "showcase"
+}

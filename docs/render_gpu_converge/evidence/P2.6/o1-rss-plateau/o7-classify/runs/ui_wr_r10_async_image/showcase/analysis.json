@@ -1,0 +1,184 @@
+{
+ "window": "ui_wr_r10_async_image",
+ "backend": "native",
+ "size": [
+  1200,
+  800
+ ],
+ "official_golden_pct": null,
+ "official_golden_px": null,
+ "full_diff_px": 18526,
+ "full_diff_pct": 1.929792,
+ "max_channel_delta": 7,
+ "channel_extrema": [
+  [
+   0,
+   4
+  ],
+  [
+   0,
+   7
+  ],
+  [
+   0,
+   4
+  ],
+  [
+   0,
+   1
+  ]
+ ],
+ "diff_bbox": [
+  0,
+  48,
+  1200,
+  728
+ ],
+ "alpha_diff_px": 1360,
+ "header_diff": 0,
+ "hud_diff": 1554,
+ "content_diff": 16972,
+ "content_px": 816000,
+ "content_edge_diff_px": 7794,
+ "content_edge_diff_pct_of_diff": 45.9227,
+ "interior_samples": {
+  "samples": 510,
+  "identical": 504,
+  "identical_pct": 98.8235,
+  "first_diffs": [
+   {
+    "x": 1002,
+    "y": 130,
+    "base": [
+     29,
+     37,
+     41,
+     255
+    ],
+    "current": [
+     28,
+     33,
+     39,
+     255
+    ]
+   },
+   {
+    "x": 1002,
+    "y": 170,
+    "base": [
+     29,
+     37,
+     41,
+     255
+    ],
+    "current": [
+     28,
+     33,
+     39,
+     255
+    ]
+   },
+   {
+    "x": 1002,
+    "y": 210,
+    "base": [
+     29,
+     38,
+     42,
+     255
+    ],
+    "current": [
+     28,
+     33,
+     39,
+     255
+    ]
+   },
+   {
+    "x": 1002,
+    "y": 250,
+    "base": [
+     29,
+     39,
+     44,
+     255
+    ],
+    "current": [
+     28,
+     33,
+     40,
+     255
+    ]
+   },
+   {
+    "x": 1002,
+    "y": 290,
+    "base": [
+     29,
+     39,
+     44,
+     255
+    ],
+    "current": [
+     28,
+     33,
+     40,
+     255
+    ]
+   },
+   {
+    "x": 1002,
+    "y": 330,
+    "base": [
+     29,
+     41,
+     41,
+     255
+    ],
+    "current": [
+     28,
+     34,
+     39,
+     255
+    ]
+   }
+  ]
+ },
+ "shift_search": {
+  "zero_px": 13216,
+  "best_px": 13216,
+  "best_dx": 0,
+  "best_dy": 0,
+  "best_gain_pct": 0.0
+ },
+ "delta_hist": {
+  "delta_1": 10380,
+  "delta_2_4": 1648,
+  "delta_5_16": 4944,
+  "delta_17_64": 0,
+  "delta_gt64": 0
+ },
+ "max_pixels": [
+  {
+   "x": 950,
+   "y": 297
+  },
+  {
+   "x": 951,
+   "y": 297
+  },
+  {
+   "x": 952,
+   "y": 297
+  },
+  {
+   "x": 953,
+   "y": 297
+  },
+  {
+   "x": 954,
+   "y": 297
+  }
+ ],
+ "pair": "showcase"
+}
