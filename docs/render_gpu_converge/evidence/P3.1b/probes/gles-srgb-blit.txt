@@ -1,0 +1,6 @@
+=== RUN   TestP31bSrgbBlitProbe
+    srgb_blit_probe_test.go:139: P3.1b-0 GLES blit base: sRGB FBO=[188 137 89 255] Unorm FBO=[127 64 25 255]
+    srgb_blit_probe_test.go:153: P3.1b-0 GLES blit sRGB→Unorm enabled=[128 64 26 255] disabled=[188 137 89 255]; Unorm→sRGB enabled=[187 137 88 255] disabled=[127 64 25 255]
+--- PASS: TestP31bSrgbBlitProbe (0.11s)
+PASS
+ok  	github.com/energye/gpui/gpu/gwgpu/gles	0.125s

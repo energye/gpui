@@ -152,27 +152,50 @@
 ## 7 状态
 
 - P3.1b 🟡 2026-11-12 路线已拍板：**opt-in 线性目标**（默认 sRGB 不变、默认金图不重采）。
-- P3.1b-0 已出两项探针：native webgpu sRGB 目标、GLES sRGB FBO + `GL_FRAMEBUFFER_SRGB`，均 PASS（见 §8）。
-- 待办：P3.1b-0b（swapchain sRGB 格式/blit/readback）、P3.1b-1（显式 sRGB↔linear 函数 + offscreen sRGB 白名单）、P3.1b-2（linear 目标固定功能 13 模式）。
+- P3.1b-0 已出四项探针：native webgpu sRGB 目标、GLES sRGB FBO + `GL_FRAMEBUFFER_SRGB`、webgpu X11 sRGB swapchain、GLES sRGB↔Unorm blit，均 PASS（见 §8）。
+- 结论：双后端 sRGB 目标/swapchain/blit 地基可用；GLES present 需要按 FBO 0 颜色空间显式管理 `GL_FRAMEBUFFER_SRGB`。
+- 下一步：P3.1b-1（显式 sRGB↔linear 函数 + `CreateOffscreenTextureFormat` sRGB 白名单 + 单测），再 P3.1b-2（linear 目标固定功能 13 模式）。
 
 ## 8 P3.1b-0 探针结果（2026-11-12）
 
-### native webgpu（`TestP31bSrgbTargetProbe`）
+### 8.1 native webgpu（`TestP31bSrgbTargetProbe`）
 
 - sRGB 目标 `RGBA8UnormSrgb`：清黑 + 线性 (0.5,0.25,0.1) → 读回 sRGB 编码；50% alpha 线性灰叠加 → **线性混合**。
 - 实测：`sRGB blend bytes=[188 165 149 191]`；Unorm 对照 `[127 95 76 191]`。
 - 结论：webgpu sRGB target 可建/可写/可混合/可 `CopyTextureToBuffer` 读回；线性混合语义成立。
 - 证据：`probes/native-webgpu.txt`。
 
-### GLES（`TestP31bSrgbFBOProbe`）
+### 8.2 GLES（`TestP31bSrgbFBOProbe`）
 
 - `SRGB8_ALPHA8` FBO + `GL_FRAMEBUFFER_SRGB` 开启：base `[188 137 89 255]`（sRGB 编码）、blend `[188 165 149 191]`（线性混合）。
 - 关闭 `GL_FRAMEBUFFER_SRGB` / Unorm FBO：base `[127 64 25 255]`、blend `[127 95 76 191]`（编码域）。
 - 结论：GLES 腿可走 sRGB FBO；`GL_FRAMEBUFFER_SRGB` 必须在 sRGB FBO 绑定期间开启，否则写入/混合按编码域。
 - 证据：`probes/gles-srgb-fbo.txt`。
 
-### 待补探针
+### 8.3 swapchain sRGB 格式探针（webgpu X11）
 
-- swapchain sRGB 格式（webgpu surface capabilities / GLES surface FBO）与 sRGB→surface blit。
-- sRGB FBO → Unorm FBO `glBlitFramebuffer` 兼容性。
-- 固定功能 13 模式在 sRGB 目标上的逐模式像素探针。
+- X11 surface 广告格式：`[BGRA8UnormSrgb BGRA8Unorm]`（sRGB 优先可用）。
+- `BGRA8UnormSrgb` Configure + BeginFrame + clear + EndFrame/Present **PASS**。
+- 结论：native X11 swapchain 可直接走 sRGB 格式；Wayland/Windows 仍需各自 surface 探针（本机 Wayland 可后续补）。
+- 证据：`probes/webgpu-swapchain.txt`。
+
+### 8.4 sRGB↔Unorm blit 探针（GLES）
+
+| 组合 | `GL_FRAMEBUFFER_SRGB` | 读回 | 语义 |
+|---|---|---|---|
+| sRGB FBO base | 开 | `[188 137 89 255]` | 线性 (0.5,0.25,0.1) 编码成 sRGB |
+| Unorm FBO base | 关 | `[127 64 25 255]` | 原始值 |
+| sRGB→Unorm | 开 | `[128 64 26 255]` | 解码成线性 |
+| sRGB→Unorm | 关 | `[188 137 89 255]` | 原样拷贝 |
+| Unorm→sRGB | 开 | `[187 137 88 255]` | 编码成 sRGB |
+| Unorm→sRGB | 关 | `[127 64 25 255]` | 原样拷贝 |
+
+- 结论：GLES blit 合法，无 `GL_INVALID_OPERATION`；`GL_FRAMEBUFFER_SRGB` 决定「解码/编码」还是「原样拷贝」。
+- 对 present 路径的含义：若 linear 目标是 sRGB FBO、窗口 FBO 0 不是 sRGB，present blit 应**关闭** `GL_FRAMEBUFFER_SRGB` 原样拷贝 sRGB 字节（否则会被解码成线性、显示变暗）；若 FBO 0 本身是 sRGB，则按实际颜色空间决定。P3.1b-2 实现时必须显式管理该状态。
+- 证据：`probes/gles-srgb-blit.txt`。
+
+### 8.5 待补探针
+
+- `CreateOffscreenTextureFormat` 加 sRGB 后的引擎级路径探针（P3.1b-1）。
+- 固定功能 13 模式在 sRGB 目标上的逐模式像素探针（P3.1b-2）。
+- Wayland/Windows surface sRGB 格式探针（本机仅 X11 已验）。

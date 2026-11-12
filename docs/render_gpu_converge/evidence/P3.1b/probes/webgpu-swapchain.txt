@@ -1,0 +1,6 @@
+=== RUN   TestP31bSrgbSwapchainFormatProbe
+    srgb_swapchain_probe_test.go:51: P3.1b-0 X11 surface formats: [BGRA8UnormSrgb BGRA8Unorm]
+    srgb_swapchain_probe_test.go:109: P3.1b-0 sRGB swapchain format BGRA8UnormSrgb configure/clear/present OK
+--- PASS: TestP31bSrgbSwapchainFormatProbe (0.32s)
+PASS
+ok  	github.com/energye/gpui/gpu/webgpu	0.338s
