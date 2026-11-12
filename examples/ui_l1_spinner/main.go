@@ -11,9 +11,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/ui/animation"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
@@ -49,8 +51,9 @@ func main() {
 
 	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
 		ClearR: 0.10, ClearG: 0.12, ClearB: 0.16, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:   time.Duration(secs) * time.Second,
+		WarmUp:   true,
+		OnRunEnd: proc.Stop,
 		OnEvent: func(ev platform.Event) {
 			if ev.Type == platform.EventClose {
 				fmt.Fprintf(os.Stderr, "ui_l1_spinner: window close (%s) — stopping GPU before destroy\n", win.Backend())
@@ -71,13 +74,30 @@ func main() {
 		fmt.Fprintln(os.Stderr, "open:", err)
 		os.Exit(1)
 	}
+	stopProf := wrkit.StartHeapProfiles(os.Getenv("GPUI_HEAP_PROF_DIR"), 60, 180, 280)
+	defer stopProf()
+	if dir := os.Getenv("L1_SNAP_DIR"); dir != "" {
+		// Pixel proof that the retained path actually presents the animated
+		// spinner: two replays two seconds apart must differ inside the
+		// spinner box and stay identical elsewhere. Goroutine (not UI thread)
+		// per RetainedSnapshot's threading contract.
+		go func() {
+			time.Sleep(8 * time.Second)
+			if !app.RetainedSnapshot(filepath.Join(dir, "l1_a.png")) {
+				fmt.Fprintln(os.Stderr, "l1_spinner: snapshot a failed")
+			}
+			time.Sleep(2 * time.Second)
+			if !app.RetainedSnapshot(filepath.Join(dir, "l1_b.png")) {
+				fmt.Fprintln(os.Stderr, "l1_spinner: snapshot b failed")
+			}
+		}()
+	}
 	t0 := time.Now()
 	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "run:", err)
 		os.Exit(1)
 	}
 	ctrl.Stop()
-	proc.Stop()
 	app.Close()
 	win.Close()
 	proc.NoteAfterClose()

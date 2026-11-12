@@ -1,0 +1,35 @@
+ui_l1_spinner: running 55s (RUN_SECONDS); close window to exit safely
+gc 1 @0.020s 3%: 0.050+3.5+0.017 ms clock, 0.20+0/3.5/0.14+0.071 ms cpu, 17->17->16 MB, 17 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 2 @0.034s 3%: 0.022+0.55+0.034 ms clock, 0.089+0/0.49/0.32+0.13 ms cpu, 36->36->35 MB, 36 MB goal, 0 MB stacks, 0 MB globals, 4 P
+J5TRACE Open device=0xc0002a40f0 ctx=0xc000092a00
+gc 3 @0.324s 0%: 0.030+0.91+0.039 ms clock, 0.12+0.17/0.44/0.33+0.15 ms cpu, 70->70->42 MB, 72 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 4 @0.933s 0%: 0.16+3.0+0.042 ms clock, 0.66+0.21/1.4/1.0+0.16 ms cpu, 82->83->42 MB, 84 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 5 @3.022s 0%: 0.17+2.4+0.012 ms clock, 0.69+0.36/0.95/0.83+0.051 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 6 @5.109s 0%: 0.12+1.0+0.017 ms clock, 0.50+0.18/0.84/0.39+0.068 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 7 @7.206s 0%: 0.084+3.1+0.015 ms clock, 0.33+0.31/1.1/0.81+0.061 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 8 @9.361s 0%: 0.10+2.4+0.052 ms clock, 0.42+0.072/0.94/1.1+0.21 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 9 @11.481s 0%: 0.13+1.3+0.069 ms clock, 0.52+0.15/0.77/1.2+0.27 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 10 @13.598s 0%: 0.046+0.92+0.012 ms clock, 0.18+0.31/0.82/0.17+0.050 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 11 @15.771s 0%: 0.037+0.49+0.005 ms clock, 0.14+0.48/0.46/0.84+0.020 ms cpu, 83->83->42 MB, 85 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 12 @17.867s 0%: 0.034+2.0+0.075 ms clock, 0.13+0.36/0.82/1.4+0.30 ms cpu, 83->83->42 MB, 85 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 13 @19.970s 0%: 0.039+0.77+0.061 ms clock, 0.15+0.053/0.57/0.65+0.24 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 14 @22.091s 0%: 0.056+1.9+0.042 ms clock, 0.22+0.62/1.1/0.69+0.17 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 15 @24.183s 0%: 0.081+0.88+0.006 ms clock, 0.32+0.86/0.76/1.4+0.024 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 16 @26.264s 0%: 0.17+1.3+0.015 ms clock, 0.69+0.14/0.57/1.7+0.063 ms cpu, 83->83->42 MB, 85 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 17 @28.347s 0%: 0.093+2.0+0.18 ms clock, 0.37+0.092/1.3/0.84+0.74 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 18 @30.448s 0%: 0.16+1.8+0.18 ms clock, 0.66+0.26/1.1/0.98+0.73 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 19 @32.521s 0%: 0.069+3.0+0.014 ms clock, 0.27+0.18/1.2/0.42+0.059 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 20 @34.608s 0%: 0.18+2.2+0.029 ms clock, 0.72+0.20/0.97/0.68+0.11 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 21 @36.709s 0%: 0.17+2.1+0.017 ms clock, 0.71+0.35/0.94/0.50+0.068 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 22 @38.778s 0%: 0.084+2.9+0.11 ms clock, 0.33+0.63/1.0/0.085+0.45 ms cpu, 83->84->43 MB, 85 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 23 @40.898s 0%: 0.091+0.77+0.014 ms clock, 0.36+0.15/0.001/1.0+0.056 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 24 @42.982s 0%: 0.096+2.6+0.049 ms clock, 0.38+0.34/0.001/2.2+0.19 ms cpu, 83->84->43 MB, 85 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 25 @45.119s 0%: 0.047+2.1+0.017 ms clock, 0.19+0.33/0.78/1.2+0.070 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 26 @47.188s 0%: 0.079+1.7+0.037 ms clock, 0.31+0.17/0.68/1.3+0.15 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 27 @49.272s 0%: 0.13+1.4+0.29 ms clock, 0.54+0.16/0.84/1.1+1.1 ms cpu, 84->84->43 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 28 @51.393s 0%: 0.21+3.2+0.017 ms clock, 0.85+0.19/1.3/0.23+0.071 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 29 @53.494s 0%: 0.062+1.5+0.063 ms clock, 0.24+0.31/1.0/0.96+0.25 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+gc 30 @55.580s 0%: 0.15+3.4+0.014 ms clock, 0.63+0.22/0.93/2.3+0.059 ms cpu, 84->84->42 MB, 86 MB goal, 0 MB stacks, 0 MB globals, 4 P
+ui_l1_spinner: backend=wayland presents=3253 ~58.7 fps over 55.4s (cap 55s) layout_flushes=1 raster_layers=2
+ui_l1_spinner: avg=16.90ms max=57.92ms p50=16.76 p99=19.27 hitches=7 vsync=true
+ui_l1_spinner: rss start=12560 end=208332 peak=208332 after_close=207916 KB cpu_avg=19.4%

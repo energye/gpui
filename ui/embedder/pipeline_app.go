@@ -35,6 +35,10 @@ type PipelineOptions struct {
 	// MaxFrames / RunFor stop conditions.
 	MaxFrames int64
 	RunFor    time.Duration
+	// OnRunEnd, when set, runs once when the loop exits and BEFORE the GPU
+	// teardown performed by Run. Use it to sample run-end metrics (RSS/peak)
+	// that must not include teardown allocations.
+	OnRunEnd func()
 	// OnEvent optional.
 	OnEvent func(ev platform.Event)
 	// When set,
@@ -111,6 +115,10 @@ type PipelineApp struct {
 
 	quit     atomic.Bool
 	presents atomic.Int64
+	// frames counts completed raster jobs (MaxFrames). presents counts only
+	// frames that actually hit the swapchain (idle plans present nothing), so
+	// fps/present metrics cannot hide a frozen window behind job completions.
+	frames atomic.Int64
 	frameID  atomic.Uint64
 	// lastStats holds the last raster-thread dirty-layer stats (T2: written
 	// on raster, read on UI via LastRasterStats — guarded, never bare).
@@ -883,9 +891,9 @@ func (a *PipelineApp) LayoutFlushCount() int64 {
 	return a.layoutFrames.Load()
 }
 
-// PresentCount returns completed presents: raster-job completions plus the
-// synchronous warm-up path (presentSyncFull, R4: mixed caliber by design —
-// use CompletedFrameID for the pure raster-completed sequence).
+// PresentCount returns presents that actually reached the swapchain (idle
+// plans present nothing and are excluded; the synchronous warm-up path counts
+// when it really presents). Use CompletedFrameID / frame_count for raster jobs.
 func (a *PipelineApp) PresentCount() int64 {
 	if a == nil {
 		return 0
@@ -1233,6 +1241,10 @@ func (a *PipelineApp) Run() error {
 	}
 	a.loop.Start()
 	defer a.Close()
+	if a.opts.OnRunEnd != nil {
+		// Registered after Close => runs first (LIFO), before GPU teardown.
+		defer a.opts.OnRunEnd()
+	}
 
 	w, h := a.host.Size()
 	scale := a.host.ScaleFactor()
@@ -1275,7 +1287,7 @@ func (a *PipelineApp) Run() error {
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			break
 		}
-		if a.opts.MaxFrames > 0 && a.presents.Load() >= a.opts.MaxFrames {
+		if a.opts.MaxFrames > 0 && a.frames.Load() >= a.opts.MaxFrames {
 			break
 		}
 
@@ -1762,8 +1774,10 @@ func (a *PipelineApp) Run() error {
 						metrics.NoteSaveLayer(al-a.lastSaveAllow, rj-a.lastSaveReject)
 						a.lastSaveAllow, a.lastSaveReject = al, rj
 					}
-					// R16 H-family: first loop present (warm-up path already recorded).
-					if a.presents.Load() == 0 {
+					// R16 H-family: first loop present (warm-up path already
+					// recorded). Idle plans present nothing: do not let one
+					// publish a first-present timestamp.
+					if a.presents.Load() == 0 && !out.Idle {
 						a.recordFirstPresent()
 					}
 				}
@@ -1794,14 +1808,17 @@ func (a *PipelineApp) Run() error {
 					}
 				}
 				a.completedFrame.Store(jobFrameID)
-				a.presents.Add(1)
+				a.frames.Add(1)
 				// Display interval (standard): sample at present completion,
 				// not submit. Submit-time sampling splits one 34ms stall
 				// into two ~17ms samples and hides judder.
 				// err == nil only: failed presents display nothing, and
 				// coalesced jobs never run (no sample, interval spans).
+				// Idle plans present nothing: counting them would report a
+				// healthy 60fps for a frozen window (L1 spinner regression).
 				// F期尺子：Flush(干活)/Acquire(等缓冲)/PresentWait(等显示)分开记。
-				if err == nil {
+				if err == nil && !out.Idle {
+					a.presents.Add(1)
 					m := a.sched.Metrics()
 					m.NoteFrameInterval(time.Now())
 					m.NoteFlushMs(render.FrameFlushMs)
@@ -2221,6 +2238,7 @@ func (a *PipelineApp) presentSyncFull() {
 			a.lastSaveAllow, a.lastSaveReject = al, rj
 		}
 	}
+	a.frames.Add(1)
 	a.presents.Add(1)
 	a.recordFirstPresent()
 }

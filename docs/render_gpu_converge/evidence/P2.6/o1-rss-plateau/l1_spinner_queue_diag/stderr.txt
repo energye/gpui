@@ -1,0 +1,18 @@
+ui_l1_spinner: running 3s (RUN_SECONDS); close window to exit safely
+QDIAG present n=1 mode=full rects=1 union=(0,0)-(480,320) force=true
+QDIAG flushCore n=1 op=FlushGPUWithView base=0xc000100808 layer=%!p(<nil>) cur=0xc000100808 curT=*gpu.GPURenderContext off=false
+QDIAG flush enter n=1 len=0 ctx=0xc000100808
+QDIAG flush exit n=1 len=0 ctx=0xc000100808
+QDIAG plan n=1 mode=damage_union rects=1 union=(0,0)-(12,12)
+QDIAG quad len=1 cap=1 ctx=0xc000100808 target=480x320
+QDIAG quad len=580 cap=646 ctx=0xc000100808 target=480x320
+QDIAG present n=60 mode=idle rects=0 union=(0,0)-(0,0) force=false
+QDIAG quad len=1180 cap=1509 ctx=0xc000100808 target=480x320
+QDIAG quad len=1780 cap=2101 ctx=0xc000100808 target=480x320
+QDIAG present n=120 mode=idle rects=0 union=(0,0)-(0,0) force=false
+QDIAG quad len=2380 cap=2856 ctx=0xc000100808 target=480x320
+QDIAG quad len=2980 cap=3772 ctx=0xc000100808 target=480x320
+QDIAG present n=180 mode=idle rects=0 union=(0,0)-(0,0) force=false
+ui_l1_spinner: backend=wayland presents=181 ~54.9 fps over 3.3s (cap 3s) layout_flushes=1 raster_layers=2
+ui_l1_spinner: avg=16.65ms max=29.60ms p50=16.61 p99=19.96 hitches=0 vsync=fallback
+ui_l1_spinner: rss start=13072 end=212664 peak=212664 after_close=212580 KB cpu_avg=22.8%

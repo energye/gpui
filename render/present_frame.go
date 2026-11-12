@@ -232,6 +232,13 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// and resize storms already forced forceFull above, so an idle plan here
 	// really means nothing to present.
 	if plan.Mode == PresentModeIdle && !forceFull {
+		// The draw callback already ran; an idle plan must not strand its
+		// queued commands (they would accumulate every frame). Drop them —
+		// the next frame re-queues from scratch. A non-empty plan is handled
+		// by the flush below.
+		if t.dc.PendingGPUCount() > 0 {
+			t.dc.DiscardPendingGPU()
+		}
 		out = PresentOutcome{Mode: PresentModeIdle, Idle: true}
 		t.lastOutcome = out
 		return out, nil

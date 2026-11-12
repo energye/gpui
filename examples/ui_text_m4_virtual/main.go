@@ -207,8 +207,9 @@ func main() {
 
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:   time.Duration(secs) * time.Second,
+		WarmUp:   true,
+		OnRunEnd: proc.Stop,
 		OnEvent: func(ev platform.Event) {
 			if ev.Type == platform.EventClose {
 				fmt.Fprintf(os.Stderr, "ui_text_m4_virtual: close (%s)\n", win.Backend())
@@ -310,12 +311,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
+	stopProf := wrkit.StartHeapProfiles(os.Getenv("GPUI_HEAP_PROF_DIR"), 60, 180, 280)
+	defer stopProf()
 	t0 := time.Now()
 	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
 		os.Exit(1)
 	}
-	proc.Stop()
 	app.Close()
 	win.Close()
 	proc.NoteAfterClose()

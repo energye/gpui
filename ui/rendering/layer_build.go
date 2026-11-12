@@ -546,8 +546,10 @@ func recordLayerContent(sz Size, wire *saveLayerWire, draw func(pc *PaintContext
 }
 
 // recordLeafContent records a leaf node's own content in layer-local
-// coordinates. Supports the render types that have a faithful display-list
-// representation; anything else records nothing (empty recording).
+// coordinates. Fast paths keep the common capturable types byte-stable; every
+// other leaf records through its own Paint so custom RenderObjects are not
+// silently dropped (an empty recording has no bounds/damage, which freezes
+// retained animation and strands queued draws on idle presents).
 func recordLeafContent(dc render.Canvas, n RenderObject) {
 	if dc == nil || n == nil {
 		return
@@ -584,6 +586,24 @@ func recordLeafContent(dc render.Canvas, n RenderObject) {
 			drawImageOn(dc, t.Img, 0, 0, dw, dh)
 		} else {
 			fillRectOn(dc, 0, 0, dw, dh, t.PR, t.PG, t.PB, 1)
+		}
+	default:
+		// addLeafPicture draws OwnPaint after this call; generic Paint would
+		// double-draw those. Only unhandled leaves without an OwnPaint hook
+		// need (and get) the generic path.
+		if _, hasOwn := ownBoxPaint(n); !hasOwn {
+			// Leaf Paint implementations clear their own needsPaint flag
+			// (full-paint semantics). Building a packet must be read-only
+			// for the tree: the retained path clears dirt separately
+			// (PipelineOwner.ConsumeNeedsPaint), and a second build with the
+			// same dirty set must see the same layers.
+			if base, ok := baseOf(n); ok {
+				dirty := base.needsPaint
+				n.Paint(NewPaintContext(dc, 1))
+				base.needsPaint = dirty
+				return
+			}
+			n.Paint(NewPaintContext(dc, 1))
 		}
 	}
 }

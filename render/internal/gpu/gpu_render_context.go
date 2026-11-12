@@ -3588,6 +3588,25 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	return err
 }
 
+// DiscardPending drops queued draw work that was never encoded. Idle presents
+// run the draw callback before the damage plan decides there is nothing to
+// present; the queue must not be stranded across frames (a frozen retained
+// window then grows pendingGPUTextureCommands forever). The next frame
+// re-queues from scratch.
+func (rc *GPURenderContext) DiscardPending() {
+	if rc == nil {
+		return
+	}
+	for i := range rc.pendingAdvancedLayers {
+		if rel := rc.pendingAdvancedLayers[i].release; rel != nil {
+			rel()
+		}
+	}
+	rc.pendingAdvancedLayers = nil
+	rc.dropEncodedPendingCommands()
+	rc.drainLayerReleaseHold()
+}
+
 // dropEncodedPendingCommands clears base draw queues after they have been
 // consumed by RenderFrameGrouped. Keeps pendingAdvancedLayers and layer holds.
 // Used so advanced-blend resolve only encodes composite blits (LoadOpLoad).

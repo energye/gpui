@@ -401,6 +401,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FSch-PERSISTENT | 每帧回调 | persistent frame callbacks | 连续动画 | Mode PERSISTENT + Ticker | — | — | A | scheduler.go | — |
 | FSch-IDLE | 空闲阻塞 | 无事不转 | 省电 | Mode IDLE + WaitEvents | — | — | A | scheduler.go | S0 |
 | FSch-WARMUP | 热身帧 | warm-up frame | 减首帧 jank | PipelineOptions.WarmUp | — | — | A | pipeline_app.go | F11 |
+| FSch-RUNEND | 运行结束回调 | — | 拆机前采样 | PipelineOptions.OnRunEnd | — | — | A | pipeline_app.go | 2026-11-12 O2：run-end RSS/指标必须在 GPU teardown 前采（LIFO defer，先于 Run 内 Close） |
 | FSch-TIMINGS | FrameTiming | FrameTiming | 分轨耗时 | frame_build_ms/raster_ms | — | MetricsStore | C | metrics.go | 多为 last；缺直方图 |
 | FSch-TIMINGS-CB | timings callback | addTimingsCallback | 自定义采集 | — | — | — | D | — | 可扩展 Metrics |
 | FSch-TICKER | Ticker | Ticker/AnimationController | 动画驱动 | animation.Controller+TickerRegistry | — | — | A | animation · ticker.go | F17 |

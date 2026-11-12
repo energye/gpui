@@ -1,0 +1,6 @@
+run	rss_start_mb	rss_end_mb	rss_peak_mb	slope15_end	slope30_end	slope40_end	heap_live_mb	heap_size_mb	go_heap_growth_mb	other_growth_mb	official_steady	official_valid
+l1_spinner_go	0.4	229.6	229.6	36067	23928	18685	110	145	20.4	0.0	36158.306590002336	True
+l1_spinner_native	4.7	291.3	291.3	46505	44069	40614	95	105	0.0	0.0	49336.73011927374	True
+l1_spinner_native_smaps	0.4	291.8	291.8	46274	42417	37354	93	104	21.8	0.0	43699.577023005964	True
+m4_virtual_go	0.2	438.5	438.5	37152	32374	28533	155	304	28.7	0.0	37090.19308278506	True
+m4_virtual_native	0.4	441.4	441.4	30340	32526	11552	156	305	34.3	1.7	30392.508519172843	True

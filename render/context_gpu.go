@@ -417,6 +417,37 @@ func (c *Context) ensureLayerGPUCtx() {
 	c.layerGpuCtx = ops
 }
 
+// PendingGPUCount reports queued GPU draw commands that have not been encoded.
+func (c *Context) PendingGPUCount() int {
+	if c == nil {
+		return 0
+	}
+	c.ensureGPUCtx()
+	if c.gpuCtx == nil {
+		return 0
+	}
+	if p, ok := c.gpuCtx.(interface{ PendingCount() int }); ok {
+		return p.PendingCount()
+	}
+	return 0
+}
+
+// DiscardPendingGPU drops queued GPU draw commands without encoding or
+// presenting them. Idle presents use it as a safety net: drawing before the
+// damage plan runs must not leak queued commands into the next frame.
+func (c *Context) DiscardPendingGPU() {
+	if c == nil {
+		return
+	}
+	c.ensureGPUCtx()
+	if c.gpuCtx == nil {
+		return
+	}
+	if d, ok := c.gpuCtx.(interface{ DiscardPending() }); ok {
+		d.DiscardPending()
+	}
+}
+
 // gpuCtxOps returns the active per-context GPU ops interface (base or layer),
 // or nil if unavailable.
 func (c *Context) gpuCtxOps() gpuContextOps {

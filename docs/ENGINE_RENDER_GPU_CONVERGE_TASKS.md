@@ -49,7 +49,9 @@
 
 ### 2.1 当前焦点
 
-**当前焦点（2026-11-12 起）：P3.1b 色空间路线复核（建议 opt-in 线性目标，待拍板）。**
+**当前焦点（2026-11-12 起）：§2.2 余项（O1/O2 已收口，O3/O4 待拍板）。**
+
+**O1/O2 已收口索引（2026-11-12）**：内存平台化定性 + retained 呈现修复——l1_spinner native 300s 平台化（210→211MB、slope −91KB/min、pprof diff 0），55s 双后端 533–1440KB/min；m4 go 300s 1581KB/min；根因=spinner 自定义叶子未录制→idle 早退遗留 20 条/帧 GPU 队列（pprof +46MB）+ `present_count` 计 job 掩盖冻结；A/B/C 全修 + 先红后绿 + 像素证明（inside 220/outside 0）。证据 `evidence/P2.6/o1-rss-plateau/assessment.md` §6–§9。
 
 - ✅ **22 窗金图漂移已收口**：44 轮双后端采集 → 21/22 判基线过期（未发现渲染洞）→ 用户确认 → 21 窗重种；native/go 42 轮复跑全 `0.0000%`；窗口级 1px 负向 12.9901% 红→还原绿；`ui_render_base_svg` 0.0000% 不重种。
 - ✅ **I5 v2 已收口**：`ui_base_vram_cap` 8 窗按既有证据重种；native Mailbox + go/gles 各 300s cascade，8/8 窗 `0.0000%`、像素 16/16、rc=0。
@@ -79,8 +81,8 @@
 
 **余留登记（不阻塞当前焦点）**
 
-- `ui_l1_spinner` 2h soak 定性：唯一 60s 仍过线 35161，RSS 12MB→302MB；按 P0.1「2 小时 RSS 涨 ≤5%」判真泄漏 vs 缓存上限。
-- `ui_text_m4_virtual` go 60s 稳态斜率波动（28586.8 / 37791.2 / 32694.3），与 l1_spinner 一并归 soak 定性，不在门禁批下结论。
+- `ui_l1_spinner` soak 定性 → **O1 ✅ 2026-11-12 收口**：真泄漏（retained 队列）已由 O2 修复；300s slope −91KB/min、pprof diff 0。
+- `ui_text_m4_virtual` go 60s 稳态斜率波动 → **O3 判据口径复核（60s 窗 vs Go 堆爬坡）+ O4 长跑缓存残差**，均登记不阻塞。
 - N1（backdrop 静止帧 + retained/hybrid 二轮量测）为可选后续，见 §2.2。
 - 历史尾巴（P2.4e / P3.1 / P3.5 期立案，快照内未见销账，未销即仍挂）：`misc_draw` wgpu 执行态（需 GPU capture 工具）、`SeatCapCB` 回调 robustness（flaky 实证）、gles `DeviceLost` / `X11KeyRepeat` 两新立案、P3.1b「sRGB 目标格式整链」（HDR/广色域前置；M5 格式参数化只承接其中一部分，整链未单独收口）；ui 5 条既有红（app_test SIGSEGV / x11_s6_p0 / m1 / m5 / gpupixel）在红名单登记、不阻塞。以 `evidence/P2.4e/summary.md`、`baseline/tests/` 与各自证据目录的实际状态为准，销账时回写。
 
@@ -196,6 +198,11 @@
 | N1 | P4.3 收口 | backdrop 损伤区裁剪的「静止帧 + retained/hybrid」增量二轮未做：二轮 `damage_area_px` 恒 960000 是测量窗每帧 `ScheduleFrame` 全量重绘 + `PresentPolicyFullPaint` 标签造成，非 backdrop 造成 | 渲染专项（可选）：改测量窗不每帧调度、切 retained/hybrid，看 `damage_area_px` 是否收敛到 153600；须给客观收益 + 双后端逐位 + 负向，否则维持不优化 | ⬜ 可选后续（2026-11-10 用户拍板 P4.3 收口时登记，不阻塞） |
 | N2 | P2.6 22 窗漂移 | `ui_render_base_webp` 逻辑探针 `webp_lossless_format` 仍期望 `FormatRGBA8`，P3.8 `d5f9af60` 已把 `FromStdImage` 统一为 `FormatRGBAPremul`（`render/internal/image/io.go:313-355`）；像素探针 24/24、alpha 直方图 379/64/5701 全过，仅格式标签过期 | P2.6（随 21 窗金图重种批） | ✅ 2026-11-12 已改为期望 `FormatRGBAPremul`；重种后复跑 logic 19/19、pixel 24/24、golden 0.0000% |
 | N3 | P2.6 I5 金图重种 | `ui_base_vram_cap` gate 首窗 `snapshot:` 偶发未写出：native 300s 第一轮 7/8 行（win1 缺），gate 读取陈旧 `vram_win1.png` 误报 17.5273%；第二轮 8/8 行、全 0.0000% | P2.6/P2.4e（查 `runOnGL` 关闭竞态，补「snapshot 未写出」显式失败） | ✅ 2026-11-12：根因=`runDone` 的 Wait→Add 竞态使主 goroutine 提前 `Close()`，首窗 target 置 nil、快照静默跳过；修=windowsOpened 屏障 + gate 前删旧 PNG + 缺文件/不可读显式 FAIL + embedder target/context unavailable 报错；5×60s、native/go 300s 均 8/8 `0.0000%`，只读负向 8/8 `snapshot missing` 红；`evidence/P2.6/golden-drift/n3-snapshot-race/assessment.md` |
+| O1 | C5 余留 / §2.1 余留登记 | `ui_l1_spinner` 60s RSS 12.5MB→302.7MB（steady 35161 KB/min）、`ui_text_m4_virtual` go 51.8MB→438MB（28587–37791 波动）；c10 300s 同族 74→305MB 后 slope 1164 平台化，需判真泄漏 vs 一次性预热爬坡 | P1.6/C5 后续（soak 定性） | ✅ 2026-11-12：根因=O2（非 GC 节奏）；修后 l1 native 300s slope −91KB/min、pprof 60→280s diff 0；m4 go 300s 1581KB/min（120s 后走平）；l1 55s 双后端 533/1440KB/min；`evidence/P2.6/o1-rss-plateau/assessment.md` §6–§9 |
+| O2 | O1 300s soak | retained 路径 idle 早退：`present()` 在 `PlanPresent=idle` 时直接 return，未 flush/丢弃 draw 已入队的 `pendingGPUTextureCommands`；根因=spinner 自定义叶子未进 retained 录制（`recordLeafContent` 白名单），空 recording→无 damage→idle；l1_spinner 20 条/帧（3s 2980 条、300s +46MB）；`present_count` 统计 raster job 掩盖冻结 | render 呈现/retained 路径 + 指标诚实性 | ✅ 2026-11-12 A+B+C：通用叶子 Paint 录制（建包只读）、idle 显式 DiscardPending、present 真计数 + `OnRunEnd` 拆机前采样；先红后绿 3 用例 + 像素证明 220/0 + l1 300s pprof 0；linux/arm64、windows/darwin×2、nogpu 编译过；`evidence/P2.6/o1-rss-plateau/assessment.md` §9 |
+| O3 | O1 300s soak | m4 55s steady 34139KB/min >30000，但 120s 后回落到 2MB/min、300s 1581KB/min；60s 硬判会误伤 Go 堆高水位启动爬坡 | P0.1 判据口径复核（可选） | ⬜ 待拍板（自适应平台/末段窗口/live heap 三选一）；`evidence/P2.6/o1-rss-plateau/assessment.md` §9 余留 |
+| O4 | O1 pprof | m4 300s pprof 残差：`PictureTextureCache.noteRerecord` 归因 map 随滚动 cache key 增长 ~4MB/220s，`buildShapedCarets` ~4MB；300s 总斜率 1581 未破线 | m4 长跑缓存专项（可选） | ⬜ 后续 2h 档复核（先登记不修）；同上 |
+| O5 | O2 C 口径 | `present_count`/`fps` 改为真实 swapchain present 后，静态/idle 窗计数低于旧「raster job」口径；动画窗（l1/m4）已复验，静态窗门禁集未全量重放 | 门禁回归（可选） | ⬜ 抽 l1_blank/l1_shell/r1_layout 等静态窗复跑，确认无门禁误红；不阻塞 O1/O2 |
 
 ## 3 每个任务的开工条件与完成标准
 
@@ -489,6 +496,9 @@ docs/render_gpu_converge/
 | 2026-11-12 | P3.1b | P3.1b-3：GPU 纹理合成 SourceSRGB + `encode_src` 一次转换；sRGB↔linear 改 premul-aware；四组合 + 半透明单测 PASS；GL 腿与 native 逐值一致 | `evidence/P3.1b/p31b-3-composite.txt` |
 | 2026-11-12 | P3.1b | P3.1b-4：真窗 `ui_wr_p31b_srgb_chain` native/go 各 7/7 像素、金图 0.0000% / 821184 px、默认卡降级 14 / 线性卡 0；强制 Unorm 与摘线性输出两条负向红还原；默认 miscdraw/webp 双后端 0.0000% | `evidence/P3.1b/p31b-4-window.md` |
 | 2026-11-12 | P3.1b | 补能力全表：13 固定功能模式逐模式、渐变+Ahem 文本、advanced Screen、CPU-only fail-closed；GL `FRAMEBUFFER_SRGB` 按附件格式开关 + present blit 关闭；四条负向红还原；windows/darwin/linux-arm64 交叉编译 + nogpu + vet + `-race` 过 | `evidence/P3.1b/p31b-2b-tests.txt`、`negatives/` |
+| 2026-11-12 | O1 | 开工：内存平台化（RSS 平台化）定性；`ui_l1_spinner`/`ui_text_m4_virtual` ≤60s 单轮双后端，判一次性预热爬坡 vs 真泄漏；标准口径 P0.1 §5 + c10 300s 平台化 | `evidence/P2.6/o1-rss-plateau/` |
+| 2026-11-12 | O1/O2 | 300s + Go pprof 实锤：l1 活堆 46→101MB、`QueueGPUTextureDrawQuad` 60→280s +46.37MB；5s/3s 队列探针确认稳态 `PlanPresent=idle` 后 `present()` 早退，20 条/帧队列永不释放；边界首帧后不重录、`present_count` 统计 raster job；根因落 O2，修复待拍板 | `evidence/P2.6/o1-rss-plateau/assessment.md` §6–§8 |
+| 2026-11-12 | O1/O2 | 修复 A+B+C：`recordLeafContent` 通用叶子 Paint 录制（建包只读）+ idle `DiscardPending` + `present_count` 真计数 + `OnRunEnd` 拆机前采样；先红后绿 3 用例、像素 220/0；l1 300s −91KB/min、pprof 0，m4 300s 1581KB/min；O3/O4 登记 | `evidence/P2.6/o1-rss-plateau/assessment.md` §9 |
 
 ## 8 修订记录（摘要；全文见存档）
 
@@ -507,3 +517,5 @@ docs/render_gpu_converge/
 | 2026-11-12 | 金图重种口径：只对「基线过期」重种，须有双后端内容逐字节同 + 平移 (0,0) + 内部采样 + 对照窗（SDF LUT 后重种窗 0%）证据；重种后双后端复跑 0.0000% + 1px 负向；禁止无证据重种 |
 | 2026-11-12 | N3 证据纪律：gate 开始前清旧快照，缺文件/不可读显式 FAIL；embedder 快照 target/context 不可用不得静默，必须留错误行 |
 | 2026-11-12 | 指标口径：目标相关计数（固定功能线性降级）必须在 Flush 拿到真实 targetFormat 后解析，禁止按排队时上一帧格式判定；单填充 sRGB 恒等回环 128，188 表示漏解码 |
+| 2026-11-12 | O1 测试时长修订：用户观察 5 分钟内存仍涨，批准把 O1 的「≤1 分钟」约束临时放宽为 300s soak；追加 Go pprof（heap/goroutine，60/180/280s）+ gctrace + smaps 对比，先定性活堆是否持续增长，再谈修复 |
+| 2026-11-12 | 指标口径：`present_count` 只计真实到 swapchain 的 present（idle 排除），`frame_count`/`frames` 计 raster job；`MaxFrames` 看 frames；新增 `PipelineOptions.OnRunEnd`，run-end RSS 在 GPU teardown 前采（teardown 曾污染 peak +7~57MB） |

@@ -1,0 +1,3 @@
+size=(480, 320) spinner_box=(0, 0, 48, 48)
+inside_diff=220 outside_diff=0
+PASS: animated spinner, diff confined to its 48x48 box
