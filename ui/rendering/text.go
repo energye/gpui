@@ -33,6 +33,11 @@ const (
 
 const textEllipsis = "…"
 
+// DefaultMaxSingleLineBytes is the D1 render/shape cap for one logical line
+// (VS Code stopRenderingLineAfter=10000). Override with
+// RenderText.MaxSingleLineBytes / SetMaxSingleLineBytes; -1 disables.
+const DefaultMaxSingleLineBytes = 10000
+
 // RenderText draws text via render.DrawString / per-line paint.
 // Layout prefers Face.Measure when Face is set; otherwise EstimateTextSize (rune-based).
 // When MaxWidth > 0, layout/paint wrap. MaxLines + Overflow cap the visible content.
@@ -66,6 +71,10 @@ type RenderText struct {
 	Align      render.Align
 	// MaxLines caps visible lines; 0 = unlimited.
 	MaxLines int
+	// MaxSingleLineBytes caps how many bytes of an over-long single line are
+	// laid out (V4 / D1 §7). 0 = DefaultMaxSingleLineBytes, >0 = explicit
+	// cap, -1 = disabled. The full text stays in Text for copy/select-all.
+	MaxSingleLineBytes int
 	// Overflow is applied when content exceeds MaxWidth and/or MaxLines.
 	Overflow TextOverflow
 	// Runs holds multi-span content from ParagraphBuilder / SetRuns.
@@ -665,21 +674,89 @@ func (t *RenderText) ensureLayout() *TextLayout {
 		if t.lcache == nil {
 			t.lcache = newLayoutCache()
 		}
+		// V4 / D1: an over-long single line lays out only the visible window.
+		// The full text stays in t.Text so copy/select-all are unchanged, and
+		// the incremental engine only ever sees the bounded window text.
+		windowEnd, fullLen, longLine := t.longLineWindow(t.Text)
+		layoutText := t.Text
+		if longLine {
+			layoutText = t.Text[:windowEnd]
+		}
+		sp := t.spanHint
+		t.spanHint.ok = false
+		if longLine && sp.ok && (sp.newA >= windowEnd || sp.oldA >= windowEnd) {
+			// An edit beyond the window cannot change the window text: drop
+			// the hint so the cache takes its same-text fast path (no re-shape).
+			sp.ok = false
+		}
 		// Spaced text bypasses the shared row cache (6a): rows are built
 		// fresh with spacing baked in, so unspaced cache keys, incremental
 		// patch paths and M-gates never see spaced content. Faceless
 		// estimate stays unspaced (spacing needs shaped clusters).
 		if (t.LetterSpacing != 0 || t.WordSpacing != 0) && t.effectiveFace() != nil {
-			t.textLayout = BuildTextLayoutExWithSpacing(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow, t.LetterSpacing, t.WordSpacing)
-		} else if t.spanHint.ok {
-			sp := t.spanHint
-			t.spanHint.ok = false
-			t.textLayout = t.lcache.updateSpan(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow, sp)
+			t.textLayout = BuildTextLayoutExWithSpacing(layoutText, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow, t.LetterSpacing, t.WordSpacing)
+		} else if sp.ok {
+			t.textLayout = t.lcache.updateSpan(layoutText, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow, sp)
 		} else {
-			t.textLayout = t.lcache.update(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow)
+			t.textLayout = t.lcache.update(layoutText, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow)
+		}
+		if longLine {
+			t.textLayout.LongLine = &LongLineInfo{FullLen: fullLen, WindowEnd: windowEnd}
 		}
 	}
 	return t.textLayout
+}
+
+// singleLineCap returns (cap, enabled); enabled=false when truncation is off.
+func (t *RenderText) singleLineCap() (int, bool) {
+	if t == nil {
+		return 0, false
+	}
+	switch {
+	case t.MaxSingleLineBytes < 0:
+		return 0, false
+	case t.MaxSingleLineBytes == 0:
+		return DefaultMaxSingleLineBytes, true
+	default:
+		return t.MaxSingleLineBytes, true
+	}
+}
+
+// longLineWindow reports the layout window for an over-long single line.
+// ok=false for multi-line, short, or disabled text. The cut is pulled back
+// to a UTF-8 rune boundary so the window text stays valid.
+func (t *RenderText) longLineWindow(s string) (windowEnd, fullLen int, ok bool) {
+	capN, enabled := t.singleLineCap()
+	if !enabled || capN <= 0 || len(s) <= capN || strings.IndexByte(s, '\n') >= 0 {
+		return len(s), len(s), false
+	}
+	end := capN
+	for end > 0 && !utf8.RuneStart(s[end]) {
+		end--
+	}
+	return end, len(s), true
+}
+
+// SetMaxSingleLineBytes configures the D1 long-line render cap (0 = default
+// 10000, -1 = disabled). Changing it rebuilds the layout.
+func (t *RenderText) SetMaxSingleLineBytes(n int) {
+	if t == nil || t.MaxSingleLineBytes == n {
+		return
+	}
+	t.MaxSingleLineBytes = n
+	t.textLayout = nil
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// LongLineWindow reports the current truncation window. It returns
+// (0, 0, false) when the text is short, multi-line, or truncation is off.
+func (t *RenderText) LongLineWindow() (windowEnd, fullLen int, truncated bool) {
+	l := t.TextLayout()
+	if l == nil || l.LongLine == nil {
+		return 0, 0, false
+	}
+	return l.LongLine.WindowEnd, l.LongLine.FullLen, l.LongLine.FullLen > l.LongLine.WindowEnd
 }
 
 // SetViewportHint enables culling for long single-line viewports (Flutter RenderEditable).

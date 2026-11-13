@@ -520,6 +520,7 @@ docs/render_gpu_converge/
 | 2026-11-13 | O6c | **用户暂缓（以后再做）**：07:41 对 m4 go 窗发 WM_DELETE 标准关闭（10min 处），watcher 停止；部分数据留档 `o6c-2h/m4_go_2h/`，不产生 2h 结论 | `evidence/P2.6/o1-rss-plateau/o6c-2h/`（部分） |
 | 2026-11-13 | O7 | 重种 watcher 随 O6c 暂缓停止；范围已拍板（10 组），待下批 GPU 空闲执行 | `evidence/P2.6/o1-rss-plateau/o7-reseed/` |
 | 2026-11-13 | O7 | 用户拍板重种范围：10 组（9 对金图 + multiwin 8 窗）；watcher 等 O6c 退出后自动执行 go 对照/备份/重种/双后端 0.0000%/1px 负向，失败回滚（PID 439721） | `evidence/P2.6/o1-rss-plateau/o7-reseed/` |
+| 2026-11-13 | O7 | 静态 7 窗重种完成：cross 0、native/go 复跑 14/14 golden 0.0000%、idle 1px 负向 1.2515%→还原 0；c4/multiwin 动态窗按用户拍板不重种、保留归类；负向还原脚本修正 | `evidence/P2.6/o1-rss-plateau/o7-reseed/reseed.md` |
 
 ## 8 修订记录（摘要；全文见存档）
 
@@ -541,4 +542,3 @@ docs/render_gpu_converge/
 | 2026-11-12 | O1 测试时长修订：用户观察 5 分钟内存仍涨，批准把 O1 的「≤1 分钟」约束临时放宽为 300s soak；追加 Go pprof（heap/goroutine，60/180/280s）+ gctrace + smaps 对比，先定性活堆是否持续增长，再谈修复 |
 | 2026-11-12 | 指标口径：`present_count` 只计真实到 swapchain 的 present（idle 排除），`frame_count`/`frames` 计 raster job；`MaxFrames` 看 frames；新增 `PipelineOptions.OnRunEnd`，run-end RSS 在 GPU teardown 前采（teardown 曾污染 peak +7~57MB） |
 | 2026-11-12 | O3 判据：RSS 正式判据由「≥30s，推荐 60s」改为 **120s（60s 预热+60s 测量）**；线 30000 不动；60s/更短轮 `rss_slope_valid=false` + `rss_verdict=inconclusive`（筛查，不冒充 PASS/FAIL）；依据 60s 内爬坡/慢泄漏不可分、60–120s 可分 |
-| 2026-11-13 | O7 | 静态 7 窗重种完成：cross 0、native/go 复跑 14/14 golden 0.0000%、idle 1px 负向 1.2515%→还原 0；c4/multiwin 动态窗按用户拍板不重种、保留归类；负向还原脚本修正 | `evidence/P2.6/o1-rss-plateau/o7-reseed/reseed.md` |

@@ -74,8 +74,19 @@ func isColorText(s string) bool {
 }
 
 // TextLayout is the single source for paint + queries.
+// LongLineInfo describes a D1-truncated long-line layout window: only the
+// first WindowEnd bytes of a FullLen-byte single line are materialized.
+// Queries clamp offsets beyond the window via the existing len(l.Text)
+// bounds; a horizontal viewport (V4 stage 3) will slide this window.
+type LongLineInfo struct {
+	FullLen   int
+	WindowEnd int
+}
+
 type TextLayout struct {
 	Text string
+	// LongLine is non-nil when this layout is a truncated long-line window.
+	LongLine *LongLineInfo
 	// lines是行表.外部经LineCount/Line/LineCarets/
 	// LineGlyphs/CaretAt访问(值拷贝或只读 absolutize,供懒物化演进);
 	// 行内caret为行内相对偏移,绝对值=相对值+行StartByte.

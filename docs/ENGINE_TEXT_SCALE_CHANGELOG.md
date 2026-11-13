@@ -372,3 +372,14 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - **P2 修法**：示例滚动脚本用引擎已有的 `BeginBatchEdit/EndBatchEdit` 把整批光标移动合并为一次 `OnChange`（能力在引擎已存在，属示例用错 API，未在示例绕洞）。修后 60s 回绕两轮全达标。
 - **证据文件**：`/tmp/v3c_wrap_cpu.prof`（CPU profile）、`/tmp/v3c_auto6.json`（5 探针全绿）、`/tmp/v3c_r4_gate.json`（Golden gate PASS）、`/tmp/v3c_r5_wrap60.json` 与 `/tmp/v3c_60s_batch.json`（60s 性能）、`examples/ui_text_large_scale/testdata/v3c_wrap_golden.png`（待人工确认的种子基线）。
 
+---
+
+### V4 阶段 1：分块物化（2026-11-13，按 D1 上限）
+
+- **红灯**：`ui/rendering/v4_longline_test.go`（testdata 种子 + 循环索引、每击键改不同位置、生产 `SetTextSpan+TextLayout`）；两轮实测 1e6 字 724–784ms、5e6 字 3.95–4.08s（门禁 ≤16ms）。
+- **成熟框架核查**：Skia `skparagraph`（整段 `ParagraphImpl::layout`，只有 `maxLines`/`ellipsis`；`Run.cpp:356 prefixWidth` 是省略号按宽度比例分配，非文本前缀宽度）、Flutter `text_painter.dart`（`maxLines`/`ellipsis`，无视口/分块）**均无超长行分块与横向视口原生能力**，按 D1/VS Code 口径自研，不手写库里已有的算法。
+- **CPU profile**：`ui/rendering/layout_update.go:167 patchRows` cum 4.07s、`text_layout.go:662 buildShapedCarets` cum 5.98s、`memmove` flat 26%，`render/text.Shape` 仅 20.53% → 瓶颈是整行 caret/簇表全量重建，不是整形。
+- **修法**：`RenderText` 加 D1 可配置上限（`DefaultMaxSingleLineBytes=10000`、`MaxSingleLineBytes` 字段 / `SetMaxSingleLineBytes` / `LongLineWindow` 公开），`ensureLayout` 只把窗口文本交给 `layoutCache`，全文留 `RenderText.Text` 供复制/全选；`TextLayout.LongLine` 记窗口/全文长度，越界偏移经既有 `clampOffset` 钳制。新增公开面：`LongLineInfo`、`TextLayout.LongLine`。
+- **证据**：1e6 字**窗口内真实打字 3.98ms**（不是远端快路假绿）、5e6 字远端编辑 532µs；`TestV4_LongLineWindow` 锁全文保留/窗口内编辑真被布局/上限可配/-1 禁用/越界钳制不崩；`m5_singleline_test.go` 显式 `SetMaxSingleLineBytes(-1)` 保持其 50k 全量口径；全仓 `go build ./...` + vet + gofmt + 120 个测试文件逐个回归 0 FAIL。
+- **诚实项**：阶段 2/3 未做——省略标记尚未绘制、窗口外光标钳到窗口末尾（横向滚动待阶段 3）、`longLineWindow` 每次 `strings.IndexByte` 只读扫全文（未物化但规模未完全解耦，待阶段 3 改用 Editor 行信息）、跨块 bidi/字素边界失败模式未探针、真窗三证据待阶段 3。**V4 整体不得标绿**。
+

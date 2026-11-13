@@ -35,6 +35,9 @@ func TestSingleLongLineKeystroke_M5(t *testing.T) {
 	mid := len(base) / 2
 	edited := base[:mid] + "X" + base[mid+1:]
 	rt := NewRenderText(base)
+	// V4 D1 would truncate this 50k line to the 10000-byte window; this M5
+	// gate deliberately measures the FULL-line incremental path.
+	rt.SetMaxSingleLineBytes(-1)
 	rt.SetFace(face)
 	_ = rt.TextLayout()
 	var ds []time.Duration
