@@ -258,3 +258,23 @@ M3.5 触发数据（同尺寸对照，`face==nil` 估算路径）：1e3 下拼�
   默认不预填 E（M0 只看 B/C/F 真实）；分段跑：`GPUI_ACCEPT_ONLY=B|C|E|F`
   只预填一框，`GPUI_ACCEPT_FULL=1` 全预填（含 E，会卡），
   `GPUI_ACCEPT_NOPREFILL=1` 全空跑。
+
+## M3 收口复测（2026-11-13，当前树）
+
+- `ui/textinput` M3 单测：`TestUndoDelta_Roundtrip_M3` / `_CompositionSingleStep_M3` /
+  `_MemoryCeiling_M3` / `_Boundaries_M3` / `_EmptyCompositionNoHistory_M3` /
+  `_NoDocRetention_M3` / `_NoDocRetention_Paths_M3` **7/7 PASS**；`ui/textinput` 整包 PASS。
+- `BenchmarkPushHistory_M3`：1000 档 7306 ns/op、100000 档 1806 ns/op，
+  `T(1e5)/T(1e3) ≈ 0.25`（门禁 ≤2）。
+- M3.5 触发数据（`BenchmarkEditorSpliceShare_M3`，face==nil 估算路径）：
+  1e3 splice 7.8µs / layout 122.6µs（约 6.0%）；1e5 splice 826µs / layout 32.4ms（约 2.5%），
+  均低于 30% 触发线；`BenchmarkKeystroke` 当前 1e5 档 NoWrap 3.98µs、WrapShort 17.4µs、
+  WrapLong 796µs（3 次采样，供 M5 G1 使用）。
+- 老裁判：`ui/rendering` `TestTextLayout_*` 9 项、`ui/textinput` `TestR1_*` 3 项全 PASS；
+  历史登记的机器红 `TestTextLayout_LongBuild_RealFace` 本机当前 **PASS（0.32s）**，已消。
+- 60s 验收窗（2026-11-13，`GPUI_ACCEPT_RUN_SECONDS=60`）：rc=0；`rss_slope_kb_per_min=7106`
+  （≤30000），`rss_slope_valid=false`（O3：60s 只筛查，正常）；本轮无人工/脚本输入，
+  窗处于 idle 模式（`fps_interval=0.14`、`p95=15.5s`），**不能作为稳态编辑 fps 结论**。
+  稳态编辑的 60s 历史证据保留在上一节（fps 57.7 / p95 19.9 / rss 8895）。
+- 结论：M3 的增量 undo 实现、内存上限、基准比值、老裁判与 60s 原始输出均已在本机复验；
+  历史两项“待补诚实项”按本轮原始输出与 `BenchmarkKeystroke` 数据补齐。M3 标 ✅（2026-11-13）。
