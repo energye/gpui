@@ -48,14 +48,26 @@ func TestBoxVirtualSync_1e6(t *testing.T) {
 	if !b.virtualOn || b.txt.Text != "" {
 		t.Fatalf("typing dropped virtual mode or materialized text")
 	}
-	// 非折叠选区 → 退回全量路径,保证选区/IME 功能.
+	// 非折叠选区仍走虚拟,选区高亮按可见行生成.
 	n := ed.ensureBuf().UTF16Len()
 	ed.SetSelection(TextRange{Base: 0, Extent: n / 2})
 	b.sync()
-	if b.virtualOn {
-		t.Fatalf("non-collapsed selection must fall back to full layout")
+	if !b.virtualOn || b.txt.Text != "" {
+		t.Fatalf("non-collapsed selection must stay virtual without materializing text")
 	}
-	if b.txt.Text == "" {
-		t.Fatalf("fallback did not materialize text")
+	if len(b.highlights) == 0 {
+		t.Fatalf("virtual selection produced no visible highlight boxes")
+	}
+	// IME 合成仍走虚拟,候选框按可见行生成.
+	ed.SetSelection(TextRange{Base: n, Extent: n})
+	b.sync()
+	ed.BeginComposing()
+	ed.UpdateComposingText("x", TextRange{Base: n, Extent: n})
+	b.sync()
+	if !b.virtualOn {
+		t.Fatalf("composing must stay virtual")
+	}
+	if r := b.IMERect(); r.W <= 0 || r.H <= 0 {
+		t.Fatalf("virtual IME rect=%+v", r)
 	}
 }

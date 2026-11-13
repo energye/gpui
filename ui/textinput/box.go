@@ -782,7 +782,11 @@ func (b *Box) caretAnchor() (x, top, bottom float64, ok bool) {
 
 func (b *Box) IMERect() platform.Rect {
 	if b != nil && b.ed != nil && b.ed.IsComposing() {
-		if lay := b.txt.TextLayout(); lay != nil && lay.LineCount() > 0 {
+		if b.virtualOn && b.vtext != nil {
+			if r, ok := b.imeRectVirtual(); ok {
+				return r
+			}
+		} else if lay := b.txt.TextLayout(); lay != nil && lay.LineCount() > 0 {
 			cr := b.ed.ComposingRange()
 			s := byteOffsetForUtf16(b.ed.GetText(), cr.Start())
 			e := byteOffsetForUtf16(b.ed.GetText(), cr.End())
@@ -823,6 +827,86 @@ func (b *Box) IMERect() platform.Rect {
 	return platform.Rect{X: abs.X + x, Y: abs.Y + top, W: 2, H: bottom - top}
 }
 
+// imeRectVirtual unions composing boxes over visible lines.
+func (b *Box) imeRectVirtual() (platform.Rect, bool) {
+	v := b.ensureVirtual()
+	buf := b.ed.ensureBuf()
+	cr := b.ed.ComposingRange()
+	s := buf.ByteOffsetForUTF16(cr.Start())
+	e := buf.ByteOffsetForUTF16(cr.End())
+	if e <= s {
+		return platform.Rect{}, false
+	}
+	pad := b.Padding()
+	visH := b.FixedHeight - 2*pad
+	if visH < 0 {
+		visH = 0
+	}
+	firstLine, lastLine := v.VisibleRange(b.scrollY, visH)
+	startLine := buf.LineIndex(s)
+	endLine := buf.LineIndex(e)
+	if startLine < firstLine {
+		startLine = firstLine
+	}
+	if endLine > lastLine {
+		endLine = lastLine
+	}
+	minX, minY, maxX, maxY := 0.0, 0.0, 0.0, 0.0
+	found := false
+	for line := startLine; line <= endLine; line++ {
+		ls := buf.LineStart(line)
+		le := buf.Len()
+		if line+1 < buf.LineCount() {
+			le = buf.LineStart(line+1) - 1
+		}
+		a, c := s, e
+		if a < ls {
+			a = ls
+		}
+		if c > le {
+			c = le
+		}
+		if c <= a {
+			continue
+		}
+		vl, ok := v.Line(line)
+		if !ok || vl.Layout == nil || vl.Layout.LineCount() == 0 {
+			continue
+		}
+		for _, r := range vl.Layout.BoxesForRange(a-ls, c-ls) {
+			x0, y0 := r.Min.X, v.LineTop(line)+r.Min.Y
+			x1, y1 := r.Max.X, v.LineTop(line)+r.Max.Y
+			if !found {
+				minX, minY, maxX, maxY = x0, y0, x1, y1
+				found = true
+				continue
+			}
+			if x0 < minX {
+				minX = x0
+			}
+			if y0 < minY {
+				minY = y0
+			}
+			if x1 > maxX {
+				maxX = x1
+			}
+			if y1 > maxY {
+				maxY = y1
+			}
+		}
+	}
+	if !found {
+		return platform.Rect{}, false
+	}
+	off := b.txt.Offset()
+	abs := absoluteOrigin(b)
+	if b.useViewport && b.Viewport != nil {
+		vpOff := b.Viewport.ScrollOffset()
+		return platform.Rect{X: abs.X + off.X + minX - vpOff.X + 1, Y: abs.Y + off.Y + minY + 1, W: maxX - minX, H: maxY - minY}, true
+	}
+	return platform.Rect{X: abs.X + off.X + minX, Y: abs.Y + off.Y + minY, W: maxX - minX, H: maxY - minY}, true
+}
+
 func (b *Box) Sync() { b.sync() }
 
 const virtualTextMinBytes = 64 * 1024
@@ -833,10 +917,7 @@ func (b *Box) canVirtual() bool {
 	if b == nil || b.ed == nil || b.txt == nil || !b.multi || b.wrap {
 		return false
 	}
-	if b.ed.IsPassword() || b.ed.IsComposing() {
-		return false
-	}
-	if !b.ed.SelectionRange().Collapsed() {
+	if b.ed.IsPassword() {
 		return false
 	}
 	return b.ed.ensureBuf().Len() >= virtualTextMinBytes
@@ -946,6 +1027,7 @@ func (b *Box) sync() {
 	}
 	if b.canVirtual() {
 		b.syncVirtual()
+		b.syncHighlight()
 		b.caretOn = true
 		b.blinkElapsed = 0
 		b.layoutCaret()
@@ -1067,6 +1149,102 @@ func (b *Box) sync() {
 	}
 }
 
+// addHighlightBoxes places one batch of selection rects (content coords).
+// yBase shifts the batch for virtual per-line boxes; first tracks the very
+// first box so only it receives the inset pad.
+func (b *Box) addHighlightBoxes(host highlightHost, boxes []rendering.Rect, yBase float64, off rendering.Point, vis rendering.Rect, first *bool, sr, sg, sb, sa float64) {
+	for _, r := range boxes {
+		h := r.Size().Height
+		pad := 0.0
+		if *first {
+			if m, ok := b.txt.Metrics(); ok {
+				pad = (b.txt.LineHeight() - (m.Ascent + m.Descent)) / 2
+				if pad < 1 {
+					pad = 1
+				} else if pad > 4 {
+					pad = 4
+				}
+			} else {
+				pad = h * 0.08
+				if pad < 1 {
+					pad = 1
+				} else if pad > 3 {
+					pad = 3
+				}
+			}
+			*first = false
+		}
+		hl := rendering.NewRect(off.X+r.Min.X, off.Y+yBase+r.Min.Y-pad, r.Size().Width, h+pad)
+		hb := newClippedHighlight(hl, vis, sr, sg, sb, sa)
+		if hb == nil {
+			continue
+		}
+		host.AddChild(hb)
+		b.highlights = append(b.highlights, hb)
+	}
+}
+
+// syncHighlightVirtual draws selection boxes for the visible lines only.
+func (b *Box) syncHighlightVirtual(host highlightHost, sel TextRange) {
+	v := b.ensureVirtual()
+	buf := b.ed.ensureBuf()
+	sByte := buf.ByteOffsetForUTF16(sel.Start())
+	eByte := buf.ByteOffsetForUTF16(sel.End())
+	if eByte < sByte {
+		sByte, eByte = eByte, sByte
+	}
+	pad := b.Padding()
+	visH := b.FixedHeight - 2*pad
+	if visH < 0 {
+		visH = 0
+	}
+	firstLine, lastLine := v.VisibleRange(b.scrollY, visH)
+	startLine := buf.LineIndex(sByte)
+	endLine := buf.LineIndex(eByte)
+	if startLine < firstLine {
+		startLine = firstLine
+	}
+	if endLine > lastLine {
+		endLine = lastLine
+	}
+	off := b.txt.Offset()
+	var vis rendering.Rect
+	if b.useViewport && b.Viewport != nil {
+		vis = rendering.NewRect(b.Viewport.ScrollOffset().X, 0, b.FixedWidth-2, b.FixedHeight)
+	} else {
+		vis = rendering.NewRect(0, 0, b.FixedWidth, b.FixedHeight)
+	}
+	sr, sg, sb, sa := b.SelectionColor()
+	b.highlights = make([]*rendering.RenderColorBox, 0, 8)
+	first := true
+	for line := startLine; line <= endLine; line++ {
+		ls := buf.LineStart(line)
+		le := buf.Len()
+		if line+1 < buf.LineCount() {
+			le = buf.LineStart(line+1) - 1
+		}
+		a, c := sByte, eByte
+		if a < ls {
+			a = ls
+		}
+		if c > le {
+			c = le
+		}
+		if c <= a {
+			continue
+		}
+		vl, ok := v.Line(line)
+		if !ok || vl.Layout == nil || vl.Layout.LineCount() == 0 {
+			continue
+		}
+		boxes := vl.Layout.BoxesForRange(a-ls, c-ls)
+		if len(boxes) == 0 {
+			continue
+		}
+		b.addHighlightBoxes(host, boxes, v.LineTop(line), off, vis, &first, sr, sg, sb, sa)
+	}
+}
+
 // syncHighlight draws the selection via BoxesForRange (TextLayout single
 // source). Parent and visible window branch on the viewport property.
 func (b *Box) syncHighlight() {
@@ -1085,6 +1263,10 @@ func (b *Box) syncHighlight() {
 	}
 	sel := b.ed.SelectionRange()
 	if sel.Collapsed() {
+		return
+	}
+	if b.virtualOn && b.vtext != nil {
+		b.syncHighlightVirtual(host, sel)
 		return
 	}
 	text := b.ed.GetText()
@@ -1107,34 +1289,8 @@ func (b *Box) syncHighlight() {
 	}
 	sr, sg, sb, sa := b.SelectionColor()
 	b.highlights = make([]*rendering.RenderColorBox, 0, len(boxes))
-	for idx, r := range boxes {
-		h := r.Size().Height
-		pad := 0.0
-		if idx == 0 {
-			if m, ok := b.txt.Metrics(); ok {
-				pad = (b.txt.LineHeight() - (m.Ascent + m.Descent)) / 2
-				if pad < 1 {
-					pad = 1
-				} else if pad > 4 {
-					pad = 4
-				}
-			} else {
-				pad = h * 0.08
-				if pad < 1 {
-					pad = 1
-				} else if pad > 3 {
-					pad = 3
-				}
-			}
-		}
-		hl := rendering.NewRect(off.X+r.Min.X, off.Y+r.Min.Y-pad, r.Size().Width, h+pad)
-		hb := newClippedHighlight(hl, vis, sr, sg, sb, sa)
-		if hb == nil {
-			continue
-		}
-		host.AddChild(hb)
-		b.highlights = append(b.highlights, hb)
-	}
+	first := true
+	b.addHighlightBoxes(host, boxes, 0, off, vis, &first, sr, sg, sb, sa)
 	host.RemoveChild(b.txt)
 	host.RemoveChild(b.bar)
 	host.AddChild(b.txt)
