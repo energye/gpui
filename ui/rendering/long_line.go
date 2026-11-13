@@ -64,8 +64,12 @@ type longLineIndex struct {
 }
 
 // capBytes returns the byte offset after nChars runes (nChars<=0 = whole).
+// The walk stops after nChars runes or at end-of-text — a cap within the line
+// never counts the whole line. (The old full RuneCountInString guard made
+// every window query O(L): a 5e6-byte line measured 28.8ms/keystroke on the
+// box path, linear in line length, over the §2.2 16ms gate.)
 func capBytes(s string, nChars int) int {
-	if nChars <= 0 || nChars >= utf8.RuneCountInString(s) {
+	if nChars <= 0 {
 		return len(s)
 	}
 	i, count := 0, 0

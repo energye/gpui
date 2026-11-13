@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -39,10 +40,32 @@ import (
 
 const (
 	winW, winH   = 1200, 800
-	lineCount    = 1000000
 	closeSeconds = 30
 	goldenRel    = "examples/ui_text_large_scale/testdata/v3c_wrap_golden.png"
+	// defaultLines is the V2 seed size (the -lines default). The seeded
+	// Golden baseline matches this size only.
+	defaultLines = 1000000
 )
+
+// lineCount is the document scale (set from -lines). Tiers of
+// ENGINE_TEXT_LARGE_SCALE_PLAN §2.1: 1e6=L1, 3e6=L2/L3, 1e7=S (fixed height).
+var lineCount = defaultLines
+
+// comma renders 1000000 as "1,000,000" for titles/legend only.
+func comma(n int) string {
+	s := strconv.Itoa(n)
+	pre := len(s) % 3
+	if pre == 0 {
+		pre = 3
+	}
+	var b []byte
+	b = append(b, s[:pre]...)
+	for i := pre; i < len(s); i += 3 {
+		b = append(b, ',')
+		b = append(b, s[i:i+3]...)
+	}
+	return string(b)
+}
 
 func sampleLine() string {
 	path := filepath.Join("examples", "ui_text_large_scale", "testdata", "line_sample.txt")
@@ -85,6 +108,133 @@ type v3cCheck struct {
 	Name   string `json:"name"`
 	Pass   bool   `json:"pass"`
 	Detail string `json:"detail"`
+}
+
+// burstStats is one timed burst phase of the §2.2 real-window probe.
+// Observation values for the tier table; the authoritative timing gates are
+// the CPU tests (ui/textinput/v4_gate_test.go) — a window ticker cannot
+// isolate a single op as cleanly as the CPU bench, so this reports honestly
+// and never overrides a CPU verdict.
+type burstStats struct {
+	Kind     string  `json:"kind"`
+	N        int     `json:"n"`
+	MedianUs float64 `json:"median_us"`
+	P95Us    float64 `json:"p95_us"`
+	MaxUs    float64 `json:"max_us"`
+}
+
+// burst validity probes: an edit burst that does not actually edit (or does
+// not stay virtual) would time a no-op — the known false-green trap.
+type burstValid struct {
+	LenGrewByN   bool `json:"len_grew_by_n"`
+	LenRestored  bool `json:"len_restored"`
+	VirtualStays bool `json:"virtual_stays"`
+	TopLineMoved bool `json:"top_line_moved"`
+}
+
+// burstPercentile returns the p-th percentile of sorted-able durations.
+func burstPercentile(ds []time.Duration, p float64) float64 {
+	if len(ds) == 0 {
+		return 0
+	}
+	c := append([]time.Duration(nil), ds...)
+	sort.Slice(c, func(i, j int) bool { return c[i] < c[j] })
+	idx := int(float64(len(c)) * p)
+	if idx >= len(c) {
+		idx = len(c) - 1
+	}
+	if idx < 0 {
+		idx = 0
+	}
+	return float64(c[idx].Microseconds())
+}
+
+func burstSummary(kind string, ds []time.Duration) burstStats {
+	s := burstStats{Kind: kind, N: len(ds)}
+	if len(ds) == 0 {
+		return s
+	}
+	s.MedianUs = burstPercentile(ds, 0.5)
+	s.P95Us = burstPercentile(ds, 0.95)
+	max := ds[0]
+	for _, d := range ds {
+		if d > max {
+			max = d
+		}
+	}
+	s.MaxUs = float64(max.Microseconds())
+	return s
+}
+
+// runBurst drives the production box through the §2.2 timing scenarios on a
+// static viewport (unique position per keystroke; every op goes through the
+// real Editor+Box sync path). Public component APIs only.
+func runBurst(ed *textinput.Editor, box *textinput.Box, n int) ([]burstStats, burstValid) {
+	var stats []burstStats
+	var v burstValid
+	docLen := ed.BufferSnapshot().Len()
+
+	// Keystrokes: one char at a fresh offset each time (unique edit positions).
+	var keyDs []time.Duration
+	stride := docLen / (n + 2)
+	if stride < 64 {
+		stride = 64
+	}
+	off := stride
+	baseLen := docLen
+	for i := 0; i < n; i++ {
+		ed.SetSelectionBytes(off, off)
+		t0 := time.Now()
+		ed.Insert("x")
+		box.Sync()
+		keyDs = append(keyDs, time.Since(t0))
+		off += stride
+		if off >= docLen-1 {
+			off = stride
+		}
+	}
+	stats = append(stats, burstSummary("keystroke", keyDs))
+	v.LenGrewByN = ed.BufferSnapshot().Len() == baseLen+n
+
+	// Caret moves/hits: selection to a fresh offset each time.
+	var caretDs []time.Duration
+	topBefore := box.TopVisibleLine()
+	for i := 0; i < n; i++ {
+		t0 := time.Now()
+		ed.SetSelectionBytes(off, off)
+		box.Sync()
+		caretDs = append(caretDs, time.Since(t0))
+		off += stride
+		if off >= docLen-1 {
+			off = stride
+		}
+	}
+	stats = append(stats, burstSummary("caret", caretDs))
+
+	// Line-count edits: newline in (+1 row) and backspace out (-1 row),
+	// timed per op; byte length must return to baseline.
+	var editDs []time.Duration
+	editLen := ed.BufferSnapshot().Len()
+	for i := 0; i < n; i++ {
+		ed.SetSelectionBytes(off, off)
+		t0 := time.Now()
+		ed.Insert("\n")
+		box.Sync()
+		editDs = append(editDs, time.Since(t0))
+		t1 := time.Now()
+		ed.DeleteBackward()
+		box.Sync()
+		editDs = append(editDs, time.Since(t1))
+		off += stride
+		if off >= docLen-1 {
+			off = stride
+		}
+	}
+	stats = append(stats, burstSummary("line_edit", editDs))
+	v.LenRestored = ed.BufferSnapshot().Len() == editLen
+	v.VirtualStays = box.VirtualMode()
+	v.TopLineMoved = box.TopVisibleLine() != topBefore
+	return stats, v
 }
 
 // inkPixels counts green text pixels in the body content rect of a GPU
@@ -131,8 +281,17 @@ func main() {
 	autoOnly := flag.Bool("auto-only", false, "gate mode: scripted V3c self-check + GPU snapshot + Golden; exit 1 on fail")
 	manualSeconds := flag.Float64("manual-seconds", 0, "manual mode: auto-close after N seconds (0 = stay until window close)")
 	wrap := flag.Bool("wrap", false, "V3c: enable soft wrap on the 1e6-line production box")
+	lines := flag.Int("lines", defaultLines, "document line count (tier scale: 1e6=L1, 3e6=L2/L3, 1e7=S fixed-height)")
+	burst := flag.Int("burst", 0, "scripted keystroke/caret/edit timing burst (0 = off; implies static viewport)")
 	cpuprofile := flag.String("cpuprofile", "", "write a CPU profile of the run to this path (verification only)")
 	flag.Parse()
+	if *lines > 0 {
+		lineCount = *lines
+	}
+	if lineCount > 2*defaultLines {
+		fmt.Fprintf(os.Stderr, "large_scale: -lines %d is a pressure tier (~%d MB text); watch free memory\n",
+			lineCount, lineCount*70/1024/1024)
+	}
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
@@ -170,8 +329,8 @@ func main() {
 	textBytes := len(text)
 
 	legend := []string{
-		"1,000,000 行生产多行输入框",
-		"行号 0000001–1000000",
+		fmt.Sprintf("%s 行生产多行输入框", comma(lineCount)),
+		fmt.Sprintf("行号 0000001–%07d", lineCount),
 		"首屏/滚动只物化可见行",
 		"滚动脚本：慢滚 → 快滑 → 减速",
 		"无 GetText、无全量 TextLayout",
@@ -183,9 +342,13 @@ func main() {
 
 	ed := textinput.New()
 	ed.SetSingleLine(false)
+	// §2.2 首屏口径（沿 V2 收口）：构造（数据装载）与布局首同步分开计时上报，
+	// 门禁挂在布局首同步上；构造是 O(n) 数据装载，任何编辑器都省不掉。
+	tConstruct := time.Now()
 	ed.SetTextSimple(text)
 	text = ""
 	runtime.GC()
+	constructMs := time.Since(tConstruct).Seconds() * 1000
 	ed.SetSelection(textinput.TextRange{Base: 0, Extent: 0})
 	box := textinput.NewMultiLineInputBox(ed, shell.Body.W, shell.Body.H, 14)
 	if *wrap {
@@ -195,9 +358,11 @@ func main() {
 		box.SetFace(face)
 	}
 	shell.Body.Place(box, 0, 0)
+	tFirstSync := time.Now()
 	box.Sync()
+	firstSyncMs := time.Since(tFirstSync).Seconds() * 1000
 
-	winTitle := "gpui ui_text_large_scale — 1e6 line box"
+	winTitle := fmt.Sprintf("gpui ui_text_large_scale — %s line box", comma(lineCount))
 	if *wrap {
 		winTitle += " [V3c wrap]"
 	}
@@ -253,13 +418,22 @@ func main() {
 	// The gate's scripted self-check needs a static viewport: the scrolling
 	// ticker moves the caret and scrollY every frame and would scramble the
 	// anchor probe. The 60s RUN_SECONDS window separately covers scroll perf.
-	noScroll := os.Getenv("GPUI_V2_NOSCROLL") == "1" || *autoOnly
+	noScroll := os.Getenv("GPUI_V2_NOSCROLL") == "1" || *autoOnly || *burst > 0
 	retPath := os.Getenv("GPUI_V2_RETAINED_SNAPSHOT")
 	retTaken := false
 	var checks []v3cCheck
 	selfCheckDone := false
+	var burstStatsOut []burstStats
+	var burstValidOut burstValid
+	burstDone := false
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
+		// Hitch diagnosis aid: log slow frames (>2x budget) with the elapsed
+		// clock so GODEBUG=gctrace=1 GC lines (@Ns, same clock) can be
+		// correlated against hitches.
+		if dt > 0.033 {
+			fmt.Fprintf(os.Stderr, "large_scale: SLOWFRAME dt=%.3fs elapsed=%.1fs\n", dt, elapsed)
+		}
 		// V3c gate: one deterministic scripted self-check at ~2s, using only
 		// public component APIs. The exact anchor contract is locked by the
 		// CPU unit test; here we assert the view did not teleport.
@@ -292,6 +466,15 @@ func main() {
 			checks = append(checks, v3cCheck{"anchor_top_line_stable", topAfter == topBefore,
 				fmt.Sprintf("top logical line %d -> %d", topBefore, topAfter)})
 			checks = append(checks, v3cCheck{"virtual_after_edit", box.VirtualMode(), fmt.Sprintf("VirtualMode()=%v", box.VirtualMode())})
+		}
+		// §2.2 tier burst: one timed keystroke/caret/line-edit pass on the
+		// static viewport at ~2s (burst implies noScroll above). Observation
+		// values for the tier table; CPU gates stay authoritative.
+		if *burst > 0 && !burstDone && elapsed >= 2 {
+			burstDone = true
+			burstStatsOut, burstValidOut = runBurst(ed, box, *burst)
+			fmt.Fprintf(os.Stderr, "large_scale: burst n=%d keystroke_med=%.1fus caret_med=%.1fus edit_med=%.1fus valid=%+v\n",
+				*burst, burstStatsOut[0].MedianUs, burstStatsOut[1].MedianUs, burstStatsOut[2].MedianUs, burstValidOut)
 		}
 		if !retTaken && retPath != "" && elapsed >= 2 {
 			retTaken = true
@@ -429,6 +612,8 @@ func main() {
 			"scroll_y":          box.ScrollY(),
 			"virtual_mode":      box.VirtualMode(),
 			"text_bytes":        int64(textBytes),
+			"construct_ms":      constructMs,
+			"first_sync_ms":     firstSyncMs,
 			"v3c_wrap":          *wrap,
 			"v3c_checks":        checks,
 			"v3c_pixel_ink":     pixelInk,
@@ -440,10 +625,25 @@ func main() {
 			"v3c_gate_pass":     gatePass,
 			"v3c_gate_err":      gateErr,
 			"v3c_evidence_mode": map[bool]string{true: "auto_only", false: "manual"}[*autoOnly],
+			"burst":             burstStatsOut,
+			"burst_valid":       burstValidOut,
 		},
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
+	// An invalid burst (edit was a no-op, length never moved/restored, or the
+	// box left virtual mode) would make every burst number a no-op timing —
+	// fail the run instead of reporting misleading values.
+	if *burst > 0 {
+		if !burstValidOut.LenGrewByN || !burstValidOut.LenRestored {
+			fmt.Fprintln(os.Stderr, "FAIL: burst validity: edits did not really change the document length")
+			os.Exit(1)
+		}
+		if !burstValidOut.VirtualStays {
+			fmt.Fprintln(os.Stderr, "FAIL: burst validity: box left virtual mode during the burst")
+			os.Exit(1)
+		}
+	}
 	if *autoOnly && !gatePass {
 		fmt.Fprintln(os.Stderr, "FAIL: V3c gate:", gateErr)
 		os.Exit(1)

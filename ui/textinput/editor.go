@@ -1367,28 +1367,17 @@ func (e *Editor) SetSelectionBytes(s, en int) {
 	if en < 0 {
 		en = 0
 	}
-	if s > len(e.Text()) {
-		s = len(e.Text())
+	// 字节域选择走 buffer 的 O(log n) UTF-16 映射（V1b-3 语义：块边界不劈
+	// rune、utf16Count 与整串逐 rune 计数一致），禁止物化整串再全前缀扫描
+	// （旧实现 20MB 文档 21ms/次，超 §2.2 caret ≤4ms 门禁 5 倍）。
+	b := e.ensureBuf()
+	if s > b.Len() {
+		s = b.Len()
 	}
-	if en > len(e.Text()) {
-		en = len(e.Text())
+	if en > b.Len() {
+		en = b.Len()
 	}
-	cs, ce := 0, 0
-	for _, r := range e.Text()[:s] {
-		if r > 0xFFFF {
-			cs += 2
-		} else {
-			cs++
-		}
-	}
-	for _, r := range e.Text()[:en] {
-		if r > 0xFFFF {
-			ce += 2
-		} else {
-			ce++
-		}
-	}
-	e.SetSelection(TextRange{Base: cs, Extent: ce})
+	e.SetSelection(TextRange{Base: b.UTF16OffsetAt(s), Extent: b.UTF16OffsetAt(en)})
 }
 
 type ComposedView struct {

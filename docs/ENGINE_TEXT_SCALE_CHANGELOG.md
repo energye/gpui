@@ -423,3 +423,20 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - **既有 CPU 门禁引用**：`TestHeightMap_Memory3M`（3M 行高度图 ≤3MB，合 §2.2「≤1KB/千行」）、`TestRowCountEditBound_M5`（1e6 行 ≤2ms）、`TestKeystrokeRatio_M5`（击键比值 ≤1.5）、`TestV4_SingleLineKeystroke_*`（≤16ms）——均随 123 文件逐个回归全绿。
 - **回归**：123 个测试文件逐个 0 FAIL；`go build ./...`、vet、gofmt、`scripts/apidoc`、`scripts/check_tasks_ledger.py` 全绿。
 - **剩余（V4 仍不标绿）**：L1(1e6/1e6)/L2(3e6/3e6)/L3(3e6/5e6)/S(1e7 定高) 四档真窗串行重跑（隔离 `:3`、标准关闭、每轮健康检查）、滚动 fps/p95/hitch 与首屏/RSS 真窗口径、独立滚动条拖动、真键事件通道。
+
+## V4 任务 20：四档真窗串行重跑 + 两处 O(n) 洞修绿（2026-11-14 · 整体仍不标绿，剩两项待拍板）
+
+- **示例参数化（演示数据控制动词，示例只用组件公开 API）**：`ui_text_large_scale` 加 `-lines`（1e6/3e6/1e7）与 `-burst` 计时探针；`ui_text_v4_longline` 加 `-bytes`（1e6/3e6/5e6）、`-burst`、`-cpuprofile`，并补 `proc.Sample()`（此前静态轮无 RSS 样本、verdict 恒 inconclusive）。burst 探针带防假绿有效性断言（编辑真实发生 / 虚拟模式保持 / 长行窗口真滑动），口径=唯一行+每击键不同位置+中位数；观察值不替代 CPU 权威门禁。L3 多行部分复用 L2 证据（同为 3e6 行文档）。
+- **两处 O(n) 洞（红灯起步→转绿，均四档实测暴露）**：
+  1. `Editor.SetSelectionBytes`（`ui/textinput/editor.go`）：旧实现 `len(e.Text())` 钳制 ×2（tree 模式每次物化整串）+ 两个全前缀 range 扫描数 UTF-16 单元——20MB 文档实测 21.08ms/次、53MB 60.3ms/次（真窗 burst caret 相 60,325µs 中位），超 §2.2 caret ≤4ms 门 5 倍；既有 CPU 门禁只测 `caretAnchor`（9.5µs）未覆盖此入口（V0 §7.2 假快陷阱同款）。修 = `Buffer.Len()`（O(1)）+ `Buffer.UTF16OffsetAt`（V1b-3 已建 O(log n)，块边界不劈 rune、`utf16Count` 与旧扫描逐 rune 语义一致；`box.go:2183`/`editor.go:1533` 同款惯例）。`20.84ms→5.59µs`，真窗 caret `60.3ms→150µs`。锁：`TestV4Gate_SetSelectionBytes{NoMaterialize,Multibyte,CaretBound}`（修前红/修后绿）。
+  2. `capBytes`（`ui/rendering/long_line.go`）：守卫 `nChars >= utf8.RuneCountInString(s)` 为判断「上限是否超过全文」每次把整行 rune 数完，`longLineIndex.Window` 每窗口查询都调它（CPU 画像 50.25% cum，`Window` 占 85.8%）——Box 全路径 5e6 单行击键真窗 `28.8ms`（1e6=3.5 / 3e6=17.5 / 5e6=28.8，线性 ≈5.7µs/KB，超 16ms 门）。修 = 守卫融进既有步进循环（走满 nChars 步或到行尾即停，`O(L)→O(min(cap,L))`，逐案语义等价）。`capBytes 5.34ms→85.9µs`、Box 路径 `13.38→2.55ms`（余量 1.2×→6.3×）、真窗击键修后 `1.30/3.86/5.47ms`（p95 ≤11.7ms 全档过 16ms 门）。锁：`TestV4CapBytes_{Equivalence,CappedWalk}` + `TestV4Gate_LongLineBoxKeystroke5M`（修前 Box 全路径 13.38ms 贴门、修后 2.55ms）。
+- **四档实测**（隔离 `:3`、串行、每轮 `xdpyinfo` 健康检查、RUN_SECONDS 标准关闭）：
+  - 多行窗：L1 1e6 行 65MB `fps 57.46 / p95 19.47 / hitch 3.00 / 首同步 3µs / burst 257/138/122µs`；L2 3e6 行 197MB `fps 57.53–57.79 / p95 19.27–21.99 / hitch 6.50/4.00/6.00/3.00（4 轮中位 5.0 骑线）/ burst 194/134/135µs`；S 1e7 行 658MB 定高 `fps 57.64–57.75 / p95 19.13@120s、23.29@240s / hitch 5.50@120s、4.25@240s / 构造 5.86s（观察值）/ burst 186/142/134µs`（burst 与档位无关=多行路径规模解耦）。
+  - 单行窗：L1 1e6 `fps 59.75 / p95 19.54 / hitch 0.00`；L3 5e6 `fps 59.75 / p95 19.82 / hitch 0.00`；L2 3e6 修后击键 `3.86ms`（p95 8.6）/ caret `1.33ms`。
+- **内存 D5（沿 V2 收口口径：110s 堆快照、去 75.4MB 字体文件缓存）**：L1 ls `112.9≤166MB` / L1 v4 `47.2≤65.5MB` / L2 `246.2≤373MB` / L3 v4 `60.1≤71.5MB` / S `713.3≤1099MB` 全过；S 堆 60s→110s diff `1.5MB/786MB`（0.19%，零增长）；rope 叶零拷贝共享原串（文本域 = 1× 文本）。raw RSS（L1 525MB / L2 835MB / S 1951MB）含 GC 头 room 与驱动侧映射，如实上报、不作判定口径。
+- **GC 归因证据（L2 hitch 骑线）**：`GOGC=50` 判别实验 GC 轮 40→95、hitch `3.00→10.50` 反向钉死 GC 周期与慢帧因果；慢帧（34–47ms）与 GC 并发标记起点部分重合（8 帧中 2–3 帧）；堆快照稳态零增长。修法方向 = 滚动布局路径分配削减（`growslice` 5.4% + `mallocgc` 11%），引擎级工作、待拍板。
+- **S 档 RSS 判定口径事实**：120s 轮稳态斜率 `40715KB/min fail`，240s 轮 `844KB/min pass`、终值同平台（1951/1957MB）——120s 的 fail 是 GC 头 room 爬坡尾巴（爬坡约 150s 到位），非泄漏；同轮 240s p95 `23.29` 超 22 而 120s 口径 `19.13` 过（长窗统计更严）。判定时长口径待定。
+- **既有门禁复跑未破坏**：v4 `-auto-only` 三证据逐值复现（`diff=0/763584px`、`marker_diff=16`、`MarkerX=8505.0`、window=(0,631)）；V3c `-wrap -auto-only` 5 探针 + Golden `diff=0` 全绿。
+- **回归**：128 个测试文件逐个 `126 PASS / 0 FAIL / 2 SKIP`（SKIP 为无 Test 函数的基准文件）；`go build ./...`、scoped vet（`ui/platform` 的 unsafe.Pointer 警告为存量、非本轮文件）、gofmt（本轮文件干净）、`scripts/apidoc`、`scripts/check_tasks_ledger.py` 全绿。
+- **用户拍板（2026-11-14）**：① L2 多行 hitch 骑线→**开新专项修**（滚动布局路径分配削减，动手前先做影响面评估并停下报告；专项完成并复测后再谈 V4 标绿）；② 判定时长口径→**分指标口径**：p95/fps/hitch 用 120s（与 V2/V3c 基线同口径可比），RSS 稳态斜率用能到平台的时长（S 档 240s）——按此口径 S 档 p95 19.13 / RSS 844KB/min 均绿；③ 本轮 9 文件按清单提交（两洞修复+新测试+示例参数化+台账），全部本地未推送。
+- **剩余（V4 仍不标绿）**：hitch 分配削减专项（见上）完成并复测后再谈标绿；IndexByte 单行判定残留 O(L) ≈1ms/op@5e6 留诚实项（多行判定语义涉及虚拟模式交互，需单独评估）；独立滚动条拖动、真键事件通道未实测（沿前）。
