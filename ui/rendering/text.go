@@ -125,11 +125,81 @@ type RenderText struct {
 	viewportScrollY  float64
 	viewportHeight   float64
 	hasViewportHintY bool
+	// vtext/virtual：大文档按行视口绘制（V2b-2），未设置时走全量 TextLayout。
+	vtext   *TextViewport
+	virtual bool
 	// recordedYBand is the Y scroll window a culled recording holds,
 	// mirroring the X band above (same dirty-build gate, same OR semantics).
 	recordedScrollY float64
 	recordedVisH    float64
 	recordedCulledY bool
+}
+
+// SetVirtualSource switches this node to viewport line painting: only lines
+// touched by SetViewportRect are materialized/painted (no full TextLayout).
+func (t *RenderText) SetVirtualSource(src LineSource) {
+	if t == nil {
+		return
+	}
+	t.vtext = NewTextViewport(src, t.effectiveFace(), t.fontSize(), t.lineSpacing(), 0)
+	t.virtual = true
+}
+
+// ClearVirtualSource returns to the full TextLayout paint path.
+func (t *RenderText) ClearVirtualSource() {
+	if t == nil {
+		return
+	}
+	t.virtual = false
+	t.vtext = nil
+}
+
+// Virtual reports whether viewport line painting is active.
+func (t *RenderText) Virtual() bool { return t != nil && t.virtual && t.vtext != nil }
+
+// paintVirtual paints only the visible line window. It requires
+// SetViewportRect (the multi-line box always sets it); without a window it
+// paints nothing rather than falling back to a full-document layout.
+func (t *RenderText) paintVirtual(pc *PaintContext) {
+	if pc == nil || t.vtext == nil || !t.hasViewportHintY {
+		return
+	}
+	first, last := t.vtext.Prepare(t.viewportScrollY, t.viewportHeight)
+	if last < first {
+		return
+	}
+	a := t.A
+	if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
+		a = 1
+	}
+	face := t.effectiveFace()
+	if face != nil && pc.DC != nil {
+		pc.DC.SetFont(face)
+	}
+	if pc.DC != nil {
+		pc.DC.SetTextDecoration(t.Decoration)
+		pc.DC.SetRGBA(t.R, t.G, t.B, a)
+	}
+	fs := t.fontSize()
+	ascent := fs * 0.8
+	if m, ok := t.Metrics(); ok && m.Ascent > 0 {
+		ascent = m.Ascent
+	}
+	for i := first; i <= last; i++ {
+		vl, ok := t.vtext.Line(i)
+		if !ok || vl.Layout == nil || vl.Layout.LineCount() == 0 {
+			continue
+		}
+		line := vl.Layout.Text
+		if line == "" {
+			continue
+		}
+		y := ascent + t.vtext.LineTop(i)
+		t.paintTextLine(pc, face, vl.Layout, 0, line, y, a)
+	}
+	if pc.DC != nil {
+		pc.DC.SetTextDecoration(render.TextDecorationNone)
+	}
 }
 
 // NewRenderText creates a text node.
@@ -1020,6 +1090,11 @@ func (t *RenderText) Paint(pc *PaintContext) {
 		return
 	}
 	pc.NotePaintVisit()
+	if t.virtual && t.vtext != nil {
+		t.paintVirtual(pc)
+		t.clearPaintDirty()
+		return
+	}
 	if t.hasRuns() {
 		t.paintRuns(pc)
 	} else {
@@ -1059,52 +1134,7 @@ func (t *RenderText) Paint(pc *PaintContext) {
 					continue
 				}
 				y := ascent + lay.LineTop(i)
-				if face != nil && pc.DC != nil && i < lay.LineCount() {
-					glyphs := lay.LineGlyphs(i)
-					// Bulk submission needs a sourced face (outlines/atlas
-					// page); composite faces submit per-face partitions.
-					// Lines holding color runs bypass bulk: the mask atlas
-					// is outline-only, bulk submit would only hit the
-					// explicit refusal and fall back every frame.
-					if len(glyphs) > 0 && glyphs[0].GID != 0 && face.Source() != nil && !lay.LineHasColorRun(i) {
-						// Flutter viewport culling for 5000 single-line:
-						// only submit glyphs within the viewport window
-						// (+200px margin) to keep GPU vertex count O(visible).
-						if lo, hi, ok := t.hCullWindow(lay.LineCount(), len(glyphs)); ok {
-							s, e := cullRangeForWindow(glyphs, lo, hi)
-							glyphs = glyphs[s:e]
-						}
-						ax, ay := pc.Abs(0, y)
-						pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
-					} else if t.paintCompositeRuns(pc, lay, i, y, line) {
-					} else if face.Source() == nil {
-						// caret为行内相对,键即相对偏移;range line的byteOff同为行内相对.
-						// 同包直读内部表(零拷贝),d5后外部统一走LineCarets.
-						xByOff := caretXByOffset(lay.lines[i].Carets)
-						for byteOff, r := range line {
-							x := xByOff[byteOff]
-							// 逐字路无二分开销,不设200门:屏外字照常跳过,漏跳的由GPU裁掉,画面一致.
-							if t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 {
-								if x < t.viewportScrollX-viewportMargin || x > t.viewportScrollX+t.viewportWidth+viewportMargin {
-									continue
-								}
-							}
-							ax, ay := pc.Abs(x, y)
-							pc.DC.DrawString(string(r), ax, ay)
-						}
-					} else {
-						// Fallback colored path (also cull for large single line)
-						if t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 && len(line) > 500 {
-							// drawTextColored draws whole line; skip if we have hint and line is huge
-							// fallback to per-glyph culling via DrawString above is already handled,
-							// but this path is for GID==0 with source != nil (rare). Skip whole draw
-							// and let culling happen via clipping (GPU will discard off-screen).
-						}
-						drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
-					}
-				} else {
-					drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
-				}
+				t.paintTextLine(pc, face, lay, i, line, y, a)
 			}
 			if pc.DC != nil {
 				pc.DC.SetTextDecoration(render.TextDecorationNone)
@@ -1112,6 +1142,55 @@ func (t *RenderText) Paint(pc *PaintContext) {
 		}
 	}
 	t.clearPaintDirty()
+}
+
+func (t *RenderText) paintTextLine(pc *PaintContext, face text.Face, lay *TextLayout, row int, line string, y, a float64) {
+	if face != nil && pc.DC != nil && row < lay.LineCount() {
+		glyphs := lay.LineGlyphs(row)
+		// Bulk submission needs a sourced face (outlines/atlas
+		// page); composite faces submit per-face partitions.
+		// Lines holding color runs bypass bulk: the mask atlas
+		// is outline-only, bulk submit would only hit the
+		// explicit refusal and fall back every frame.
+		if len(glyphs) > 0 && glyphs[0].GID != 0 && face.Source() != nil && !lay.LineHasColorRun(row) {
+			// Flutter viewport culling for 5000 single-line:
+			// only submit glyphs within the viewport window
+			// (+200px margin) to keep GPU vertex count O(visible).
+			if lo, hi, ok := t.hCullWindow(lay.LineCount(), len(glyphs)); ok {
+				s, e := cullRangeForWindow(glyphs, lo, hi)
+				glyphs = glyphs[s:e]
+			}
+			ax, ay := pc.Abs(0, y)
+			pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
+		} else if t.paintCompositeRuns(pc, lay, row, y, line) {
+		} else if face.Source() == nil {
+			// caret为行内相对,键即相对偏移;range line的byteOff同为行内相对.
+			// 同包直读内部表(零拷贝),d5后外部统一走LineCarets.
+			xByOff := caretXByOffset(lay.lines[row].Carets)
+			for byteOff, r := range line {
+				x := xByOff[byteOff]
+				// 逐字路无二分开销,不设200门:屏外字照常跳过,漏跳的由GPU裁掉,画面一致.
+				if t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 {
+					if x < t.viewportScrollX-viewportMargin || x > t.viewportScrollX+t.viewportWidth+viewportMargin {
+						continue
+					}
+				}
+				ax, ay := pc.Abs(x, y)
+				pc.DC.DrawString(string(r), ax, ay)
+			}
+		} else {
+			// Fallback colored path (also cull for large single line)
+			if t.hasViewportHint && t.MaxWidth == 0 && lay.LineCount() == 1 && len(line) > 500 {
+				// drawTextColored draws whole line; skip if we have hint and line is huge
+				// fallback to per-glyph culling via DrawString above is already handled,
+				// but this path is for GID==0 with source != nil (rare). Skip whole draw
+				// and let culling happen via clipping (GPU will discard off-screen).
+			}
+			drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
+		}
+	} else {
+		drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
+	}
 }
 
 // paintCompositeRuns submits a composite-face line in per-face batches.
