@@ -1,6 +1,6 @@
 # ENGINE_TEXT_LARGE_SCALE_PLAN — 超大规模文本架构立项书
 
-**状态**: 立项审查中（2026-11-13）——方向与档位待用户审定；成熟方案已调研（§1.4），**D1–D5 已于 2026-11-13 确认生效**；审查记录见 §9，结论为**有条件通过**。**V0 已完成**（报告 `docs/ENGINE_TEXT_LARGE_SCALE_V0.md`）：1e6 唯一行全量约 5s/3GB、1e6 字单行真实击键 1.80s、5e6 字 10.41s、M4 hitch 5.007 贴门未过。**V1 已收口（a/b-1/b-2/b-3）**：行定位 118.6×→1.05×、UTF-16 偏移 102.2×→1.44×，Editor AddText/Backspace/行导航/IME 改前 97/101/173/141× → 改后 0.06–0.17×；端到端 `GetText`/UI 同步仍 O(n)，归 V2。
+**状态**: 立项审查中（2026-11-13）——方向与档位待用户审定；成熟方案已调研（§1.4），**D1–D5 已于 2026-11-13 确认生效**；审查记录见 §9，结论为**有条件通过**。**V0 已完成**（报告 `docs/ENGINE_TEXT_LARGE_SCALE_V0.md`）：1e6 唯一行全量约 5s/3GB、1e6 字单行真实击键 1.80s、5e6 字 10.41s、M4 hitch 5.007 贴门未过。**V1 已收口（a/b-1/b-2/b-3）**：行定位 118.6×→1.05×、UTF-16 偏移 102.2×→1.44×，Editor AddText/Backspace/行导航/IME 改前 97/101/173/141× → 改后 0.06–0.17×；端到端 `GetText`/UI 同步仍 O(n)，归 V2。**V2a 已完成**：按行视图 `TextViewport`（1e6/1e4 首屏 0.80×、缓存 O(可见行)、几何与全量布局逐项一致）；V2b 待做（接多行框/RenderText）。
 **关联**: `docs/ENGINE_TEXT_SCALE_PLAN.md`（M0–M5 主体已收口，本文件是其规模延伸）、`docs/ENGINE_TEXT_SCALE_CHANGELOG.md`、`AGENTS.md`。
 **定位**: 架构级立项，不是 M5 遗留补丁；目标是把文本编辑的规模上界从「1e6 字/1e6 行可用」推进到「几百万行、单行几百万字仍不退化」。
 
@@ -96,7 +96,7 @@
 |---|---|---|---|
 | V0 | 基线量化（只读） | 1e6/3e6 行全量首屏；50k/1e6/5e6 字单行击键；多行框滚动；M4 hitch 复测 | **已完成（2026-11-13，见 `ENGINE_TEXT_LARGE_SCALE_V0.md`）**；结论：现有门禁全部未达，且现有基准会因缓存假快 |
 | V1 | rope 主存储 | **已完成（2026-11-13，V1a/b-1/b-2/b-3）**：`LineStart/LineIndex/LineAt` O(log n)（118.6×→1.05×）；节点 `u16/nr` + `UTF16Len`/`ByteOffsetForUTF16`/`UTF16ToRuneIndex`/`RuneIndexToUTF16`/`UTF16OffsetAt`/`StepUTF16`；Buffer 为真源、`e.text` 惰性缓存；AddText/Backspace/DeleteSelected/Undo/Redo/IME/选区/行导航/词导航全部走 buffer。Editor 四条路径改前 97/101/173/141× → 改后 0.06–0.17×。**遗留到 V2**：`GetText()`/UI 同步与 `Delta()` 导出仍整串物化 | 编辑 O(log n) 基准；13 裁判 + textinput 全绿；崩溃即回滚 |
-| V2 | 视口行模型 | 多行框接纵向视口；`Line(i)` 按需视图；`GetText` 退出击键路径 | 1e6 行首屏/滚动/hitch 达标；hitch 红未消不得标绿 |
+| V2 | 视口行模型 | **V2a 已完成（2026-11-13）**：`ui/rendering/text_viewport.go` 新增 `TextViewport`（`LineSource` + 懒物化 + 有界缓存 + `VirtualTextLines` 高度）；首屏 1e6/1e4 = 0.80×，几何与全量布局逐项一致，缓存 O(可见行)；V2a 覆盖不回绕模型。**V2b 待做**：多行框/RenderText 接线、布局消费 buffer、`GetText` 退出击键路径 | 1e6 行首屏/滚动/hitch 达标；hitch 红未消不得标绿 |
 | V3 | 变高/回绕估算 | 区间/间隙高度图（gap 估算 + 稀疏实测）；编辑局部失效；滚动修正 | 3e6 行变高内存 ≤1KB/千行；锚点不跳变 |
 | V4 | 超长行分块整形 | 块级 shape cache + 前缀宽度；横向视口 | 5e6 字单行击键 ≤16ms；跨块 bidi 回退可用 |
 | V5 | 收敛 | 小文档阈值降级定稿；大文档移除扁平 rows；全回归 | 全档门禁 + 真窗 + 内存 + Golden |
@@ -147,6 +147,7 @@
 | 2026-11-13 | V1b-1 完成：treap 节点加 UTF-16 计数，`UTF16Len` O(1)、`ByteOffsetForUTF16` 按子树下降（先红 102.2×→绿 1.44×，1e6≈7.7µs）；保持 Editor 现有「代理对中间偏移→串尾」语义；textbuffer/textinput/13 裁判全绿；V1b-2（Editor 主存储化）待做。 |
 | 2026-11-13 | V1b-2 完成：Buffer 为唯一真源、`e.text` 惰性缓存；AddText/Delete/DeleteSelected/Undo/Redo/SetComposing/EndComposing/SetText/ApplyDelta 走 buffer；64+ 处 `e.text` 读改 `Text()`；`TextRange` 用 `Buffer.UTF16Len` O(1)。先红 HEAD 工作树 117.5× → 改后 0.06×，1e6 追加 1.7µs；textinput 全包 + R1 + TextLayout 裁判绿。M3.5 收缩用例改为「buffer 保留、树降级 string」（D2 契约）。V1b-3 待做。 |
 | 2026-11-13 | V1b-3 完成（V1 收口）：buffer 加 rune 计数与 `UTF16ToRuneIndex/RuneIndexToUTF16/UTF16OffsetAt/StepUTF16/RuneAtUTF16`；DeleteSurrounding、IME 合成、SetSelection、行/词导航全部迁移，`ApplyIME/ApplyText` 改 docVersion 比对。HEAD 红灯 AddText 97.27×/Backspace 101.39×/行导航 173.42×/IME 140.80× → 改后 0.06–0.17×；textbuffer/textinput 整包与 13 裁判绿（一次整包跑偶发失败，随后两轮 + 新门禁 5 连跑均绿）。遗留 `GetText`/`Delta()` 物化归 V2。 |
+| 2026-11-13 | V2a 完成：新增 `TextViewport` 按行视图（LineSource + 懒物化 + 有界缓存 + VirtualTextLines 高度）；1e6/1e4 首屏 0.80×（≤3 门禁），几何与全量布局逐项一致，缓存 O(可见行)；`ui/rendering` 整包绿。V2b（多行框/RenderText 接线、布局消费 buffer、GetText 退出击键路径）待做。 |
 
 ---
 
@@ -186,7 +187,7 @@
 
 ### 9.4 审查未覆盖 / 未验证
 
-- 3e6 全量未跑；5e6 单行只测 1 次唯一编辑；1e6 唯一行全量未跑（外推 5s/3GB）。V1b-3 已落地（Editor 编辑/选区/IME/导航原语 O(log n)）；遗留：`GetText()`/UI 同步与 `Delta()` 导出仍整串物化，归 V2 布局增量消费。
+- 3e6 全量未跑；5e6 单行只测 1 次唯一编辑；1e6 唯一行全量未跑（外推 5s/3GB）。V1b-3 已落地（Editor 编辑/选区/IME/导航原语 O(log n)）；V2a 已落地（按行视图原型，未接线）；遗留：`GetText()`/UI 同步与 `Delta()` 导出仍整串物化，多行框/RenderText 仍全量布局，归 V2b。
 - hitch 根因未定位（M4 只有现象数据）。
 - 跨块 bidi/字素边界的失败模式未做探针。
 - `TextView` 虚拟视图与 rope 行定位（O(log n)）未做原型验证。
