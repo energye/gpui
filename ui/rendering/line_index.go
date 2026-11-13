@@ -64,24 +64,37 @@ func (x *lineIndex) valid(lines []TextLayoutLine) bool {
 
 // rowForOffset返回首个包含off的行(复刻老代码线性扫描的"首个命中"语义).
 // 行区间在回绕断行处可能点重合(上一行End==下一行Start),此时归属上一行.
-func (x *lineIndex) rowForOffset(off int) int {
-	j := sort.Search(x.n, func(i int) bool { return x.starts[i] > off }) - 1
+// shiftAt为行后缀增量(nil表示无增量),绝对偏移=索引base+shiftAt(i).
+func (x *lineIndex) rowForOffset(off int, shiftAt func(int) int) int {
+	at := func(i int) int {
+		if shiftAt == nil {
+			return 0
+		}
+		return shiftAt(i)
+	}
+	j := sort.Search(x.n, func(i int) bool { return x.starts[i]+at(i) > off }) - 1
 	if j < 0 {
 		j = 0
 	}
 	if j >= x.n {
 		j = x.n - 1
 	}
-	for j > 0 && off >= x.starts[j-1] && off <= x.ends[j-1] {
+	for j > 0 && off >= x.starts[j-1]+at(j-1) && off <= x.ends[j-1]+at(j-1) {
 		j--
 	}
 	return j
 }
 
 // rowRangeForSpan返回与[start,end)相交的行区间[lo,hi],无交集时lo>hi.
-func (x *lineIndex) rowRangeForSpan(start, end int) (lo, hi int) {
-	lo = sort.Search(x.n, func(i int) bool { return x.ends[i] > start })
-	hi = sort.Search(x.n, func(i int) bool { return x.starts[i] >= end }) - 1
+func (x *lineIndex) rowRangeForSpan(start, end int, shiftAt func(int) int) (lo, hi int) {
+	at := func(i int) int {
+		if shiftAt == nil {
+			return 0
+		}
+		return shiftAt(i)
+	}
+	lo = sort.Search(x.n, func(i int) bool { return x.ends[i]+at(i) > start })
+	hi = sort.Search(x.n, func(i int) bool { return x.starts[i]+at(i) >= end }) - 1
 	return lo, hi
 }
 

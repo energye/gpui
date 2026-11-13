@@ -42,7 +42,16 @@ type layoutLive struct {
 	hasCR     bool
 	spansHit  int
 	spansMiss int
+	// shift是行偏移的后缀增量(绝对偏移=行base+shift.at(i)).
+	// 长度变化编辑不再逐行改写tail偏移(2026-11-13 G1:1e6档逐行平移约270µs).
+	shift *rowShift
+	// lastRow/lastOK缓存上次替换的单行区间:击键集中于光标附近,
+	// 命中时免两次O(log n)二分(G1 1e6档剩余成本的主项).
+	lastRow int
+	lastOK  bool
 }
+
+func (lv *layoutLive) shiftAt(i int) int { return lv.shift.at(i) }
 
 // matches报告常驻引擎是否为这组参数构建的.文本/区间/回车判定留给调用方,
 // 此处只合并8项参数比较,两处入口语义逐项一致.
@@ -207,6 +216,8 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 		lv.rows = nil
 		lv.marks = nil
 		lv.idx = &lineIndex{}
+		lv.shift = nil
+		lv.lastOK = false
 		return true
 	}
 	// 变化区向硬行边界扩展(只扫局部,不扫全文;memchr级查找,长段约10倍速).
@@ -219,6 +230,8 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 		segB = newB + i
 	}
 	lo, hi := len(lv.rows), -1
+	fastHit := false
+	fastShiftVal := 0
 	if len(lv.rows) > 0 {
 		// 旧串变化区同样向硬行边界扩展(删换行会吞并两侧行;
 		// 首判用>=以吞下正好落在改动点上的零宽行).
@@ -230,11 +243,26 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 		if i := strings.IndexByte(lv.text[oldB:], '\n'); i >= 0 {
 			oldSegB = oldB + i
 		}
-		// 行起止单调,二分等价于原线性首/末命中.
-		lo = sort.Search(len(lv.rows), func(i int) bool { return lv.rows[i].EndByte >= oldSegA })
-		hi = sort.Search(len(lv.rows), func(i int) bool { return lv.rows[i].StartByte >= oldSegB }) - 1
-		if hi < lo {
-			hi = lo
+		// 上次替换的单行仍覆盖本次变化区时免二分(击键局部性).
+		if lv.lastOK && lv.lastRow >= 0 && lv.lastRow < len(lv.rows) {
+			r := lv.lastRow
+			rs := lv.shiftAt(r)
+			okLo := lv.rows[r].EndByte+rs >= oldSegA &&
+				(r == 0 || lv.rows[r-1].EndByte+lv.shiftAt(r-1) < oldSegA)
+			okHi := r == len(lv.rows)-1 || lv.rows[r+1].StartByte+lv.shiftAt(r+1) >= oldSegB
+			if okLo && okHi {
+				lo, hi = r, r
+				fastShiftVal = rs
+				fastHit = true
+			}
+		}
+		if hi < 0 {
+			// 行起止单调,二分等价于原线性首/末命中(带后缀增量派生绝对偏移).
+			lo = sort.Search(len(lv.rows), func(i int) bool { return lv.rows[i].EndByte+lv.shiftAt(i) >= oldSegA })
+			hi = sort.Search(len(lv.rows), func(i int) bool { return lv.rows[i].StartByte+lv.shiftAt(i) >= oldSegB }) - 1
+			if hi < lo {
+				hi = lo
+			}
 		}
 	}
 	var fresh []TextLayoutLine
@@ -307,35 +335,51 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 		removedH += lv.rows[i].Height
 	}
 	sameCount := len(fresh) == hi-lo+1
+	sLo := fastShiftVal
+	if !fastHit {
+		sLo = lv.shiftAt(lo)
+		if len(lv.rows) > 0 && lv.shiftAt(hi) != sLo {
+			// 旧后缀增量事件落在本次替换区间内,先烘焙成绝对偏移再patch.
+			c.compactOffsets()
+			sLo = 0
+		}
+	}
 	// 纯改字快径:行数相同且总长不变时,若新区段每行起止/行高与旧行
 	// 逐项一致,索引数组逐项全同——原地换行内容即可,索引不动.
 	if sameCount && delta == 0 && len(lv.rows) > 0 {
 		same := true
 		for i := range fresh {
 			o := &lv.rows[lo+i]
-			if fresh[i].StartByte != o.StartByte || fresh[i].EndByte != o.EndByte || fresh[i].Height != o.Height {
+			if fresh[i].StartByte != o.StartByte+sLo || fresh[i].EndByte != o.EndByte+sLo || fresh[i].Height != o.Height {
 				same = false
 				break
 			}
 		}
 		if same {
+			subRowShift(fresh, sLo)
 			copy(lv.rows[lo:], fresh)
 			copy(lv.marks[lo:], freshMarks)
+			lv.lastRow, lv.lastOK = lo, lo == hi
 			return false
 		}
 	}
 	if sameCount && len(lv.rows) > 0 {
-		// 行数不变:原地替换,免整表拼接分配;尾部逐行平移(同原语义).
+		// 行数不变:只换本段行内容;尾部偏移记一笔后缀增量,不再逐行平移.
+		subRowShift(fresh, sLo)
 		copy(lv.rows[lo:], fresh)
 		copy(lv.marks[lo:], freshMarks)
-		for i := hi + 1; i < len(lv.rows); i++ {
-			lv.rows[i].StartByte += delta
-			lv.rows[i].EndByte += delta
-			lv.rows[i].clusters = nil
+		if delta != 0 {
+			if lv.shift == nil {
+				lv.shift = newRowShift(len(lv.rows))
+			}
+			lv.shift.addSuffix(hi+1, delta)
 		}
 		c.patchIndex(lo, hi, fresh, removedH, delta)
+		lv.lastRow, lv.lastOK = lo, lo == hi
 		return true
 	}
+	// 行数变化:结构性编辑,先烘焙偏移再按绝对偏移整表拼装.
+	c.compactOffsets()
 	// 拼装:保留[0,lo),替换[lo,hi]为fresh,保留(hi,]并平移.
 	rows := make([]TextLayoutLine, 0, len(lv.rows)-(hi-lo+1)+len(fresh))
 	marks := make([]uint64, 0, len(lv.marks)-(hi-lo+1)+len(freshMarks))
@@ -356,7 +400,47 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 		lv.rows[i].clusters = nil
 	}
 	c.patchIndex(lo, hi, fresh, removedH, delta)
+	lv.lastOK = false
 	return true
+}
+
+// subRowShift把绝对偏移行转回base(减掉该区间统一的累计后缀增量).
+func subRowShift(rows []TextLayoutLine, s int) {
+	if s == 0 {
+		return
+	}
+	for i := range rows {
+		rows[i].StartByte -= s
+		rows[i].EndByte -= s
+	}
+}
+
+// compactOffsets把行/索引里的base偏移烘焙成绝对偏移并清空增量树.
+// 结构性编辑(行数变化)或替换区间内含旧增量事件时使用,代价O(rows).
+func (c *layoutCache) compactOffsets() {
+	lv := &c.live
+	if lv.shift == nil {
+		return
+	}
+	for i := range lv.rows {
+		if s := lv.shift.at(i); s != 0 {
+			lv.rows[i].StartByte += s
+			lv.rows[i].EndByte += s
+		}
+	}
+	if lv.idx != nil {
+		n := lv.idx.n
+		if n > len(lv.rows) {
+			n = len(lv.rows)
+		}
+		for i := 0; i < n; i++ {
+			if s := lv.shift.at(i); s != 0 {
+				lv.idx.starts[i] += s
+				lv.idx.ends[i] += s
+			}
+		}
+	}
+	lv.shift = nil
 }
 
 // patchIndex同步行索引:影响区替换,后续区起止平移,行顶按新增高度顺延
@@ -393,10 +477,11 @@ func (c *layoutCache) patchIndex(lo, hi int, fresh []TextLayoutLine, removedH fl
 			top += r.Height
 			old.totalH += r.Height
 		}
-		for i := hi + 1; i < old.n; i++ {
-			old.starts[i] += delta
-			old.ends[i] += delta
-			old.tops[i] += shift
+		if shift != 0 {
+			// 行偏移走rowShift后缀增量,这里只处理行高变化对行顶的影响.
+			for i := hi + 1; i < old.n; i++ {
+				old.tops[i] += shift
+			}
 		}
 		old.first = old.starts[0]
 		old.last = old.starts[old.n-1]
@@ -469,7 +554,7 @@ func (c *layoutCache) snapshot(textStr string, face text.Face, fontSize, maxWidt
 		truncated = true
 	}
 	// 行高由构建器保证(物化行必填正行高,查询侧另有兜底),此处不再逐行扫描.
-	l := &TextLayout{Text: textStr, lines: rows, FontSize: fontSize, LineSpacing: lineSpacing, Generation: gen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow, Truncated: truncated, LineGen: marks}
+	l := &TextLayout{Text: textStr, lines: rows, FontSize: fontSize, LineSpacing: lineSpacing, Generation: gen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow, Truncated: truncated, LineGen: marks, shift: lv.shift}
 	if len(rows) == len(lv.rows) {
 		l.idx = lv.idx
 		l.idxSeq = lv.seq

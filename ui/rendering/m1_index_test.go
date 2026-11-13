@@ -34,12 +34,12 @@ func TestLineIndex_M1(t *testing.T) {
 		{100, 2},
 	}
 	for _, c := range cases {
-		if got := idx.rowForOffset(c.off); got != c.want {
+		if got := idx.rowForOffset(c.off, nil); got != c.want {
 			t.Fatalf("rowForOffset(%d)=%d want %d", c.off, got, c.want)
 		}
 	}
 	// [1,5)与第0行[0,1)无交集(字节1是换行符本身,不属任何行),只交第1行.
-	lo, hi := idx.rowRangeForSpan(1, 5)
+	lo, hi := idx.rowRangeForSpan(1, 5, nil)
 	if lo != 1 || hi != 1 {
 		t.Fatalf("rowRangeForSpan(1,5)=[%d,%d] want [1,1]", lo, hi)
 	}
@@ -49,10 +49,10 @@ func TestLineIndex_M1(t *testing.T) {
 		{StartByte: 4, EndByte: 5, Height: 10},
 	}
 	cidx := buildLineIndex(cr, 14, 1.2)
-	if got := cidx.rowForOffset(2); got != 0 {
+	if got := cidx.rowForOffset(2, nil); got != 0 {
 		t.Fatalf("CRLF行内偏移应归第0行,got %d", got)
 	}
-	if got := cidx.rowForOffset(4); got != 1 {
+	if got := cidx.rowForOffset(4, nil); got != 1 {
 		t.Fatalf("CRLF后行偏移应归第1行,got %d", got)
 	}
 }

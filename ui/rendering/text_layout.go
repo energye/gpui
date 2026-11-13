@@ -98,6 +98,9 @@ type TextLayout struct {
 	LineGen []uint64
 	// idx is the lazily validated row index + height prefix.
 	idx *lineIndex
+	// shift是增量排版的行后缀增量;绝对偏移=行base+shift.at(i).
+	// 全量构建/无长度变化编辑为nil,查询零开销;快照与live共享,随下次Update过期.
+	shift *rowShift
 	// idxSeq认领idx序号(增量引擎patch时递增,失配即重建).
 	idxSeq uint64
 	// clusters caches per-line grapheme cluster starts for caret stepping.
@@ -125,14 +128,14 @@ func (l *TextLayout) LineClusterStarts(line int) []int {
 	if s, ok := l.clusters[line]; ok {
 		return s
 	}
-	ln := l.lines[line]
-	s := text.ClusterStarts(l.Text[ln.StartByte:ln.EndByte])
+	base, end := l.lineStart(line), l.lineEnd(line)
+	s := text.ClusterStarts(l.Text[base:end])
 	if l.clusters == nil {
 		l.clusters = make(map[int][]int)
 		l.clustersGen = l.Generation
 		l.clustersN = len(l.lines)
-		l.clustersFirst = l.lines[0].StartByte
-		l.clustersLast = l.lines[len(l.lines)-1].StartByte
+		l.clustersFirst = l.lineStart(0)
+		l.clustersLast = l.lineStart(len(l.lines) - 1)
 	}
 	l.clusters[line] = s
 	return s
@@ -144,8 +147,8 @@ func (l *TextLayout) clustersValid() bool {
 	}
 	return l.clustersGen == l.Generation &&
 		l.clustersN == len(l.lines) &&
-		l.clustersFirst == l.lines[0].StartByte &&
-		l.clustersLast == l.lines[len(l.lines)-1].StartByte
+		l.clustersFirst == l.lineStart(0) &&
+		l.clustersLast == l.lineStart(len(l.lines)-1)
 }
 
 // finishLayout stamps per-row marks and prebuilds the row index.
@@ -278,6 +281,13 @@ func BuildTextLayoutExWithSpacing(textStr string, face text.Face, fontSize float
 	return (&TextLayout{Text: textStr, lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: gen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow, Truncated: truncated}).finishLayout()
 }
 
+// shiftAt/lineStart/lineEnd把行base偏移派生为当前绝对偏移.
+func (l *TextLayout) shiftAt(i int) int { return l.shift.at(i) }
+
+func (l *TextLayout) lineStart(i int) int { return l.lines[i].StartByte + l.shiftAt(i) }
+
+func (l *TextLayout) lineEnd(i int) int { return l.lines[i].EndByte + l.shiftAt(i) }
+
 // LineCount返回行数(面1迁移新API,值拷贝语义,供懒物化演进).
 func (l *TextLayout) LineCount() int {
 	if l == nil {
@@ -292,7 +302,7 @@ func (l *TextLayout) Line(i int) (start, end int, width, height float64, ok bool
 		return 0, 0, 0, 0, false
 	}
 	ln := l.lines[i]
-	return ln.StartByte, ln.EndByte, ln.Width, ln.Height, true
+	return l.lineStart(i), l.lineEnd(i), ln.Width, ln.Height, true
 }
 
 // CaretAt返回指定行内绝对字节偏移的X(行内二分,I8).
@@ -303,7 +313,7 @@ func (l *TextLayout) CaretAt(lineIdx int, byteOff int) (x float64, ok bool) {
 		return 0, false
 	}
 	ln := &l.lines[lineIdx]
-	return caretXForOffset(ln.Carets, byteOff-ln.StartByte)
+	return caretXForOffset(ln.Carets, byteOff-l.lineStart(lineIdx))
 }
 
 // LineCarets返回第i行的caret表(绝对偏移拷贝,调用方可安全持有).
@@ -312,9 +322,10 @@ func (l *TextLayout) LineCarets(i int) []GlyphCaret {
 		return nil
 	}
 	ln := &l.lines[i]
+	base := l.lineStart(i)
 	out := make([]GlyphCaret, len(ln.Carets))
 	for k, c := range ln.Carets {
-		c.ByteOff += ln.StartByte
+		c.ByteOff += base
 		out[k] = c
 	}
 	return out
@@ -1105,7 +1116,7 @@ func (l *TextLayout) BoxesForRange(startByte, endByte int) []Rect {
 	}
 	var out []Rect
 	idx := l.index()
-	lo, hi := idx.rowRangeForSpan(startByte, endByte)
+	lo, hi := idx.rowRangeForSpan(startByte, endByte, l.shiftAt)
 	if hi >= lo {
 		if n := hi - lo + 1; n > 0 && n <= len(l.lines) {
 			out = make([]Rect, 0, n)
@@ -1116,22 +1127,23 @@ func (l *TextLayout) BoxesForRange(startByte, endByte int) []Rect {
 			continue
 		}
 		ln := l.lines[i]
-		if endByte <= ln.StartByte || startByte >= ln.EndByte {
+		base, end := l.lineStart(i), l.lineEnd(i)
+		if endByte <= base || startByte >= end {
 			continue
 		}
 		s := startByte
-		if s < ln.StartByte {
-			s = ln.StartByte
+		if s < base {
+			s = base
 		}
 		e := endByte
-		if e > ln.EndByte {
-			e = ln.EndByte
+		if e > end {
+			e = end
 		}
-		x0, found0 := caretXForOffset(ln.Carets, s-ln.StartByte)
+		x0, found0 := caretXForOffset(ln.Carets, s-base)
 		if !found0 {
 			x0 = 0
 		}
-		x1, found1 := caretXForOffset(ln.Carets, e-ln.StartByte)
+		x1, found1 := caretXForOffset(ln.Carets, e-base)
 		if !found1 {
 			x1 = ln.Width
 		}
@@ -1166,8 +1178,9 @@ func isNewlineAt(text string, byteOff int) bool {
 	return false
 }
 
-// lineClusters返回行内簇起点(绝对偏移,末尾附行尾哨兵),首算O(L)后缓存.
+// lineClusters返回行内簇起点(行内相对偏移,末尾附行尾哨兵),首算O(L)后缓存.
 // 簇不跨\n(GB4/GB5控制字符恒切分),故按行切分与整串切分一致.
+// 存相对值:行基址随增量后缀平移时缓存仍有效.
 func (l *TextLayout) lineClusters(li int) []int {
 	if l == nil || li < 0 || li >= len(l.lines) {
 		return nil
@@ -1175,7 +1188,7 @@ func (l *TextLayout) lineClusters(li int) []int {
 	ln := &l.lines[li]
 	if ln.clusters == nil {
 		// 撕裂快照的行界可能越过 Text,钳制后再切分.
-		base, end := ln.StartByte, ln.EndByte
+		base, end := l.lineStart(li), l.lineEnd(li)
 		if base < 0 {
 			base = 0
 		}
@@ -1185,12 +1198,7 @@ func (l *TextLayout) lineClusters(li int) []int {
 		if base > end {
 			base = end
 		}
-		rel := text.ClusterStarts(l.Text[base:end])
-		abs := make([]int, len(rel))
-		for i, o := range rel {
-			abs[i] = base + o
-		}
-		ln.clusters = abs
+		ln.clusters = text.ClusterStarts(l.Text[base:end])
 	}
 	return ln.clusters
 }
@@ -1201,11 +1209,11 @@ func (l *TextLayout) snapToCluster(li int, off int, affinity int) int {
 	if l == nil || li < 0 || li >= len(l.lines) {
 		return off
 	}
-	ln := &l.lines[li]
-	if off <= ln.StartByte || off >= ln.EndByte {
+	base := l.lineStart(li)
+	if off <= base || off >= l.lineEnd(li) {
 		return off
 	}
-	return text.SnapInStarts(l.lineClusters(li), off, affinity != AffinityUpstream)
+	return base + text.SnapInStarts(l.lineClusters(li), off-base, affinity != AffinityUpstream)
 }
 
 // clampOffset把字节偏移钳制进Text区间(撕裂快照的行界可能越界).
@@ -1230,9 +1238,8 @@ func (l *TextLayout) snapToGraphemeBoundary(byteOff int, affinity int) int {
 	if byteOff > len(l.Text) {
 		return len(l.Text)
 	}
-	row := l.index().rowForOffset(byteOff)
-	ln := l.lines[row]
-	if byteOff < ln.StartByte || byteOff > ln.EndByte {
+	row := l.index().rowForOffset(byteOff, l.shiftAt)
+	if byteOff < l.lineStart(row) || byteOff > l.lineEnd(row) {
 		return byteOff
 	}
 	return l.snapToCluster(row, byteOff, affinity)
@@ -1278,9 +1285,10 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 	}
 	// Find line for effectiveOff via the row index (O(log n),首个命中语义).
 	idx := l.index()
-	row := idx.rowForOffset(effectiveOff)
+	row := idx.rowForOffset(effectiveOff, l.shiftAt)
 	ln := l.lines[row]
-	if effectiveOff >= ln.StartByte && effectiveOff <= ln.EndByte {
+	rowStart, rowEnd := l.lineStart(row), l.lineEnd(row)
+	if effectiveOff >= rowStart && effectiveOff <= rowEnd {
 		i := row
 		// Downstream at a soft-wrap seam (this line's end == next line's
 		// start, no newline byte between) is the leading edge of the next
@@ -1289,7 +1297,7 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 		// trailing edge and vertical stepping re-derives the old line and
 		// never advances past the seam.
 		if affinity == AffinityDownstream && i+1 < len(l.lines) {
-			if nxt := l.lines[i+1]; effectiveOff == ln.EndByte && effectiveOff == nxt.StartByte && !isNewlineAt(l.Text, effectiveOff) {
+			if nxt := l.lines[i+1]; effectiveOff == rowEnd && effectiveOff == l.lineStart(i+1) && !isNewlineAt(l.Text, effectiveOff) {
 				if x, exact := caretXForOffset(nxt.Carets, 0); exact {
 					return x, l.LineTop(i + 1), nxt.Height, true
 				}
@@ -1298,7 +1306,7 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 		}
 		// If upstream and effectiveOff == StartByte of this line and not first line,
 		// the upstream at line start should be trailing of prev line.
-		if affinity == AffinityUpstream && effectiveOff == ln.StartByte && i > 0 && !isNewlineAt(l.Text, effectiveOff) {
+		if affinity == AffinityUpstream && effectiveOff == rowStart && i > 0 && !isNewlineAt(l.Text, effectiveOff) {
 			prev := l.lines[i-1]
 			// Return trailing of previous line.
 			if len(prev.Carets) > 0 {
@@ -1307,11 +1315,11 @@ func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth flo
 			}
 		}
 		// Normal: find X within this line via caret binary search.
-		if x, exact := caretXForOffset(ln.Carets, effectiveOff-ln.StartByte); exact {
+		if x, exact := caretXForOffset(ln.Carets, effectiveOff-rowStart); exact {
 			return x, l.LineTop(i), ln.Height, true
 		}
 		// Fallback mid-grapheme (should not happen after snap).
-		if x, ok := caretXInSpan(ln.Carets, effectiveOff-ln.StartByte); ok {
+		if x, ok := caretXInSpan(ln.Carets, effectiveOff-rowStart); ok {
 			return x, l.LineTop(i), ln.Height, true
 		}
 		if len(ln.Carets) > 0 {
@@ -1351,21 +1359,22 @@ func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity i
 	idx := l.index()
 	row := idx.rowForY(y, l.FontSize, l.LineSpacing, l.LineHeight)
 	ln := l.lines[row]
+	rowStart := l.lineStart(row)
 	if x <= 0 {
-		return l.clampOffset(ln.StartByte), AffinityDownstream
+		return l.clampOffset(rowStart), AffinityDownstream
 	}
 	if len(ln.Carets) == 0 {
-		return l.clampOffset(ln.StartByte), AffinityDownstream
+		return l.clampOffset(rowStart), AffinityDownstream
 	}
 	if len(ln.Carets) == 1 {
-		return l.clampOffset(ln.StartByte + ln.Carets[0].ByteOff), AffinityDownstream
+		return l.clampOffset(rowStart + ln.Carets[0].ByteOff), AffinityDownstream
 	}
 	// Mid-point rule for nearest caret, but also set affinity:
 	// If x is in left half of a grapheme, affinity downstream (leading), else upstream (trailing).
 	// For line-start/end edge, follow the line-break affinity.
 	// caret为行内相对,先加行基址转绝对再吸附.
 	off, aff := offsetForX(ln.Carets, x)
-	off += ln.StartByte
+	off += rowStart
 	return l.clampOffset(l.snapToCluster(row, off, aff)), aff
 }
 

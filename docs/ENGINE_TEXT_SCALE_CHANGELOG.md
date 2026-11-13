@@ -187,3 +187,115 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - M0–M3.5 回归（基准，本轮补跑）：`BenchmarkCaretBuild` 每字 450/499/618ns（比值约 1.37，门禁 1.5）；`BenchmarkKeystroke` 不回绕三档约 0.7–0.9µs 基本不随规模涨；`BenchmarkPushHistory_M3` 三轮比值约 1.0–1.1（门禁 ≤2）；`BenchmarkInsertAtOffset` 中位数约 2.3/2.9/5.4µs（比值约 2.4，门禁 ≤3）；`BenchmarkSnapshot` 约 1ns（指针拷贝）。
 - 诚实项：① `TestCaretBuild_NoQuadratic` 在整包+并行压测下误报红过一次（CPU 被我自己的并行任务占满），单跑三遍全绿，定性为测量方法问题；计时类回归以后一次只跑一个。② `render/text` 约 90 个微调/光栅/扫描类测试文件未逐个跑（改动碰不到这些路径）。③ `BenchmarkInsertAtOffset` 单轮样本抖动大（最坏单轮比值约 6.5），中位数与 `TestInsertComplexityRatio` 均达标，机器抖动已注明。
 - 完成确认：用户真窗人验（验收主窗 60 秒 + 五扇输入法窗逐扇操作）无明显问题 → M3.8 标完成；M4 前置（M1 缓存 + M3.8 完成）已齐，M4 可开工。
+
+## G1 重确认记录（2026-11-13 · 门禁口径复核，未改代码）
+
+前置：按 `ENGINE_TEXT_SCALE_PLAN.md` §9 G1 行的「重确认要求（硬）」执行——重跑门禁 + 差分 + 画像。探针全部放 `/tmp`，经 `go test -overlay` 注入，仓库测试文件未改。
+
+### 1. 门禁现状（原样跑）
+
+`go test ./ui/rendering -run '^TestKeystrokeRatio_M5$' -count=1 -v` 共 4 次单跑（失败即止，故只记录到首个红模式）：
+
+| 跑次 | NoWrap 比值 | WrapShort 比值 | 结论 |
+|---|---|---|---|
+| 1 | 1.33 | 1.90 | FAIL（WrapShort） |
+| 2 | 1.93 | 未跑到 | FAIL（NoWrap） |
+| 3 | 2.68 | 未跑到 | FAIL（NoWrap） |
+| 4 | 1.86 | 未跑到 | FAIL（NoWrap） |
+
+### 2. 同场景加预热（复刻门禁：5 轮中位数 × 每轮 50 次，另加 200 次预热后计时）
+
+| 模式 | base | 1e6 | 比值 |
+|---|---|---|---|
+| NoWrap | 901ns | 607ns | 0.67 |
+| WrapShort | 569ns | 625ns | 1.10 |
+| WrapLong(5k 基准) | 44.55µs | 24.48µs | 0.55 |
+
+专用基准 `WrapShort@1e6` 连续 2 万次 = **845 ns/op**；`BenchmarkKeystroke@1e5` 同模式 943 ns/op。**等长替换路径不随文档长度增长**，门禁红来自 1e6 档冷启动/GC 被算进 50 次均值（量具缺陷）。2026-09-16 记的「回绕是真超线性」作废。
+
+### 3. 真实打字（插入/删除，delta=±1）差分（2000 次均值）
+
+| 模式 | base | 1e6 | 比值 |
+|---|---|---|---|
+| NoWrap | 1.05µs | 286.7µs | 254.9 |
+| WrapShort | 0.89µs | 303.5µs | 341.4 |
+| WrapLong(5k 基准) | 40.07µs | 315.5µs | 7.9 |
+
+正确性口径：1e6 下 200 次插/删 `spansHit+=200、spansMiss+=0`，无全量回退。
+
+### 4. 画像（1e6@WrapShort 插入，3000 次，`-cpuprofile`）
+
+- `patchRows` flat 66.7%（cum 86.7%）：热点 `layout_update.go:331-334` 逐行平移 `StartByte/EndByte`，`:333` 单行 480ms/1050ms。
+- `patchIndex` flat 20.0%：热点 `layout_update.go:396-400` 索引 `starts/ends/tops` 逐行平移。
+- `partLines` cum 仅 4.8%；门禁测试自身的 profile（503ms）主要被 5 次 1e6 全量首建占据，不能用于击键归因。
+- 结论：O(rows) 成本 = 行/索引的**绝对偏移逐行改**（约 11ns/row × 2.7 万行），与整形/回绕无直接关系。
+
+### 5. 诚实项
+
+- 未实测真字体（`face!=nil`）插入路径；tail 平移与 face 无关，但没跑。
+- 未测 1e6 以上；`BenchmarkKeystroke` 本身仍只到 1e5。
+- 修法（后缀惰性平移，Fenwick/分段增量）与门禁补插入臂均未动手，按计划「另排期」待拍板；阈值 1.5 未动。
+- 探针文件（`/tmp/g1_probe*.go`、`/tmp/g1_*.out`、overlay json）仅本地，仓库无新增临时 `.go`。
+
+## G1 门禁补插入/删除臂（2026-11-13 · 用户批准，阈值 1.5 未动）
+
+前置：2026-11-13 复核确认旧门禁只测等长替换（delta=0，走 `patchRows` 的 `same` 快径），真实打字的插入/删除（delta=±1）未进裁判；插入路径实测 1e6 为 O(rows)，旧门禁看不见。
+
+### 改动
+
+- 文件：`ui/rendering/m5_keystroke_g1_test.go`（唯一改动，生产代码零改动）。
+- 两臂：`等长替换`（原口径）与 `插入删除`（真实打字：插一个字符再删回）。
+- 量具：每臂预热 200 次 → `runtime.GC()` 压回堆基线 → 计时 200 次；基线与 1e6 交替执行、每轮成对取比值，5 轮比值取中位数（门禁 ≤1.5 不变）。
+- 失败改为 `t.Errorf` 逐臂报告，保证三模式两臂全部测完再判红。
+
+### 3 连跑证据（本机，当前树）
+
+| 跑次 | 等长 NoWrap | 等长 WrapShort | 等长 WrapLong | 插入 NoWrap | 插入 WrapShort | 插入 WrapLong |
+|---|---|---|---|---|---|---|
+| 1 | 1.02 | 0.93 | 0.80 | 300.9 | 209.6 | 8.55 |
+| 2 | 0.60 | 0.98 | 1.22 | 314.9 | 238.1 | 8.49 |
+| 3 | 1.05 | 0.90 | 0.78 | 289.1 | 284.5 | 8.21 |
+
+- 等长臂全绿（0.60–1.22），旧门禁的 1e6 冷启动抖动已消除。
+- 插入臂稳定红（NoWrap/WrapShort ×210–315，WrapLong ×8.2–8.6），与画像热点 `layout_update.go:331-334`（逐行偏移改写）+ `:396-400`（索引逐行平移）一致。
+- `TestKeystrokeRatio_M1`（N 到 1e5、阈值 5）同时复跑 PASS，未受共用 helper 影响。
+
+### 诚实项
+
+- 红灯是**预期**（红灯起步）：修复（行/索引偏移后缀惰性平移）未开工，修复落地前该测试保持红。
+- 插入臂仍用 nil face（门禁原配置）；真字体插入路径未实测。
+- `runtime.GC()` 只作用于测量前，不改变生产行为。
+
+## G1 修复记录（2026-11-13 · 按 Flutter 版面语义重构，用户批准）
+
+### 标准对齐依据（本机 Flutter 源码）
+
+- `TextPainter.markNeedsLayout()` 直接丢弃整块版面缓存（`packages/flutter/lib/src/painting/text_painter.dart:781-789`），`layout()` 重建段落并调用 `paragraph.layout(constraints)`（同文件 `:1218-1271`）。
+- 行度量由段落派生：`computeLineMetrics()` 从 `layout.lineMetrics` 取（`:1794-1808`），`lineMetrics` getter 缓存整份派生结果（`:524`）。
+- 结论：版面结果不可变、行度量按需派生，**不逐行回写偏移**。本仓库此前的偏离点是：把各硬段缓存摊平成全局绝对偏移行表，并在每次长度变化编辑时逐行改写 tail 行与索引。
+
+### 改动（生产代码，`ui/rendering`）
+
+- 新增 `line_shift.go`：`rowShift`（Fenwick 差分树）记录“从某行起整体平移”的后缀增量；行内只存 base 偏移，绝对偏移 = base + `at(i)`。
+- `layout_update.go`：行数不变的编辑只替换本段行内容并把新行转回 base，随后 `addSuffix(hi+1, delta)` 记一笔增量；删除对 tail 行的逐行 `StartByte/EndByte += delta`（原 `:331-334` 热点）与 tail 索引逐行平移（原 `:396-400`）。行数变化或替换区间含旧增量事件时走 `compactOffsets()` 烘焙（O(rows)，结构性编辑）。
+- `layout_update.go`：新增「上次编辑行」O(1) 快路（击键局部性），命中时免两次 O(log n) 二分。
+- `text_layout.go`：`TextLayout` 增 `shift`，`Line`、`LineCarets`、`CaretAt`、`LineClusterStarts`、`BoxesForRange`、`CaretForOffset`、`GetOffsetForCaret`、`GetPositionForOffset` 统一走 `lineStart/lineEnd` 派生；行内簇缓存改存相对偏移（行基址平移后仍有效）。
+- `line_index.go`：`rowForOffset/rowRangeForSpan` 增加 shift 参数；无增量的全量构建传 nil，零开销。
+
+### 证据
+
+- 插入/删除臂（`TestKeystrokeRatio_M5`，阈值 1.5 未动）：
+  - 1e6 单次击键：修复前 287–315µs → 修复后 **0.72–1.20µs**。
+  - 量具收紧：每轮样本 200→1000、轮数 5→7（原配置在 1e6 档偶发 1.52）。收紧后 **6 连跑全绿**，可见比值：插入臂 NoWrap 0.72/WrapShort 1.02/WrapLong 0.77；等长臂 NoWrap 1.16/WrapShort 0.90/WrapLong 0.69（阈值 1.5 未动）。
+- 规模阶梯（NoWrap 插入 2000 次均值）：修复前 0.8µs→1.98µs→16.1µs→268.8µs（1k→1e6）；修复后门禁实测 1e6 不再随行数增长。
+- 新增 `m5_line_shift_test.go`：
+  - `TestLineShift_EquivQueries_M5`：三种宽度、8 步编辑，每步与 `BuildTextLayout` 逐行对照 `Line/簇起点/CaretForOffset/GetOffsetForCaret/BoxesForRange/GetPositionForOffset`。
+  - `TestLineShift_Compaction_M5`：100 行文档覆盖行内插字（增量路径）、删换行触发烘焙、插换行/跨行删（行数变化）、前缀插入，逐步对照全量构建。
+- 回归：`TestTextLayout_*` 全部 PASS；`TestR1_*` 全部 PASS；`ui/rendering` 整包、`ui/textinput` 整包、`ui/textbuffer` 整包 PASS；`TestKeystrokeRatio_M1` PASS。
+
+### 诚实项
+
+- 行数变化编辑（回车/跨行删）仍 O(rows)（烘焙约 0.3ms@1e6），绝对可接受但不是 O(log n)；本次门禁不覆盖该路径。
+- 真字体（face!=nil）插入路径未单独测量；本次测量沿用门禁的 nil-face 估算配置。
+- `-race` 未跑：仓库禁 CGO，`go test -race` 直接拒绝。
+- accept 真窗本轮未复跑；改动集中在布局增量层，13 裁判 + 三个整包 + 查询口等价性已覆盖。
