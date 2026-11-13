@@ -49,17 +49,9 @@
 
 ### 2.1 当前焦点
 
-**当前焦点（2026-11-13 起）：O7 既有金图/性能红归类。**
+**当前焦点：无活动任务（主表 P0–P4 全 ✅；O7 已收口，余项见 §2.2 待办池与下方余留登记：O6 🟡 待 O6c、O6c ⏸ 用户暂缓、D2 🟡 有意保留、N1 ⬜ 可选）。**
 
-**当前任务验证载体（开工前必须填）**
-
-- 任务：O7——把 O5/O6d 抽检发现的既有红逐窗判「基线过期 vs 渲染洞」，不重种
-- 能力单测：无新能力；沿用 P2.6 golden-drift 的 current/base 对照与 ±2px 平移/内部采样分析
-- 真窗：`ui_base_idle` 60s、`ui_wr_c4_shell_overlay` 25s、`ui_wr_c8_hit_overlay_xf` 15s、`ui_wr_r4_composite` 15s、`ui_wr_r10_async_image` 30s、`ui_wr_p33_richtext` 5s、`ui_wr_c2_retained_scene` 15s、`ui_wr_p37_scene` 8s、`ui_base_multiwin_cap` 75s
-- 金图：各窗 current vs base；容差 0；隔离 `Xwayland :3` 串行
-- 双后端：native 归类（go 已有 O5/O6d 同值数据）
-- 负向：不重种；若判「渲染洞」则登记并修复，不靠重种掩盖
-- 证据：`evidence/P2.6/o1-rss-plateau/o7-classify/`
+**O7 已收口索引（2026-11-13）**：静态 7 窗金图重种，cross 0、native/go 复跑 14/14 golden `0.0000%`、idle 1px 负向 `1.2515%`→还原 0；c4 两对 + multiwin 8 窗因动态内容不重种、保留归类；证据 `evidence/P2.6/o1-rss-plateau/o7-reseed/reseed.md`、`o7-classify/summary.md`。
 
 **O5 已收口索引（2026-11-12）****O3 已收口索引（2026-11-12）**：60s RSS 判据改 **120s 正式判据**（60s 预热 + 60s 测量，线 30000 不动）；60s 轮 `rss_verdict=inconclusive`，不再误伤 Go 堆爬坡；数据证明 60s 内爬坡与慢泄漏不可分、60–120s 可分；120s 四轮真窗 l1 188/370、m4 21200/21344 KB/min 全 pass；先红后绿 + 跨平台/vet 过。证据 `evidence/P2.6/o1-rss-plateau/o3-criterion/analysis.md`。
 
