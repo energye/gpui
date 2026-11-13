@@ -16,6 +16,7 @@ package textbuffer
 import (
 	"strings"
 	"sync/atomic"
+	"unicode/utf8"
 )
 
 // SmallMax documents below this byte size stay a plain string.
@@ -49,6 +50,10 @@ type node struct {
 	size        int
 	nl          int
 	nnl         int // '\n' count of data alone; chunks are immutable so it never changes
+	u16         int
+	nu16        int // UTF-16 units of data alone; chunks are immutable so it never changes
+	nr          int
+	nnr         int // rune count of data alone; chunks are immutable so it never changes
 }
 
 func sizeOf(n *node) int {
@@ -67,7 +72,26 @@ func nlOf(n *node) int {
 
 func newLeaf(data string) *node {
 	c := strings.Count(data, "\n")
-	return &node{prio: nextPrio(), data: data, size: len(data), nl: c, nnl: c}
+	u := utf16Count(data)
+	r := runeCount(data)
+	return &node{prio: nextPrio(), data: data, size: len(data), nl: c, nnl: c, u16: u, nu16: u, nr: r, nnr: r}
+}
+
+// u16Of reports UTF-16 units of a subtree. Counts assume chunk boundaries sit
+// on rune boundaries (editor edits/selections guarantee this); byte APIs stay
+// exact even if a caller splits inside a rune.
+func u16Of(n *node) int {
+	if n == nil {
+		return 0
+	}
+	return n.u16
+}
+
+func nrOf(n *node) int {
+	if n == nil {
+		return 0
+	}
+	return n.nr
 }
 
 func cloneNode(n *node) *node {
@@ -78,6 +102,8 @@ func cloneNode(n *node) *node {
 func update(n *node) {
 	n.size = len(n.data) + sizeOf(n.left) + sizeOf(n.right)
 	n.nl = n.nnl + nlOf(n.left) + nlOf(n.right)
+	n.u16 = n.nu16 + u16Of(n.left) + u16Of(n.right)
+	n.nr = n.nnr + nrOf(n.left) + nrOf(n.right)
 }
 
 func merge(a, b *node) *node {
@@ -164,19 +190,6 @@ func materialize(n *node) string {
 	sb.Grow(sizeOf(n))
 	collect(n, &sb)
 	return sb.String()
-}
-
-func forEach(n *node, fn func(chunk string) bool) bool {
-	if n == nil {
-		return true
-	}
-	if !forEach(n.left, fn) {
-		return false
-	}
-	if !fn(n.data) {
-		return false
-	}
-	return forEach(n.right, fn)
 }
 
 func sliceInto(n *node, a, c int, sb *strings.Builder) {
@@ -449,6 +462,95 @@ func (b *Buffer) LineCount() int {
 	return strings.Count(b.str, "\n") + 1
 }
 
+// LineStart returns the byte offset of line k's first byte (clamped).
+func (b *Buffer) LineStart(k int) int {
+	if b == nil {
+		return 0
+	}
+	total := b.LineCount()
+	k = clampOff(k, 0, total-1)
+	if k == 0 {
+		return 0
+	}
+	pos, ok := b.newlineAt(k - 1)
+	if !ok {
+		return 0
+	}
+	return pos + 1
+}
+
+// newlineAt returns the byte offset of the n-th '\n' in document order.
+// Tree mode descends by subtree newline counts: O(log chunks + one chunk).
+func (b *Buffer) newlineAt(n int) (int, bool) {
+	if b == nil || n < 0 {
+		return 0, false
+	}
+	if !b.tree {
+		off := -1
+		for i := 0; i <= n; i++ {
+			j := strings.IndexByte(b.str[off+1:], '\n')
+			if j < 0 {
+				return 0, false
+			}
+			off += j + 1
+		}
+		return off, true
+	}
+	base := 0
+	cur := b.root
+	for cur != nil {
+		left := nlOf(cur.left)
+		if n < left {
+			cur = cur.left
+			continue
+		}
+		n -= left
+		if n < cur.nnl {
+			off := -1
+			for i := 0; i <= n; i++ {
+				j := strings.IndexByte(cur.data[off+1:], '\n')
+				off += j + 1
+			}
+			return base + sizeOf(cur.left) + off, true
+		}
+		n -= cur.nnl
+		base += sizeOf(cur.left) + len(cur.data)
+		cur = cur.right
+	}
+	return 0, false
+}
+
+// LineIndex returns the number of '\n' before off (the line containing off).
+// Tree mode descends by subtree sizes/newline counts: O(log chunks + one chunk).
+func (b *Buffer) LineIndex(off int) int {
+	if b == nil {
+		return 0
+	}
+	if !b.tree {
+		off = clampOff(off, 0, len(b.str))
+		return strings.Count(b.str[:off], "\n")
+	}
+	n := 0
+	off = clampOff(off, 0, sizeOf(b.root))
+	cur := b.root
+	for cur != nil {
+		left := sizeOf(cur.left)
+		if off < left {
+			cur = cur.left
+			continue
+		}
+		n += nlOf(cur.left)
+		d := off - left
+		if d <= len(cur.data) {
+			return n + strings.Count(cur.data[:d], "\n")
+		}
+		n += cur.nnl
+		off = d - len(cur.data)
+		cur = cur.right
+	}
+	return n
+}
+
 // LineAt returns the k-th line without its terminator (clamped). A trailing
 // '\r' of a CRLF pair is stripped even when the pair spans chunks.
 func (b *Buffer) LineAt(k int) string {
@@ -457,37 +559,15 @@ func (b *Buffer) LineAt(k int) string {
 	}
 	total := b.LineCount()
 	k = clampOff(k, 0, total-1)
-	line := 0
-	var sb strings.Builder
-	stop := false
-	each := func(chunk string) bool {
-		for len(chunk) > 0 && !stop {
-			if line < k {
-				i := strings.IndexByte(chunk, '\n')
-				if i < 0 {
-					return true
-				}
-				line++
-				chunk = chunk[i+1:]
-				continue
-			}
-			i := strings.IndexByte(chunk, '\n')
-			if i < 0 {
-				sb.WriteString(chunk)
-				return true
-			}
-			sb.WriteString(chunk[:i])
-			stop = true
-			return false
-		}
-		return !stop
+	start := b.LineStart(k)
+	end := b.Len()
+	if k < total-1 {
+		end = b.LineStart(k+1) - 1
 	}
-	if b.tree {
-		forEach(b.root, each)
-	} else {
-		each(b.str)
+	if end < start {
+		end = start
 	}
-	out := sb.String()
+	out := b.Slice(start, end)
 	if strings.HasSuffix(out, "\r") {
 		out = out[:len(out)-1]
 	}
@@ -551,4 +631,359 @@ func (b *Buffer) Restore(s Snapshot) {
 		b.tree = true
 	}
 	b.normalize()
+}
+
+// utf16Count reports the number of UTF-16 code units in s (surrogate pairs
+// count 2), matching the editor's UTF-16 selection offsets.
+func utf16Count(s string) int {
+	n := 0
+	for _, r := range s {
+		if r <= 0xFFFF {
+			n++
+		} else {
+			n += 2
+		}
+	}
+	return n
+}
+
+// byteOffsetInString maps a UTF-16 code-unit offset to a byte offset,
+// snapping to the rune boundary at or before the target. Returns -1 when
+// the target falls inside a surrogate pair (callers map that to document
+// end, matching the editor's existing byteOffsetForUtf16 semantics).
+func byteOffsetInString(s string, utf16Off int) int {
+	if utf16Off <= 0 {
+		return 0
+	}
+	off := 0
+	cu := 0
+	for _, r := range s {
+		sz := utf8.RuneLen(r)
+		cuLen := 1
+		if r > 0xFFFF {
+			cuLen = 2
+		}
+		if cu+cuLen > utf16Off {
+			if cu < utf16Off {
+				return -1
+			}
+			break
+		}
+		cu += cuLen
+		off += sz
+		if cu >= utf16Off {
+			break
+		}
+	}
+	if cu < utf16Off {
+		return len(s)
+	}
+	return off
+}
+
+// UTF16Len returns the document length in UTF-16 code units (O(1) in tree mode).
+func (b *Buffer) UTF16Len() int {
+	if b == nil {
+		return 0
+	}
+	if b.tree {
+		return u16Of(b.root)
+	}
+	return utf16Count(b.str)
+}
+
+// ByteOffsetForUTF16 maps a UTF-16 offset to a byte offset (clamped), snapping
+// to the rune boundary at or before the target. Tree mode descends by subtree
+// UTF-16 counts: O(log chunks + one chunk).
+func (b *Buffer) ByteOffsetForUTF16(pos int) int {
+	if b == nil || pos <= 0 {
+		return 0
+	}
+	if !b.tree {
+		if in := byteOffsetInString(b.str, pos); in >= 0 {
+			return in
+		}
+		return len(b.str)
+	}
+	if pos >= u16Of(b.root) {
+		return sizeOf(b.root)
+	}
+	base := 0
+	rem := pos
+	cur := b.root
+	for cur != nil {
+		left := u16Of(cur.left)
+		if rem < left {
+			cur = cur.left
+			continue
+		}
+		rem -= left
+		if rem <= cur.nu16 {
+			if in := byteOffsetInString(cur.data, rem); in >= 0 {
+				return base + sizeOf(cur.left) + in
+			}
+			return sizeOf(b.root)
+		}
+		rem -= cur.nu16
+		base += sizeOf(cur.left) + len(cur.data)
+		cur = cur.right
+	}
+	return base
+}
+
+func runeCount(s string) int {
+	n := 0
+	for range s {
+		n++
+	}
+	return n
+}
+
+func utf16ToRuneIndexString(s string, utf16Off int) int {
+	off := 0
+	idx := 0
+	for _, r := range s {
+		if off >= utf16Off {
+			break
+		}
+		sz := 1
+		if r > 0xFFFF {
+			sz = 2
+		}
+		off += sz
+		idx++
+	}
+	return idx
+}
+
+func runeIndexToUTF16String(s string, idx int) int {
+	if idx <= 0 {
+		return 0
+	}
+	n := 0
+	for _, r := range s {
+		if idx == 0 {
+			break
+		}
+		if r > 0xFFFF {
+			n += 2
+		} else {
+			n++
+		}
+		idx--
+	}
+	return n
+}
+
+// RuneCount returns the document length in runes (O(1) in tree mode).
+func (b *Buffer) RuneCount() int {
+	if b == nil {
+		return 0
+	}
+	if b.tree {
+		return nrOf(b.root)
+	}
+	return runeCount(b.str)
+}
+
+// UTF16ToRuneIndex maps a UTF-16 offset to a rune index (editor semantics:
+// a surrogate pair counts as one rune; a target inside the pair lands after it).
+func (b *Buffer) UTF16ToRuneIndex(pos int) int {
+	if b == nil || pos <= 0 {
+		return 0
+	}
+	if !b.tree {
+		return utf16ToRuneIndexString(b.str, pos)
+	}
+	if pos >= u16Of(b.root) {
+		return nrOf(b.root)
+	}
+	runes := 0
+	rem := pos
+	cur := b.root
+	for cur != nil {
+		left := u16Of(cur.left)
+		if rem < left {
+			cur = cur.left
+			continue
+		}
+		rem -= left
+		runes += nrOf(cur.left)
+		if rem <= cur.nu16 {
+			cu := 0
+			for _, r := range cur.data {
+				if cu >= rem {
+					break
+				}
+				w := 1
+				if r > 0xFFFF {
+					w = 2
+				}
+				cu += w
+				runes++
+			}
+			return runes
+		}
+		rem -= cur.nu16
+		runes += cur.nnr
+		cur = cur.right
+	}
+	return runes
+}
+
+// RuneIndexToUTF16 maps a rune index to a UTF-16 offset (clamped).
+func (b *Buffer) RuneIndexToUTF16(k int) int {
+	if b == nil || k <= 0 {
+		return 0
+	}
+	if !b.tree {
+		return runeIndexToUTF16String(b.str, k)
+	}
+	if k >= nrOf(b.root) {
+		return u16Of(b.root)
+	}
+	rem := k
+	cu := 0
+	cur := b.root
+	for cur != nil {
+		left := nrOf(cur.left)
+		if rem < left {
+			cur = cur.left
+			continue
+		}
+		rem -= left
+		cu += u16Of(cur.left)
+		if rem <= cur.nnr {
+			for _, r := range cur.data {
+				if rem == 0 {
+					break
+				}
+				if r > 0xFFFF {
+					cu += 2
+				} else {
+					cu++
+				}
+				rem--
+			}
+			return cu
+		}
+		rem -= cur.nnr
+		cu += cur.nu16
+		cur = cur.right
+	}
+	return cu
+}
+
+// UTF16OffsetAt maps a byte offset to a UTF-16 offset (clamped).
+func (b *Buffer) UTF16OffsetAt(byteOff int) int {
+	if b == nil || byteOff <= 0 {
+		return 0
+	}
+	if !b.tree {
+		if byteOff > len(b.str) {
+			byteOff = len(b.str)
+		}
+		return utf16Count(b.str[:byteOff])
+	}
+	if byteOff >= sizeOf(b.root) {
+		return u16Of(b.root)
+	}
+	n := 0
+	cur := b.root
+	for cur != nil {
+		left := sizeOf(cur.left)
+		if byteOff < left {
+			cur = cur.left
+			continue
+		}
+		n += u16Of(cur.left)
+		d := byteOff - left
+		if d <= len(cur.data) {
+			return n + utf16Count(cur.data[:d])
+		}
+		n += cur.nu16
+		byteOff = d - len(cur.data)
+		cur = cur.right
+	}
+	return n
+}
+
+// ByteAt returns the byte at off (0 when out of range).
+func (b *Buffer) ByteAt(off int) byte {
+	if b == nil || off < 0 || off >= b.Len() {
+		return 0
+	}
+	s := b.Slice(off, off+1)
+	if len(s) == 0 {
+		return 0
+	}
+	return s[0]
+}
+
+// StepUTF16 moves one rune forward/backward from a UTF-16 offset, matching
+// the editor's stepRuneUTF16 semantics (surrogate pairs count 2 units).
+func (b *Buffer) StepUTF16(pos, dir int) (int, bool) {
+	if b == nil || dir == 0 {
+		return pos, false
+	}
+	total := b.UTF16Len()
+	if pos < 0 || pos > total {
+		return pos, false
+	}
+	byteOff := b.ByteOffsetForUTF16(pos)
+	if dir < 0 {
+		if byteOff <= 0 {
+			return 0, false
+		}
+		lo := byteOff - 4
+		if lo < 0 {
+			lo = 0
+		}
+		r, _ := utf8.DecodeLastRuneInString(b.Slice(lo, byteOff))
+		n := pos - 1
+		if r > 0xFFFF {
+			n = pos - 2
+		}
+		if n < 0 {
+			n = 0
+		}
+		return n, true
+	}
+	if pos >= total {
+		return total, false
+	}
+	if byteOff >= b.Len() {
+		// 目标落在代理对中间时 ByteOffsetForUTF16 返回串尾；编辑器语义是 +1 单位.
+		return pos + 1, true
+	}
+	hi := byteOff + 4
+	if hi > b.Len() {
+		hi = b.Len()
+	}
+	r, _ := utf8.DecodeRuneInString(b.Slice(byteOff, hi))
+	n := pos + 1
+	if r > 0xFFFF {
+		n = pos + 2
+	}
+	if n > total {
+		n = total
+	}
+	return n, true
+}
+
+// RuneAtUTF16 returns the rune starting at a UTF-16 offset (0 at end).
+func (b *Buffer) RuneAtUTF16(pos int) rune {
+	if b == nil {
+		return 0
+	}
+	byteOff := b.ByteOffsetForUTF16(pos)
+	if byteOff >= b.Len() {
+		return 0
+	}
+	hi := byteOff + 4
+	if hi > b.Len() {
+		hi = b.Len()
+	}
+	r, _ := utf8.DecodeRuneInString(b.Slice(byteOff, hi))
+	return r
 }

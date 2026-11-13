@@ -102,6 +102,8 @@ type Editor struct {
 	buf                                    *textbuffer.Buffer
 	bufOn                                  bool
 	bufForceString                         bool // pin mirror to plain-string mode (degradation path)
+	textDirty                              bool // tree mode: e.Text() is a lazy cache
+	docVersion                             uint64
 }
 
 // noteEdit记录文本变更区间;已有未消费区间则失效(多变更回退diff).
@@ -183,6 +185,16 @@ func byteOffsetForUtf16(s string, utf16Off int) int {
 
 func clampUtf16(s string, off int) int {
 	n := utf16Len(s)
+	if off < 0 {
+		return 0
+	}
+	if off > n {
+		return n
+	}
+	return off
+}
+
+func clampUTF16Len(n, off int) int {
 	if off < 0 {
 		return 0
 	}
@@ -356,24 +368,23 @@ func (e *Editor) Undo() bool {
 	if !ok {
 		return false
 	}
-	oldLen := len(e.text)
+	b := e.ensureBuf()
+	oldLen := b.Len()
 	for i := len(g.ops) - 1; i >= 0; i-- {
 		op := g.ops[i]
 		if op.pos < 0 {
 			op.pos = 0
 		}
-		if op.pos > len(e.text) {
-			op.pos = len(e.text)
+		if op.pos > b.Len() {
+			op.pos = b.Len()
 		}
 		end := op.pos + len(op.inserted)
-		if end > len(e.text) {
-			end = len(e.text)
+		if end > b.Len() {
+			end = b.Len()
 		}
-		e.text = e.text[:op.pos] + op.deleted + e.text[end:]
-		e.mirrorDelete(op.pos, end)
-		e.mirrorInsert(op.pos, op.deleted)
+		e.editBuffer(op.pos, end, op.deleted)
 	}
-	e.noteEdit(0, oldLen, 0, len(e.text))
+	e.noteEdit(0, oldLen, 0, b.Len())
 	e.selection = g.selBefore
 	e.composingRange = g.compBefore
 	e.composing = g.composingBefore
@@ -392,23 +403,22 @@ func (e *Editor) Redo() bool {
 	if !ok {
 		return false
 	}
-	oldLen := len(e.text)
+	b := e.ensureBuf()
+	oldLen := b.Len()
 	for _, op := range g.ops {
 		if op.pos < 0 {
 			op.pos = 0
 		}
-		if op.pos > len(e.text) {
-			op.pos = len(e.text)
+		if op.pos > b.Len() {
+			op.pos = b.Len()
 		}
 		end := op.pos + len(op.deleted)
-		if end > len(e.text) {
-			end = len(e.text)
+		if end > b.Len() {
+			end = b.Len()
 		}
-		e.text = e.text[:op.pos] + op.inserted + e.text[end:]
-		e.mirrorDelete(op.pos, end)
-		e.mirrorInsert(op.pos, op.inserted)
+		e.editBuffer(op.pos, end, op.inserted)
 	}
-	e.noteEdit(0, oldLen, 0, len(e.text))
+	e.noteEdit(0, oldLen, 0, b.Len())
 	e.selection = g.selAfter
 	e.composingRange = g.compAfter
 	e.composing = g.composingAfter
@@ -430,21 +440,21 @@ func (e *Editor) GetText() string {
 	if e == nil {
 		return ""
 	}
-	return e.text
+	return e.Text()
 }
 
 func (e *Editor) GetCursorOffset() int {
 	if e == nil {
 		return 0
 	}
-	return byteOffsetForUtf16(e.text, e.selection.Extent)
+	return e.ensureBuf().ByteOffsetForUTF16(e.selection.Extent)
 }
 
 func (e *Editor) TextRange() TextRange {
 	if e == nil {
 		return TextRange{}
 	}
-	return TextRange{Base: 0, Extent: utf16Len(e.text)}
+	return TextRange{Base: 0, Extent: e.ensureBuf().UTF16Len()}
 }
 
 func (e *Editor) EditableRange() TextRange {
@@ -626,17 +636,18 @@ func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 		comp.Extent = clampUtf16(text, comp.Extent)
 	}
 	hasComp := comp.Length() > 0
-	changed := e.text != text || e.selection != sel || e.composingRange != comp || e.composing != hasComp
+	cur := e.Text()
+	changed := cur != text || e.selection != sel || e.composingRange != comp || e.composing != hasComp
 	selB, compB, cB := e.selection, e.composingRange, e.composing
 	var dPos int
 	var dDel, dIns string
 	if changed {
-		dPos, dDel, dIns = diffStrings(e.text, text)
+		dPos, dDel, dIns = diffStrings(cur, text)
 	}
-	if e.text != text {
-		e.noteEdit(0, len(e.text), 0, len(text))
+	if cur != text {
+		e.noteEdit(0, len(cur), 0, len(text))
 	}
-	e.text = text
+	e.setDoc(text)
 	e.selection = sel
 	e.composingRange = comp
 	e.composing = hasComp
@@ -651,7 +662,6 @@ func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	e.lastFrameworkSel = sel
 	e.lastFrameworkComp = comp
 	e.caretColValid = false
-	e.mirrorRebuild()
 	return changed
 }
 
@@ -663,8 +673,9 @@ func (e *Editor) SetSelection(r TextRange) bool {
 		return false
 	}
 	er := e.EditableRange()
-	r.Base = clampUtf16(e.text, r.Base)
-	r.Extent = clampUtf16(e.text, r.Extent)
+	total := e.ensureBuf().UTF16Len()
+	r.Base = clampUTF16Len(total, r.Base)
+	r.Extent = clampUTF16Len(total, r.Extent)
 	if r.Start() < er.Start() || r.End() > er.End() {
 		if r.Base < er.Start() {
 			r.Base = er.Start()
@@ -692,13 +703,13 @@ func (e *Editor) SetComposingRange(r TextRange, cursorOffset int) bool {
 	if e == nil || !e.composing {
 		return false
 	}
-	n := utf16Len(e.text)
+	n := e.ensureBuf().UTF16Len()
 	if r.Start() < 0 || r.End() > n {
 		return false
 	}
 	e.composingRange = r
 	off := r.Start() + cursorOffset
-	off = clampUtf16(e.text, off)
+	off = clampUtf16(e.Text(), off)
 	e.selection = TextRange{Base: off, Extent: off}
 	e.changed()
 	return true
@@ -752,19 +763,18 @@ func (e *Editor) UpdateComposingText(text string, sel TextRange) bool {
 	} else {
 		replaceRange = e.composingRange
 	}
-	startByte := byteOffsetForUtf16(e.text, replaceRange.Start())
-	endByte := byteOffsetForUtf16(e.text, replaceRange.End())
-	deleted := e.text[startByte:endByte]
+	b := e.ensureBuf()
+	startByte := b.ByteOffsetForUTF16(replaceRange.Start())
+	endByte := b.ByteOffsetForUTF16(replaceRange.End())
+	deleted := b.Slice(startByte, endByte)
 	selB, compB, cB := e.selection, e.composingRange, e.composing
-	newText := e.text[:startByte] + text + e.text[endByte:]
 	newStart := replaceRange.Start()
 	newEnd := newStart + utf16Len(text)
-	sel.Base = clampUtf16(newText, sel.Base)
-	sel.Extent = clampUtf16(newText, sel.Extent)
 	e.noteEdit(startByte, endByte, startByte, startByte+len(text))
-	e.text = newText
-	e.mirrorDelete(startByte, endByte)
-	e.mirrorInsert(startByte, text)
+	e.editBuffer(startByte, endByte, text)
+	total := e.ensureBuf().UTF16Len()
+	sel.Base = clampUTF16Len(total, sel.Base)
+	sel.Extent = clampUTF16Len(total, sel.Extent)
 	e.composing = true
 	e.composingRange = TextRange{Base: newStart, Extent: newEnd}
 	e.selection = sel
@@ -796,15 +806,15 @@ func (e *Editor) EndComposing() {
 	if e == nil || !e.composing {
 		return
 	}
-	s := byteOffsetForUtf16(e.text, e.composingRange.Start())
-	en := byteOffsetForUtf16(e.text, e.composingRange.End())
+	b := e.ensureBuf()
+	s := b.ByteOffsetForUTF16(e.composingRange.Start())
+	en := b.ByteOffsetForUTF16(e.composingRange.End())
 	selB, compB := e.selection, e.composingRange
 	wasOpen := e.composingSnapshot
 	if s != en {
-		deleted := e.text[s:en]
+		deleted := b.Slice(s, en)
 		e.noteEdit(s, en, s, s)
-		e.text = e.text[:s] + e.text[en:]
-		e.mirrorDelete(s, en)
+		e.editBuffer(s, en, "")
 		e.selection = TextRange{Base: e.composingRange.Start(), Extent: e.composingRange.Start()}
 		e.pushDelta(s, deleted, "", selB, compB, true, e.selection, e.composingRange, true)
 	}
@@ -854,16 +864,16 @@ func (e *Editor) DeleteSelected() bool {
 	if e.composing && !e.selection.Collapsed() {
 		return false
 	}
-	start := byteOffsetForUtf16(e.text, e.selection.Start())
-	end := byteOffsetForUtf16(e.text, e.selection.End())
+	b := e.ensureBuf()
+	start := b.ByteOffsetForUTF16(e.selection.Start())
+	end := b.ByteOffsetForUTF16(e.selection.End())
 	if start == end {
 		return false
 	}
-	deleted := e.text[start:end]
+	deleted := b.Slice(start, end)
 	selB, compB, cB := e.selection, e.composingRange, e.composing
 	e.noteEdit(start, end, start, start)
-	e.text = e.text[:start] + e.text[end:]
-	e.mirrorDelete(start, end)
+	e.editBuffer(start, end, "")
 	off := e.selection.Start()
 	e.selection = TextRange{Base: off, Extent: off}
 	if e.composing {
@@ -895,14 +905,13 @@ func (e *Editor) AddText(text string) bool {
 	} else {
 		replaceRange = e.selection
 	}
-	startByte := byteOffsetForUtf16(e.text, replaceRange.Start())
-	endByte := byteOffsetForUtf16(e.text, replaceRange.End())
-	deleted := e.text[startByte:endByte]
+	b := e.ensureBuf()
+	startByte := b.ByteOffsetForUTF16(replaceRange.Start())
+	endByte := b.ByteOffsetForUTF16(replaceRange.End())
+	deleted := b.Slice(startByte, endByte)
 	selB, compB, cB := e.selection, e.composingRange, e.composing
 	e.noteEdit(startByte, endByte, startByte, startByte+len(text))
-	e.text = e.text[:startByte] + text + e.text[endByte:]
-	e.mirrorDelete(startByte, endByte)
-	e.mirrorInsert(startByte, text)
+	e.editBuffer(startByte, endByte, text)
 	newOff := replaceRange.Start() + utf16Len(text)
 	e.selection = TextRange{Base: newOff, Extent: newOff}
 	e.pushDelta(startByte, deleted, text, selB, compB, cB, e.selection, TextRange{}, false)
@@ -929,19 +938,19 @@ func (e *Editor) DeleteSurrounding(offset, count int) bool {
 	}
 	// F-D5/Spec: offset/count 按 code point（rune）计，surrogate 计 1。
 	// caret 为 UTF16，需经 rune 索引换算，避免劈半 surrogate（Flutter RuneCount 校准）。
+	b := e.ensureBuf()
 	caret := e.selection.Extent
-	runes := []rune(e.text)
-	runeCaret := utf16ToRuneIndex(e.text, caret)
+	runeCaret := b.UTF16ToRuneIndex(caret)
 	startRune := runeCaret + offset
 	endRune := startRune + count
 	if startRune < 0 {
 		startRune = 0
 	}
-	if endRune > len(runes) {
-		endRune = len(runes)
+	if endRune > b.RuneCount() {
+		endRune = b.RuneCount()
 	}
-	start := runeIndexToUtf16(runes, startRune)
-	end := runeIndexToUtf16(runes, endRune)
+	start := b.RuneIndexToUTF16(startRune)
+	end := b.RuneIndexToUTF16(endRune)
 	er := e.EditableRange()
 	if start < er.Start() {
 		start = er.Start()
@@ -952,16 +961,16 @@ func (e *Editor) DeleteSurrounding(offset, count int) bool {
 	if start >= end {
 		return false
 	}
-	startByte := byteOffsetForUtf16(e.text, start)
-	endByte := byteOffsetForUtf16(e.text, end)
+	bd := e.ensureBuf()
+	startByte := bd.ByteOffsetForUTF16(start)
+	endByte := bd.ByteOffsetForUTF16(end)
 	if startByte == endByte {
 		return false
 	}
-	deleted := e.text[startByte:endByte]
+	deleted := bd.Slice(startByte, endByte)
 	selB, compB, cB := e.selection, e.composingRange, e.composing
 	e.noteEdit(startByte, endByte, startByte, startByte)
-	e.text = e.text[:startByte] + e.text[endByte:]
-	e.mirrorDelete(startByte, endByte)
+	e.editBuffer(startByte, endByte, "")
 	delta := end - start
 	if offset < 0 {
 		e.selection = TextRange{Base: start, Extent: start}
@@ -1014,7 +1023,7 @@ func (e *Editor) Delete() bool {
 		return e.DeleteSelected()
 	}
 	caret := e.selection.Extent
-	if caret >= utf16Len(e.text) {
+	if caret >= e.EditableRange().End() {
 		return false
 	}
 	return e.DeleteSurrounding(0, 1)
@@ -1042,7 +1051,7 @@ func (e *Editor) MoveCursorBack() bool {
 		return false
 	}
 	caret := e.selection.Extent
-	newCu := stepRuneUTF16(e.text, caret, -1)
+	newCu, _ := e.ensureBuf().StepUTF16(caret, -1)
 	return e.SetSelection(TextRange{Base: newCu, Extent: newCu})
 }
 func (e *Editor) MoveCursorForward() bool {
@@ -1053,7 +1062,7 @@ func (e *Editor) MoveCursorForward() bool {
 		return false
 	}
 	caret := e.selection.Extent
-	newCu := stepRuneUTF16(e.text, caret, 1)
+	newCu, _ := e.ensureBuf().StepUTF16(caret, 1)
 	return e.SetSelection(TextRange{Base: newCu, Extent: newCu})
 }
 
@@ -1061,14 +1070,15 @@ func (e *Editor) MoveCursorUp() bool {
 	if e == nil {
 		return false
 	}
-	lines := splitLines(e.text)
+	b := e.ensureBuf()
 	caret := e.selection.Extent
-	idx, col := lineColForOffset(lines, e.text, caret)
-	if idx <= 0 {
+	caretByte := b.ByteOffsetForUTF16(caret)
+	line := b.LineIndex(caretByte)
+	if line <= 0 {
 		return false
 	}
-	target := idx - 1
-	off := offsetForLineCol(lines, e.text, target, col)
+	col := caret - b.UTF16OffsetAt(b.LineStart(line))
+	off := lineOffsetForCol(b, line-1, col)
 	return e.SetSelection(TextRange{Base: off, Extent: off})
 }
 
@@ -1076,57 +1086,96 @@ func (e *Editor) MoveCursorDown() bool {
 	if e == nil {
 		return false
 	}
-	lines := splitLines(e.text)
+	b := e.ensureBuf()
 	caret := e.selection.Extent
-	idx, col := lineColForOffset(lines, e.text, caret)
-	if idx >= len(lines)-1 {
+	caretByte := b.ByteOffsetForUTF16(caret)
+	line := b.LineIndex(caretByte)
+	if line >= b.LineCount()-1 {
 		return false
 	}
-	target := idx + 1
-	off := offsetForLineCol(lines, e.text, target, col)
+	col := caret - b.UTF16OffsetAt(b.LineStart(line))
+	off := lineOffsetForCol(b, line+1, col)
 	return e.SetSelection(TextRange{Base: off, Extent: off})
+}
+
+// lineOffsetForCol maps (line, UTF-16 column) to a UTF-16 offset, clamping
+// the column to the line's content (newline excluded).
+func lineOffsetForCol(b *textbuffer.Buffer, line, col int) int {
+	startU := b.UTF16OffsetAt(b.LineStart(line))
+	endByte := b.Len()
+	if line+1 < b.LineCount() {
+		endByte = b.LineStart(line+1) - 1
+	}
+	endU := b.UTF16OffsetAt(endByte)
+	if col < 0 {
+		col = 0
+	}
+	if startU+col > endU {
+		return endU
+	}
+	return startU + col
 }
 
 func (e *Editor) MoveCursorByWord(forward bool) bool {
 	if e == nil {
 		return false
 	}
-	caret := e.selection.Extent
-	runes := []rune(e.text)
-	// map utf16 caret to rune index
-	runeIdx := utf16ToRuneIndex(e.text, caret)
+	b := e.ensureBuf()
+	cur := e.selection.Extent
+	total := b.UTF16Len()
 	if forward {
-		if runeIdx >= len(runes) {
+		if cur >= total {
 			return false
 		}
-		// One word per press: inside a word stop at its end, otherwise
-		// cross the separator run and stop at the next word end.
-		if isWordChar(runes[runeIdx]) {
-			for runeIdx < len(runes) && isWordChar(runes[runeIdx]) {
-				runeIdx++
+		if isWordChar(b.RuneAtUTF16(cur)) {
+			for cur < total && isWordChar(b.RuneAtUTF16(cur)) {
+				n, ok := b.StepUTF16(cur, 1)
+				if !ok {
+					break
+				}
+				cur = n
 			}
 		} else {
-			for runeIdx < len(runes) && !isWordChar(runes[runeIdx]) {
-				runeIdx++
+			for cur < total && !isWordChar(b.RuneAtUTF16(cur)) {
+				n, ok := b.StepUTF16(cur, 1)
+				if !ok {
+					break
+				}
+				cur = n
 			}
-			for runeIdx < len(runes) && isWordChar(runes[runeIdx]) {
-				runeIdx++
+			for cur < total && isWordChar(b.RuneAtUTF16(cur)) {
+				n, ok := b.StepUTF16(cur, 1)
+				if !ok {
+					break
+				}
+				cur = n
 			}
 		}
 	} else {
-		if runeIdx <= 0 {
+		if cur <= 0 {
 			return false
 		}
-		runeIdx--
-		for runeIdx > 0 && !isWordChar(runes[runeIdx]) {
-			runeIdx--
+		n, ok := b.StepUTF16(cur, -1)
+		if !ok {
+			return false
 		}
-		for runeIdx > 0 && isWordChar(runes[runeIdx-1]) {
-			runeIdx--
+		cur = n
+		for cur > 0 && !isWordChar(b.RuneAtUTF16(cur)) {
+			n, ok := b.StepUTF16(cur, -1)
+			if !ok {
+				break
+			}
+			cur = n
+		}
+		for cur > 0 {
+			p, ok := b.StepUTF16(cur, -1)
+			if !ok || !isWordChar(b.RuneAtUTF16(p)) {
+				break
+			}
+			cur = p
 		}
 	}
-	off := runeIndexToUtf16(runes, runeIdx)
-	return e.SetSelection(TextRange{Base: off, Extent: off})
+	return e.SetSelection(TextRange{Base: cur, Extent: cur})
 }
 
 func (e *Editor) IsComposing() bool   { return e != nil && e.composing }
@@ -1141,24 +1190,35 @@ func (e *Editor) ComposingStartByte() int {
 	if e == nil || !e.composing {
 		return -1
 	}
-	return byteOffsetForUtf16(e.text, e.composingRange.Start())
+	return e.ensureBuf().ByteOffsetForUTF16(e.composingRange.Start())
 }
 func (e *Editor) ComposingEndByte() int {
 	if e == nil || !e.composing {
 		return -1
 	}
-	return byteOffsetForUtf16(e.text, e.composingRange.End())
+	return e.ensureBuf().ByteOffsetForUTF16(e.composingRange.End())
 }
 func (e *Editor) CompositionText() string {
 	if e == nil || !e.composing {
 		return ""
 	}
-	return e.text[byteOffsetForUtf16(e.text, e.composingRange.Start()):byteOffsetForUtf16(e.text, e.composingRange.End())]
+	b := e.ensureBuf()
+	return b.Slice(b.ByteOffsetForUTF16(e.composingRange.Start()), b.ByteOffsetForUTF16(e.composingRange.End()))
 }
 
 // --- convenience aliases for example/tests (pure, not legacy) ---
-func (e *Editor) Text() string { return e.GetText() }
-func (e *Editor) Cursor() int  { return e.GetCursorOffset() }
+// Text materializes the lazy cache when the buffer is in tree mode.
+func (e *Editor) Text() string {
+	if e == nil {
+		return ""
+	}
+	if e.textDirty {
+		e.text = e.ensureBuf().String()
+		e.textDirty = false
+	}
+	return e.text
+}
+func (e *Editor) Cursor() int { return e.GetCursorOffset() }
 func (e *Editor) SetTextSimple(s string) {
 	if e == nil {
 		return
@@ -1187,23 +1247,23 @@ func (e *Editor) SetCaretWithAffinity(off int, affinity int) {
 	if off < 0 {
 		off = 0
 	}
-	if off > len(e.text) {
-		off = len(e.text)
+	if off > len(e.Text()) {
+		off = len(e.Text())
 	}
 	// Snap to UAX#29 cluster boundary per affinity (M1-c), scoped to the
 	// current line so the cost is O(L), not O(n). Clusters never span \n.
 	lineStart := off
-	for lineStart > 0 && e.text[lineStart-1] != '\n' {
+	for lineStart > 0 && e.Text()[lineStart-1] != '\n' {
 		lineStart--
 	}
 	lineEnd := off
-	for lineEnd < len(e.text) && e.text[lineEnd] != '\n' {
+	for lineEnd < len(e.Text()) && e.Text()[lineEnd] != '\n' {
 		lineEnd++
 	}
-	rel := text.SnapCluster(e.text[lineStart:lineEnd], off-lineStart, affinity == AffinityDownstream)
+	rel := text.SnapCluster(e.Text()[lineStart:lineEnd], off-lineStart, affinity == AffinityDownstream)
 	off = lineStart + rel
 	cu := 0
-	for _, r := range e.text[:off] {
+	for _, r := range e.Text()[:off] {
 		if r > 0xFFFF {
 			cu += 2
 		} else {
@@ -1226,8 +1286,8 @@ func (e *Editor) stepCaretBytes(curByte, newByte int, affinity int) {
 	if newByte < 0 {
 		newByte = 0
 	}
-	if newByte > len(e.text) {
-		newByte = len(e.text)
+	if newByte > len(e.Text()) {
+		newByte = len(e.Text())
 	}
 	newUtf := e.extentForBytes(curByte, newByte)
 	e.SetSelection(TextRange{Base: newUtf, Extent: newUtf, Affinity: affinity})
@@ -1239,9 +1299,9 @@ func (e *Editor) stepCaretBytes(curByte, newByte int, affinity int) {
 func (e *Editor) extentForBytes(curByte, newByte int) int {
 	oldUtf := e.selection.Extent
 	if newByte >= curByte {
-		return oldUtf + utf16Len(e.text[curByte:newByte])
+		return oldUtf + utf16Len(e.Text()[curByte:newByte])
 	}
-	return oldUtf - utf16Len(e.text[newByte:curByte])
+	return oldUtf - utf16Len(e.Text()[newByte:curByte])
 }
 
 // extendExtentBytes moves only the selection extent by a byte step while
@@ -1254,8 +1314,8 @@ func (e *Editor) extendExtentBytes(curByte, newByte int) {
 	if newByte < 0 {
 		newByte = 0
 	}
-	if newByte > len(e.text) {
-		newByte = len(e.text)
+	if newByte > len(e.Text()) {
+		newByte = len(e.Text())
 	}
 	base := e.selection.Base
 	e.SetSelection(TextRange{Base: base, Extent: e.extentForBytes(curByte, newByte)})
@@ -1301,21 +1361,21 @@ func (e *Editor) SetSelectionBytes(s, en int) {
 	if en < 0 {
 		en = 0
 	}
-	if s > len(e.text) {
-		s = len(e.text)
+	if s > len(e.Text()) {
+		s = len(e.Text())
 	}
-	if en > len(e.text) {
-		en = len(e.text)
+	if en > len(e.Text()) {
+		en = len(e.Text())
 	}
 	cs, ce := 0, 0
-	for _, r := range e.text[:s] {
+	for _, r := range e.Text()[:s] {
 		if r > 0xFFFF {
 			cs += 2
 		} else {
 			cs++
 		}
 	}
-	for _, r := range e.text[:en] {
+	for _, r := range e.Text()[:en] {
 		if r > 0xFFFF {
 			ce += 2
 		} else {
@@ -1335,11 +1395,11 @@ func (e *Editor) View() ComposedView {
 		return ComposedView{CompStart: -1, CompEnd: -1}
 	}
 	if !e.composing {
-		return ComposedView{Display: e.text, CompStart: -1, CompEnd: -1}
+		return ComposedView{Display: e.Text(), CompStart: -1, CompEnd: -1}
 	}
-	s := byteOffsetForUtf16(e.text, e.composingRange.Start())
-	en := byteOffsetForUtf16(e.text, e.composingRange.End())
-	return ComposedView{Display: e.text, CompStart: s, CompEnd: en}
+	s := byteOffsetForUtf16(e.Text(), e.composingRange.Start())
+	en := byteOffsetForUtf16(e.Text(), e.composingRange.End())
+	return ComposedView{Display: e.Text(), CompStart: s, CompEnd: en}
 }
 func (v ComposedView) MapBufToView(off int) int {
 	if v.CompStart < 0 || off <= v.CompStart {
@@ -1380,7 +1440,7 @@ func (e *Editor) MoveCaretVertically(n int, lineCount func() int, penX func(int)
 	return false
 }
 func (e *Editor) Snapshot() (string, int) { return e.GetText(), e.GetCursorOffset() }
-func (e *Editor) LenRunes() int           { return len([]rune(e.text)) }
+func (e *Editor) LenRunes() int           { return len([]rune(e.Text())) }
 func (e *Editor) Copy() string {
 	if e == nil || e.selection.Collapsed() {
 		return ""
@@ -1389,7 +1449,7 @@ func (e *Editor) Copy() string {
 	if e.isPassword {
 		ch := e.ObscuringCharacter()
 		selLen := e.selection.Length()
-		raw := e.text[byteOffsetForUtf16(e.text, e.selection.Start()):byteOffsetForUtf16(e.text, e.selection.End())]
+		raw := e.Text()[byteOffsetForUtf16(e.Text(), e.selection.Start()):byteOffsetForUtf16(e.Text(), e.selection.End())]
 		n := len([]rune(raw))
 		if n == 0 {
 			n = selLen
@@ -1413,7 +1473,7 @@ func (e *Editor) Copy() string {
 	if en > er.End() {
 		en = er.End()
 	}
-	return e.text[byteOffsetForUtf16(e.text, s):byteOffsetForUtf16(e.text, en)]
+	return e.Text()[byteOffsetForUtf16(e.Text(), s):byteOffsetForUtf16(e.Text(), en)]
 }
 func (e *Editor) Cut() string {
 	if e == nil || e.readOnly {
@@ -1428,9 +1488,9 @@ func (e *Editor) Paste(s string) bool {
 	if e == nil || e.readOnly || s == "" {
 		return false
 	}
-	before := e.text
+	before := e.Text()
 	e.AddText(s)
-	return e.text != before
+	return e.Text() != before
 }
 func (e *Editor) SelectAll() { e.SetSelection(e.TextRange()) }
 func (e *Editor) SelectionRange() TextRange {
@@ -1442,44 +1502,38 @@ func (e *Editor) SelectionRange() TextRange {
 
 // SelectLineAt selects the line containing byteOff (for triple-click).
 func (e *Editor) SelectLineAt(byteOff int) bool {
-	if e == nil || e.text == "" {
+	if e == nil {
+		return false
+	}
+	b := e.ensureBuf()
+	if b.Len() == 0 {
 		return false
 	}
 	if byteOff < 0 {
 		byteOff = 0
 	}
-	if byteOff > len(e.text) {
-		byteOff = len(e.text)
+	if byteOff > b.Len() {
+		byteOff = b.Len()
 	}
-	for byteOff > 0 && byteOff < len(e.text) && (e.text[byteOff]&0xC0) == 0x80 {
+	for byteOff > 0 && byteOff < b.Len() && (b.ByteAt(byteOff)&0xC0) == 0x80 {
 		byteOff--
 	}
-	// find line start/end in utf16
-	accBytes := 0
-	accUnits := 0
-	lines := splitLines(e.text)
-	for _, ln := range lines {
-		lnBytes := len(ln)
-		lineStartByte := accBytes
-		lineEndByte := accBytes + lnBytes
-		// include '\n' break after line except last
-		if byteOff >= lineStartByte && byteOff <= lineEndByte {
-			cs := accUnits
-			ce := accUnits + utf16Len(ln)
-			er := e.EditableRange()
-			if cs < er.Start() {
-				cs = er.Start()
-			}
-			if ce > er.End() {
-				ce = er.End()
-			}
-			return e.SetSelection(TextRange{Base: cs, Extent: ce})
-		}
-		accBytes += lnBytes + 1 // '\n'
-		accUnits += utf16Len(ln) + 1
+	line := b.LineIndex(byteOff)
+	startByte := b.LineStart(line)
+	endByte := b.Len()
+	if line+1 < b.LineCount() {
+		endByte = b.LineStart(line+1) - 1
 	}
-	e.SelectAll()
-	return true
+	cs := b.UTF16OffsetAt(startByte)
+	ce := b.UTF16OffsetAt(endByte)
+	er := e.EditableRange()
+	if cs < er.Start() {
+		cs = er.Start()
+	}
+	if ce > er.End() {
+		ce = er.End()
+	}
+	return e.SetSelection(TextRange{Base: cs, Extent: ce})
 }
 
 // utf16ForByte returns utf16 offset for a byte offset (clamped to rune boundary).
@@ -1490,14 +1544,14 @@ func (e *Editor) utf16ForByte(byteOff int) int {
 	if byteOff <= 0 {
 		return 0
 	}
-	if byteOff >= len(e.text) {
-		return utf16Len(e.text)
+	if byteOff >= len(e.Text()) {
+		return utf16Len(e.Text())
 	}
-	for byteOff > 0 && byteOff < len(e.text) && (e.text[byteOff]&0xC0) == 0x80 {
+	for byteOff > 0 && byteOff < len(e.Text()) && (e.Text()[byteOff]&0xC0) == 0x80 {
 		byteOff--
 	}
 	n := 0
-	for _, r := range e.text[:byteOff] {
+	for _, r := range e.Text()[:byteOff] {
 		if r > 0xFFFF {
 			n += 2
 		} else {
@@ -1505,61 +1559,6 @@ func (e *Editor) utf16ForByte(byteOff int) int {
 		}
 	}
 	return n
-}
-
-func splitLines(s string) []string {
-	if s == "" {
-		return []string{""}
-	}
-	var lines []string
-	start := 0
-	for i, r := range s {
-		if r == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	lines = append(lines, s[start:])
-	return lines
-}
-
-func lineColForOffset(lines []string, text string, off int) (int, int) {
-	if len(lines) == 0 {
-		return 0, 0
-	}
-	acc := 0
-	for i, ln := range lines {
-		lnUnits := utf16Len(ln)
-		if off <= acc+lnUnits {
-			return i, off - acc
-		}
-		acc += lnUnits + 1 // '\n' is 1 unit
-		if i == len(lines)-1 {
-			return i, lnUnits
-		}
-	}
-	return len(lines) - 1, utf16Len(lines[len(lines)-1])
-}
-
-func offsetForLineCol(lines []string, text string, line, col int) int {
-	if line < 0 {
-		line = 0
-	}
-	if line >= len(lines) {
-		line = len(lines) - 1
-	}
-	acc := 0
-	for i := 0; i < line; i++ {
-		acc += utf16Len(lines[i]) + 1
-	}
-	lnUnits := utf16Len(lines[line])
-	if col < 0 {
-		col = 0
-	}
-	if col > lnUnits {
-		col = lnUnits
-	}
-	return acc + col
 }
 
 func utf16ToRuneIndex(s string, utf16Off int) int {
@@ -1579,24 +1578,6 @@ func utf16ToRuneIndex(s string, utf16Off int) int {
 	return idx
 }
 
-func runeIndexToUtf16(runes []rune, idx int) int {
-	if idx < 0 {
-		idx = 0
-	}
-	if idx > len(runes) {
-		idx = len(runes)
-	}
-	n := 0
-	for _, r := range runes[:idx] {
-		if r > 0xFFFF {
-			n += 2
-		} else {
-			n++
-		}
-	}
-	return n
-}
-
 func isWordChar(r rune) bool {
 	if r >= 0x4E00 && r <= 0x9FFF {
 		return true
@@ -1607,27 +1588,27 @@ func isWordChar(r rune) bool {
 	return (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_'
 }
 func (e *Editor) SelectWordAt(byteOff int) bool {
-	if e == nil || e.text == "" {
+	if e == nil || e.Text() == "" {
 		return false
 	}
 	if byteOff < 0 {
 		byteOff = 0
 	}
-	if byteOff > len(e.text) {
-		byteOff = len(e.text)
+	if byteOff > len(e.Text()) {
+		byteOff = len(e.Text())
 	}
 	// Snap to rune start
-	for byteOff > 0 && byteOff < len(e.text) && (e.text[byteOff]&0xC0) == 0x80 {
+	for byteOff > 0 && byteOff < len(e.Text()) && (e.Text()[byteOff]&0xC0) == 0x80 {
 		byteOff--
 	}
 	// Find rune index
 	runeIdx := 0
-	for i := range e.text[:byteOff] {
-		if (e.text[i] & 0xC0) != 0x80 {
+	for i := range e.Text()[:byteOff] {
+		if (e.Text()[i] & 0xC0) != 0x80 {
 			runeIdx++
 		}
 	}
-	runes := []rune(e.text)
+	runes := []rune(e.Text())
 	if runeIdx >= len(runes) {
 		runeIdx = len(runes) - 1
 	}

@@ -16,14 +16,14 @@ func (e *Editor) ApplyIME(ev input.IMEEvent) bool {
 	if e == nil {
 		return false
 	}
-	before := e.text
+	before := e.docVersion
 	switch ev.Kind {
 	case input.IMECompose:
 		if ev.Text == "" {
 			if e.composing {
 				e.EndComposing()
 			}
-			return e.text != before
+			return e.docVersion != before
 		}
 		was := e.composing
 		if !was {
@@ -50,43 +50,44 @@ func (e *Editor) ApplyIME(ev input.IMEEvent) bool {
 			afterBytes = 0
 		}
 		// F-D5: 平台 delete_surrounding 的 before/after 为 UTF8 字节数，需按 code point 换算，RuneStart 吸附避免劈半
-		caretByte := byteOffsetForUtf16(e.text, e.selection.Extent)
+		b := e.ensureBuf()
+		caretByte := b.ByteOffsetForUTF16(e.selection.Extent)
 		beforeRunes := 0
 		if beforeBytes > 0 {
 			start := caretByte - beforeBytes
 			if start < 0 {
 				start = 0
 			}
-			for start > 0 && start < len(e.text) && (e.text[start]&0xC0) == 0x80 {
+			for start > 0 && start < b.Len() && (b.ByteAt(start)&0xC0) == 0x80 {
 				start--
 			}
 			if start < caretByte {
-				beforeRunes = len([]rune(e.text[start:caretByte]))
+				beforeRunes = len([]rune(b.Slice(start, caretByte)))
 			}
 		}
 		afterRunes := 0
 		if afterBytes > 0 {
 			end := caretByte + afterBytes
-			if end > len(e.text) {
-				end = len(e.text)
+			if end > b.Len() {
+				end = b.Len()
 			}
-			for end > caretByte && end < len(e.text) && (e.text[end]&0xC0) == 0x80 {
+			for end > caretByte && end < b.Len() && (b.ByteAt(end)&0xC0) == 0x80 {
 				end--
 			}
 			if end > caretByte {
-				afterRunes = len([]rune(e.text[caretByte:end]))
+				afterRunes = len([]rune(b.Slice(caretByte, end)))
 			}
 		}
 		e.DeleteSurrounding(-beforeRunes, beforeRunes+afterRunes)
 	}
-	return e.text != before
+	return e.docVersion != before
 }
 
 func (e *Editor) ApplyText(ev input.TextEvent) bool {
 	if e == nil || ev.Text == "" {
 		return false
 	}
-	before := e.text
+	before := e.docVersion
 	e.AddText(ev.Text)
-	return e.text != before
+	return e.docVersion != before
 }

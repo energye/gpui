@@ -36,7 +36,7 @@ func (e *Editor) ToDelta(oldText string, oldSel, oldComp TextRange) TextEditingD
 	if e == nil {
 		return TextEditingDelta{DeltaStart: -1}
 	}
-	if e.text == oldText {
+	if e.Text() == oldText {
 		if e.selection != oldSel || e.composingRange != oldComp {
 			return TextEditingDelta{OldText: oldText, DeltaStart: -1, Selection: e.selection, Composing: e.composingRange}
 		}
@@ -44,7 +44,7 @@ func (e *Editor) ToDelta(oldText string, oldSel, oldComp TextRange) TextEditingD
 	}
 	// Find first differing index
 	oldRunes := []rune(oldText)
-	newRunes := []rune(e.text)
+	newRunes := []rune(e.Text())
 	i := 0
 	for i < len(oldRunes) && i < len(newRunes) && oldRunes[i] == newRunes[i] {
 		i++
@@ -86,14 +86,14 @@ func (e *Editor) ApplyDelta(d TextEditingDelta) bool {
 		return false
 	}
 	if d.IsNonTextUpdate() {
-		if d.OldText != e.text {
+		if d.OldText != e.Text() {
 			return false
 		}
 		e.selection = d.Selection
 		e.composingRange = d.Composing
 		e.composing = d.Composing.Length() > 0
 		e.changed()
-		e.lastFrameworkText = e.text
+		e.lastFrameworkText = e.Text()
 		e.lastFrameworkSel = e.selection
 		e.lastFrameworkComp = e.composingRange
 		return true
@@ -120,13 +120,12 @@ func (e *Editor) ApplyDelta(d TextEditingDelta) bool {
 		endByte--
 	}
 	newText := d.OldText[:startByte] + d.DeltaText + d.OldText[endByte:]
-	e.text = newText
-	e.mirrorRebuild()
+	e.setDoc(newText)
 	e.selection = clampRangeForText(newText, d.Selection)
 	e.composingRange = clampRangeForText(newText, d.Composing)
 	e.composing = e.composingRange.Length() > 0
 	e.changed()
-	e.lastFrameworkText = e.text
+	e.lastFrameworkText = e.Text()
 	e.lastFrameworkSel = e.selection
 	e.lastFrameworkComp = e.composingRange
 	return true

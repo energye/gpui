@@ -251,10 +251,15 @@ func TestEditorBufferUndoShrinkReleasesMirror_M35(t *testing.T) {
 		t.Fatalf("setup: deletes did not shrink below 32KB len=%d", len(d.GetText()))
 	}
 	if d.bufOn {
-		t.Fatalf("sub-32KB incremental shrink must release mirror, mode=%s", d.buf.Mode())
+		t.Fatalf("sub-32KB incremental shrink must release mirror flag, mode=%s", d.buf.Mode())
 	}
-	if got := d.buf; got != nil {
-		t.Fatalf("released mirror must be nil")
+	// D2: buffer is the single document truth and must stay alive; only the
+	// tree downgrades back to plain-string mode below the hysteresis floor.
+	if d.buf == nil {
+		t.Fatalf("buffer must stay alive as the document truth")
+	}
+	if mode := d.buf.Mode(); mode != "string" {
+		t.Fatalf("sub-32KB shrink must downgrade to string, mode=%s", mode)
 	}
 }
 
