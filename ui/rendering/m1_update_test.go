@@ -135,13 +135,13 @@ func TestPatchIndex_InPlace_RV(t *testing.T) {
 			t.Fatalf("第%d行顶%.2f,直接%.2f", i, l2.LineTop(i), want.LineTop(i))
 		}
 	}
-	// 行数变化仍走重建:对象换新,值正确.
+	// 行数变化就地插入/删除索引项(Flutter式整段重建);对象可复用,值必须正确.
 	doc3 := "aaa\nBBXb\nccc\nNEW\nddd\neee"
 	l3 := c.update(doc3, nil, 14, 0, 1.2, 0.55, 0, TextOverflowClip)
-	if c.live.idx == before {
-		t.Fatalf("行数变化应重建索引,对象没换")
-	}
 	want3 := BuildTextLayout(doc3, nil, 14, 0, 1.2)
+	if c.live.idx.n != want3.LineCount() {
+		t.Fatalf("行数变化后索引行数%d want %d", c.live.idx.n, want3.LineCount())
+	}
 	if !m1CacheLinesEqual(l3, want3) {
 		t.Fatalf("重建索引下快照与直接构建不一致")
 	}

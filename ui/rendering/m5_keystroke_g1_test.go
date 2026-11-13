@@ -108,3 +108,59 @@ func TestKeystrokeRatio_M5(t *testing.T) {
 		}
 	}
 }
+
+// m5TimeRowCountKeystroke测行数变化编辑(插入换行再删回):Flutter对文本变化
+// 整段重建版面(O(n)),本引擎同口径,不逐行插入;这里只锁常量上限.
+func m5TimeRowCountKeystroke(t *testing.T, n, reps int) time.Duration {
+	t.Helper()
+	base := m1BenchDoc(n, 36)
+	mid := len(base) / 2
+	for mid < len(base) && base[mid] == '\n' {
+		mid++
+	}
+	withNL := base[:mid] + "\n" + base[mid:]
+	rt := NewRenderText(base)
+	_ = rt.TextLayout()
+	apply := func(toNL bool) {
+		if toNL {
+			rt.SetTextSpan(withNL, mid, mid, mid, mid+1)
+		} else {
+			rt.SetTextSpan(base, mid, mid+1, mid, mid)
+		}
+		_ = rt.TextLayout()
+	}
+	for i := 0; i < 200; i++ {
+		apply(i%2 == 0)
+	}
+	runtime.GC()
+	h0, m0 := rt.lcache.live.spansHit, rt.lcache.live.spansMiss
+	start := time.Now()
+	for i := 0; i < reps; i++ {
+		apply(i%2 == 0)
+	}
+	if got := rt.lcache.live.spansHit - h0; got != reps {
+		t.Fatalf("行数编辑应全走span增量,实际命中%d/%d", got, reps)
+	}
+	if rt.lcache.live.spansMiss != m0 {
+		t.Fatalf("行数编辑不应回退,miss=%d", rt.lcache.live.spansMiss-m0)
+	}
+	return time.Since(start) / time.Duration(reps)
+}
+
+// TestRowCountEditBound_M5:O(n)整段重建的绝对上限(1e6档≤2ms,1e5档≤500µs).
+// 比值门禁不适用:行数变化天然是线性重建,Flutter同样整段重排.
+func TestRowCountEditBound_M5(t *testing.T) {
+	var big, mid []time.Duration
+	for i := 0; i < 5; i++ {
+		big = append(big, m5TimeRowCountKeystroke(t, 1000000, 100))
+		mid = append(mid, m5TimeRowCountKeystroke(t, 100000, 200))
+	}
+	dBig, dMid := m1Median(big), m1Median(mid)
+	t.Logf("回车/跨行删: 1e6=%v 1e5=%v", dBig, dMid)
+	if dBig > 2*time.Millisecond {
+		t.Fatalf("1e6行数变化编辑%v超上限2ms", dBig)
+	}
+	if dMid > 500*time.Microsecond {
+		t.Fatalf("1e5行数变化编辑%v超上限500µs", dMid)
+	}
+}

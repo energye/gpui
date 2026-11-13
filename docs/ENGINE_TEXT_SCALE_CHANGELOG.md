@@ -299,3 +299,30 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - 真字体（face!=nil）插入路径未单独测量；本次测量沿用门禁的 nil-face 估算配置。
 - `-race` 未跑：仓库禁 CGO，`go test -race` 直接拒绝。
 - accept 真窗本轮未复跑；改动集中在布局增量层，13 裁判 + 三个整包 + 查询口等价性已覆盖。
+
+## 行数变化编辑（回车/跨行删）收口（2026-11-13 · 同按 Flutter 口径）
+
+### 标准对齐
+
+- Flutter 对任意文本变化整段重建版面（`markNeedsLayout` → `layout()` → `paragraph.layout`，text_painter.dart:781-789、1218-1271），**没有** rope/间隙式增量行表。
+- 因此本项不引入 Flutter 没有的结构，保持 O(n) 整段重建口径，只把常量压小、并用绝对上限守门。
+
+### 改动
+
+- `line_shift.go`：`rowShift` 增 `diff` 事件数组；新增 `drain()`（O(n) 前缀烘焙）、`reshape()`（把旧事件映射到新行数：删除区间、插入 f 行、tail 整体 +delta）、`rebuild()`（O(n) 重建 Fenwick）。
+- `layout_update.go` 行数变化路径：删除 `make + 两次 append` 整表拼装与 tail 逐行平移，改为**就地 splice**（单次 memmove，删除时 `clear` 尾部引用）；偏移交给 `reshape`；`patchIndex` 改为就地插入/删除 starts/ends/tops，只有行高变化才平移 tail 行顶。
+- `compactOffsets` 改用 `drain()` 前缀烘焙，只作为“替换区含旧事件”的兜底。
+- 测试：`TestRowShift_Reshape` 三个字面用例锁映射；`TestRowCountEditBound_M5` 绝对上限门禁；`TestPatchIndex_InPlace_RV` 的“行数变化必须换索引对象”改为值一致断言（就地插入是本次有意口径）。
+
+### 证据
+
+- 行数变化（插入换行再删回，2000 次均值）：1e3 12.6µs→2.6µs；1e4 34.1µs→16.0µs；1e5 405µs→70.9µs；1e6 **3.32ms→1.08ms**（Wrap 模式 3.15ms→1.07ms）。
+- 门禁：`TestRowCountEditBound_M5` 五轮中位数 1e6 **0.98–1.10ms**（上限 2ms）、1e5 **59–112µs**（上限 500µs），PASS。
+- 字符编辑门禁未退化：`TestKeystrokeRatio_M5` 3 连跑全绿。
+- 等价性：`TestLineShift_Compaction_M5`（含删换行触发事件边界）、`TestLayoutUpdate_*`、`TestLayoutCache_Equiv_M1` 全绿；13 老裁判、`ui/rendering`/`ui/textinput`/`ui/textbuffer` 整包全绿。
+
+### 诚实项
+
+- 仍是 O(n)：1e6 约 1ms，剩余 54% 是行表尾部 memmove（含 GC 写屏障）；要再降需要 Flutter 没有的块/间隙行表，本轮不做。
+- 1e5 整包跑时 `TestCaretBuild_NoQuadratic` 曾误报一次（已知负载敏感，单跑 PASS；与本次改动路径无关）。
+- accept 真窗未复跑；真字体行数变化路径未单独测。

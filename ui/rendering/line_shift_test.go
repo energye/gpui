@@ -47,3 +47,33 @@ func TestRowShift_ClampAndNil(t *testing.T) {
 		t.Fatalf("越界索引应钳到末行, got %d", got)
 	}
 }
+
+func TestRowShift_Reshape(t *testing.T) {
+	check := func(label string, r *rowShift, want []int) {
+		t.Helper()
+		if r == nil {
+			t.Fatalf("%s: reshape返回nil", label)
+		}
+		for i, w := range want {
+			if got := r.at(i); got != w {
+				t.Fatalf("%s 第%d行=%d want %d", label, i, got, w)
+			}
+		}
+	}
+	s := newRowShift(5)
+	s.addSuffix(2, 3) // [0,0,3,3,3]
+	// 替换第2行为1条新行,文本+1:新行shift=3,旧3/4行(3)→4.
+	check("insert1", s.reshape(2, 2, 1, 5, 1), []int{0, 0, 3, 4, 4})
+
+	s2 := newRowShift(5)
+	s2.addSuffix(2, 3)
+	s2.addSuffix(4, 1) // [0,0,3,3,4]
+	// 删第2/3行,文本-2:旧4行(4)成为新2行,shift=4-2=2.
+	check("delete2", s2.reshape(2, 3, 0, 3, -2), []int{0, 0, 2})
+
+	s3 := newRowShift(5)
+	s3.addSuffix(2, 3)
+	s3.addSuffix(4, 1) // [0,0,3,3,4]
+	// 替换第2行为1条新行,文本+1:新2=3,旧3(3)→4,旧4(4)→5.
+	check("insertWithTailEvent", s3.reshape(2, 2, 1, 5, 1), []int{0, 0, 3, 4, 5})
+}

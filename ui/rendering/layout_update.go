@@ -378,26 +378,33 @@ func (c *layoutCache) patchRows(textStr string, oldA, oldB, newA, newB, delta in
 		lv.lastRow, lv.lastOK = lo, lo == hi
 		return true
 	}
-	// 行数变化:结构性编辑,先烘焙偏移再按绝对偏移整表拼装.
-	c.compactOffsets()
-	// 拼装:保留[0,lo),替换[lo,hi]为fresh,保留(hi,]并平移.
-	rows := make([]TextLayoutLine, 0, len(lv.rows)-(hi-lo+1)+len(fresh))
-	marks := make([]uint64, 0, len(lv.marks)-(hi-lo+1)+len(freshMarks))
-	rows = append(rows, lv.rows[:lo]...)
-	marks = append(marks, lv.marks[:lo]...)
-	rows = append(rows, fresh...)
-	marks = append(marks, freshMarks...)
-	tailStart := len(rows)
-	if hi+1 < len(lv.rows) {
-		rows = append(rows, lv.rows[hi+1:]...)
-		marks = append(marks, lv.marks[hi+1:]...)
+	// 行数变化:Flutter式整段重建(O(n));就地splice,偏移由增量树映射,
+	// 不烘焙整表、不逐行平移.
+	oldN := len(lv.rows)
+	f := len(fresh)
+	remove := hi - lo + 1
+	newN := oldN - remove + f
+	subRowShift(fresh, sLo)
+	if newN > oldN {
+		grow := newN - oldN
+		lv.rows = append(lv.rows, make([]TextLayoutLine, grow)...)
+		lv.marks = append(lv.marks, make([]uint64, grow)...)
+		copy(lv.rows[hi+1+grow:], lv.rows[hi+1:oldN])
+		copy(lv.marks[hi+1+grow:], lv.marks[hi+1:oldN])
+	} else if newN < oldN {
+		copy(lv.rows[lo+f:], lv.rows[hi+1:oldN])
+		copy(lv.marks[lo+f:], lv.marks[hi+1:oldN])
+		clear(lv.rows[newN:oldN])
+		lv.rows = lv.rows[:newN]
+		lv.marks = lv.marks[:newN]
 	}
-	lv.rows = rows
-	lv.marks = marks
-	for i := tailStart; i < len(lv.rows); i++ {
-		lv.rows[i].StartByte += delta
-		lv.rows[i].EndByte += delta
-		lv.rows[i].clusters = nil
+	copy(lv.rows[lo:lo+f], fresh)
+	copy(lv.marks[lo:lo+f], freshMarks)
+	if lv.shift != nil {
+		lv.shift = lv.shift.reshape(lo, hi, f, newN, delta)
+	} else if delta != 0 && newN > 0 {
+		lv.shift = newRowShift(newN)
+		lv.shift.addSuffix(lo+f, delta)
 	}
 	c.patchIndex(lo, hi, fresh, removedH, delta)
 	lv.lastOK = false
@@ -422,19 +429,24 @@ func (c *layoutCache) compactOffsets() {
 	if lv.shift == nil {
 		return
 	}
-	for i := range lv.rows {
-		if s := lv.shift.at(i); s != 0 {
+	pre := lv.shift.drain()
+	n := len(lv.rows)
+	if len(pre) < n {
+		n = len(pre)
+	}
+	for i := 0; i < n; i++ {
+		if s := pre[i]; s != 0 {
 			lv.rows[i].StartByte += s
 			lv.rows[i].EndByte += s
 		}
 	}
 	if lv.idx != nil {
-		n := lv.idx.n
-		if n > len(lv.rows) {
-			n = len(lv.rows)
+		m := lv.idx.n
+		if m > n {
+			m = n
 		}
-		for i := 0; i < n; i++ {
-			if s := lv.shift.at(i); s != 0 {
+		for i := 0; i < m; i++ {
+			if s := pre[i]; s != 0 {
 				lv.idx.starts[i] += s
 				lv.idx.ends[i] += s
 			}
@@ -487,38 +499,50 @@ func (c *layoutCache) patchIndex(lo, hi int, fresh []TextLayoutLine, removedH fl
 		old.last = old.starts[old.n-1]
 		return
 	}
-	idx := &lineIndex{n: n, first: -1, last: -1}
-	idx.starts = make([]int, 0, n)
-	idx.ends = make([]int, 0, n)
-	idx.tops = make([]float64, 0, n)
-	idx.starts = append(idx.starts, old.starts[:lo]...)
-	idx.ends = append(idx.ends, old.ends[:lo]...)
-	idx.tops = append(idx.tops, old.tops[:lo]...)
+	// 行数变化:就地插入/删除索引项;tail字符偏移交给rowShift,
+	// 只有行高变化才平移tail行顶(整段重建,O(n)一次).
+	f := len(fresh)
+	oldN := old.n
+	if n > oldN {
+		grow := n - oldN
+		old.starts = append(old.starts, make([]int, grow)...)
+		old.ends = append(old.ends, make([]int, grow)...)
+		old.tops = append(old.tops, make([]float64, grow)...)
+		copy(old.starts[hi+1+grow:], old.starts[hi+1:oldN])
+		copy(old.ends[hi+1+grow:], old.ends[hi+1:oldN])
+		copy(old.tops[hi+1+grow:], old.tops[hi+1:oldN])
+	} else if n < oldN {
+		copy(old.starts[lo+f:], old.starts[hi+1:oldN])
+		copy(old.ends[lo+f:], old.ends[hi+1:oldN])
+		copy(old.tops[lo+f:], old.tops[hi+1:oldN])
+		old.starts = old.starts[:n]
+		old.ends = old.ends[:n]
+		old.tops = old.tops[:n]
+	}
 	top := 0.0
-	if lo > 0 {
+	if lo > 0 && lo < oldN {
 		top = old.tops[lo]
 	}
-	idx.totalH = old.totalH - removedH
 	freshH := 0.0
-	for _, r := range fresh {
+	for k, r := range fresh {
+		old.starts[lo+k] = r.StartByte
+		old.ends[lo+k] = r.EndByte
+		old.tops[lo+k] = top
+		top += r.Height
 		freshH += r.Height
 	}
-	for _, r := range fresh {
-		idx.starts = append(idx.starts, r.StartByte)
-		idx.ends = append(idx.ends, r.EndByte)
-		idx.tops = append(idx.tops, top)
-		top += r.Height
-		idx.totalH += r.Height
+	if hshift := freshH - removedH; hshift != 0 {
+		for i := lo + f; i < n; i++ {
+			old.tops[i] += hshift
+		}
 	}
-	shift := freshH - removedH
-	for i := hi + 1; i < old.n; i++ {
-		idx.starts = append(idx.starts, old.starts[i]+delta)
-		idx.ends = append(idx.ends, old.ends[i]+delta)
-		idx.tops = append(idx.tops, old.tops[i]+shift)
+	old.n = n
+	old.totalH = old.totalH - removedH + freshH
+	if n > 0 {
+		old.first = old.starts[0]
+		old.last = old.starts[n-1]
 	}
-	idx.first = idx.starts[0]
-	idx.last = idx.starts[len(idx.starts)-1]
-	lv.idx = idx
+	lv.idx = old
 }
 
 // rowSpan/wrapSpan/estSpan为变化区局部构建(调用方已切分为硬段并变基到
