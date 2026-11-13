@@ -145,6 +145,16 @@ func (t *RenderText) SetVirtualSource(src LineSource) {
 	t.virtual = true
 }
 
+// SetVirtualView shares a caller-owned viewport view (Box metrics + paint
+// use the same materialized lines).
+func (t *RenderText) SetVirtualView(v *TextViewport) {
+	if t == nil {
+		return
+	}
+	t.vtext = v
+	t.virtual = v != nil
+}
+
 // ClearVirtualSource returns to the full TextLayout paint path.
 func (t *RenderText) ClearVirtualSource() {
 	if t == nil {

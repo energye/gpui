@@ -83,6 +83,11 @@ type Box struct {
 	dragLastX         float64
 	dragLastY         float64
 	autoScrollRunning bool
+	// 大文档视口模式（V2b-2b-1）：只物化可见行；选区/IME 时退回全量。
+	vtext     *rendering.TextViewport
+	vtextVer  uint64
+	virtualOn bool
+	lastMaxW  float64
 }
 
 // Old shell names are aliases of the single Box: one implementation,
@@ -711,7 +716,7 @@ func (b *Box) caretAnchor() (x, top, bottom float64, ok bool) {
 		}
 		return rx, rtop, rbottom, true
 	}
-	if b.txt.Text == "" {
+	if b.ed.ensureBuf().Len() == 0 {
 		return toOwner(off.X, off.Y, off.Y+lh)
 	}
 	// Password: caret follows the mask seams, not source bytes.
@@ -737,6 +742,23 @@ func (b *Box) caretAnchor() (x, top, bottom float64, ok bool) {
 	}
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
+	if b.virtualOn && b.vtext != nil {
+		buf := b.ed.ensureBuf()
+		if curByte < 0 {
+			curByte = 0
+		}
+		if curByte > buf.Len() {
+			curByte = buf.Len()
+		}
+		line := buf.LineIndex(curByte)
+		top := off.Y + b.vtext.LineTop(line)
+		if vl, ok := b.vtext.Line(line); ok {
+			if cx, cy, chh, ok := vl.Layout.GetOffsetForCaret(curByte-buf.LineStart(line), aff, 1.5); ok {
+				return toOwner(off.X+cx, top+cy, top+cy+chh)
+			}
+		}
+		return toOwner(off.X, top, top+lh)
+	}
 	if lay := b.txt.TextLayout(); lay != nil && lay.LineCount() > 0 {
 		if cx, cy, chh, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
 			return toOwner(off.X+cx, off.Y+cy, off.Y+cy+chh)
@@ -803,6 +825,118 @@ func (b *Box) IMERect() platform.Rect {
 
 func (b *Box) Sync() { b.sync() }
 
+const virtualTextMinBytes = 64 * 1024
+
+// canVirtual reports whether the box can use the viewport line model:
+// multi-line, no wrap, collapsed selection, not composing/password, large doc.
+func (b *Box) canVirtual() bool {
+	if b == nil || b.ed == nil || b.txt == nil || !b.multi || b.wrap {
+		return false
+	}
+	if b.ed.IsPassword() || b.ed.IsComposing() {
+		return false
+	}
+	if !b.ed.SelectionRange().Collapsed() {
+		return false
+	}
+	return b.ed.ensureBuf().Len() >= virtualTextMinBytes
+}
+
+func (b *Box) ensureVirtual() *rendering.TextViewport {
+	b.ed.ensureBuf()
+	if b.vtext == nil {
+		b.vtext = rendering.NewTextViewport(editorLineSource{ed: b.ed}, b.txt.Face, b.txt.FontSize, b.txt.LineSpacing, 0)
+		b.vtextVer = 0
+	}
+	if b.vtextVer != b.ed.docVersion {
+		b.vtext.Invalidate()
+		b.vtextVer = b.ed.docVersion
+	}
+	b.txt.SetVirtualView(b.vtext)
+	b.virtualOn = true
+	return b.vtext
+}
+
+func (b *Box) disableVirtual() {
+	if b == nil {
+		return
+	}
+	if b.virtualOn {
+		b.txt.ClearVirtualSource()
+		b.virtualOn = false
+	}
+}
+
+// syncVirtual computes caret/scroll metrics from the buffer + viewport view
+// without building a full TextDocument layout.
+func (b *Box) syncVirtual() {
+	v := b.ensureVirtual()
+	b.txt.SetMaxWidth(0)
+	pad := b.Padding()
+	buf := b.ed.ensureBuf()
+	curByte := b.ed.GetCursorOffset()
+	if curByte < 0 {
+		curByte = 0
+	}
+	if curByte > buf.Len() {
+		curByte = buf.Len()
+	}
+	line := buf.LineIndex(curByte)
+	lineStart := buf.LineStart(line)
+	local := curByte - lineStart
+	aff := b.ed.TextRange().Affinity
+	lh := b.txt.LineHeight()
+	if lh <= 0 {
+		lh = 22
+	}
+	m := scrollMetrics{pad: pad, multi: true, margin: b.caretMargin()}
+	m.visW = b.FixedWidth - 2*pad
+	m.visH = b.FixedHeight - 2*pad
+	if m.visW < 0 {
+		m.visW = 0
+	}
+	if m.visH < 0 {
+		m.visH = 0
+	}
+	m.totalH = v.TotalHeight()
+	m.maxW = m.visW
+	m.lineH = lh
+	m.caretY = v.LineTop(line)
+	if vl, ok := v.Line(line); ok {
+		if vl.Height > 0 {
+			m.lineH = vl.Height
+		}
+		if x, y, h, ok := vl.Layout.GetOffsetForCaret(local, aff, 1.5); ok {
+			m.caretX = x
+			m.caretY = v.LineTop(line) + y
+			if h > 0 {
+				m.lineH = h
+			}
+		}
+		if vl.Width > m.maxW {
+			m.maxW = vl.Width
+		}
+	}
+	b.lastMaxW = m.maxW
+	b.ensureVisible(m)
+}
+
+func (b *Box) virtualByteAt(x, y float64) int {
+	if b == nil || b.vtext == nil {
+		return 0
+	}
+	line := b.vtext.LineAtY(y)
+	vl, ok := b.vtext.Line(line)
+	if !ok {
+		return 0
+	}
+	off, _ := vl.Layout.GetPositionForOffset(x, y-b.vtext.LineTop(line))
+	if off < 0 {
+		off = 0
+	}
+	return vl.Start + off
+}
+
 func (b *Box) sync() {
 	if b == nil || b.txt == nil || b.ed == nil {
 		return
@@ -810,7 +944,18 @@ func (b *Box) sync() {
 	if b.useViewport && (b.Viewport == nil || b.content == nil) {
 		return
 	}
-	rawEmpty := b.ed.GetText() == ""
+	if b.canVirtual() {
+		b.syncVirtual()
+		b.caretOn = true
+		b.blinkElapsed = 0
+		b.layoutCaret()
+		if b.sched != nil {
+			b.sched()
+		}
+		return
+	}
+	b.disableVirtual()
+	rawEmpty := b.ed.ensureBuf().Len() == 0
 	disp := syncBoxText(b.txt, b.ed, b.placeholder, rawEmpty && !b.focused && b.placeholder != "")
 	if rawEmpty {
 		b.clear()
@@ -1124,9 +1269,11 @@ func (b *Box) OnPointer(ev input.PointerEvent) {
 		if b.Node != nil {
 			b.Node.RequestFocus()
 		}
-		lay := b.txt.TextLayout()
 		var byteOff, aff int
-		if lay != nil {
+		if b.virtualOn && b.vtext != nil {
+			byteOff = b.virtualByteAt(localX, localY)
+			aff = rendering.AffinityDownstream
+		} else if lay := b.txt.TextLayout(); lay != nil {
 			byteOff, aff = lay.GetPositionForOffset(localX, localY)
 		} else {
 			byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
@@ -1231,9 +1378,14 @@ func (b *Box) dragMove(evX, evY, localX, localY float64) {
 		if visH < 0 {
 			visH = 0
 		}
-		layTmp := b.txt.TextLayout()
 		maxX, maxY := 0.0, 0.0
-		if layTmp != nil && layTmp.LineCount() > 0 {
+		if b.virtualOn && b.vtext != nil {
+			maxX = b.lastMaxW
+			maxY = b.vtext.TotalHeight() - visH
+			if maxY < 0 {
+				maxY = 0
+			}
+		} else if layTmp := b.txt.TextLayout(); layTmp != nil && layTmp.LineCount() > 0 {
 			for i := 0; i < layTmp.LineCount(); i++ {
 				if _, _, w, _, ok := layTmp.Line(i); ok && w > maxX {
 					maxX = w
@@ -1317,9 +1469,10 @@ func (b *Box) dragMove(evX, evY, localX, localY float64) {
 			}
 		}
 	}
-	lay := b.txt.TextLayout()
 	var byteOff int
-	if lay != nil {
+	if b.virtualOn && b.vtext != nil {
+		byteOff = b.virtualByteAt(localX, localY)
+	} else if lay := b.txt.TextLayout(); lay != nil {
 		byteOff, _ = lay.GetPositionForOffset(localX, localY)
 	} else {
 		byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
@@ -1456,9 +1609,17 @@ func (b *Box) OnKey(ev input.KeyEvent) {
 	case input.KeyArrowUp:
 		// MoveVisualUp nil-guards into MoveCursorUp; single-line text has
 		// one visual row, so both old single-line forms land here.
-		b.ed.MoveVisualUp(b.txt.TextLayout())
+		if b.virtualOn {
+			b.ed.MoveCursorUp()
+		} else {
+			b.ed.MoveVisualUp(b.txt.TextLayout())
+		}
 	case input.KeyArrowDown:
-		b.ed.MoveVisualDown(b.txt.TextLayout())
+		if b.virtualOn {
+			b.ed.MoveCursorDown()
+		} else {
+			b.ed.MoveVisualDown(b.txt.TextLayout())
+		}
 	case input.KeyHome:
 		b.ed.MoveCursorToBeginning()
 	case input.KeyEnd:
@@ -1610,6 +1771,14 @@ func (b *Box) moveVisual(delta int) {
 		return
 	}
 	if b.ed.IsPassword() {
+		if delta > 0 {
+			b.ed.MoveCursorForward()
+		} else {
+			b.ed.MoveCursorBack()
+		}
+		return
+	}
+	if b.virtualOn {
 		if delta > 0 {
 			b.ed.MoveCursorForward()
 		} else {

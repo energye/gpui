@@ -179,3 +179,11 @@ func (v *TextViewport) InvalidateLine(i int) {
 		delete(v.cache, i)
 	}
 }
+
+// LineAtY maps a content Y to a line index (clamped).
+func (v *TextViewport) LineAtY(y float64) int {
+	if v == nil || v.heights == nil {
+		return 0
+	}
+	return v.heights.IndexAtOffset(y)
+}
