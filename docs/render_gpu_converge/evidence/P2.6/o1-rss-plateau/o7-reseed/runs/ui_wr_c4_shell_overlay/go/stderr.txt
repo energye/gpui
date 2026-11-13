@@ -1,0 +1,26 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc002878000 ctx=0xc00281a380
+ui_wr_c4_shell_overlay: probe @(870,97) want="c4-btn-2" got="c4-btn-2" ok=true
+ui_wr_c4_shell_overlay: probe @(1044,234) want="cell-2-1" got="cell-2-1" ok=true
+ui_wr_c4_shell_overlay: probe @(305,320) want="row-5-chip" got="row-5-chip" ok=true
+ui_wr_c4_shell_overlay: probe barrier-consume @(1148,400) band=1 obj="dense-panel" entry=false ok=false
+ui_wr_c4_shell_overlay: probe @(499,351) want="ov-button" got="" ok=false
+ui_wr_c4_shell_overlay: probe barrier-consume @(1148,400) band=2 obj="c4-barrier" entry=true ok=true
+ui_wr_c4_shell_overlay: probe @(499,351) want="ov-button" got="ov-button" ok=true
+ui_wr_c4_shell_overlay: probe @(1148,400) want="dense-panel" got="dense-panel" ok=true
+snapshot steady: examples/ui_wr_c4_shell_overlay/golden/c4_steady.png
+ui_wr_c4_shell_overlay: pixel shell_btn2_base_color                @( 870,  97) got=(0.620,0.420,0.200) want=(0.620,0.420,0.200) ok=true
+ui_wr_c4_shell_overlay: pixel dense_cell_base_color                @(1044, 234) got=(0.490,0.502,0.620) want=(0.490,0.500,0.620) ok=true
+ui_wr_c4_shell_overlay: pixel scrolled_row_chip_color              @( 305, 452) got=(0.298,0.451,0.600) want=(0.300,0.450,0.600) ok=true
+ui_wr_c4_shell_overlay: pixel dense_panel_base_color               @(1148, 400) got=(0.110,0.122,0.180) want=(0.110,0.120,0.180) ok=true
+ui_wr_c4_shell_overlay: pixel shell_title_text_density             text_px=1274 (want >=120) ok=true
+ui_wr_c4_shell_overlay: pixel list_caption_text_density            text_px=10411 (want >=120) ok=true
+snapshot open: examples/ui_wr_c4_shell_overlay/golden/c4_open.png
+ui_wr_c4_shell_overlay: pixel barrier_blend_over_dense_bg_F5       @(1148, 400) got=(0.071,0.078,0.125) want=(0.070,0.080,0.126) ok=true
+ui_wr_c4_shell_overlay: pixel popup_button_base_color              @( 499, 351) got=(0.200,0.502,0.851) want=(0.200,0.500,0.850) ok=true
+snapshot recover: examples/ui_wr_c4_shell_overlay/golden/c4_recover.png
+ui_wr_c4_shell_overlay: pixel barrier_removed_dense_bg_restored_F8 @(1148, 400) got=(0.110,0.122,0.180) want=(0.110,0.120,0.180) ok=true
+ui_wr_c4_shell_overlay: pixel shell_band_intact_at_recover         @( 870,  97) got=(0.620,0.420,0.200) want=(0.620,0.420,0.200) ok=true
+golden c4_steady.png: diff=2.8912% over 370680 px
+golden c4_recover.png: diff=2.8912% over 370680 px
+FAIL: pixel_golden_diff_pct=2.8912 want 0 over 741360 px (§2.7 zero-tolerance static mask)

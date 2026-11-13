@@ -1,0 +1,18 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0038e60f0 ctx=0xc000091ac0
+snapshot: examples/ui_wr_r10_async_image/testdata/showcase_r10_async_image.png
+ui_wr_r10_async_image: pixel img_00             fg  @( 327,  93) got=(0.118,0.235,0.549) want=(0.118,0.235,0.549) ok=true
+ui_wr_r10_async_image: pixel img_07             fg  @( 774, 216) got=(0.094,0.102,0.133) want=(0.094,0.102,0.133) ok=true
+ui_wr_r10_async_image: pixel img_19             fg  @( 774, 585) got=(0.094,0.102,0.133) want=(0.094,0.102,0.133) ok=true
+ui_wr_r10_async_image: pixel right_cell_20      fg  @(1092, 150) got=(0.298,0.451,0.459) want=(0.300,0.450,0.460) ok=true
+ui_wr_r10_async_image: pixel right_bg           bg  @(1138, 620) got=(0.110,0.122,0.149) want=(0.110,0.120,0.150) ok=true
+ui_wr_r10_async_image: pixel right_cell_00      fg  @( 976, 150) got=(0.141,0.451,0.298) want=(0.140,0.450,0.300) ok=true
+ui_wr_r10_async_image: pixel right_cell_33      fg  @(1150, 324) got=(0.380,0.631,0.298) want=(0.380,0.630,0.300) ok=true
+ui_wr_r10_async_image: pixel legend_bg          bg  @(  32, 680) got=(0.110,0.122,0.149) want=(0.110,0.120,0.150) ok=true
+ui_wr_r10_async_image: pixel top_bg             bg  @(1000,  24) got=(0.122,0.141,0.180) want=(0.120,0.140,0.180) ok=true
+ui_wr_r10_async_image: ink   cell00_label_ink   region=( 312, 157  60x14) ink_px=134 want>=6 ok=true
+ui_wr_r10_async_image: ink   right_title_ink    region=( 950,  70 210x16) ink_px=698 want>=20 ok=true
+ui_wr_r10_async_image: ink   status_label_ink   region=( 950,  94 160x16) ink_px=409 want>=20 ok=true
+ui_wr_r10_async_image: ink   static_labels_ink  region=( 950, 370 230x40) ink_px=1200 want>=30 ok=true
+ui_wr_r10_async_image: golden showcase_r10_async_image.png: diff=0.0000% over 821184 px
+ui_wr_r10_async_image: OK presents=1730 loaded=20/20 rrViol=0 maxRRΔ=2 dec=1ms skip=138080 fps=57.7 p95=18.2 hitch=4.0/min logic=10/10 pixel=13/13 golden=0.0000% mode=gate elapsed=30.6s

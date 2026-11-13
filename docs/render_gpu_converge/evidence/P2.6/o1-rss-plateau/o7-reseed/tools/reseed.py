@@ -74,6 +74,11 @@ PAIRS = [
       for i in range(1, 9)]),
 ]
 
+# O7_STATIC_ONLY=1 reseeds only deterministic windows; c4 (dynamic red dot)
+# and multiwin (per-window dynamic numbers) stay classified, not reseeded.
+if os.getenv("O7_STATIC_ONLY") == "1":
+    PAIRS = [p for p in PAIRS if p[0] not in ("ui_wr_c4_shell_overlay", "ui_base_multiwin_cap")]
+
 LOG = []
 
 
@@ -206,7 +211,11 @@ def main():
         return 3
     # 6) 1px negative on idle
     idle_base = os.path.join(REPO, "examples/ui_base_idle/testdata/showcase_idle_base.png")
-    backup = os.path.join(OUT, "backup", "ui_base_idle", "showcase", "showcase_idle_base.png")
+    # The negative control must restore the freshly reseeded base, not the
+    # pre-run backup (which may itself be the stale baseline being replaced).
+    neg_tmp = os.path.join(OUT, "negative", "showcase_idle_new_base.png")
+    os.makedirs(os.path.dirname(neg_tmp), exist_ok=True)
+    shutil.copyfile(idle_base, neg_tmp)
     im = Image.open(idle_base).convert("RGBA")
     shifted = Image.new("RGBA", im.size, (0, 0, 0, 0))
     shifted.paste(im, (1, 0))
@@ -214,7 +223,7 @@ def main():
     rc, so, se = run("ui_base_idle", "/tmp/o5/bin/ui_base_idle", 60, "native")
     g = golden_pct(so, se)
     say("negative 1px", "rc=", rc, "golden=", g)
-    shutil.copyfile(backup, idle_base)
+    shutil.copyfile(neg_tmp, idle_base)
     if g is None or g == 0 or rc == 0:
         say("NEGATIVE FAIL (expected red)")
         return 4

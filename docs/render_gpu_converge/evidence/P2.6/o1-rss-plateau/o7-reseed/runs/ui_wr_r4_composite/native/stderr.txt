@@ -1,0 +1,19 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/ui_wr_r4_composite/testdata/showcase_r4_composite.png
+ui_wr_r4_composite: pixel static_cell_00         fg  @( 364, 176) got=(0.180,0.400,0.620) want=(0.180,0.400,0.620) ok=true
+ui_wr_r4_composite: pixel static_cell_11         fg  @( 468, 280) got=(0.251,0.478,0.620) want=(0.250,0.480,0.620) ok=true
+ui_wr_r4_composite: pixel static_cell_22         fg  @( 572, 384) got=(0.322,0.561,0.620) want=(0.320,0.560,0.620) ok=true
+ui_wr_r4_composite: pixel static_cell_33         fg  @( 676, 488) got=(0.388,0.639,0.620) want=(0.390,0.640,0.620) ok=true
+ui_wr_r4_composite: pixel static_panel_bg        bg  @( 730, 606) got=(0.161,0.180,0.239) want=(0.160,0.180,0.240) ok=true
+ui_wr_r4_composite: pixel info_panel_bg          bg  @(1160, 308) got=(0.141,0.161,0.212) want=(0.140,0.160,0.210) ok=true
+ui_wr_r4_composite: pixel hot_frozen_red         fg  @( 962, 500) got=(0.949,0.200,0.200) want=(0.950,0.200,0.200) ok=true
+ui_wr_r4_composite: pixel body_bg                bg  @(1108, 676) got=(0.098,0.110,0.129) want=(0.100,0.110,0.130) ok=true
+ui_wr_r4_composite: pixel legend_bg              bg  @(  32, 680) got=(0.110,0.122,0.149) want=(0.110,0.120,0.150) ok=true
+ui_wr_r4_composite: pixel top_bg                 bg  @(1000,  24) got=(0.122,0.141,0.180) want=(0.120,0.140,0.180) ok=true
+ui_wr_r4_composite: ink   static_title_ink       region=( 312,  84 220x18) ink_px=746 want>=20 ok=true
+ui_wr_r4_composite: ink   static_grid_label_ink  region=( 316, 548  60x16) ink_px=143 want>=5 ok=true
+ui_wr_r4_composite: ink   info_row_ink           region=( 772, 132 300x18) ink_px=285 want>=15 ok=true
+ui_wr_r4_composite: ink   phase_label_ink        region=( 308, 678 180x24) ink_px=719 want>=15 ok=true
+ui_wr_r4_composite: ink   hot_label_ink          region=( 924, 628 220x18) ink_px=609 want>=10 ok=true
+ui_wr_r4_composite: golden showcase_r4_composite.png: diff=0.0000% over 821184 px
+ui_wr_r4_composite: OK presents=858 dmg_sum=0.0294 dmg_union=0.0838 dmg_max=1.0000 mode=damage_union skip=46974 rr=214 cells=16 labels=21 hot=857 logic=24/24 pixel=15/15 golden=0.0000% phase=gate elapsed=15.5s

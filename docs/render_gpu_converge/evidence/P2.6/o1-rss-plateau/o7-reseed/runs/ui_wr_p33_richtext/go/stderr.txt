@@ -1,0 +1,9 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+J5TRACE Open device=0xc0001361e0 ctx=0xc0001406c0
+snapshot: examples/ui_wr_p33_richtext/testdata/p33_final.png
+ui_wr_p33_richtext: pixel p33_a_red_run          ok=true hits=1
+ui_wr_p33_richtext: pixel p33_a_cyan_run         ok=true hits=1
+ui_wr_p33_richtext: pixel p33_a_yellow_run       ok=true hits=1
+ui_wr_p33_richtext: pixel p33_b_justify_reach    ok=true hits=1
+ui_wr_p33_richtext: pixel p33_c_ellipsis_tail    ok=true hits=1
+ui_wr_p33_richtext: OK presents=292 pixel=5/5 golden=0.0000% gate=true elapsed=5.7s

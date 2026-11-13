@@ -47,3 +47,10 @@
 - `summary.tsv`（逐 pair 机读）、`analysis.jsonl`（完整分析）、
   `runs/<窗>/<pair>/{current.png,base.png,diff.png,compare.png,analysis.json,stdout,stderr,rc}`。
 - 归类运行写脏的 testdata current snapshot 已还原，未混入提交。
+
+## 5 重种执行（2026-11-13，静态 7 窗）
+
+- 用户拍板：只重种确定性窗口；c4 两对 + multiwin 8 窗因动态内容不重种，保留本归类结论。
+- 7 窗（idle/c8/r4/r10/p33/c2/p37）cross-check content_diff=0；重种后 native/go 复跑 **14/14 golden=0.0000%**。
+- idle 1px 负向：golden 1.2515%、rc=1（预期红）→ 用重种后基线还原 golden 0；负向还原脚本已修正（旧版本误用旧备份）。
+- 证据：`o7-reseed/reseed_static.log`、`o7-reseed/reseed.md`。

@@ -1,0 +1,20 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/ui_wr_c2_retained_scene/testdata/showcase_c2_retained_scene.png
+ui_wr_c2_retained_scene: pixel r3_inner_hot     fg   @( 410, 186) got=(0.949,0.200,0.200) want=(0.950,0.200,0.200) ok=true
+ui_wr_c2_retained_scene: pixel r4_static_00     fg   @( 583, 111) got=(0.149,0.420,0.322) want=(0.150,0.420,0.320) ok=true
+ui_wr_c2_retained_scene: pixel r4_static_11     fg   @( 659, 187) got=(0.220,0.502,0.502) want=(0.220,0.500,0.500) ok=true
+ui_wr_c2_retained_scene: pixel r4_static_22     fg   @( 735, 263) got=(0.290,0.420,0.412) want=(0.290,0.420,0.410) ok=true
+ui_wr_c2_retained_scene: pixel r4_hotA          fg   @( 972, 579) got=(0.949,0.200,0.200) want=(0.950,0.200,0.200) ok=true
+ui_wr_c2_retained_scene: pixel r4b_hot1         fg   @(1074, 162) got=(0.200,0.502,0.949) want=(0.200,0.500,0.950) ok=true
+ui_wr_c2_retained_scene: pixel r4b_hot2         fg   @( 415, 597) got=(0.251,0.800,0.400) want=(0.250,0.800,0.400) ok=true
+ui_wr_c2_retained_scene: pixel r5_direct_tri    fg   @( 496, 356) got=(0.902,0.302,0.200) want=(0.900,0.300,0.200) ok=true
+ui_wr_c2_retained_scene: pixel r5_replay_tri    fg   @( 696, 356) got=(0.902,0.302,0.200) want=(0.900,0.300,0.200) ok=true
+ui_wr_c2_retained_scene: pixel r5_direct_img    fg   @( 599, 344) got=(0.200,0.749,0.349) want=(0.200,0.749,0.349) ok=true
+ui_wr_c2_retained_scene: pixel r5_replay_img    fg   @( 799, 344) got=(0.200,0.749,0.349) want=(0.200,0.749,0.349) ok=true
+ui_wr_c2_retained_scene: pixel body_bg          bg   @(1084, 660) got=(0.098,0.110,0.129) want=(0.100,0.110,0.130) ok=true
+ui_wr_c2_retained_scene: pixel legend_bg        bg   @(  32, 680) got=(0.110,0.122,0.149) want=(0.110,0.120,0.150) ok=true
+ui_wr_c2_retained_scene: pixel top_bg           bg   @(1000,  24) got=(0.122,0.141,0.180) want=(0.120,0.140,0.180) ok=true
+ui_wr_c2_retained_scene: pair  r5_tri           direct=(0.902,0.302,0.200) replay=(0.902,0.302,0.200) diff<=0.020 ok=true
+ui_wr_c2_retained_scene: pair  r5_img           direct=(0.200,0.749,0.349) replay=(0.200,0.749,0.349) diff<=0.020 ok=true
+golden showcase_c2_retained_scene.png: diff=0.0000% over 821184 px
+ui_wr_c2_retained_scene: OK presents=861 skip=35149 rr=209 dmg_avg=0.451 mode=damage_union ids=12/16 multi=141 ops=8 fps=57.3 pixel=14/14 pairs=2/2 golden=0.0000% elapsed=15.5s
