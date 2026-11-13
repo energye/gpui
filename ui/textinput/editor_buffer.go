@@ -50,8 +50,14 @@ func (e *Editor) setDoc(s string) {
 	if e.bufForceString {
 		e.buf.ForceString(true)
 	}
-	e.text = s
-	e.textDirty = false
+	if !e.bufForceString && e.buf.Mode() == "tree" {
+		// 大文档:整串只作为按需缓存,不再常驻第二份引用.
+		e.text = ""
+		e.textDirty = true
+	} else {
+		e.text = s
+		e.textDirty = false
+	}
 	e.docVersion++
 	e.updateBufOn()
 }

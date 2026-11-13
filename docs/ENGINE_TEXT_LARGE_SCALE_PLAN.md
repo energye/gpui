@@ -1,6 +1,6 @@
 # ENGINE_TEXT_LARGE_SCALE_PLAN — 超大规模文本架构立项书
 
-**状态**: 立项审查中（2026-11-13）——方向与档位待用户审定；成熟方案已调研（§1.4），**D1–D5 已于 2026-11-13 确认生效**；审查记录见 §9，结论为**有条件通过**。**V0 已完成**（报告 `docs/ENGINE_TEXT_LARGE_SCALE_V0.md`）：1e6 唯一行全量约 5s/3GB、1e6 字单行真实击键 1.80s、5e6 字 10.41s、M4 hitch 5.007 贴门未过。**V1 已收口（a/b-1/b-2/b-3）**：行定位 118.6×→1.05×、UTF-16 偏移 102.2×→1.44×，Editor AddText/Backspace/行导航/IME 改前 97/101/173/141× → 改后 0.06–0.17×；端到端 `GetText`/UI 同步仍 O(n)，归 V2。**V2a 已完成**：按行视图 `TextViewport`（1e6/1e4 首屏 0.80×、缓存 O(可见行)、几何与全量布局逐项一致）；**V2b-1 已完成**：生产 Editor buffer 接成 `LineSource`，真实 1e6 行 Editor 首屏 120µs（1e4 459µs，0.26×），视图支持失效；**V2b-2a 已完成**：`RenderText` 增加虚拟绘制模式（只物化/绘制视口行，无窗口不画），`Paint` 逐行绘制抽成 `paintTextLine`；**V2b-2b-1 已完成**：多行框（不回绕、非密码、≥64KB）共享 view 走虚拟 sync/光标/绘制/命中/拖拽/上下键；**V2b-2b-2 已完成**：虚拟选区高亮、IME 候选框，非折叠选区/IME 不再回退全量，1e6 行首同步 125–223µs 且 `b.txt.Text` 保持空；**V2 待收口**：1e6 行真窗首屏/滚动/hitch + 小文档回归。
+**状态**: 已确认（2026-11-13）——D1–D5 生效，V0–V2 已收口，V3 待开；成熟方案见 §1.4，审查记录见 §9（有条件通过）。**V0 已完成**（报告 `docs/ENGINE_TEXT_LARGE_SCALE_V0.md`）：1e6 唯一行全量约 5s/3GB、1e6 字单行真实击键 1.80s、5e6 字 10.41s、M4 hitch 5.007 贴门未过。**V1 已收口（a/b-1/b-2/b-3）**：行定位 118.6×→1.05×、UTF-16 偏移 102.2×→1.44×，Editor AddText/Backspace/行导航/IME 改前 97/101/173/141× → 改后 0.06–0.17×；端到端 `GetText`/UI 同步仍 O(n)，归 V2。**V2a 已完成**：按行视图 `TextViewport`（1e6/1e4 首屏 0.80×、缓存 O(可见行)、几何与全量布局逐项一致）；**V2b-1 已完成**：生产 Editor buffer 接成 `LineSource`，真实 1e6 行 Editor 首屏 120µs（1e4 459µs，0.26×），视图支持失效；**V2b-2a 已完成**：`RenderText` 增加虚拟绘制模式（只物化/绘制视口行，无窗口不画），`Paint` 逐行绘制抽成 `paintTextLine`；**V2b-2b-1 已完成**：多行框（不回绕、非密码、≥64KB）共享 view 走虚拟 sync/光标/绘制/命中/拖拽/上下键；**V2b-2b-2 已完成**：虚拟选区高亮、IME 候选框，非折叠选区/IME 不再回退全量，1e6 行首同步 125–223µs 且 `b.txt.Text` 保持空。**V2 已收口（2026-11-13 真窗）**：`ui_text_large_scale` 1e6 行 120s 在隔离 :3 跑通，fps 58.54、p95 18.92ms、hitch 1.0/min、RSS 稳态 21542KB/min（valid/pass）；虚拟模式 true，滚动 24.2 万行无崩溃。
 **关联**: `docs/ENGINE_TEXT_SCALE_PLAN.md`（M0–M5 主体已收口，本文件是其规模延伸）、`docs/ENGINE_TEXT_SCALE_CHANGELOG.md`、`AGENTS.md`。
 **定位**: 架构级立项，不是 M5 遗留补丁；目标是把文本编辑的规模上界从「1e6 字/1e6 行可用」推进到「几百万行、单行几百万字仍不退化」。
 
@@ -96,7 +96,7 @@
 |---|---|---|---|
 | V0 | 基线量化（只读） | 1e6/3e6 行全量首屏；50k/1e6/5e6 字单行击键；多行框滚动；M4 hitch 复测 | **已完成（2026-11-13，见 `ENGINE_TEXT_LARGE_SCALE_V0.md`）**；结论：现有门禁全部未达，且现有基准会因缓存假快 |
 | V1 | rope 主存储 | **已完成（2026-11-13，V1a/b-1/b-2/b-3）**：`LineStart/LineIndex/LineAt` O(log n)（118.6×→1.05×）；节点 `u16/nr` + `UTF16Len`/`ByteOffsetForUTF16`/`UTF16ToRuneIndex`/`RuneIndexToUTF16`/`UTF16OffsetAt`/`StepUTF16`；Buffer 为真源、`e.text` 惰性缓存；AddText/Backspace/DeleteSelected/Undo/Redo/IME/选区/行导航/词导航全部走 buffer。Editor 四条路径改前 97/101/173/141× → 改后 0.06–0.17×。**遗留到 V2**：`GetText()`/UI 同步与 `Delta()` 导出仍整串物化 | 编辑 O(log n) 基准；13 裁判 + textinput 全绿；崩溃即回滚 |
-| V2 | 视口行模型 | **V2a 已完成**：`ui/rendering/text_viewport.go` 新增 `TextViewport`（`LineSource` + 懒物化 + 有界缓存 + `VirtualTextLines` 高度）；首屏 1e6/1e4 = 0.80×，几何与全量布局逐项一致，缓存 O(可见行)；V2a 覆盖不回绕模型。**V2b-1 已完成**：`editorLineSource` 把生产 buffer 接成 `LineSource`，真实 1e6 行 Editor 首屏 120µs（1e4 459µs，0.26×），`Invalidate/InvalidateLine` 可用。**V2b-2a 已完成**：`RenderText` 虚拟绘制（只绘视口行，无窗口不画），逐行绘制抽成 `paintTextLine`。**V2b-2b-1 已完成**：多行框虚拟 sync/光标/命中/拖拽/上下键，1e6 行首同步 125µs，`b.txt.Text` 保持空（不 GetText）。**V2b-2b-2 已完成**：虚拟选区高亮（按可见行 `BoxesForRange`）与 IME 候选框；非折叠选区/IME 不再回退全量。**V2 待收口**：1e6 行真窗首屏/滚动/hitch | 1e6 行首屏/滚动/hitch 达标；hitch 红未消不得标绿 |
+| V2 | 视口行模型 | **V2a 已完成**：`ui/rendering/text_viewport.go` 新增 `TextViewport`（`LineSource` + 懒物化 + 有界缓存 + `VirtualTextLines` 高度）；首屏 1e6/1e4 = 0.80×，几何与全量布局逐项一致，缓存 O(可见行)；V2a 覆盖不回绕模型。**V2b-1 已完成**：`editorLineSource` 把生产 buffer 接成 `LineSource`，真实 1e6 行 Editor 首屏 120µs（1e4 459µs，0.26×），`Invalidate/InvalidateLine` 可用。**V2b-2a 已完成**：`RenderText` 虚拟绘制（只绘视口行，无窗口不画），逐行绘制抽成 `paintTextLine`。**V2b-2b-1 已完成**：多行框虚拟 sync/光标/命中/拖拽/上下键，1e6 行首同步 125µs，`b.txt.Text` 保持空（不 GetText）。**V2b-2b-2 已完成**：虚拟选区高亮（按可见行 `BoxesForRange`）与 IME 候选框；非折叠选区/IME 不再回退全量。**V2 已收口（2026-11-13 真窗）**：1e6 行 120s fps 58.54 / p95 18.92 / hitch 1.0 / RSS 稳态 21542KB/min pass | 1e6 行首屏/滚动/hitch 达标；hitch 红未消不得标绿 |
 | V3 | 变高/回绕估算 | 区间/间隙高度图（gap 估算 + 稀疏实测）；编辑局部失效；滚动修正 | 3e6 行变高内存 ≤1KB/千行；锚点不跳变 |
 | V4 | 超长行分块整形 | 块级 shape cache + 前缀宽度；横向视口 | 5e6 字单行击键 ≤16ms；跨块 bidi 回退可用 |
 | V5 | 收敛 | 小文档阈值降级定稿；大文档移除扁平 rows；全回归 | 全档门禁 + 真窗 + 内存 + Golden |
@@ -152,6 +152,7 @@
 | 2026-11-13 | V2b-2a 完成：`RenderText` 虚拟绘制模式（`SetVirtualSource/ClearVirtualSource/Virtual` + `paintVirtual`），只物化/绘制 `SetViewportRect` 窗口内的行，无窗口不画；逐行绘制抽成 `paintTextLine` 供全量/虚拟共用。测试：1e6 行源绘制在 50 万行窗口只物化 ≤200 行、无窗口 0 行；`ui/rendering` 整包绿。V2b-2b（多行框度量/选区/命中接线、GetText 退出击键路径）待做。 |
 | 2026-11-13 | V2b-2b-1 完成：多行框（不回绕/折叠选区/非 IME/密码/≥64KB）共享 `TextViewport`，虚拟 sync 度量、光标锚点、绘制、鼠标命中、拖拽 maxX/totalH、上下键；1e6 行首同步 125µs，`b.txt.Text` 保持空；非折叠选区/IME 回退全量。textinput/rendering 整包绿。V2b-2b-2（虚拟选区/IME、去回退）待做。 |
 | 2026-11-13 | V2b-2b-2 完成：`canVirtual` 放开非折叠选区/IME；`syncHighlight` 虚拟分支按可见行拼 `BoxesForRange`，`IMERect` 虚拟分支按可见行求并集；测试断言选区有高亮框、IME 框 W/H>0、`b.txt.Text` 仍为空。1e6 行首同步 125–223µs；textinput 整包绿（rendering 一次已知计时门禁偶发，复跑绿）。V2 待真窗收口。 |
+| 2026-11-13 | V2 真窗收口：新建 `examples/ui_text_large_scale`（生产多行框 1e6 行）；隔离 :3、120s、标准关闭。fps_interval 58.54、p95 18.92ms、hitch 1.0/min、present 7024、virtual_mode=true、lines_moved 242362；RSS 稳态 21542KB/min（<30000，valid=true，pass），原始 start/end 190/505MB；110s 堆 173MB（字体 76MB + 文本 58MB，去字体约 97MB，符合 D5 预算）。wall first-present 327ms 为启动/字体/61MB 文本构造，布局首同步 125µs。 |
 
 ---
 
@@ -191,7 +192,7 @@
 
 ### 9.4 审查未覆盖 / 未验证
 
-- 3e6 全量未跑；5e6 单行只测 1 次唯一编辑；1e6 唯一行全量未跑（外推 5s/3GB）。V1b-3 已落地（Editor 编辑/选区/IME/导航原语 O(log n)）；V2a/V2b-1/V2b-2a/V2b-2b-1 已落地（视图、生产 buffer 适配、RenderText 虚拟绘制、多行框虚拟 sync/光标/命中）；遗留：`Delta()` 导出仍整串物化，maxW 暂按可见行近似；V2 还差 1e6 行真窗首屏/滚动/hitch 验收。
+- 3e6 全量未跑；5e6 单行只测 1 次唯一编辑；1e6 唯一行全量未跑（外推 5s/3GB）。V1b-3 已落地（Editor 编辑/选区/IME/导航原语 O(log n)）；V2a/V2b-1/V2b-2a/V2b-2b-1 已落地（视图、生产 buffer 适配、RenderText 虚拟绘制、多行框虚拟 sync/光标/命中）；遗留：`Delta()` 导出仍整串物化，maxW 暂按可见行近似；V2 真窗已跑通（1e6 行 120s，fps/p95/hitch/RSS 稳态 pass），wall first-present 含启动/字体/61MB 文本构造。
 - hitch 根因未定位（M4 只有现象数据）。
 - 跨块 bidi/字素边界的失败模式未做探针。
 - `TextView` 虚拟视图与 rope 行定位（O(log n)）未做原型验证。

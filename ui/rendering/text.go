@@ -153,6 +153,9 @@ func (t *RenderText) SetVirtualView(v *TextViewport) {
 	}
 	t.vtext = v
 	t.virtual = v != nil
+	if v != nil {
+		t.MarkNeedsPaint()
+	}
 }
 
 // ClearVirtualSource returns to the full TextLayout paint path.
@@ -162,6 +165,7 @@ func (t *RenderText) ClearVirtualSource() {
 	}
 	t.virtual = false
 	t.vtext = nil
+	t.MarkNeedsPaint()
 }
 
 // Virtual reports whether viewport line painting is active.
@@ -1096,7 +1100,9 @@ func (t *RenderText) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
-	if pc.CompositeOnly && !t.NeedsPaint() {
+	if pc.CompositeOnly && !t.NeedsPaint() && !t.virtual {
+		// 虚拟模式的行窗口由 Box 驱动,录制时不能因节点“干净”而跳过;
+		// 否则 retained 包会缺失文本(窗口空白而 SnapshotPath 有字).
 		return
 	}
 	pc.NotePaintVisit()

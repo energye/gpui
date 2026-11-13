@@ -652,7 +652,13 @@ func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	e.composingRange = comp
 	e.composing = hasComp
 	if changed {
-		e.pushDelta(dPos, dDel, dIns, selB, compB, cB, e.selection, e.composingRange, e.composing)
+		if cur == "" && len(text) >= 64*1024 {
+			// 初始大文档加载不进撤销历史(整篇 delta 会常驻一份全文拷贝).
+			e.history = nil
+			e.redoStack = nil
+		} else {
+			e.pushDelta(dPos, dDel, dIns, selB, compB, cB, e.selection, e.composingRange, e.composing)
+		}
 	}
 	if changed {
 		e.changed()

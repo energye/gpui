@@ -84,10 +84,14 @@ type Box struct {
 	dragLastY         float64
 	autoScrollRunning bool
 	// 大文档视口模式（V2b-2b-1）：只物化可见行；选区/IME 时退回全量。
-	vtext     *rendering.TextViewport
-	vtextVer  uint64
-	virtualOn bool
-	lastMaxW  float64
+	vtext            *rendering.TextViewport
+	vtextVer         uint64
+	virtualOn        bool
+	lastMaxW         float64
+	lastPaintScrollY float64
+	vtextFace        text.Face
+	vtextSize        float64
+	vtextSpacing     float64
 }
 
 // Old shell names are aliases of the single Box: one implementation,
@@ -565,6 +569,9 @@ func (b *Box) caretMargin() float64 {
 func (b *Box) IsFocused() bool { return b != nil && b.focused }
 func (b *Box) IsCaretOn() bool { return b != nil && b.caretOn }
 
+// VirtualMode reports whether the large-doc viewport path is active.
+func (b *Box) VirtualMode() bool { return b != nil && b.virtualOn }
+
 func (b *Box) ScrollX() float64 {
 	if b == nil {
 		return 0
@@ -925,8 +932,9 @@ func (b *Box) canVirtual() bool {
 
 func (b *Box) ensureVirtual() *rendering.TextViewport {
 	b.ed.ensureBuf()
-	if b.vtext == nil {
-		b.vtext = rendering.NewTextViewport(editorLineSource{ed: b.ed}, b.txt.Face, b.txt.FontSize, b.txt.LineSpacing, 0)
+	if b.vtext == nil || b.vtextFace != b.txt.Face || b.vtextSize != b.txt.FontSize || b.vtextSpacing != b.txt.LineSpacing {
+		b.vtext = rendering.NewTextViewport(editorLineSource{ed: b.ed}, b.txt.Face, b.txt.FontSize, b.txt.LineSpacing, 128)
+		b.vtextFace, b.vtextSize, b.vtextSpacing = b.txt.Face, b.txt.FontSize, b.txt.LineSpacing
 		b.vtextVer = 0
 	}
 	if b.vtextVer != b.ed.docVersion {
@@ -951,6 +959,8 @@ func (b *Box) disableVirtual() {
 // syncVirtual computes caret/scroll metrics from the buffer + viewport view
 // without building a full TextDocument layout.
 func (b *Box) syncVirtual() {
+	wasVirtual := b.virtualOn
+	verBefore := b.vtextVer
 	v := b.ensureVirtual()
 	b.txt.SetMaxWidth(0)
 	pad := b.Padding()
@@ -1000,6 +1010,12 @@ func (b *Box) syncVirtual() {
 	}
 	b.lastMaxW = m.maxW
 	b.ensureVisible(m)
+	if !wasVirtual || b.vtextVer != verBefore || b.scrollY != b.lastPaintScrollY {
+		// Retained recording skips clean nodes: entering virtual mode, cache
+		// invalidation, or a viewport-window move must re-record the text.
+		b.txt.MarkNeedsPaint()
+		b.lastPaintScrollY = b.scrollY
+	}
 }
 
 func (b *Box) virtualByteAt(x, y float64) int {

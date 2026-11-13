@@ -75,6 +75,28 @@ func recordRenderText(dc render.Canvas, t *RenderText, ox, oy float64) {
 		a = 1
 	}
 	face := t.effectiveFace()
+	if t.virtual && t.vtext != nil && t.hasViewportHintY {
+		ascent := t.fontSize() * 0.8
+		if m, ok := t.Metrics(); ok && m.Ascent > 0 {
+			ascent = m.Ascent
+		}
+		first, last := t.vtext.Prepare(t.viewportScrollY, t.viewportHeight)
+		if last >= first {
+			for i := first; i <= last; i++ {
+				vl, ok := t.vtext.Line(i)
+				if !ok || vl.Layout == nil || vl.Layout.LineCount() == 0 || vl.Layout.Text == "" {
+					continue
+				}
+				y := oy + ascent + t.vtext.LineTop(i)
+				if recordShapedRow(dc, t, vl.Layout, 0, ox, y, face, a) {
+					continue
+				}
+				drawStringOn(dc, vl.Layout.Text, ox, y, face, t.R, t.G, t.B, a)
+			}
+		}
+		t.mergeRecordedBandY(first > 0 || last < t.vtext.LineCount()-1)
+		return
+	}
 	lay := t.ensureLayout()
 	lines := t.DisplayLines()
 	ascent := t.fontSize() * 0.8
