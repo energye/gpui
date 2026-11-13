@@ -1,13 +1,10 @@
 package rendering
 
-// HeightMap is the V3 interval/gap height model for text lines:
+// HeightMap is the interval/gap height model for text lines:
 // every unmeasured line uses one estimate, measured lines are sparse override
 // nodes kept in an order-statistic treap. Offset/Total are O(log measured);
 // IndexAtOffset is O(log lines * log measured). Memory is O(measured), not
 // O(lines): 3M lines with the default 32K measured cap stays under 3MB.
-//
-// It is not wired into TextViewport yet (V3b); V3a locks the structure,
-// memory ceiling, and query math.
 type HeightMap struct {
 	count       int
 	estimate    float64
@@ -268,6 +265,22 @@ func (m *HeightMap) Measure(i int, h float64) bool {
 		m.order = append([]int(nil), m.order[m.head:]...)
 		m.head = 0
 	}
+	return true
+}
+
+// Reset drops line i's measured override so it falls back to the estimate.
+// Used when a patch edit changes one line's wrapped height.
+func (m *HeightMap) Reset(i int) bool {
+	if m == nil || i < 0 || i >= m.count {
+		return false
+	}
+	n := hfind(m.root, i)
+	if n == nil {
+		return true
+	}
+	m.total -= n.delta
+	m.root = herase(m.root, i)
+	m.measured--
 	return true
 }
 

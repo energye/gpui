@@ -201,15 +201,18 @@ func (t *RenderText) paintVirtual(pc *PaintContext) {
 	}
 	for i := first; i <= last; i++ {
 		vl, ok := t.vtext.Line(i)
-		if !ok || vl.Layout == nil || vl.Layout.LineCount() == 0 {
+		if !ok || vl.Layout == nil {
 			continue
 		}
-		line := vl.Layout.Text
-		if line == "" {
-			continue
+		top := t.vtext.LineTop(i)
+		for r := 0; r < vl.Layout.LineCount(); r++ {
+			row := LineRowText(vl.Layout, r)
+			if row == "" {
+				continue
+			}
+			y := ascent + top + vl.Layout.LineTop(r)
+			t.paintTextLine(pc, face, vl.Layout, r, row, y, a)
 		}
-		y := ascent + t.vtext.LineTop(i)
-		t.paintTextLine(pc, face, vl.Layout, 0, line, y, a)
 	}
 	if pc.DC != nil {
 		pc.DC.SetTextDecoration(render.TextDecorationNone)

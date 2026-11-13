@@ -84,14 +84,21 @@ func recordRenderText(dc render.Canvas, t *RenderText, ox, oy float64) {
 		if last >= first {
 			for i := first; i <= last; i++ {
 				vl, ok := t.vtext.Line(i)
-				if !ok || vl.Layout == nil || vl.Layout.LineCount() == 0 || vl.Layout.Text == "" {
+				if !ok || vl.Layout == nil {
 					continue
 				}
-				y := oy + ascent + t.vtext.LineTop(i)
-				if recordShapedRow(dc, t, vl.Layout, 0, ox, y, face, a) {
-					continue
+				top := oy + ascent + t.vtext.LineTop(i)
+				for r := 0; r < vl.Layout.LineCount(); r++ {
+					row := LineRowText(vl.Layout, r)
+					if row == "" {
+						continue
+					}
+					y := top + vl.Layout.LineTop(r)
+					if recordShapedRow(dc, t, vl.Layout, r, ox, y, face, a) {
+						continue
+					}
+					drawStringOn(dc, row, ox, y, face, t.R, t.G, t.B, a)
 				}
-				drawStringOn(dc, vl.Layout.Text, ox, y, face, t.R, t.G, t.B, a)
 			}
 		}
 		t.mergeRecordedBandY(first > 0 || last < t.vtext.LineCount()-1)
