@@ -326,3 +326,49 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - 仍是 O(n)：1e6 约 1ms，剩余 54% 是行表尾部 memmove（含 GC 写屏障）；要再降需要 Flutter 没有的块/间隙行表，本轮不做。
 - 1e5 整包跑时 `TestCaretBuild_NoQuadratic` 曾误报一次（已知负载敏感，单跑 PASS；与本次改动路径无关）。
 - accept 真窗未复跑；真字体行数变化路径未单独测。
+
+## V3c：Box 放开回绕 + 滚动锚点（2026-11-13）
+
+### 标准对齐
+
+- 立项书 `docs/ENGINE_TEXT_LARGE_SCALE_PLAN.md` §4 V3 行：V3c = 「Box 放开 wrap + 锚点」，验收「锚点不跳变」；§1.4 成熟方案（CodeMirror `HeightMap` 编辑只重建变化区间、VS Code 视口锚点）。
+- §2.2 硬约束「击键路径不得物化整串」；`docs/ENGINE_TEXT_SESSION_BRIEF.md` §1「红灯起步：先写失败单测确认红，再改代码」。
+- 接手时 Qoder 会话留下未提交半成品（编译绿、无测试、被登录过期打断）。按纪律先存补丁回 V3b 基线，不带着半成品继续。
+
+### 改动
+
+- `ui/rendering/text_viewport.go`：新增 `AnchorAt(y)`（用当前高度图取顶部行 + 行内偏移，不做源行数同步）与 `InvalidateLayouts()`（丢布局缓存、保留实测高度）。
+- `ui/textinput/box.go`：
+  - `canVirtual` 去掉 `b.wrap` 拦截；新增 `wrapWidth()`，`ensureVirtual` 改用 `NewWrappedTextViewport` 并在 wrap 宽度变化时重建共享视图；`Layout` 的 wrap 分支按 `vtext.MaxWidth()` 判断变化。
+  - 新增 `rebaseVirtual`：同数编辑只 `InvalidateLayouts`；行数变化编辑先 `AnchorAt` 取锚点，按 `ConsumeEditSpan` 的编辑行平移锚点，再用新高度图 `LineTop(anchorLine)+anchorOff` 重定 `scrollY`。
+  - `virtualVertical`（视觉行上下键 + sticky column）接到 `OnKey` 的 ArrowUp/Down 虚拟分支与 `extendVertical` 虚拟分支；选区映射改用 `Buffer.UTF16OffsetAt`，不再走 `extentForBytes`/`extendExtentBytes`（内部 `Editor.Text()` 会物化整串）。
+  - 修正 `TextRange().Affinity`（返回全文档范围）为 `SelectionRange().Affinity`；清理 `virtualVertical` 中重复的 `if extend` 赋值。
+  - 虚拟 `syncHighlightVirtual`/`imeRectVirtual` 改用 `Prepare` 而非 `VisibleRange`，保证回绕行几何与同帧绘制一致；`syncVirtual` 的 `maxW`/`totalH` 计算顺序对齐回绕语义。
+- `ui/textinput/box_v3c_test.go`（新增 4 条）：wrap 进虚拟且不物化整串、按宽度重建视图、回车后锚点不跳、上下键/Shift 扩选按视觉行且留在同一逻辑行。
+
+### 证据
+
+- 红灯（V3b 基线 `b6f1f2c9`）：4 条 `TestBoxV3c_*` 全 FAIL，失败原因均为 `virtualOn=false`（wrap 大文档进不了虚拟模式）。
+- 转绿（应用实现后）：4 条全 PASS；其中 `TestBoxV3c_VisualRowArrowKeys` 在只应用半成品、未接线时精确红：`ArrowDown jumped to logical line 801 (want 800)`。
+- 反证（防假绿）：临时废掉 `rebaseVirtual` 的锚点重定，`TestBoxV3c_AnchorStableAcrossLineCountEdit` 精确红 `top line 799 -> 774 after Enter at line 800 (scrollY 16796.0 -> 16262.0)`；恢复后绿。
+- 回归：`ui/rendering`/`ui/textinput`/`ui/textbuffer` 共 119 个 `*_test.go` 按文件逐个跑，119 PASS / 0 FAIL；`go build ./...`、`go vet ./ui/textinput ./ui/rendering`、`gofmt -l` 全干净。
+
+### 诚实项
+
+- `rebaseVirtual` 借用消费式 `ConsumeEditSpan` 定位编辑行（`box.go` 与 `edit_scroll.go` 各有一处消费点）。虚拟分支不走 `syncBoxText`，当前无冲突；但这是一次性通道的语义借用，未复现到实际故障，本轮未改，已记入立项书 §8 诚实项。
+- `wrapWidth()` 用 `FixedWidth - 2*Padding()`，未覆盖 DPR 缩放与 `MaxLines` 交互；GPU 真窗 wrap 场景另轮验收。
+- 真字体（face!=nil）回绕上下键未单独测；4 条测试沿用 nil-face 估算排版口径。
+- `-race` 未跑：仓库禁 CGO（沿用既有口径）。
+- **真窗曾 FAIL、P1/P2 已修（2026-11-13，隔离 `:3`）**：`examples/ui_text_large_scale -wrap`（1e6 行、130MB、每行回绕成 2 视觉行）首轮 60s `fps 39.67` / `hitch 390.36` 双双红，`anchor_top_line_stable` 漂移 1 行；CPU 单测口径未覆盖「`Invalidate()` 丢实测高度 + `Prepare` 重测」。按 §1.4 CodeMirror 口径与 CPU profile 定位后修复（详见下节与立项书 §8）。修复后 60s 回绕窗口两轮 `fps 58.93/59.01`、`p95 20.29/20.26`、`hitch 2.00/4.00` 全达标；Golden 零容差比对 `gate_pass=true`、diff=0（763584 px）、像素探针 68960、5 条逻辑探针全绿。60s 不回绕对照 `p95 22.95–23.03` 略超 22（当前机器基线，batch 前同窗 26.75 更差），非 V3c 引入。
+- 新增公开查询口 `Box.TopVisibleLine()`（虚拟视口顶部逻辑行号，替换「原始 `scrollY` 数值」这种错误锚点判据）与 `TextViewport.RebaseCount(editLine, delta)`（行数变化只重建变化区间、保留实测高度）。
+- **人工二合一**：常驻窗已开、用户已看画面确认 OK（Golden 基线随之认可）；补跑 `-wrap -manual-seconds 20` 标准关闭窗口，exit 0、`evidence_mode=manual`、fps 58.58、正常出汇总 JSON。
+- **人工窗关闭异常 + 未验证项（诚实）**：首次常驻窗挂 1h30m 后被外部 SIGKILL（exit 137），未走标准关闭、无汇总 JSON；`:3`/`:0` 显示均健康、无残留进程、dmesg 无 OOM/段错误，非脚本主动硬杀。已按纪律补跑标准关闭窗口。`OnEvent` 的 `EventKey` 收真键打日志/改标题分支未实测：隔离环境 rootless Xwayland 的窗口树对注入工具不可见（xdotool 未安装、python-xlib 遍历 root 得 0 children），代码路径已核（`EventKey`/`KeyCode`/`WindowController.SetTitle` 均存在），记为**未验证**，不标绿。
+
+### P1/P2 修复记录（2026-11-13，红灯起步 + CPU profile）
+
+- **P1 红灯** `TestBoxV3c_RebaseKeepsMeasuredHeights`：行数变化编辑后 `MeasuredCount 26→1`（`Invalidate()` 整张丢实测高度），修复后 5 条 V3c 测试全绿、119 个测试文件回归 0 FAIL。
+- **P1 修法**：`TextViewport.RebaseCount` 用 `EachMeasured` 导出实测节点、按行号平移（编辑行回落估算），`rebaseVirtual` 不再 `Invalidate()`；编辑点改用光标行定位，不再借用消费式 `ConsumeEditSpan`（该通道归 `syncBoxText`）。真窗自检同时修正判据场景：`-auto-only` 强制静止视口、编辑点放在视口内（原先与滚动脚本并发且把光标扔到文档中部，`ensureVisible` 合法跟走造成假红）。
+- **P2 定位**（`go tool pprof`，60s 回绕窗口）：`main.(*ticker).Tick` cum 68%；`Editor.MoveCursorDown` → `SetSelection→changed→OnChange→Box.sync→syncVirtual→TextViewport.Line→BuildTextLayout` cum 59%；滚动脚本每帧最多 4000 次移动 = 4000 次整行排版，回绕后每行 122 字符 / 2 视觉行使成本翻倍。
+- **P2 修法**：示例滚动脚本用引擎已有的 `BeginBatchEdit/EndBatchEdit` 把整批光标移动合并为一次 `OnChange`（能力在引擎已存在，属示例用错 API，未在示例绕洞）。修后 60s 回绕两轮全达标。
+- **证据文件**：`/tmp/v3c_wrap_cpu.prof`（CPU profile）、`/tmp/v3c_auto6.json`（5 探针全绿）、`/tmp/v3c_r4_gate.json`（Golden gate PASS）、`/tmp/v3c_r5_wrap60.json` 与 `/tmp/v3c_60s_batch.json`（60s 性能）、`examples/ui_text_large_scale/testdata/v3c_wrap_golden.png`（待人工确认的种子基线）。
+

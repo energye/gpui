@@ -123,6 +123,28 @@ func (v *TextViewport) MeasuredCount() int {
 	return v.heights.MeasuredCount()
 }
 
+// AnchorAt reports the line containing y and the offset into that line,
+// reading the current height map as-is (no source-count sync). Callers
+// capture the anchor with the pre-edit geometry before a rebase so the same
+// line stays at the top of the viewport.
+func (v *TextViewport) AnchorAt(y float64) (line int, offset float64) {
+	if v == nil || v.heights == nil || v.heights.LineCount() == 0 {
+		return 0, 0
+	}
+	line = v.heights.IndexAtOffset(y)
+	return line, y - v.heights.OffsetOf(line)
+}
+
+// InvalidateLayouts drops materialized line layouts but keeps measured
+// heights. Used when an edit changed content without changing the line
+// count: every untouched line keeps its height, and the next paint
+// re-measures the visible lines (including the edited one).
+func (v *TextViewport) InvalidateLayouts() {
+	if v != nil {
+		clear(v.cache)
+	}
+}
+
 // syncCount keeps the height map in step with a live line source (edits can
 // add/remove lines). A count change invalidates geometry, so measured
 // overrides and the materialized cache are dropped.
@@ -308,6 +330,50 @@ func (v *TextViewport) CacheLen() int {
 		return 0
 	}
 	return len(v.cache)
+}
+
+// RebaseCount folds a line-count change into the height map while keeping
+// measured heights (CodeMirror: only the changed interval is rebuilt).
+// Lines after editLine shift by delta; the edited line falls back to the
+// estimate until it is measured again. Materialized layouts are dropped
+// because their line numbers are stale, but the Y coordinates of untouched
+// lines do not move, so a viewport anchor captured before the edit holds.
+func (v *TextViewport) RebaseCount(editLine, delta int) {
+	if v == nil || v.heights == nil {
+		return
+	}
+	n := 0
+	if v.src != nil {
+		n = v.src.LineCount()
+	}
+	type measuredLine struct {
+		line int
+		h    float64
+	}
+	old := make([]measuredLine, 0, v.heights.MeasuredCount())
+	v.heights.EachMeasured(func(line int, h float64) bool {
+		old = append(old, measuredLine{line, h})
+		return true
+	})
+	maxMeasured := v.heights.MeasuredCap()
+	v.heights = NewHeightMap(n, v.estimate, maxMeasured)
+	for _, e := range old {
+		if e.line == editLine {
+			continue // edited line: re-measure on next paint
+		}
+		if delta < 0 && e.line >= editLine && e.line < editLine-delta {
+			continue // lines removed by the edit
+		}
+		l := e.line
+		if l > editLine {
+			l += delta
+		}
+		if l < 0 || l >= n {
+			continue
+		}
+		v.heights.Measure(l, e.h)
+	}
+	clear(v.cache)
 }
 
 // Invalidate drops all materialized lines and measured heights (e.g. after an

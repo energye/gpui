@@ -83,15 +83,17 @@ type Box struct {
 	dragLastX         float64
 	dragLastY         float64
 	autoScrollRunning bool
-	// 大文档视口模式（V2b-2b-1）：只物化可见行；选区/IME 时退回全量。
+	// 大文档视口模式（V2b-2b-1）：只物化可见行；V3c 起支持回绕。
 	vtext            *rendering.TextViewport
 	vtextVer         uint64
+	vtextCount       int // line count the shared height map was built with
 	virtualOn        bool
 	lastMaxW         float64
 	lastPaintScrollY float64
 	vtextFace        text.Face
 	vtextSize        float64
 	vtextSpacing     float64
+	vtextWrapW       float64 // wrap width the shared view was built with
 }
 
 // Old shell names are aliases of the single Box: one implementation,
@@ -592,6 +594,22 @@ func (b *Box) ScrollY() float64 {
 	return b.scrollY
 }
 
+// TopVisibleLine reports the logical line at the top of the virtual viewport
+// (0 when the box is not in virtual mode). Real-window gates use it to assert
+// that a line-count edit kept the same line on screen, instead of comparing
+// raw scrollY (which legitimately changes when the height map is rebased).
+func (b *Box) TopVisibleLine() int {
+	if b == nil || !b.virtualOn || b.vtext == nil {
+		return 0
+	}
+	visH := b.FixedHeight - 2*b.Padding()
+	if visH <= 0 {
+		return 0
+	}
+	first, _ := b.vtext.VisibleRange(b.scrollY, visH)
+	return first
+}
+
 func (b *Box) SetCaretOn(v bool) {
 	if b == nil {
 		return
@@ -849,7 +867,9 @@ func (b *Box) imeRectVirtual() (platform.Rect, bool) {
 	if visH < 0 {
 		visH = 0
 	}
-	firstLine, lastLine := v.VisibleRange(b.scrollY, visH)
+	// Prepare measures the window, so wrapped row geometry (and selection
+	// boxes) matches what paint submits in the same frame.
+	firstLine, lastLine := v.Prepare(b.scrollY, visH)
 	startLine := buf.LineIndex(s)
 	endLine := buf.LineIndex(e)
 	if startLine < firstLine {
@@ -919,9 +939,10 @@ func (b *Box) Sync() { b.sync() }
 const virtualTextMinBytes = 64 * 1024
 
 // canVirtual reports whether the box can use the viewport line model:
-// multi-line, no wrap, collapsed selection, not composing/password, large doc.
+// multi-line, not composing/password, large doc. Wrap is supported: the
+// shared view is built with the content width (V3c).
 func (b *Box) canVirtual() bool {
-	if b == nil || b.ed == nil || b.txt == nil || !b.multi || b.wrap {
+	if b == nil || b.ed == nil || b.txt == nil || !b.multi {
 		return false
 	}
 	if b.ed.IsPassword() {
@@ -930,20 +951,82 @@ func (b *Box) canVirtual() bool {
 	return b.ed.ensureBuf().Len() >= virtualTextMinBytes
 }
 
+// wrapWidth is the wrap width for a wrapped box (0 when wrap is off).
+func (b *Box) wrapWidth() float64 {
+	if b == nil || !b.wrap {
+		return 0
+	}
+	w := b.FixedWidth - 2*b.Padding()
+	if w < 0 {
+		w = 0
+	}
+	return w
+}
+
 func (b *Box) ensureVirtual() *rendering.TextViewport {
 	b.ed.ensureBuf()
-	if b.vtext == nil || b.vtextFace != b.txt.Face || b.vtextSize != b.txt.FontSize || b.vtextSpacing != b.txt.LineSpacing {
-		b.vtext = rendering.NewTextViewport(editorLineSource{ed: b.ed}, b.txt.Face, b.txt.FontSize, b.txt.LineSpacing, 128)
-		b.vtextFace, b.vtextSize, b.vtextSpacing = b.txt.Face, b.txt.FontSize, b.txt.LineSpacing
+	wrapW := b.wrapWidth()
+	if b.vtext == nil || b.vtextFace != b.txt.Face || b.vtextSize != b.txt.FontSize || b.vtextSpacing != b.txt.LineSpacing || b.vtextWrapW != wrapW {
+		b.vtext = rendering.NewWrappedTextViewport(editorLineSource{ed: b.ed}, b.txt.Face, b.txt.FontSize, b.txt.LineSpacing, wrapW, 0, 128)
+		b.vtextFace, b.vtextSize, b.vtextSpacing, b.vtextWrapW = b.txt.Face, b.txt.FontSize, b.txt.LineSpacing, wrapW
 		b.vtextVer = 0
+		b.vtextCount = b.vtext.LineCount()
 	}
 	if b.vtextVer != b.ed.docVersion {
-		b.vtext.Invalidate()
+		b.rebaseVirtual(b.vtext)
 		b.vtextVer = b.ed.docVersion
 	}
 	b.txt.SetVirtualView(b.vtext)
 	b.virtualOn = true
 	return b.vtext
+}
+
+// rebaseVirtual folds one document change into the shared view.
+//
+// Same line count (typing/deleting inside a line): layouts are dropped but
+// measured heights stay, so every untouched line keeps its geometry and the
+// viewport does not move; paint re-measures the visible lines (and the
+// edited one's height corrects itself).
+//
+// Line count change (Enter, newline delete, multi-line paste): only the
+// changed interval is rebased (measured heights survive), and scrollY is
+// re-derived from the top line captured before the change, shifted when the
+// edit sits above it. Rebuilding the whole map at estimate height would
+// change the Y scale: the next Prepare re-measures the visible lines and the
+// top of the viewport drifts by a row.
+func (b *Box) rebaseVirtual(v *rendering.TextViewport) {
+	if v == nil {
+		return
+	}
+	buf := b.ed.ensureBuf()
+	newCount := buf.LineCount()
+	anchorLine, anchorOff := v.AnchorAt(b.scrollY)
+	oldCount := b.vtextCount
+	if newCount == oldCount {
+		v.InvalidateLayouts()
+		return
+	}
+	delta := newCount - oldCount
+	// The caret sits at the edit point after Insert/Delete/Undo. Using it
+	// avoids borrowing the one-shot ConsumeEditSpan channel, which belongs
+	// to syncBoxText and may still hold a stale (e.g. SetText) span.
+	editLine := buf.LineIndex(b.ed.GetCursorOffset())
+	v.RebaseCount(editLine, delta)
+	b.vtextCount = newCount
+	if anchorLine > editLine {
+		anchorLine += delta
+	}
+	if anchorLine >= newCount {
+		anchorLine = newCount - 1
+	}
+	if anchorLine < 0 || newCount == 0 {
+		anchorLine = 0
+	}
+	if newCount == 0 {
+		b.scrollY = 0
+		return
+	}
+	b.scrollY = v.LineTop(anchorLine) + anchorOff
 }
 
 func (b *Box) disableVirtual() {
@@ -989,7 +1072,6 @@ func (b *Box) syncVirtual() {
 	if m.visH < 0 {
 		m.visH = 0
 	}
-	m.totalH = v.TotalHeight()
 	m.maxW = m.visW
 	m.lineH = lh
 	m.caretY = v.LineTop(line)
@@ -1004,10 +1086,13 @@ func (b *Box) syncVirtual() {
 				m.lineH = h
 			}
 		}
-		if vl.Width > m.maxW {
+		if !b.wrap && vl.Width > m.maxW {
+			// Wrapped content never scrolls horizontally: the wrap width is
+			// the widest a row can be.
 			m.maxW = vl.Width
 		}
 	}
+	m.totalH = v.TotalHeight()
 	b.lastMaxW = m.maxW
 	b.ensureVisible(m)
 	if !wasVirtual || b.vtextVer != verBefore || b.scrollY != b.lastPaintScrollY {
@@ -1214,7 +1299,7 @@ func (b *Box) syncHighlightVirtual(host highlightHost, sel TextRange) {
 	if visH < 0 {
 		visH = 0
 	}
-	firstLine, lastLine := v.VisibleRange(b.scrollY, visH)
+	firstLine, lastLine := v.Prepare(b.scrollY, visH)
 	startLine := buf.LineIndex(sByte)
 	endLine := buf.LineIndex(eByte)
 	if startLine < firstLine {
@@ -1389,11 +1474,14 @@ func (b *Box) Layout(c rendering.Constraints) rendering.Size {
 		}
 	}
 	if b.multi && b.wrap {
-		wantW := b.FixedWidth - 2*b.Padding()
-		if wantW < 0 {
-			wantW = 0
+		wantW := b.wrapWidth()
+		changed := b.txt.MaxWidth != wantW
+		if b.virtualOn && b.vtext != nil {
+			// Virtual paint ignores txt.MaxWidth (it stays 0); the wrap
+			// width lives on the shared viewport.
+			changed = b.vtext.MaxWidth() != wantW
 		}
-		if b.txt.MaxWidth != wantW {
+		if changed {
 			b.sync()
 		} else if resized {
 			b.sync()
@@ -1779,16 +1867,20 @@ func (b *Box) OnKey(ev input.KeyEvent) {
 	case input.KeyArrowRight:
 		b.moveVisual(1)
 	case input.KeyArrowUp:
-		// MoveVisualUp nil-guards into MoveCursorUp; single-line text has
-		// one visual row, so both old single-line forms land here.
+		// Virtual mode steps one visual row inside a wrapped logical line
+		// (V3c); the full-layout path keeps Flutter sticky-column moves.
 		if b.virtualOn {
-			b.ed.MoveCursorUp()
+			if !b.virtualVertical(-1, false) {
+				b.ed.MoveCursorUp()
+			}
 		} else {
 			b.ed.MoveVisualUp(b.txt.TextLayout())
 		}
 	case input.KeyArrowDown:
 		if b.virtualOn {
-			b.ed.MoveCursorDown()
+			if !b.virtualVertical(1, false) {
+				b.ed.MoveCursorDown()
+			}
 		} else {
 			b.ed.MoveVisualDown(b.txt.TextLayout())
 		}
@@ -1836,6 +1928,18 @@ func (b *Box) extendVisual(delta int) {
 
 func (b *Box) extendVertical(dir int) {
 	if b == nil || b.ed == nil {
+		return
+	}
+	if b.virtualOn {
+		// Wrapped virtual mode has no full TextLayout: extend by one visual
+		// row inside the logical line (V3c), same boundary as ArrowUp/Down.
+		if !b.virtualVertical(dir, true) {
+			if dir < 0 {
+				b.ed.MoveCursorUp()
+			} else {
+				b.ed.MoveCursorDown()
+			}
+		}
 		return
 	}
 	lay := b.txt.TextLayout()
@@ -1951,6 +2055,8 @@ func (b *Box) moveVisual(delta int) {
 		return
 	}
 	if b.virtualOn {
+		// Left/right stay byte-wise: soft wraps carry no newline, so caret
+		// stepping crosses visual rows with the same grapheme semantics.
 		if delta > 0 {
 			b.ed.MoveCursorForward()
 		} else {
@@ -1959,6 +2065,85 @@ func (b *Box) moveVisual(delta int) {
 		return
 	}
 	b.ed.MoveVisual(delta, b.txt.TextLayout())
+}
+
+// virtualVertical steps the caret one visual row up/down in the viewport
+// model, crossing soft-wrap rows inside the current line. Sticky column
+// semantics match Editor.moveVisualVertical (capture penX on the first
+// vertical move, keep it until a horizontal move/click clears it).
+func (b *Box) virtualVertical(dir int, extend bool) bool {
+	v := b.ensureVirtual()
+	buf := b.ed.ensureBuf()
+	curU := b.ed.SelectionRange().Extent
+	curByte := buf.ByteOffsetForUTF16(curU)
+	if curByte < 0 {
+		curByte = 0
+	}
+	if curByte > buf.Len() {
+		curByte = buf.Len()
+	}
+	line := buf.LineIndex(curByte)
+	local := curByte - buf.LineStart(line)
+	vl, ok := v.Line(line)
+	if !ok || vl.Layout == nil || vl.Layout.LineCount() == 0 {
+		return false
+	}
+	aff := b.ed.SelectionRange().Affinity
+	x, y, _, ok := vl.Layout.GetOffsetForCaret(local, aff, 1.5)
+	if !ok {
+		return false
+	}
+	row := vl.Layout.RowForY(y)
+	if !b.ed.caretColValid {
+		b.ed.caretCol = x
+		b.ed.caretColValid = true
+	}
+	sticky := b.ed.caretCol
+	targetLine, targetRow := line, row+dir
+	if targetRow < 0 {
+		if line == 0 {
+			return false
+		}
+		targetLine = line - 1
+		pvl, ok := v.Line(targetLine)
+		if !ok || pvl.Layout == nil || pvl.Layout.LineCount() == 0 {
+			return false
+		}
+		targetRow = pvl.Layout.LineCount() - 1
+	} else if targetRow >= vl.Layout.LineCount() {
+		if line+1 >= buf.LineCount() {
+			return false
+		}
+		targetLine = line + 1
+		targetRow = 0
+	}
+	tvl, ok := v.Line(targetLine)
+	if !ok || tvl.Layout == nil || targetRow >= tvl.Layout.LineCount() {
+		return false
+	}
+	yMid := tvl.Layout.LineTop(targetRow) + tvl.Layout.LineHeight(targetRow)/2
+	off, _ := tvl.Layout.GetPositionForOffset(sticky, yMid)
+	if off < 0 {
+		off = 0
+	}
+	if maxOff := len(tvl.Layout.Text); off > maxOff {
+		off = maxOff
+	}
+	// Buffer.UTF16OffsetAt maps the target byte without materializing the
+	// whole document (large-scale plan §2.2: no GetText on the edit path).
+	targetU := buf.UTF16OffsetAt(buf.LineStart(targetLine) + off)
+	var moved bool
+	if extend {
+		moved = b.ed.SetSelection(TextRange{Base: b.ed.SelectionRange().Base, Extent: targetU})
+	} else {
+		moved = b.ed.SetSelection(TextRange{Base: targetU, Extent: targetU})
+	}
+	if !moved {
+		return false
+	}
+	b.ed.caretCol = sticky
+	b.ed.caretColValid = true
+	return true
 }
 
 // MoveVisual steps the caret visually (shared by all modes).
