@@ -165,3 +165,17 @@ func (v *TextViewport) CacheLen() int {
 	}
 	return len(v.cache)
 }
+
+// Invalidate drops all materialized lines (e.g. after an edit).
+func (v *TextViewport) Invalidate() {
+	if v != nil {
+		clear(v.cache)
+	}
+}
+
+// InvalidateLine drops one materialized line after a localized edit.
+func (v *TextViewport) InvalidateLine(i int) {
+	if v != nil {
+		delete(v.cache, i)
+	}
+}
