@@ -408,3 +408,18 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - **公开 API 新增**：`RenderText.RenderCap`/`ShapeCap`/`DisableLongLineMarker`、`SetRenderCap`/`SetShapeCap`/`SetLongLineMarker`/`SetViewportHint`/`LongLineWindow()`；`LongLineInfo.MarkerX`；`Box.SetLongLineMarker()`/`LongLineMarkerX()`/`LongLineWindow()`。
 - **回归**：121 个测试文件逐个 0 FAIL；`go build ./...`、vet、gofmt、`scripts/apidoc`、`scripts/check_tasks_ledger.py` 全绿。击键 `13.93ms@1e6 / 11.34ms@5e6`（≤16ms）。
 - **诚实项（V4 整体仍不标绿）**：击键贴近 16ms 门禁、余量不足；`longLineWindow` 的 `strings.IndexByte` + 全串比较仍 O(n) 未消除；跨块 bidi/字素边界未探针（§2.3 非目标 line-level 回退）；§2.2 的 L1/L2/L3/S 四档全量门禁本轮未重跑（引用 V0–V3 既有证据）；独立滚动条拖动未实现（现靠光标跟随）；真键事件通道未实测（`keys=0`、`close_req=false` 为超时关闭）；60s 短窗 RSS 斜率判 inconclusive；人工画面确认待用户。余项已在立项书 §8 最新修订与 §8.1 平台覆盖表归位。
+
+---
+
+### V4 标绿前置 · CPU 侧全档门禁 + 跨块 bidi 探针（2026-11-13）
+
+- **用户拍板**：V4 标绿前须补齐 §2.2 全档门禁与跨块 bidi 探针；本轮先做 CPU 侧与 bidi，四档真窗串行重跑下一轮。
+- **新增 `ui/textinput/v4_gate_test.go`**（§2.2 准确口径，唯一行 + 每轮改不同位置 + 中位数 + 防假绿有效性断言）：
+  - 1e6 行首屏 `17.1µs`（门禁 ≤100ms）——断言进入虚拟模式，避免测空 Box；
+  - caret 移动/命中 `9.5µs`（≤4ms）——走生产 `Box.caretAnchor()`；初版误用 `TextLayout.CaretForOffset(全文偏移)` 假红（`lookup failed at 2000000`），定位为 V2 虚拟模式只物化可见行、全文偏移本不适用（生产路径 `box.go:817` 用 TextViewport 行内相对偏移），纠正测试口径而非改引擎；
+  - 多行同步 `4.4µs`（≤4ms）——V0 报告的 `19.27ms` 红已由 V2 视口模型（不扫全表）修复；断言虚拟模式 + 行数稳定；
+  - 3e6 行行数变化编辑 `36.7µs`（≤16ms）——断言 `Insert("\n")` 真 +1 行、`Undo` 真恢复。
+- **新增 `ui/rendering/v4_bidi_test.go` + `testdata/v4_bidi_seed.txt`**：长行窗口下 RTL（阿拉伯语/希伯来语）+ LTR + CJK 混合探针，断言不崩（`emoji.Segment` 不再越界）、窗口文本合法 UTF-8、字形非空、`…` 标记存在、caret 可查。按 §2.3 只保证 line-level 回退可用，不承诺跨块视觉重排。
+- **既有 CPU 门禁引用**：`TestHeightMap_Memory3M`（3M 行高度图 ≤3MB，合 §2.2「≤1KB/千行」）、`TestRowCountEditBound_M5`（1e6 行 ≤2ms）、`TestKeystrokeRatio_M5`（击键比值 ≤1.5）、`TestV4_SingleLineKeystroke_*`（≤16ms）——均随 123 文件逐个回归全绿。
+- **回归**：123 个测试文件逐个 0 FAIL；`go build ./...`、vet、gofmt、`scripts/apidoc`、`scripts/check_tasks_ledger.py` 全绿。
+- **剩余（V4 仍不标绿）**：L1(1e6/1e6)/L2(3e6/3e6)/L3(3e6/5e6)/S(1e7 定高) 四档真窗串行重跑（隔离 `:3`、标准关闭、每轮健康检查）、滚动 fps/p95/hitch 与首屏/RSS 真窗口径、独立滚动条拖动、真键事件通道。
