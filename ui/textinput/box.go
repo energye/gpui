@@ -594,6 +594,20 @@ func (b *Box) ScrollY() float64 {
 	return b.scrollY
 }
 
+// LongLineWindow reports the V4 D1 truncation window: start/end are
+// full-text byte offsets, fullLen is the whole line length, truncated is
+// true when the layout is a bounded window. Zero values otherwise.
+func (b *Box) LongLineWindow() (start, end, fullLen int, truncated bool) {
+	if b == nil || b.txt == nil {
+		return 0, 0, 0, false
+	}
+	l := b.txt.TextLayout()
+	if l == nil || l.LongLine == nil {
+		return 0, 0, 0, false
+	}
+	return l.LongLine.WindowStart, l.LongLine.WindowEnd, l.LongLine.FullLen, true
+}
+
 // TopVisibleLine reports the logical line at the top of the virtual viewport
 // (0 when the box is not in virtual mode). Real-window gates use it to assert
 // that a line-count edit kept the same line on screen, instead of comparing
@@ -948,7 +962,11 @@ func (b *Box) canVirtual() bool {
 	if b.ed.IsPassword() {
 		return false
 	}
-	return b.ed.ensureBuf().Len() >= virtualTextMinBytes
+	buf := b.ed.ensureBuf()
+	// V4 D1: a single over-long logical line must stay on the RenderText
+	// truncation-window path; TextViewport.Line would materialize the whole
+	// line and bypass the bounded window entirely.
+	return buf.Len() >= virtualTextMinBytes && buf.LineCount() > 1
 }
 
 // wrapWidth is the wrap width for a wrapped box (0 when wrap is off).
@@ -1158,6 +1176,22 @@ func (b *Box) sync() {
 		}
 		curByte := b.ed.GetCursorOffset()
 		aff := b.ed.TextRange().Affinity
+		// V4 D1: slide the long-line layout window so the caret stays inside
+		// the visible window. The full text is never shortened; only the
+		// bounded layout window moves (far-end content is estimated).
+		if ll := b.txt.TextLayout().LongLine; ll != nil {
+			winSize := ll.WindowEnd - ll.WindowStart
+			if winSize > 0 && ll.FullLen > winSize {
+				wantStart := curByte - winSize/2
+				if maxStart := ll.FullLen - winSize; wantStart > maxStart {
+					wantStart = maxStart
+				}
+				if wantStart < 0 {
+					wantStart = 0
+				}
+				b.txt.SetLongLineWindow(wantStart)
+			}
+		}
 		lay := b.txt.TextLayout()
 		m := scrollMetrics{pad: pad, multi: true, margin: b.caretMargin()}
 		m.visW = b.FixedWidth - 2*pad

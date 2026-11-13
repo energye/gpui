@@ -79,8 +79,9 @@ func isColorText(s string) bool {
 // Queries clamp offsets beyond the window via the existing len(l.Text)
 // bounds; a horizontal viewport (V4 stage 3) will slide this window.
 type LongLineInfo struct {
-	FullLen   int
-	WindowEnd int
+	FullLen     int
+	WindowStart int
+	WindowEnd   int
 }
 
 type TextLayout struct {

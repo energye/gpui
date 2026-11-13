@@ -124,6 +124,46 @@ func TestV4_SingleLineKeystroke_5e6(t *testing.T) {
 	}
 }
 
+// TestV4_LongLineHorizontalViewport is the stage-3 red light: with the D1
+// cap, a horizontal scroll must slide the layout window to the far end of the
+// line, keep the full text for copy/select-all, and keep caret lookups on
+// full-text offsets working inside the window.
+func TestV4_LongLineHorizontalViewport(t *testing.T) {
+	const n = 1000000
+	base := v4LongLine(t, n)
+	rt := NewRenderText(base)
+	rt.SetFace(v4Face(t))
+	_ = rt.TextLayout()
+
+	const start = 600000
+	rt.SetLongLineWindow(start)
+	lay := rt.TextLayout()
+	if lay.LongLine == nil || lay.LongLine.WindowStart != start {
+		t.Fatalf("window did not slide: %+v", lay.LongLine)
+	}
+	lineStart, lineEnd, _, _, ok := lay.Line(0)
+	if !ok || lineStart != start || lineEnd <= start {
+		t.Fatalf("layout row is not the slid window: start=%d end=%d (want start=%d)", lineStart, lineEnd, start)
+	}
+	if len(rt.Text) != n || len(lay.Text) != n {
+		t.Fatalf("full text lost: rt=%d layout=%d want=%d", len(rt.Text), len(lay.Text), n)
+	}
+	// A full-text offset inside the window must map to the caret at that
+	// position, NOT be clamped to the window end (which would still return
+	// ok=true and look green while placing the caret wrongly).
+	_, xIn, ok := lay.CaretForOffset(start + 100)
+	if !ok {
+		t.Fatalf("caret lookup for an in-window full-text offset failed")
+	}
+	_, xEnd, ok := lay.CaretForOffset(start + len(lay.Text) - 1)
+	if !ok {
+		t.Fatalf("caret lookup at window end failed")
+	}
+	if xIn >= xEnd {
+		t.Fatalf("caret X was not mapped into the window: xIn=%.1f xEnd=%.1f (full-text offset must subtract WindowStart)", xIn, xEnd)
+	}
+}
+
 // TestV4_LongLineWindow locks the D1 window semantics (not just timing):
 // the full text is kept for copy/select-all, only the bounded window is laid
 // out, an inner edit is really reflected in the layout, offsets beyond the
@@ -143,8 +183,12 @@ func TestV4_LongLineWindow(t *testing.T) {
 		t.Fatalf("RenderText.Text lost the full text: len=%d want=%d (copy/select-all must stay complete)", len(rt.Text), n)
 	}
 	lay := rt.TextLayout()
-	if len(lay.Text) != end || lay.LongLine == nil {
-		t.Fatalf("layout window not applied: len(Text)=%d LongLine=%v", len(lay.Text), lay.LongLine)
+	if len(lay.Text) != n || lay.LongLine == nil {
+		t.Fatalf("full text not kept in layout: len(Text)=%d LongLine=%v", len(lay.Text), lay.LongLine)
+	}
+	rowStart, rowEnd, _, _, ok := lay.Line(0)
+	if !ok || rowStart != 0 || rowEnd != end {
+		t.Fatalf("layout row is not the [0,%d) window: (%d,%d)", end, rowStart, rowEnd)
 	}
 
 	// A real edit inside the window must appear in the laid-out text — proves
@@ -153,22 +197,26 @@ func TestV4_LongLineWindow(t *testing.T) {
 	edited, at := v4ReplaceASCII(base, want, 'Z')
 	rt.SetTextSpan(edited, at, at+1, at, at+1)
 	lay = rt.TextLayout()
-	if len(lay.Text) != end || lay.Text[at] != 'Z' {
-		t.Fatalf("inner-window edit not reflected: len=%d byte=%q", len(lay.Text), lay.Text[at])
+	if len(lay.Text) != n || lay.Text[at] != 'Z' {
+		t.Fatalf("inner-window edit not reflected in full text: len=%d byte=%q", len(lay.Text), lay.Text[at])
 	}
 
 	// Offsets beyond the window clamp into it (no panic / no out-of-bounds).
 	if _, _, ok := lay.CaretForOffset(n - 1); !ok {
 		t.Fatalf("CaretForOffset beyond window returned !ok; expected a clamped caret")
 	}
-	if got, _ := lay.GetPositionForOffset(1e9, 0); got < 0 || got > end {
-		t.Fatalf("clamped byte offset out of window: %d", got)
+	if got, _ := lay.GetPositionForOffset(1e9, 0); got < 0 || got > n {
+		t.Fatalf("clamped byte offset out of full text: %d", got)
 	}
 
 	// Configurable cap.
 	rt.SetMaxSingleLineBytes(2000)
-	if e, _, tr := rt.LongLineWindow(); !tr || e != 2000 || len(rt.TextLayout().Text) != 2000 {
-		t.Fatalf("explicit cap not applied: end=%d truncated=%v text=%d", e, tr, len(rt.TextLayout().Text))
+	if e, _, tr := rt.LongLineWindow(); !tr || e != 2000 {
+		t.Fatalf("explicit cap not applied: end=%d truncated=%v", e, tr)
+	}
+	s0, e0, _, _, ok := rt.TextLayout().Line(0)
+	if !ok || e0-s0 != 2000 {
+		t.Fatalf("window row not 2000 bytes: (%d,%d)", s0, e0)
 	}
 
 	// -1 disables truncation: layout sees the full (small) text.

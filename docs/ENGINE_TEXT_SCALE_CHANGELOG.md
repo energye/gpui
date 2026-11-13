@@ -383,3 +383,14 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - **证据**：1e6 字**窗口内真实打字 3.98ms**（不是远端快路假绿）、5e6 字远端编辑 532µs；`TestV4_LongLineWindow` 锁全文保留/窗口内编辑真被布局/上限可配/-1 禁用/越界钳制不崩；`m5_singleline_test.go` 显式 `SetMaxSingleLineBytes(-1)` 保持其 50k 全量口径；全仓 `go build ./...` + vet + gofmt + 120 个测试文件逐个回归 0 FAIL。
 - **诚实项**：阶段 2/3 未做——省略标记尚未绘制、窗口外光标钳到窗口末尾（横向滚动待阶段 3）、`longLineWindow` 每次 `strings.IndexByte` 只读扫全文（未物化但规模未完全解耦，待阶段 3 改用 Editor 行信息）、跨块 bidi/字素边界失败模式未探针、真窗三证据待阶段 3。**V4 整体不得标绿**。
 
+---
+
+### V4 阶段 2/3（部分收口，2026-11-13）
+
+- **用户拍板**：块级 shape cache + 前缀宽度按冗余处理；继续做完含真窗。冗余依据：D1 窗口仅 10000 字节，滚动重整形一次 ~4ms（门禁 ≤16ms 已达标），独立块缓存无收益；横向位置按平均字宽估算（D1 远端估算），`render/text` 不新增底层公开 API。
+- **横向视口**：`RenderText.SetLongLineWindow(start)` + `LongLineInfo.WindowStart`；`ensureLayout` 把行表偏移改为全文绝对、`l.Text` 保留全文，所有查询口继续吃/吐全文偏移。红灯 `TestV4_LongLineHorizontalViewport` 的 caret **位置断言**先逼出假绿 `xIn=xEnd=71269.6`（只查 `ok` 会漏），修后转绿。`Box.sync` 光标跟随滑窗；`canVirtual` 加 `LineCount()>1`，超长单行不再被 V2 `TextViewport` 绕过 D1 窗口（`TestV4_LongLineStaysOnRenderTextWindow`）。
+- **真窗**：新建 `examples/ui_text_v4_longline`（独立主能力窗）。`-auto-only` 三证据：3 逻辑探针全绿（d1_window / not_virtual / horizontal_viewport 窗口 0→2,495,000）、像素探针 3486、Golden 零容差 diff=0（763584 px）；`GPUI_ACCEPT_GOLDEN=1` 种子轮按契约 `seeded=true` 不算绿；60s 人工窗二合一（收真键打日志改标题、标准关闭）。15s 自测 fps 59.36–59.68 / p95 18.91–19.27 / hitch 4.01–8.03（短跑波动）。
+- **公开 API 新增**：`RenderText.SetLongLineWindow`、`LongLineInfo.WindowStart`、`Box.LongLineWindow()`。
+- **证据**：全仓 `go build ./...`、vet、gofmt、`scripts/apidoc`、`scripts/check_tasks_ledger.py` 全绿；121 个测试文件逐个回归 0 FAIL（含新增 `box_v4_test.go`、V4 四条）。
+- **诚实项（未收口，V4 整体不得标绿）**：① 截断省略标记三种做法均失败——`paintTextLine` 单独 `DrawString` 被 GPU 批量字形延迟提交覆盖（分支探针确认执行）、窗口文本等长替换 + `displayText` 覆盖 `DisplayLines()` 后 GPU 回读快照仍无标记（composite face 的 `paintCompositeRuns` 绕过字符串级标记），按「搞不定如实回退、不交付无效改动」全部回退，需后续专项重构绘制路径；② 独立滚动条拖动未实现（现靠光标跟随滑窗）；③ `longLineWindow` 每次只读扫全文 O(n)；④ 跨块 bidi/字素边界失败模式未探针；⑤ 人工窗已跑（隔离 :3、60s 标准关闭，fps 59.67 / p95 19.22 / hitch 0.00 达标），但 `v4_manual_keys=0` 真键事件通道未实测、`close_req=false` 为超时关闭，人工画面确认待用户。
+

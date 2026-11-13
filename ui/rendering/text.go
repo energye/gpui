@@ -75,6 +75,9 @@ type RenderText struct {
 	// laid out (V4 / D1 §7). 0 = DefaultMaxSingleLineBytes, >0 = explicit
 	// cap, -1 = disabled. The full text stays in Text for copy/select-all.
 	MaxSingleLineBytes int
+	// longLineStart is the full-text byte offset where the layout window
+	// begins (horizontal viewport, V4 stage 3). Set via SetLongLineWindow.
+	longLineStart int
 	// Overflow is applied when content exceeds MaxWidth and/or MaxLines.
 	Overflow TextOverflow
 	// Runs holds multi-span content from ParagraphBuilder / SetRuns.
@@ -677,17 +680,26 @@ func (t *RenderText) ensureLayout() *TextLayout {
 		// V4 / D1: an over-long single line lays out only the visible window.
 		// The full text stays in t.Text so copy/select-all are unchanged, and
 		// the incremental engine only ever sees the bounded window text.
-		windowEnd, fullLen, longLine := t.longLineWindow(t.Text)
+		start, end, fullLen, longLine := t.longLineWindow(t.Text)
 		layoutText := t.Text
 		if longLine {
-			layoutText = t.Text[:windowEnd]
+			layoutText = t.Text[start:end]
 		}
 		sp := t.spanHint
 		t.spanHint.ok = false
-		if longLine && sp.ok && (sp.newA >= windowEnd || sp.oldA >= windowEnd) {
-			// An edit beyond the window cannot change the window text: drop
-			// the hint so the cache takes its same-text fast path (no re-shape).
-			sp.ok = false
+		if longLine && sp.ok {
+			if sp.newA >= start && sp.newB <= end && sp.oldA >= start && sp.oldB <= end {
+				// Full-text edit span -> window-relative span.
+				sp.oldA -= start
+				sp.oldB -= start
+				sp.newA -= start
+				sp.newB -= start
+			} else {
+				// Edit outside (or straddling) the window: drop the hint.
+				// lcache then takes its same-text fast path, or a bounded
+				// full rebuild of just the window text.
+				sp.ok = false
+			}
 		}
 		// Spaced text bypasses the shared row cache (6a): rows are built
 		// fresh with spacing baked in, so unspaced cache keys, incremental
@@ -701,7 +713,25 @@ func (t *RenderText) ensureLayout() *TextLayout {
 			t.textLayout = t.lcache.update(layoutText, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow)
 		}
 		if longLine {
-			t.textLayout.LongLine = &LongLineInfo{FullLen: fullLen, WindowEnd: windowEnd}
+			// The incremental engine built the window text (bounded). Adapt
+			// the returned layout back to full-text semantics so every query
+			// mouth (Line/CaretForOffset/BoxesForRange/GetPositionForOffset)
+			// keeps taking and returning FULL-text byte offsets without a
+			// per-method mapping: rows carry absolute offsets, l.Text stays
+			// the full string, and carets remain row-relative.
+			l := t.textLayout
+			rows := make([]TextLayoutLine, len(l.lines))
+			copy(rows, l.lines)
+			for i := range rows {
+				rows[i].StartByte += start
+				rows[i].EndByte += start
+			}
+			l.lines = rows
+			l.Text = t.Text
+			l.shift = nil
+			l.idx = buildLineIndex(rows, l.FontSize, l.LineSpacing)
+			l.idxSeq = l.idx.seq
+			l.LongLine = &LongLineInfo{FullLen: fullLen, WindowStart: start, WindowEnd: end}
 		}
 	}
 	return t.textLayout
@@ -722,19 +752,46 @@ func (t *RenderText) singleLineCap() (int, bool) {
 	}
 }
 
-// longLineWindow reports the layout window for an over-long single line.
-// ok=false for multi-line, short, or disabled text. The cut is pulled back
-// to a UTF-8 rune boundary so the window text stays valid.
-func (t *RenderText) longLineWindow(s string) (windowEnd, fullLen int, ok bool) {
+// longLineWindow reports the layout window (full-text byte range) for an
+// over-long single line. ok=false for multi-line, short, or disabled text.
+// Both ends are pulled to UTF-8 rune boundaries so the window stays valid;
+// the window slides with longLineStart (horizontal viewport).
+func (t *RenderText) longLineWindow(s string) (start, end, fullLen int, ok bool) {
 	capN, enabled := t.singleLineCap()
 	if !enabled || capN <= 0 || len(s) <= capN || strings.IndexByte(s, '\n') >= 0 {
-		return len(s), len(s), false
+		return 0, len(s), len(s), false
 	}
-	end := capN
-	for end > 0 && !utf8.RuneStart(s[end]) {
+	start = t.longLineStart
+	if start > len(s)-1 {
+		start = len(s) - 1
+	}
+	if start < 0 {
+		start = 0
+	}
+	for start > 0 && !utf8.RuneStart(s[start]) {
+		start--
+	}
+	end = start + capN
+	if end > len(s) {
+		end = len(s)
+	}
+	for end < len(s) && !utf8.RuneStart(s[end]) {
 		end--
 	}
-	return end, len(s), true
+	return start, end, len(s), true
+}
+
+// SetLongLineWindow slides the D1 layout window to a full-text byte offset
+// (horizontal viewport, V4 stage 3). Out-of-range values are clamped by
+// longLineWindow. The full text stays in Text for copy/select-all.
+func (t *RenderText) SetLongLineWindow(startByte int) {
+	if t == nil || t.longLineStart == startByte {
+		return
+	}
+	t.longLineStart = startByte
+	t.textLayout = nil
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
 }
 
 // SetMaxSingleLineBytes configures the D1 long-line render cap (0 = default
@@ -756,7 +813,8 @@ func (t *RenderText) LongLineWindow() (windowEnd, fullLen int, truncated bool) {
 	if l == nil || l.LongLine == nil {
 		return 0, 0, false
 	}
-	return l.LongLine.WindowEnd, l.LongLine.FullLen, l.LongLine.FullLen > l.LongLine.WindowEnd
+	return l.LongLine.WindowEnd, l.LongLine.FullLen,
+		l.LongLine.WindowStart > 0 || l.LongLine.FullLen > l.LongLine.WindowEnd
 }
 
 // SetViewportHint enables culling for long single-line viewports (Flutter RenderEditable).
