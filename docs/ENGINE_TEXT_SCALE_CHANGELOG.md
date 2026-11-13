@@ -394,3 +394,17 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - **证据**：全仓 `go build ./...`、vet、gofmt、`scripts/apidoc`、`scripts/check_tasks_ledger.py` 全绿；121 个测试文件逐个回归 0 FAIL（含新增 `box_v4_test.go`、V4 四条）。
 - **诚实项（未收口，V4 整体不得标绿）**：① 截断省略标记三种做法均失败——`paintTextLine` 单独 `DrawString` 被 GPU 批量字形延迟提交覆盖（分支探针确认执行）、窗口文本等长替换 + `displayText` 覆盖 `DisplayLines()` 后 GPU 回读快照仍无标记（composite face 的 `paintCompositeRuns` 绕过字符串级标记），按「搞不定如实回退、不交付无效改动」全部回退，需后续专项重构绘制路径；② 独立滚动条拖动未实现（现靠光标跟随滑窗）；③ `longLineWindow` 每次只读扫全文 O(n)；④ 跨块 bidi/字素边界失败模式未探针；⑤ 人工窗已跑（隔离 :3、60s 标准关闭，fps 59.67 / p95 19.22 / hitch 0.00 达标），但 `v4_manual_keys=0` 真键事件通道未实测、`close_req=false` 为超时关闭，人工画面确认待用户。
 
+
+---
+
+### V4 第四层重做：分块窗口 + 截断标记收口（2026-11-13）
+
+- **背景**：用户审查判定阶段 1「固定 10000 字节窗口」偏离 §3 第 4 层（渲染上限≠窗口大小、缺字素分块/前缀宽度/可见窗口），拍板按立项书重做；上轮「块缓存冗余」结论（只在简化方案下成立）撤销。
+- **A 段（重做第四层）**：`RenderCap`(10000 字符)/`ShapeCap`(20000 字符) 拆开；`ui/rendering/long_line.go` 新增 2–4KB 块模型（FNV 内容哈希块 shape cache 提到 `RenderText` 级、跨编辑保留并有 `TestV4_BlockShapeCacheSurvivesEdit` 钉住；块宽前缀和；`ByteAtX`/`XAtByte` 像素↔字节映射）；窗口按可见像素带宽 + 512B overscan、钳制在 RenderCap 内（真窗 `window=(0,631)`）。复用 `text.LayoutText(...).Width`，`render/text` 未新增底层公开 API。旧 API（`MaxSingleLineBytes`/`SetMaxSingleLineBytes`/`SetLongLineWindow`/`DefaultMaxSingleLineBytes`）按接口全量切换制一次删净。
+- **B 段第四次（截断省略标记，本轮收口）**：前三次失败的根因用隔离探针逐个钉死——① 独立 `DrawString` 被 GPU 批量字形延迟提交覆盖；② `DisplayLines` 字符串改动被 `paintCompositeRuns` 读 `LineGlyphs` 绕过；③ 按**字节偏移**等长替换 `…` 落在多字节汉字中间，窗口文本变非法 UTF-8（`decorated[105:118]="56789…\x96界\xe6" validUTF8=false`），`emoji.Segment` 切分越界 panic，标记根本没合法进字形。rune 边界替换对照探针证明 `LineGlyphs` 可含 `…`（GID 2825）。**实现**对齐 Skia `TextLine::createEllipsis` / Flutter `TextOverflow.ellipsis`：不动窗口文本，在 `adaptLongLineLayout` 裁掉可见带右端之后的字形，把 `…` 用**行尾具体子 face**（`*text.sourceFace`；`*text.MultiFace` 不能直接 `DrawShapedGlyphs`）整形为**独立 `LineGlyphRun`** 挂到布局字形表，走原生 `DrawShapedGlyphs` 链。GPU 回读快照右端确认 `…` 可见。
+- **横向滚动坐标系洞（本轮一并修）**：`hCullWindow` 用全文 `scrollX` 裁剪，而长行窗口 glyph X 是窗口相对（0 起），滚动后显示内容错位（隔离探针 `scrollX=5000` 时 `cull=(4800,6104)` 落在窗口文本 `[0,8203]` 内却对应错误字节段）。`adaptLongLineLayout` 按 `XAtByte(WindowStart)` 把 glyph/caret X 平移成全文绝对、清空懒算 clusters 缓存；`TestV4_HorizontalCullCoordinates` 钉 `first X=0.0`→`1334.2`。`row.Width` 保持 A 段原值（不缩小，避免钳死 `m.maxW` 鼠标边缘滚动上限）。
+- **客观判据（三证据合证，不用 mean）**：3 条 CPU 红灯（`…` 字形 GID+可见带右端位置、窗口文本 UTF-8 合法、cull 坐标系）+ 1 条真窗并排像素差分全绿；`marker_ink_diff=16`（`…` 三点墨迹，右端窄条逐像素差分），反证把对照图换成有标记图→`0` 且门禁明确报 `marker pixel probe`；`GPUI_V4_NO_MARKER=1` 生成无标记对照图存 `testdata/v4_longline_no_marker.png`（同一份代码只切 `SetLongLineMarker` 开关，差分可完全归因于标记）。
+- **真窗验收**：Golden 重种后零容差 `diff=0 / 763584px`（种子轮按契约不算绿）、1px 负向 `0.000131%` 红→还原 `diff=0` 绿、4 逻辑探针全绿（`d1_window`/`not_virtual`/`horizontal_viewport`/`marker_glyph MarkerX=8505.0`）、`ink=3439`；60s 人工窗 `fps 59.75 / p95 19.30 / hitch 0.00`、标准关闭 exit 0、`:3`/`:0` 健康、无残留、无异常日志。
+- **公开 API 新增**：`RenderText.RenderCap`/`ShapeCap`/`DisableLongLineMarker`、`SetRenderCap`/`SetShapeCap`/`SetLongLineMarker`/`SetViewportHint`/`LongLineWindow()`；`LongLineInfo.MarkerX`；`Box.SetLongLineMarker()`/`LongLineMarkerX()`/`LongLineWindow()`。
+- **回归**：121 个测试文件逐个 0 FAIL；`go build ./...`、vet、gofmt、`scripts/apidoc`、`scripts/check_tasks_ledger.py` 全绿。击键 `13.93ms@1e6 / 11.34ms@5e6`（≤16ms）。
+- **诚实项（V4 整体仍不标绿）**：击键贴近 16ms 门禁、余量不足；`longLineWindow` 的 `strings.IndexByte` + 全串比较仍 O(n) 未消除；跨块 bidi/字素边界未探针（§2.3 非目标 line-level 回退）；§2.2 的 L1/L2/L3/S 四档全量门禁本轮未重跑（引用 V0–V3 既有证据）；独立滚动条拖动未实现（现靠光标跟随）；真键事件通道未实测（`keys=0`、`close_req=false` 为超时关闭）；60s 短窗 RSS 斜率判 inconclusive；人工画面确认待用户。余项已在立项书 §8 最新修订与 §8.1 平台覆盖表归位。

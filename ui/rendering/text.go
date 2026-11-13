@@ -33,11 +33,6 @@ const (
 
 const textEllipsis = "…"
 
-// DefaultMaxSingleLineBytes is the D1 render/shape cap for one logical line
-// (VS Code stopRenderingLineAfter=10000). Override with
-// RenderText.MaxSingleLineBytes / SetMaxSingleLineBytes; -1 disables.
-const DefaultMaxSingleLineBytes = 10000
-
 // RenderText draws text via render.DrawString / per-line paint.
 // Layout prefers Face.Measure when Face is set; otherwise EstimateTextSize (rune-based).
 // When MaxWidth > 0, layout/paint wrap. MaxLines + Overflow cap the visible content.
@@ -71,13 +66,25 @@ type RenderText struct {
 	Align      render.Align
 	// MaxLines caps visible lines; 0 = unlimited.
 	MaxLines int
-	// MaxSingleLineBytes caps how many bytes of an over-long single line are
-	// laid out (V4 / D1 §7). 0 = DefaultMaxSingleLineBytes, >0 = explicit
-	// cap, -1 = disabled. The full text stays in Text for copy/select-all.
-	MaxSingleLineBytes int
-	// longLineStart is the full-text byte offset where the layout window
-	// begins (horizontal viewport, V4 stage 3). Set via SetLongLineWindow.
-	longLineStart int
+	// RenderCap / ShapeCap are the two independent D1 long-line caps in
+	// characters (0 = default 10000 / 20000, <0 = unlimited, >0 = explicit).
+	// RenderCap bounds what may be displayed (VS Code stopRenderingLineAfter);
+	// ShapeCap bounds the prefix-sum shaping budget (maxTokenizationLineLength).
+	// Exposed via SetRenderCap / SetShapeCap.
+	RenderCap int
+	ShapeCap  int
+	// DisableLongLineMarker turns off the D1 "…" truncation marker on a
+	// long-line window. Default false = marker shown (Flutter
+	// TextOverflow.ellipsis / Skia TextLine::createEllipsis). Set through
+	// SetLongLineMarker so the layout is invalidated.
+	DisableLongLineMarker bool
+	// longLineIX caches the V4 block model for the current text+face+caps;
+	// longLineBlockCache outlives index rebuilds so an edit only re-measures
+	// the changed block (plan §1.4 CodeMirror「编辑只重建变化区间」).
+	longLineIX         *longLineIndex
+	longLineIXText     string
+	longLineIXFace     text.Face
+	longLineBlockCache map[blockCacheKey]float64
 	// Overflow is applied when content exceeds MaxWidth and/or MaxLines.
 	Overflow TextOverflow
 	// Runs holds multi-span content from ParagraphBuilder / SetRuns.
@@ -678,8 +685,7 @@ func (t *RenderText) ensureLayout() *TextLayout {
 			t.lcache = newLayoutCache()
 		}
 		// V4 / D1: an over-long single line lays out only the visible window.
-		// The full text stays in t.Text so copy/select-all are unchanged, and
-		// the incremental engine only ever sees the bounded window text.
+		// The full text stays in t.Text so copy/select-all are unchanged.
 		start, end, fullLen, longLine := t.longLineWindow(t.Text)
 		layoutText := t.Text
 		if longLine {
@@ -696,8 +702,6 @@ func (t *RenderText) ensureLayout() *TextLayout {
 				sp.newB -= start
 			} else {
 				// Edit outside (or straddling) the window: drop the hint.
-				// lcache then takes its same-text fast path, or a bounded
-				// full rebuild of just the window text.
 				sp.ok = false
 			}
 		}
@@ -713,94 +717,85 @@ func (t *RenderText) ensureLayout() *TextLayout {
 			t.textLayout = t.lcache.update(layoutText, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow)
 		}
 		if longLine {
-			// The incremental engine built the window text (bounded). Adapt
-			// the returned layout back to full-text semantics so every query
-			// mouth (Line/CaretForOffset/BoxesForRange/GetPositionForOffset)
-			// keeps taking and returning FULL-text byte offsets without a
-			// per-method mapping: rows carry absolute offsets, l.Text stays
-			// the full string, and carets remain row-relative.
-			l := t.textLayout
-			rows := make([]TextLayoutLine, len(l.lines))
-			copy(rows, l.lines)
-			for i := range rows {
-				rows[i].StartByte += start
-				rows[i].EndByte += start
-			}
-			l.lines = rows
-			l.Text = t.Text
-			l.shift = nil
-			l.idx = buildLineIndex(rows, l.FontSize, l.LineSpacing)
-			l.idxSeq = l.idx.seq
-			l.LongLine = &LongLineInfo{FullLen: fullLen, WindowStart: start, WindowEnd: end}
+			adaptLongLineLayout(t, t.textLayout, start, end, fullLen)
 		}
 	}
 	return t.textLayout
 }
 
-// singleLineCap returns (cap, enabled); enabled=false when truncation is off.
-func (t *RenderText) singleLineCap() (int, bool) {
+// caps returns the effective (renderCap, shapeCap) in characters; <=0 means
+// unlimited inside capBytes. Zero-valued fields use the D1 defaults.
+func (t *RenderText) caps() (renderCap, shapeCap int) {
 	if t == nil {
-		return 0, false
+		return 0, 0
 	}
-	switch {
-	case t.MaxSingleLineBytes < 0:
-		return 0, false
-	case t.MaxSingleLineBytes == 0:
-		return DefaultMaxSingleLineBytes, true
-	default:
-		return t.MaxSingleLineBytes, true
+	renderCap, shapeCap = t.RenderCap, t.ShapeCap
+	if renderCap == 0 {
+		renderCap = DefaultRenderCapChars
 	}
+	if shapeCap == 0 {
+		shapeCap = DefaultShapeCapChars
+	}
+	return
+}
+
+// longLineIndexFor returns the cached block model, rebuilding when the text,
+// face or caps changed.
+func (t *RenderText) longLineIndexFor(s string) *longLineIndex {
+	rc, sc := t.caps()
+	face := t.effectiveFace()
+	if t.longLineIX != nil && t.longLineIXText == s && t.longLineIXFace == face &&
+		t.longLineIX.renderCap == rc && t.longLineIX.shapeCap == sc {
+		return t.longLineIX
+	}
+	if t.longLineBlockCache == nil {
+		t.longLineBlockCache = make(map[blockCacheKey]float64)
+	}
+	t.longLineIX = newLongLineIndex(s, face, rc, sc, t.longLineBlockCache)
+	t.longLineIXText = s
+	t.longLineIXFace = face
+	return t.longLineIX
 }
 
 // longLineWindow reports the layout window (full-text byte range) for an
-// over-long single line. ok=false for multi-line, short, or disabled text.
-// Both ends are pulled to UTF-8 rune boundaries so the window stays valid;
-// the window slides with longLineStart (horizontal viewport).
+// over-long single line. ok=false for multi-line, short (<64KB — plan §2.3
+// keeps small docs on the legacy path), or explicitly disabled text.
+// The window follows the horizontal viewport through the block prefix sum
+// and is clamped to the render cap (characters beyond it are truncated, D1).
 func (t *RenderText) longLineWindow(s string) (start, end, fullLen int, ok bool) {
-	capN, enabled := t.singleLineCap()
-	if !enabled || capN <= 0 || len(s) <= capN || strings.IndexByte(s, '\n') >= 0 {
+	if t.RenderCap < 0 || len(s) < 64*1024 || strings.IndexByte(s, '\n') >= 0 {
 		return 0, len(s), len(s), false
 	}
-	start = t.longLineStart
-	if start > len(s)-1 {
-		start = len(s) - 1
-	}
-	if start < 0 {
-		start = 0
-	}
-	for start > 0 && !utf8.RuneStart(s[start]) {
-		start--
-	}
-	end = start + capN
-	if end > len(s) {
-		end = len(s)
-	}
-	for end < len(s) && !utf8.RuneStart(s[end]) {
-		end--
+	ix := t.longLineIndexFor(s)
+	start, end = ix.Window(t.viewportScrollX, t.viewportWidth)
+	if end <= start {
+		return 0, len(s), len(s), false
 	}
 	return start, end, len(s), true
 }
 
-// SetLongLineWindow slides the D1 layout window to a full-text byte offset
-// (horizontal viewport, V4 stage 3). Out-of-range values are clamped by
-// longLineWindow. The full text stays in Text for copy/select-all.
-func (t *RenderText) SetLongLineWindow(startByte int) {
-	if t == nil || t.longLineStart == startByte {
+// SetRenderCap configures the D1 display cap in characters (0 = default
+// 10000, <0 = unlimited/legacy full layout). Changing it rebuilds the layout
+// and the block model.
+func (t *RenderText) SetRenderCap(n int) {
+	if t == nil || t.RenderCap == n {
 		return
 	}
-	t.longLineStart = startByte
+	t.RenderCap = n
+	t.longLineIX = nil
 	t.textLayout = nil
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
 }
 
-// SetMaxSingleLineBytes configures the D1 long-line render cap (0 = default
-// 10000, -1 = disabled). Changing it rebuilds the layout.
-func (t *RenderText) SetMaxSingleLineBytes(n int) {
-	if t == nil || t.MaxSingleLineBytes == n {
+// SetShapeCap configures the D1 shaping/prefix-sum cap in characters
+// (0 = default 20000, <0 = unlimited).
+func (t *RenderText) SetShapeCap(n int) {
+	if t == nil || t.ShapeCap == n {
 		return
 	}
-	t.MaxSingleLineBytes = n
+	t.ShapeCap = n
+	t.longLineIX = nil
 	t.textLayout = nil
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
@@ -817,9 +812,25 @@ func (t *RenderText) LongLineWindow() (windowEnd, fullLen int, truncated bool) {
 		l.LongLine.WindowStart > 0 || l.LongLine.FullLen > l.LongLine.WindowEnd
 }
 
-// SetViewportHint enables culling for long single-line viewports (Flutter RenderEditable).
-// scrollX is the viewport ScrollOffset.X, visW is the viewport width (>0). Call after SetText.
-// Pass visW<=0 to clear the hint (no culling). Does not mark dirty.
+// SetLongLineMarker enables/disables the D1 "…" truncation marker on a
+// long-line window. Disabling keeps the same visible prefix (glyphs past the
+// right edge are still dropped), so a side-by-side diff isolates exactly
+// the marker ink — useful for pixel-level acceptance.
+func (t *RenderText) SetLongLineMarker(enabled bool) {
+	if t == nil || t.DisableLongLineMarker == !enabled {
+		return
+	}
+	t.DisableLongLineMarker = !enabled
+	t.textLayout = nil
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// SetViewportHint enables culling for long single-line viewports (Flutter
+// RenderEditable) and, for V4 long lines, drives which blocks are laid out.
+// scrollX is the viewport ScrollOffset.X, visW is the viewport width (>0).
+// Pass visW<=0 to clear the hint. Small docs keep the legacy no-dirty
+// behaviour (plan §2.3); a long-line band change rebuilds the window.
 func (t *RenderText) SetViewportHint(scrollX, visW float64) {
 	if t == nil {
 		return
@@ -828,9 +839,14 @@ func (t *RenderText) SetViewportHint(scrollX, visW float64) {
 		t.hasViewportHint = false
 		return
 	}
+	changed := t.viewportScrollX != scrollX || t.viewportWidth != visW
 	t.viewportScrollX = scrollX
 	t.viewportWidth = visW
 	t.hasViewportHint = true
+	if changed && len(t.Text) >= 64*1024 && strings.IndexByte(t.Text, '\n') < 0 {
+		t.textLayout = nil
+		t.MarkNeedsPaint()
+	}
 }
 
 // SetViewportRect extends SetViewportHint with a vertical band for

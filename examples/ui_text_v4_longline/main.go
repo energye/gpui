@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"image"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -34,6 +35,9 @@ const (
 	winW, winH = 1200, 800
 	lineBytes  = 5000000
 	goldenRel  = "examples/ui_text_v4_longline/testdata/v4_longline_golden.png"
+	// noMarkerRel is a marker-OFF render used for an objective pixel diff;
+	// both images come from the same code path with only the marker toggled.
+	noMarkerRel = "examples/ui_text_v4_longline/testdata/v4_longline_no_marker.png"
 )
 
 type ticker struct{ on func(dt float64) }
@@ -99,6 +103,74 @@ func inkPixels(path string) (int, error) {
 	return count, nil
 }
 
+// markerInkDiff counts pixels that differ between the current snapshot and a
+// marker-OFF baseline in the right-edge band of the first text row. Both come
+// from the same code path with only SetLongLineMarker toggled, so any
+// difference there is exactly the "…" ink — an objective pixel assertion,
+// not a visual guess.
+func markerInkDiff(current, baseline string) (int, error) {
+	load := func(p string) (image.Image, error) {
+		f, err := os.Open(p)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		return png.Decode(f)
+	}
+	a, err := load(current)
+	if err != nil {
+		return 0, err
+	}
+	bimg, err := load(baseline)
+	if err != nil {
+		return 0, err
+	}
+	ab, bb := a.Bounds(), bimg.Bounds()
+	if ab.Dx() != bb.Dx() || ab.Dy() != bb.Dy() {
+		return 0, fmt.Errorf("snapshot size mismatch %v vs %v", ab, bb)
+	}
+	dpr := float64(ab.Dx()) / float64(winW)
+	if dpr <= 0 {
+		dpr = 1
+	}
+	x0 := ab.Min.X + int((284+904-36)*dpr)
+	x1 := ab.Min.X + int((284+904)*dpr)
+	y0 := ab.Min.Y + int(58*dpr)
+	y1 := ab.Min.Y + int(96*dpr)
+	if x0 < ab.Min.X {
+		x0 = ab.Min.X
+	}
+	if x1 > ab.Max.X {
+		x1 = ab.Max.X
+	}
+	if y0 < ab.Min.Y {
+		y0 = ab.Min.Y
+	}
+	if y1 > ab.Max.Y {
+		y1 = ab.Max.Y
+	}
+	n := 0
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; x++ {
+			r1, g1, b1, _ := a.At(x, y).RGBA()
+			r2, g2, b2, _ := bimg.At(x, y).RGBA()
+			d := abs8(r1>>8, r2>>8) + abs8(g1>>8, g2>>8) + abs8(b1>>8, b2>>8)
+			if d > 24 {
+				n++
+			}
+		}
+	}
+	return n, nil
+}
+
+func abs8(a, b uint32) int {
+	d := int(a) - int(b)
+	if d < 0 {
+		return -d
+	}
+	return d
+}
+
 type v4Check struct {
 	Name   string `json:"name"`
 	Pass   bool   `json:"pass"`
@@ -109,6 +181,7 @@ func main() {
 	autoOnly := flag.Bool("auto-only", false, "gate mode: scripted V4 self-check + GPU snapshot + Golden; exit 1 on fail")
 	manualSeconds := flag.Float64("manual-seconds", 0, "manual mode: auto-close after N seconds (0 = stay until window close)")
 	flag.Parse()
+	noMarker := os.Getenv("GPUI_V4_NO_MARKER") == "1"
 
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if secsSet {
@@ -140,6 +213,9 @@ func main() {
 	box := textinput.NewMultiLineInputBox(ed, shell.Body.W, shell.Body.H, 14)
 	if face := wrkit.FaceAt(14); face != nil {
 		box.SetFace(face)
+	}
+	if noMarker {
+		box.SetLongLineMarker(false)
 	}
 	shell.Body.Place(box, 0, 0)
 	box.Sync()
@@ -199,8 +275,11 @@ func main() {
 		if *autoOnly && !selfCheckDone && elapsed >= 2 {
 			selfCheckDone = true
 			s0, e0, full0, tr0 := box.LongLineWindow()
-			checks = append(checks, v4Check{"d1_window", tr0 && full0 == textBytes && e0-s0 > 0 && e0-s0 <= 10000,
-				fmt.Sprintf("window=(%d,%d) full=%d truncated=%v", s0, e0, full0, tr0)})
+			// The window must be a small VISIBLE band (plan §3 layer 4),
+			// not the fixed 10000-byte render cap: e0-s0 must be well under
+			// 1% of the 5e6-byte line.
+			checks = append(checks, v4Check{"d1_window", tr0 && full0 == textBytes && e0-s0 > 0 && e0-s0 < full0/100,
+				fmt.Sprintf("window=(%d,%d) size=%d full=%d truncated=%v", s0, e0, e0-s0, full0, tr0)})
 			checks = append(checks, v4Check{"not_virtual", !box.VirtualMode(),
 				fmt.Sprintf("VirtualMode()=%v", box.VirtualMode())})
 			// Slide the window by moving the caret to the far end (the
@@ -211,6 +290,11 @@ func main() {
 			windowStart = s1
 			checks = append(checks, v4Check{"horizontal_viewport", s1 > s0,
 				fmt.Sprintf("window start %d -> %d", s0, s1)})
+			if !noMarker {
+				mx := box.LongLineMarkerX()
+				checks = append(checks, v4Check{"marker_glyph", mx > 0,
+					fmt.Sprintf("MarkerX=%.1f", mx)})
+			}
 		}
 		shell.NoteHUDTick(dt)
 		// V4 never enters V2 virtual mode by design; the HUD flag here means
@@ -237,13 +321,22 @@ func main() {
 	proc.Apply(app.Metrics())
 
 	gatePass, gateErr := true, ""
+	fail := func(reason string) {
+		gatePass = false
+		if gateErr == "" {
+			gateErr = reason
+		} else {
+			gateErr += "; " + reason
+		}
+	}
 	var pixelInk int
 	var goldenDiffPct float64
 	var goldenTotalPx int64
 	var goldenSeeded bool
+	markerDiff := -1
 	if *autoOnly {
 		if len(checks) == 0 {
-			gatePass, gateErr = false, "self-check did not run"
+			fail("self-check did not run")
 		}
 		for _, c := range checks {
 			if !c.Pass {
@@ -252,21 +345,31 @@ func main() {
 			}
 		}
 		if n, err := inkPixels(snapshotPath); err != nil {
-			gatePass, gateErr = false, fmt.Sprintf("pixel probe: %v", err)
+			fail(fmt.Sprintf("pixel probe: %v", err))
 		} else {
 			pixelInk = n
 			if n < 500 {
-				gatePass, gateErr = false, fmt.Sprintf("pixel probe: only %d ink pixels (need >=500)", n)
+				fail(fmt.Sprintf("pixel probe: only %d ink pixels (need >=500)", n))
+			}
+		}
+		if *autoOnly && !noMarker {
+			if n, err := markerInkDiff(snapshotPath, noMarkerRel); err != nil {
+				fail(fmt.Sprintf("marker pixel probe: %v", err))
+			} else {
+				markerDiff = n
+				if n < 8 {
+					fail(fmt.Sprintf("marker pixel probe: only %d differing pixels in right-edge band", n))
+				}
 			}
 		}
 		if diff, total, seeded, err := wrkit.GoldenGate(snapshotPath, goldenRel, wrkit.ShellContentRects()); err != nil {
-			gatePass, gateErr = false, fmt.Sprintf("golden: %v", err)
+			fail(fmt.Sprintf("golden: %v", err))
 		} else {
 			goldenDiffPct, goldenTotalPx, goldenSeeded = diff, total, seeded
 			if seeded {
-				gatePass, gateErr = false, "golden baseline seeded but NOT reviewed: this run is not a pass"
+				fail("golden baseline seeded but NOT reviewed: this run is not a pass")
 			} else if diff != 0 {
-				gatePass, gateErr = false, fmt.Sprintf("golden diff=%.6f%%", diff)
+				fail(fmt.Sprintf("golden diff=%.6f%%", diff))
 			}
 		}
 	}
@@ -282,18 +385,19 @@ func main() {
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
 		Extra: map[string]any{
-			"line_bytes":       int64(textBytes),
-			"v4_checks":        checks,
-			"v4_window_start":  windowStart,
-			"v4_pixel_ink":     pixelInk,
-			"v4_golden_diff":   goldenDiffPct,
-			"v4_golden_px":     goldenTotalPx,
-			"v4_golden_seed":   goldenSeeded,
-			"v4_manual_keys":   manualKeys,
-			"v4_close_req":     closeRequested,
-			"v4_gate_pass":     gatePass,
-			"v4_gate_err":      gateErr,
-			"v4_evidence_mode": map[bool]string{true: "auto_only", false: "manual"}[*autoOnly],
+			"line_bytes":         int64(textBytes),
+			"v4_checks":          checks,
+			"v4_window_start":    windowStart,
+			"v4_pixel_ink":       pixelInk,
+			"v4_marker_ink_diff": markerDiff,
+			"v4_golden_diff":     goldenDiffPct,
+			"v4_golden_px":       goldenTotalPx,
+			"v4_golden_seed":     goldenSeeded,
+			"v4_manual_keys":     manualKeys,
+			"v4_close_req":       closeRequested,
+			"v4_gate_pass":       gatePass,
+			"v4_gate_err":        gateErr,
+			"v4_evidence_mode":   map[bool]string{true: "auto_only", false: "manual"}[*autoOnly],
 		},
 	})
 	raw, _ := json.Marshal(report)

@@ -82,6 +82,9 @@ type LongLineInfo struct {
 	FullLen     int
 	WindowStart int
 	WindowEnd   int
+	// MarkerX is the full-text X of the truncation marker glyph, or 0 when
+	// no marker is attached (window reaches the tail / marker disabled).
+	MarkerX float64
 }
 
 type TextLayout struct {

@@ -385,6 +385,28 @@ func (b *Box) SetOverflow(o rendering.TextOverflow) {
 	b.sync()
 }
 
+// SetLongLineMarker enables/disables the V4 D1 "…" truncation marker.
+func (b *Box) SetLongLineMarker(v bool) {
+	if b == nil || b.txt == nil {
+		return
+	}
+	b.txt.SetLongLineMarker(v)
+	b.sync()
+}
+
+// LongLineMarkerX reports the full-text X of the V4 truncation marker
+// glyph, or 0 when no marker is attached.
+func (b *Box) LongLineMarkerX() float64 {
+	if b == nil || b.txt == nil {
+		return 0
+	}
+	l := b.txt.TextLayout()
+	if l == nil || l.LongLine == nil {
+		return 0
+	}
+	return l.LongLine.MarkerX
+}
+
 // SetTextColor sets the text ink (per-box property).
 func (b *Box) SetTextColor(r, g, bl, a float64) {
 	if b == nil || b.txt == nil {
@@ -1176,22 +1198,15 @@ func (b *Box) sync() {
 		}
 		curByte := b.ed.GetCursorOffset()
 		aff := b.ed.TextRange().Affinity
-		// V4 D1: slide the long-line layout window so the caret stays inside
-		// the visible window. The full text is never shortened; only the
-		// bounded layout window moves (far-end content is estimated).
-		if ll := b.txt.TextLayout().LongLine; ll != nil {
-			winSize := ll.WindowEnd - ll.WindowStart
-			if winSize > 0 && ll.FullLen > winSize {
-				wantStart := curByte - winSize/2
-				if maxStart := ll.FullLen - winSize; wantStart > maxStart {
-					wantStart = maxStart
-				}
-				if wantStart < 0 {
-					wantStart = 0
-				}
-				b.txt.SetLongLineWindow(wantStart)
-			}
+		// V4 D1: the long-line window follows the horizontal viewport
+		// (scrollX/visW) through the block prefix sum. Caret following is
+		// handled by ensureVisible updating scrollX below; small docs keep
+		// the legacy no-op behaviour inside SetViewportHint.
+		visW := b.FixedWidth - 2*pad
+		if visW < 0 {
+			visW = 0
 		}
+		b.txt.SetViewportHint(b.scrollX, visW)
 		lay := b.txt.TextLayout()
 		m := scrollMetrics{pad: pad, multi: true, margin: b.caretMargin()}
 		m.visW = b.FixedWidth - 2*pad

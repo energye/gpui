@@ -3,8 +3,6 @@ package textinput
 import (
 	"strings"
 	"testing"
-
-	"github.com/energye/gpui/ui/rendering"
 )
 
 // TestV4_LongLineStaysOnRenderTextWindow locks the V4/V2 boundary: an
@@ -25,7 +23,9 @@ func TestV4_LongLineStaysOnRenderTextWindow(t *testing.T) {
 	if !truncated || fullLen != 5000000 {
 		t.Fatalf("no truncation window: (%d,%d,%d,%v)", start, end, fullLen, truncated)
 	}
-	if end-start > rendering.DefaultMaxSingleLineBytes {
-		t.Fatalf("window not bounded: %d bytes (cap %d)", end-start, rendering.DefaultMaxSingleLineBytes)
+	// The window must be a small visible band, never anywhere near the full
+	// 5e6-byte line (plan §3 layer 4 "只整形可见水平窗口").
+	if end-start >= fullLen/10 {
+		t.Fatalf("window not bounded: %d bytes of a %d-byte line", end-start, fullLen)
 	}
 }
