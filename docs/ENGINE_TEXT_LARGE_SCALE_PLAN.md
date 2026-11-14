@@ -185,6 +185,8 @@
 
 | 2026-11-14 | **挂账清偿两项（源码核对后逐项清偿）**：① **IndexByte 单行判定残留消除**（原两处：`longLineWindow` text.go:766 + `SetViewportHint` text.go:846——比原挂账多核出一处）：`RenderText.hasNewline` 增量标记，SetText/SetRuns 整串入口扫一次 O(n)（本就是重操作）、SetTextSpan 击键入口只扫插入段 O(1)（删除不能创造换行）、构造函数 NewRenderText 同步维护（过程中红灯暴露：构造直写 Text 绕过 SetText 使多行文档误判单行、span 增量被打断——TestKeystrokeRatio 抓住后修复，红绿转变即反证）；判定语义与全串扫描完全一致。实测 `SetViewportHint` 5e6 单行 median **400.7µs→35ns**（~1.1 万×），红灯界 100µs；锁 `TestV5NewlineGuard_HintNoFullScan`。② **line_shift 真字体插入单测补齐**（G1 收口未验证项）：`TestV5LineShift_RealFace_{EquivQueries,Compaction}`——同一编辑序列在真字体（m5DejaVuFace）下增量路径与全量构建逐查询口对照（Line/簇/CaretForOffset/GetOffsetForCaret/BoxesForRange/GetPositionForOffset）；顺带修 m5ShiftCompare 的 BoxesForRange 零容差比较（真字体两路径行高浮点运算顺序差 1e-16 固有噪声，1e-9 容差对 nil face 精确相等判定无影响）。回归：ui 三包逐文件 129 文件 0 FAIL + render/text 关键组 + V4/V5 组全绿。诚实项余量：独立滚动条（需产品决策）、真键事件通道（待桌面人工验收）、跨块 bidi（§2.3 非目标）。 |
 
+| 2026-11-14 | **连发/光标修复尝试整体回滚（用户拍板「重新开始修复」）**：回滚 5 笔——`8fae42db`（真键销账+光标修复）/`5e86947f`（连发终判定性）/`e2322d1a`（连发自管落地）/`b24e6dcf`（KEYEV 清理）/`9435d9f1`（旧 timer 收敛）——回到 `67a5898c`。**原因：用户实测光标与卡顿两个问题实际都未解决**。完整实现保留在备份分支 `backup/keyrepeat-attempt1`（9435d9f1，可追溯）。回滚后状态：Wayland 原生窗口回到旧 armRepeat 连发（分批卡顿仍在）；切框光标隐藏回到未修复。**保留的实测事实**（重新修复的输入）：键盘事件链路通（打字上屏/退格删字）；用户环境 Wayland 原生窗口（WAYLAND_DISPLAY 优先于 DISPLAY，无标题栏=wayland 后端未画装饰）；卡顿形态=按住连发「爆发 3ms/个 + 停 800-1100ms」周期分批（到达与生效均此形态）；修复尝试 1（X 侧关连发+平台层状态机自管）用户实测无效——**病根不在交付层定时器，重修需重新定位**。 |
+
 ### 8.1 V4 平台覆盖（同功能多端一次标齐）
 
 按本文件状态口径逐端填写；每端不留空白，未做的写明原因。V4 为纯 Go + `render/text` 整形 + `hal` 后端抽象，不直接触碰平台 GPU API。
