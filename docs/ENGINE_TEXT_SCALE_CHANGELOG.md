@@ -449,3 +449,12 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - **归位（新问题归位纪律）**：剩余两股归**渲染域**台账（`ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2.1 余留登记）：① 字形 atlas 脏区上传（快滚帧 ~2600 新字形/帧小块上传驱动开销，`glyph_mask_atlas.go` DirtyUploads → gpu flush 链）；② present/驱动 stall（940MX + Present/DRI3 偶发，同 AGENTS 事故基线栈）。hal 层上传批量化/present 策略另立专项。
 - **V4 标绿（带注记）**：能力面（§3 第 4 层）+ 真窗三证据（4 探针 / Golden diff=0 / marker 差分 / 负向对照 / 人工确认）+ §2.2 CPU 门禁 + 四档真窗（分指标口径：p95/fps/hitch 120s、RSS 到平台时长）+ 两处 O(n) 洞修复 + 分配削减专项第一阶段全部收口。注记 = 本机 spike 口径下 L2 hitch 4-7/min 骑线，定性渲染域问题（文本引擎侧已穷尽），hal 层批量化专项完成后可复测。诚实项保留：IndexByte 单行判定残留（≈1ms/op@5e6）、独立滚动条拖动、真键事件通道、跨块 bidi 仅 line-level（§2.3）。
 - **提交**：专项 4 文件（shaper_hb.go / text.go / text_layout.go / v4_shape_alloc_test.go）+ 3 处台账（渲染域任务表 / 立项书 §4+§8 / 本文件），全部本地未推送。
+
+## hitch 专项第二阶段：帧分段埋点 + MAILBOX 实验（2026-11-14 · 机制钉死，骑线定性测量环境）
+
+- **帧分段直方图埋点（纯观测，行为零变化）**：`ui/scheduler` 加 `stageDist` 环形收集器（8192 帧样本，Snapshot 时算分位），五段全接——build/raster/flush/present_wait/acquire_wait 各 p50/p95/max 进 `FrameMetrics` 并由 wrgate 透传（present_wait/acquire_wait 原本只有 Note* 无分布）。scheduler/wrgate 测试绿。
+- **机制铁证（L2 滚动 120s）**：慢帧归属=raster 段（p95 13.35/max 361ms），HITCH_DIAG 逐帧归因 22 帧 `ui→submit=0、submit→done 5-28ms`——**raster 偶发超 16.7ms 帧预算（acquire 背压 p95 8-9/max 17 + flush 偶发 max 22-32）→ 错 vsync → interval 33-59ms**；present_wait p50 0.15ms 干净（vsync 节流在 X compositor）。build p95 5.6 干净、drainSnapshots 无快照空转排除。
+- **atlas 上传假设消解**：链路已是 Skia 模式（脏区按页合并 + 256KB/帧预算 Deferred + 部分上传行对齐，J5/P2.4e 已做）；字形集 ~40 字符×变体 ≪16384，滚动初期饱和后全命中零上传；静态视口对照 hitch 0.50/min vs 滚动 4-7/min——慢帧严格随滚动负载。
+- **MAILBOX 实验不可判，已回退**：`SetPreferMailboxSteady`（Mailbox→FifoRelaxed→Fifo 无 tearing）+ `GPUI_PRESENT_MAILBOX=1` env 开关，四轮 28-34/min vs 回退 Fifo 基线 34/min 无显著差异——测量时段 load average **3.53-4.39**（4 核满载边缘：ZCode renderer 38.5% CPU 等常驻负载），对比被环境漂移淹没。开关与方法按「不交付无效改动」回退，行为零变化。
+- **最终定性**：hitch 骑线 = 4 核满载边缘机器上的**测量环境负载依赖**（同一份代码：凌晨空闲 3.0-4.5/min → 高负载时段 9-34/min）+ GPU 消化偶发超帧预算（wgpu/驱动内部，需 GPU capture 工具深挖，同「misc_draw wgpu 执行态」先例挂账）。引擎侧四路全验证穷尽（CPU/GC/atlas/present 策略）。**复测口径**：干净时段（load <1）跑一轮分段直方图滚动轮即可复核，无需改代码；明细归位 `ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2.1。
+- **V4 标绿注记维持**，如干净时段复测 hitch 回到 ≤5 带内，注记可摘。

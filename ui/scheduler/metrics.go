@@ -12,6 +12,7 @@ package scheduler
 
 import (
 	"encoding/json"
+	"sort"
 	"sync"
 	"time"
 )
@@ -77,6 +78,32 @@ type FrameMetrics struct {
 	// LastAcquireWaitMs = BeginFrame 等空闲缓冲(Fifo 背压)。F期三段尺子
 	// 之三：干活(Flush) / 等缓冲(Acquire) / 等显示(PresentWait)。
 	LastAcquireWaitMs float64 `json:"frame_acquire_wait_ms,omitempty"`
+
+	// Frame-stage distributions (ms) over the recent-frame ring (8192):
+	// build/raster are UI-side wall work, flush = GPU work, present_wait =
+	// Fifo wait, acquire_wait = buffer backpressure. Percentiles are written
+	// at Snapshot time (pure observation — no frame-path behaviour change;
+	// hitch 专项慢帧归属用：慢帧落在哪一段就是铁证).
+	BuildMsP50Ms         float64 `json:"frame_build_p50_ms,omitempty"`
+	BuildMsP95Ms         float64 `json:"frame_build_p95_ms,omitempty"`
+	BuildMsMaxMs         float64 `json:"frame_build_max_ms,omitempty"`
+	BuildMsSamples       int64   `json:"frame_build_samples,omitempty"`
+	RasterMsP50Ms        float64 `json:"frame_raster_p50_ms,omitempty"`
+	RasterMsP95Ms        float64 `json:"frame_raster_p95_ms,omitempty"`
+	RasterMsMaxMs        float64 `json:"frame_raster_max_ms,omitempty"`
+	RasterMsSamples      int64   `json:"frame_raster_samples,omitempty"`
+	FlushMsP50Ms         float64 `json:"frame_flush_p50_ms,omitempty"`
+	FlushMsP95Ms         float64 `json:"frame_flush_p95_ms,omitempty"`
+	FlushMsMaxMs         float64 `json:"frame_flush_max_ms,omitempty"`
+	FlushMsSamples       int64   `json:"frame_flush_samples,omitempty"`
+	PresentWaitMsP50Ms   float64 `json:"frame_present_wait_p50_ms,omitempty"`
+	PresentWaitMsP95Ms   float64 `json:"frame_present_wait_p95_ms,omitempty"`
+	PresentWaitMsMaxMs   float64 `json:"frame_present_wait_max_ms,omitempty"`
+	PresentWaitMsSamples int64   `json:"frame_present_wait_samples,omitempty"`
+	AcquireWaitMsP50Ms   float64 `json:"frame_acquire_wait_p50_ms,omitempty"`
+	AcquireWaitMsP95Ms   float64 `json:"frame_acquire_wait_p95_ms,omitempty"`
+	AcquireWaitMsMaxMs   float64 `json:"frame_acquire_wait_max_ms,omitempty"`
+	AcquireWaitMsSamples int64   `json:"frame_acquire_wait_samples,omitempty"`
 
 	// Layout/paint flush counters (cumulative; wired by PipelineApp)
 	LayoutCount         int64 `json:"layout_count"`
@@ -253,6 +280,53 @@ type MetricsStore struct {
 	// Cumulative UI-build and Raster-present wall times (ms) for path CPU split.
 	buildSumMs  float64
 	rasterSumMs float64
+
+	// Frame-stage duration rings (ms) — see FrameMetrics distribution fields.
+	buildDist, rasterDist, flushDist, presentDist, acquireDist stageDist
+}
+
+// stageDist collects per-frame stage durations (ms) into a fixed ring so the
+// end-of-run Snapshot can report p50/p95/max without adding cost to the frame
+// path (a ring write per note; sort deferred to Snapshot). Pure observation.
+type stageDist struct {
+	ring [8192]float64
+	seen int64
+	next int
+}
+
+func (d *stageDist) add(ms float64) {
+	if ms < 0 {
+		ms = 0
+	}
+	d.ring[d.next] = ms
+	d.next = (d.next + 1) % len(d.ring)
+	if d.seen < int64(len(d.ring)) {
+		d.seen++
+	}
+}
+
+// fill writes p50/p95/max (ms) over collected samples into the stats fields.
+func (d *stageDist) fill(samples *int64, p50, p95, max *float64) {
+	*samples = d.seen
+	if d.seen == 0 {
+		return
+	}
+	c := make([]float64, d.seen)
+	copy(c, d.ring[:d.seen])
+	sort.Slice(c, func(i, j int) bool { return c[i] < c[j] })
+	*p50 = c[len(c)/2]
+	*p95 = c[min(int(float64(len(c))*0.95), len(c)-1)]
+	*max = c[len(c)-1]
+}
+
+// StageDistributionsLocked fills the per-stage distribution fields of out.
+// Caller must hold s.mu.
+func (s *MetricsStore) stageDistributionsLocked(out *FrameMetrics) {
+	s.buildDist.fill(&out.BuildMsSamples, &out.BuildMsP50Ms, &out.BuildMsP95Ms, &out.BuildMsMaxMs)
+	s.rasterDist.fill(&out.RasterMsSamples, &out.RasterMsP50Ms, &out.RasterMsP95Ms, &out.RasterMsMaxMs)
+	s.flushDist.fill(&out.FlushMsSamples, &out.FlushMsP50Ms, &out.FlushMsP95Ms, &out.FlushMsMaxMs)
+	s.presentDist.fill(&out.PresentWaitMsSamples, &out.PresentWaitMsP50Ms, &out.PresentWaitMsP95Ms, &out.PresentWaitMsMaxMs)
+	s.acquireDist.fill(&out.AcquireWaitMsSamples, &out.AcquireWaitMsP50Ms, &out.AcquireWaitMsP95Ms, &out.AcquireWaitMsMaxMs)
 }
 
 // PauseHitchCount suspends jank counting for a scoped verification activity
@@ -298,6 +372,7 @@ func (s *MetricsStore) Snapshot() FrameMetrics {
 	out.HitchRatePerMin = s.hitchRatePerMinLocked()
 	out.CPUUIPct, out.CPURasterPct = s.pathCPULocked()
 	out.TargetHz = s.targetHz
+	s.stageDistributionsLocked(&out)
 	if s.m.PresentCount > 0 && !s.firstAt.IsZero() && s.lastAt.After(s.firstAt) {
 		out.FPSWall = float64(s.m.PresentCount) / s.lastAt.Sub(s.firstAt).Seconds()
 	}
@@ -456,6 +531,7 @@ func (s *MetricsStore) NoteBuildMs(ms float64) {
 	if ms > 0 {
 		s.buildSumMs += ms
 	}
+	s.buildDist.add(ms)
 	s.mu.Unlock()
 }
 
@@ -469,6 +545,7 @@ func (s *MetricsStore) NoteRasterMs(ms float64) {
 	if ms > 0 {
 		s.rasterSumMs += ms
 	}
+	s.rasterDist.add(ms)
 	s.mu.Unlock()
 }
 
@@ -480,6 +557,7 @@ func (s *MetricsStore) NoteFlushMs(ms float64) {
 	}
 	s.mu.Lock()
 	s.m.LastFlushMs = ms
+	s.flushDist.add(ms)
 	s.mu.Unlock()
 }
 
@@ -491,6 +569,7 @@ func (s *MetricsStore) NotePresentWaitMs(ms float64) {
 	}
 	s.mu.Lock()
 	s.m.LastPresentWaitMs = ms
+	s.presentDist.add(ms)
 	s.mu.Unlock()
 }
 
@@ -502,6 +581,7 @@ func (s *MetricsStore) NoteAcquireWaitMs(ms float64) {
 	}
 	s.mu.Lock()
 	s.m.LastAcquireWaitMs = ms
+	s.acquireDist.add(ms)
 	s.mu.Unlock()
 }
 

@@ -72,6 +72,29 @@ type Report struct {
 	CPUFallbackOps  int64   `json:"cpu_fallback_ops"`
 	FrameFlushes    int64   `json:"frame_flushes,omitempty"`
 	LastCPUFallback string  `json:"last_cpu_fallback"`
+	// Frame-stage distributions (ms, ring of recent frames; pure observation —
+	// 慢帧归属铁证：build/raster=UI 侧、flush=GPU 干活、present_wait=等显示器、
+	// acquire_wait=等缓冲。0/omitted when the stage never fired.)
+	BuildMsP50Ms       float64 `json:"frame_build_p50_ms,omitempty"`
+	BuildMsP95Ms       float64 `json:"frame_build_p95_ms,omitempty"`
+	BuildMsMaxMs       float64 `json:"frame_build_max_ms,omitempty"`
+	BuildMsSamples     int64   `json:"frame_build_samples,omitempty"`
+	RasterMsP50Ms      float64 `json:"frame_raster_p50_ms,omitempty"`
+	RasterMsP95Ms      float64 `json:"frame_raster_p95_ms,omitempty"`
+	RasterMsMaxMs      float64 `json:"frame_raster_max_ms,omitempty"`
+	RasterMsSamples    int64   `json:"frame_raster_samples,omitempty"`
+	FlushMsP50Ms       float64 `json:"frame_flush_p50_ms,omitempty"`
+	FlushMsP95Ms       float64 `json:"frame_flush_p95_ms,omitempty"`
+	FlushMsMaxMs       float64 `json:"frame_flush_max_ms,omitempty"`
+	FlushMsSamples     int64   `json:"frame_flush_samples,omitempty"`
+	PresentWaitP50Ms   float64 `json:"frame_present_wait_p50_ms,omitempty"`
+	PresentWaitP95Ms   float64 `json:"frame_present_wait_p95_ms,omitempty"`
+	PresentWaitMaxMs   float64 `json:"frame_present_wait_max_ms,omitempty"`
+	PresentWaitSamples int64   `json:"frame_present_wait_samples,omitempty"`
+	AcquireWaitP50Ms   float64 `json:"frame_acquire_wait_p50_ms,omitempty"`
+	AcquireWaitP95Ms   float64 `json:"frame_acquire_wait_p95_ms,omitempty"`
+	AcquireWaitMaxMs   float64 `json:"frame_acquire_wait_max_ms,omitempty"`
+	AcquireWaitSamples int64   `json:"frame_acquire_wait_samples,omitempty"`
 	// Multiwindow 1.3: actual adapter category + open-time downgrade count.
 	GPUBackend   string `json:"gpu_backend"`
 	GPUFallbacks int    `json:"gpu_fallbacks"`
@@ -244,6 +267,26 @@ func BuildReport(in BuildInput) Report {
 		CPUFallbackOps:         in.Snap.CPUFallbackOps,
 		FrameFlushes:           in.Snap.FrameFlushes,
 		LastCPUFallback:        in.Snap.LastCPUFallbackReason,
+		BuildMsP50Ms:           in.Snap.BuildMsP50Ms,
+		BuildMsP95Ms:           in.Snap.BuildMsP95Ms,
+		BuildMsMaxMs:           in.Snap.BuildMsMaxMs,
+		BuildMsSamples:         in.Snap.BuildMsSamples,
+		RasterMsP50Ms:          in.Snap.RasterMsP50Ms,
+		RasterMsP95Ms:          in.Snap.RasterMsP95Ms,
+		RasterMsMaxMs:          in.Snap.RasterMsMaxMs,
+		RasterMsSamples:        in.Snap.RasterMsSamples,
+		FlushMsP50Ms:           in.Snap.FlushMsP50Ms,
+		FlushMsP95Ms:           in.Snap.FlushMsP95Ms,
+		FlushMsMaxMs:           in.Snap.FlushMsMaxMs,
+		FlushMsSamples:         in.Snap.FlushMsSamples,
+		PresentWaitP50Ms:       in.Snap.PresentWaitMsP50Ms,
+		PresentWaitP95Ms:       in.Snap.PresentWaitMsP95Ms,
+		PresentWaitMaxMs:       in.Snap.PresentWaitMsMaxMs,
+		PresentWaitSamples:     in.Snap.PresentWaitMsSamples,
+		AcquireWaitP50Ms:       in.Snap.AcquireWaitMsP50Ms,
+		AcquireWaitP95Ms:       in.Snap.AcquireWaitMsP95Ms,
+		AcquireWaitMaxMs:       in.Snap.AcquireWaitMsMaxMs,
+		AcquireWaitSamples:     in.Snap.AcquireWaitMsSamples,
 		GPUBackend:             in.Snap.GPUBackend,
 		GPUFallbacks:           in.Snap.GPUFallbacks,
 		// R16: warmup 诚实观测 — 仅认 PipelineApp 观测的 Snap.Warmup，禁止用 BuildInput.Warmup 硬写覆盖（R5 假绿修复）
