@@ -217,7 +217,7 @@ func main() {
 		proc.Sample()
 		shell.NoteHUDTick(dt)
 		snapH := app.Metrics().Snapshot()
-		gateOK := snapH.BoundarySkip >= 0 && snapH.PaintCount > 0
+		gateOK := snapH.BoundarySkip > 0 && snapH.PaintCount > 0
 		shell.UpdateHUD("F0-scope", wrkit.PhaseSteady, app, gateOK,
 			fmt.Sprintf("paint=%d presents=%d", snapH.PaintCount, app.PresentCount()),
 			fmt.Sprintf("resize=%d t=%.1f", resizeEvents, elapsed))
@@ -295,6 +295,7 @@ func main() {
 	if err := wrgate.EvaluateGates(report, wrgate.GateOptions{
 		MinPresents:            1,
 		RequireFullPaintPolicy: true,
+		MinBoundarySkip:        1,
 		RequirePersistentFPS:   true,
 		MinFPSWall:             55,
 		MaxP95Ms:               22,
