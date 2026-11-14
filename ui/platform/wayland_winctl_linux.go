@@ -428,9 +428,7 @@ func (w *wlWin) hideNative() {
 	if w.csd != nil {
 		w.csd.setVisible(false)
 	}
-	w.focusMu.Lock()
-	w.focusEvents = append(w.focusEvents, Event{Type: EventHidden, Hidden: true})
-	w.focusMu.Unlock()
+	w.focusQ.push(Event{Type: EventHidden, Hidden: true})
 }
 
 // showNative flips the window back to visible. When the surface stack was
@@ -471,9 +469,7 @@ func (w *wlWin) showNative() {
 	if w.csd != nil {
 		w.csd.setVisible(true)
 	}
-	w.focusMu.Lock()
-	w.focusEvents = append(w.focusEvents, Event{Type: EventHidden, Hidden: false})
-	w.focusMu.Unlock()
+	w.focusQ.push(Event{Type: EventHidden, Hidden: false})
 }
 
 // isHidden reports the tracked visibility state (Hide/Options.Visible=false).

@@ -49,12 +49,7 @@ func newHoverState(t *testing.T) (*wlDataDeviceState, uintptr) {
 
 func drainDnD(t *testing.T, st *wlDataDeviceState) []Event {
 	t.Helper()
-	w := st.win
-	w.dndMu.Lock()
-	defer w.dndMu.Unlock()
-	out := append([]Event(nil), w.dndEvents...)
-	w.dndEvents = nil
-	return out
+	return st.win.dndQ.drain()
 }
 
 func announceMime(t *testing.T, self uintptr, offer uint, mime string) {

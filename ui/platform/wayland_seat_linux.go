@@ -213,9 +213,7 @@ func (w *wlWin) pushDev(ev Event) {
 	if w == nil {
 		return
 	}
-	w.devMu.Lock()
-	w.devEvents = append(w.devEvents, ev)
-	w.devMu.Unlock()
+	w.devQ.push(ev)
 }
 
 // Device hot-plug: seat capabilities diff reports

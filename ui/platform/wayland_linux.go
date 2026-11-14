@@ -514,10 +514,9 @@ type wlWin struct {
 	fullscreen bool   // configure states (true value, not optimistic)
 	cursor     Cursor // active cursor (applied on pointer enter/motion)
 
-	// focusMu guards focusEvents (focus/occlusion) queued by callbacks on the
-	// event thread and drained by poll.
-	focusMu     sync.Mutex
-	focusEvents []Event
+	// focusQ carries focus/occlusion events queued by callbacks on the event
+	// thread and drained by poll (eventQueue: Push wakes the parked loop).
+	focusQ eventQueue
 
 	// text-input (IME) optional capability.
 	ti *wlTIState
@@ -545,21 +544,13 @@ type wlWin struct {
 	outputs        map[uint32]*wlOutputState
 	outputsByProxy map[uintptr]uint32
 	enteredOutputs map[uint32]bool
-	// imeMu guards the pending IME event queue drained by poll.
-	imeMu     sync.Mutex
-	imeEvents []Event
-	// keyMu guards the pending key event queue drained by poll.
-	keyMu     sync.Mutex
-	keyEvents []Event
-	// ptrMu guards the pending pointer event queue drained by poll.
-	ptrMu     sync.Mutex
-	ptrEvents []Event
-	// dndMu guards the pending drop event queue (wayland_clipboard_linux.go).
-	dndMu     sync.Mutex
-	dndEvents []Event
-	// devMu guards seat capability hot-plug events (wayland_seat_linux.go).
-	devMu     sync.Mutex
-	devEvents []Event
+	// Queues drained by poll() (eventQueue: Push wakes the parked loop —
+	// see event_queue.go for the producer contract).
+	imeQ  eventQueue
+	keysQ eventQueue
+	ptrQ  eventQueue
+	dndQ  eventQueue
+	devQ  eventQueue
 
 	regListener [2]uintptr
 	// surfListener carries wl_surface enter/leave for output-scale tracking
@@ -747,8 +738,26 @@ func waylandCreate(opts Options) (*Window, error) {
 
 	host := &wlHost{win: win, scale: 1}
 	win.hostRef = host
+	win.bindWakes()
 	ctl := &waylandController{h: host}
 	return newWindow(host, PlatformWayland, imeFor(host), clipFor(host), ctl, host.destroy), nil
+}
+
+// bindWakes 把唤醒通道统一挂到全部生产者队列上（host 挂接点调用一次）。
+// 闭包推迟到 Push 时解析 hostRef——裸构造（测试）未挂 host 时保持不唤醒的
+// 防御态，与 eventQueue 零值语义一致。
+func (w *wlWin) bindWakes() {
+	wak := func() {
+		if h := w.hostForWake(); h != nil {
+			h.WakeUp()
+		}
+	}
+	w.focusQ.bindWake(wak)
+	w.imeQ.bindWake(wak)
+	w.keysQ.bindWake(wak)
+	w.ptrQ.bindWake(wak)
+	w.dndQ.bindWake(wak)
+	w.devQ.bindWake(wak)
 }
 
 // createSurfaceStack builds the xdg surface stack (wl_surface → xdg_surface
@@ -1261,7 +1270,7 @@ func (w *wlWin) setStateTriple(min, max, full bool) {
 	w.minimized, w.maximized, w.fullscreen = min, max, full
 	w.ctlMu.Unlock()
 	if moved {
-		w.focusEvents = append(w.focusEvents, Event{Type: EventStateChanged, Minimized: min, Maximized: max, Fullscreen: full})
+		w.focusQ.push(Event{Type: EventStateChanged, Minimized: min, Maximized: max, Fullscreen: full})
 	}
 }
 
@@ -1299,11 +1308,11 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	// Report focus + occlusion state changes (values only when changed).
 	if states.activated != w.activated {
 		w.activated = states.activated
-		w.focusEvents = append(w.focusEvents, Event{Type: EventFocus, Focused: states.activated})
+		w.focusQ.push(Event{Type: EventFocus, Focused: states.activated})
 	}
 	if states.suspended != w.suspended {
 		w.suspended = states.suspended
-		w.focusEvents = append(w.focusEvents, Event{Type: EventOccluded, Occluded: states.suspended})
+		w.focusQ.push(Event{Type: EventOccluded, Occluded: states.suspended})
 	}
 	wi, hi := int32(width), int32(height)
 	if os.Getenv("GPUI_WL_TRACE_CFG") == "1" {
@@ -1814,12 +1823,7 @@ func (h *wlHost) poll() []Event {
 		out = append(out, Event{Type: EventFramePresented})
 	}
 	// IME events queued by the text-input callbacks.
-	w.imeMu.Lock()
-	if len(w.imeEvents) > 0 {
-		out = append(out, w.imeEvents...)
-		w.imeEvents = nil
-	}
-	w.imeMu.Unlock()
+	out = append(out, w.imeQ.drain()...)
 	// C2: flush pending text-input state commits posted by async producers.
 	h.imeFlushMu.Lock()
 	set := h.imeFlushSet
@@ -1829,50 +1833,23 @@ func (h *wlHost) poll() []Event {
 		st.flushCommit()
 	}
 	// Key events queued by the wl_keyboard callback.
-	w.keyMu.Lock()
-	if len(w.keyEvents) > 0 {
-		out = append(out, w.keyEvents...)
-		w.keyEvents = nil
-	}
-	w.keyMu.Unlock()
+	out = append(out, w.keysQ.drain()...)
 	// Pointer events queued by the wl_pointer callback.
-	w.ptrMu.Lock()
-	if len(w.ptrEvents) > 0 {
-		out = append(out, w.ptrEvents...)
-		w.ptrEvents = nil
-	}
-	w.ptrMu.Unlock()
+	out = append(out, w.ptrQ.drain()...)
 	// External file drop events queued by the wl_data_device callback.
-	w.dndMu.Lock()
-	if len(w.dndEvents) > 0 {
-		out = append(out, w.dndEvents...)
-		w.dndEvents = nil
-	}
-	w.dndMu.Unlock()
+	out = append(out, w.dndQ.drain()...)
 	// Seat capability hot-plug (DeviceAdded/Removed, wayland_seat_linux.go).
-	w.devMu.Lock()
-	if len(w.devEvents) > 0 {
-		out = append(out, w.devEvents...)
-		w.devEvents = nil
-	}
-	w.devMu.Unlock()
+	out = append(out, w.devQ.drain()...)
 	w.ctlMu.Lock()
 	if w.recreated && w.configured {
 		w.recreated = false
 		w.ctlMu.Unlock()
-		w.focusMu.Lock()
-		w.focusEvents = append(w.focusEvents, Event{Type: EventHidden, Hidden: false})
-		w.focusMu.Unlock()
+		w.focusQ.push(Event{Type: EventHidden, Hidden: false})
 	} else {
 		w.ctlMu.Unlock()
 	}
 	// Focus / occlusion events queued by wlTopConfigure.
-	w.focusMu.Lock()
-	if len(w.focusEvents) > 0 {
-		out = append(out, w.focusEvents...)
-		w.focusEvents = nil
-	}
-	w.focusMu.Unlock()
+	out = append(out, w.focusQ.drain()...)
 	return out
 }
 

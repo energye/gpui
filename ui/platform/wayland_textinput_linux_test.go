@@ -42,19 +42,8 @@ func TestPushIMEDrain(t *testing.T) {
 	w.pushIME(Event{Type: EventIME, IMEKind: 1, IMEText: "a"})
 	w.pushIME(Event{Type: EventIME, IMEKind: 0, IMEText: "ni"})
 
-	w.imeMu.Lock()
-	n := len(w.imeEvents)
-	w.imeMu.Unlock()
-	if n != 2 {
-		t.Fatalf("queued = %d, want 2", n)
-	}
-
-	// Drain via the poll path fields (poll itself needs a live display, so
-	// mirror its drain logic here).
-	w.imeMu.Lock()
-	evs := append([]Event(nil), w.imeEvents...)
-	w.imeEvents = nil
-	w.imeMu.Unlock()
+	// Drain mirrors the poll path (poll itself needs a live display).
+	evs := w.imeQ.drain()
 	if len(evs) != 2 || evs[0].IMEText != "a" || evs[1].IMEText != "ni" {
 		t.Fatalf("drained = %+v", evs)
 	}

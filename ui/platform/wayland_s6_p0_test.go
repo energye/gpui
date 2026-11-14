@@ -15,11 +15,7 @@ import (
 func wlFixed(v float64) uintptr { return uintptr(int32(v * 256)) }
 
 func wlDrainPtr(w *wlWin) []Event {
-	w.ptrMu.Lock()
-	defer w.ptrMu.Unlock()
-	out := append([]Event(nil), w.ptrEvents...)
-	w.ptrEvents = nil
-	return out
+	return w.ptrQ.drain()
 }
 
 // wlTestWin registers a hand-built window the way production does (wlByPtr):
@@ -85,15 +81,12 @@ func TestWaylandStateChangedDerived(t *testing.T) {
 	w := &wlWin{}
 	wlTestWin(t, w)
 	states := func() []Event {
-		w.focusMu.Lock()
-		defer w.focusMu.Unlock()
 		var out []Event
-		for _, e := range w.focusEvents {
+		for _, e := range w.focusQ.drain() {
 			if e.Type == EventStateChanged {
 				out = append(out, e)
 			}
 		}
-		w.focusEvents = nil
 		return out
 	}
 	cfg := func(s ...uint32) {
@@ -186,11 +179,7 @@ func TestWaylandRepeatSetsBit(t *testing.T) {
 	w := &wlWin{}
 	wlTestWin(t, w)
 	drainKeys := func() []Event {
-		w.keyMu.Lock()
-		defer w.keyMu.Unlock()
-		out := append([]Event(nil), w.keyEvents...)
-		w.keyEvents = nil
-		return out
+		return w.keysQ.drain()
 	}
 	st := &wlKeyboardState{win: w}
 	defer st.cancelRepeat()
@@ -276,15 +265,12 @@ func TestWaylandOutputScale(t *testing.T) {
 	ost.selfPtr = uintptr(unsafe.Pointer(ost))
 
 	scales := func() []float64 {
-		w.focusMu.Lock()
-		defer w.focusMu.Unlock()
 		var out []float64
-		for _, e := range w.focusEvents {
+		for _, e := range w.focusQ.drain() {
 			if e.Type == EventScale {
 				out = append(out, e.Scale)
 			}
 		}
-		w.focusEvents = nil
 		return out
 	}
 	// Scale advertised while the surface is on no output: stored, silent.

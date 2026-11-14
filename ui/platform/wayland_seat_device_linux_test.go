@@ -56,31 +56,29 @@ func TestSeatCapCBFirstSilent(t *testing.T) {
 	st := &wlSeatState{lib: &wlLib{}, win: w, seatName: "seat0"}
 	st.selfPtr = uintptr(unsafe.Pointer(st))
 	wlSeatCapCB(st.selfPtr, 0, uintptr(seatCapKeyboard|seatCapPointer))
-	if !st.capsSeen {
+	// 断言走与回调同款的指针恢复路径：selfPtr=uintptr(unsafe.Pointer(self))
+	// 是 C 互操作 userdata 模式，回调经 seatFrom(data) 恢复指针写入；测试若
+	// 直读原指针，unsafe 规则下两者别名关系对编译器不可见，写入可见性随
+	// 代码生成布局漂移（本次 eventQueue 迁移扰动 wlWin 尺寸后暴露）。
+	cbSt := seatFrom(st.selfPtr)
+	if !cbSt.capsSeen {
 		t.Fatal("first caps must set capsSeen")
 	}
-	w.devMu.Lock()
-	n := len(w.devEvents)
-	w.devMu.Unlock()
-	if n != 0 {
+	if n := len(w.devQ.drain()); n != 0 {
 		t.Fatalf("first caps must stay silent, got %d events", n)
 	}
 	// Second identical caps stays quiet.
 	wlSeatCapCB(st.selfPtr, 0, uintptr(seatCapKeyboard|seatCapPointer))
-	w.devMu.Lock()
-	n = len(w.devEvents)
-	w.devMu.Unlock()
-	if n != 0 {
+	if n := len(w.devQ.drain()); n != 0 {
 		t.Fatalf("duplicate caps must stay quiet, got %d", n)
 	}
 	// Gaining touch reports one Added with the seat name.
 	wlSeatCapCB(st.selfPtr, 0, uintptr(seatCapKeyboard|seatCapPointer|seatCapTouch))
-	w.devMu.Lock()
-	defer w.devMu.Unlock()
-	if len(w.devEvents) != 1 {
-		t.Fatalf("touch gain = %+v, want 1", w.devEvents)
+	evs := w.devQ.drain()
+	if len(evs) != 1 {
+		t.Fatalf("touch gain = %+v, want 1", evs)
 	}
-	ev := w.devEvents[0]
+	ev := evs[0]
 	if ev.Type != EventDeviceAdded || ev.DeviceClass != DeviceTouch || ev.DeviceName != "seat0" {
 		t.Fatalf("touch gain = %+v", ev)
 	}
@@ -93,10 +91,7 @@ func TestSeatCapCBNilSafe(t *testing.T) {
 	_ = st
 	w := &wlWin{}
 	w.pushDev(Event{Type: EventDeviceAdded})
-	w.devMu.Lock()
-	n := len(w.devEvents)
-	w.devMu.Unlock()
-	if n != 1 {
+	if n := len(w.devQ.drain()); n != 1 {
 		t.Fatalf("pushDev queued = %d, want 1", n)
 	}
 }

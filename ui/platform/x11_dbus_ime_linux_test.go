@@ -191,6 +191,7 @@ func TestX11TruncateSyncB10(t *testing.T) {
 // ticker 截止才被倒出，与 Wayland 连发分批同形态。
 func TestX11AsyncProducersWakeLoop(t *testing.T) {
 	h := &x11Host{st: &x11State{}}
+	h.bindWakes() // 生产绑定路径：host 构造点统一接唤醒通道
 	producers := []struct {
 		name string
 		push func()

@@ -499,7 +499,5 @@ func (w *wlWin) pushPtr(ev Event) {
 	if w == nil {
 		return
 	}
-	w.ptrMu.Lock()
-	w.ptrEvents = append(w.ptrEvents, ev)
-	w.ptrMu.Unlock()
+	w.ptrQ.push(ev)
 }

@@ -52,9 +52,7 @@ func TestKeyboardNilSafety(t *testing.T) {
 	w.pushKey(Event{Type: EventKey, KeyCode: 1}) // nil receiver: no-op
 	w = &wlWin{}
 	w.pushKey(Event{Type: EventKey, KeyCode: 1})
-	w.keyMu.Lock()
-	n := len(w.keyEvents)
-	w.keyMu.Unlock()
+	n := len(w.keysQ.drain())
 	if n != 1 {
 		t.Fatalf("pushKey did not queue: %d", n)
 	}
@@ -64,17 +62,7 @@ func TestKeyboardNilSafety(t *testing.T) {
 func TestPushKeyDrain(t *testing.T) {
 	w := &wlWin{}
 	w.pushKey(Event{Type: EventKey, KeyCode: 0xff61, Rune: 'a', Pressed: true})
-	w.keyMu.Lock()
-	n := len(w.keyEvents)
-	w.keyMu.Unlock()
-	if n != 1 {
-		t.Fatalf("queued = %d", n)
-	}
-	// Drain mirror (poll needs a live display; drain logic is shared).
-	w.keyMu.Lock()
-	evs := append([]Event(nil), w.keyEvents...)
-	w.keyEvents = nil
-	w.keyMu.Unlock()
+	evs := w.keysQ.drain()
 	if len(evs) != 1 || evs[0].Rune != 'a' {
 		t.Fatalf("drained = %+v", evs)
 	}
@@ -94,11 +82,7 @@ func TestWLKeyRepeatInfoParsing(t *testing.T) {
 
 // drainKeyEvents swaps out the queued key events.
 func drainKeyEvents(w *wlWin) []Event {
-	w.keyMu.Lock()
-	evs := append([]Event(nil), w.keyEvents...)
-	w.keyEvents = nil
-	w.keyMu.Unlock()
-	return evs
+	return w.keysQ.drain()
 }
 
 // TestWLKeyRepeatFiresAndCancels drives the client-side repeat machinery:
@@ -162,6 +146,7 @@ func TestPushKeyWakesParkedLoop(t *testing.T) {
 		t.Skip("wake pipe unavailable")
 	}
 	w := &wlWin{hostRef: h}
+	w.bindWakes() // 生产绑定路径：host 挂接点统一接唤醒通道
 	w.pushKey(Event{Type: EventKey, KeyCode: 0xff61, Rune: 'a', Pressed: true})
 	// 非阻塞读 wake pipe：pushKey 之后必须可读（WakeUp 写过一个字节）。
 	var buf [1]byte

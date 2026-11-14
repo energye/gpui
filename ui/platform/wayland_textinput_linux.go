@@ -410,9 +410,7 @@ func (w *wlWin) pushIME(ev Event) {
 	if w == nil {
 		return
 	}
-	w.imeMu.Lock()
-	w.imeEvents = append(w.imeEvents, ev)
-	w.imeMu.Unlock()
+	w.imeQ.push(ev)
 }
 
 // refreshTextInput re-sends the text-input state (enable + purpose + anchor
@@ -471,23 +469,16 @@ func (w *wlWin) refreshTextInput() {
 
 // pushKey queues a keyboard event for the next poll (thread-safe).
 //
-// The parked event loop only watches the display fd + wake pipe, so a bare
-// queue append never wakes it: timer-synthesized repeats (fireRepeat runs on
-// a timer goroutine) would sit here until the next ticker-deadline wake
-// (caret blink / HUD, ~500ms) and drain as one visible burst — held-key
-// delete/move jumped a dozen characters at a time. WakeUp is the async
-// producer contract (same as the ti-queue postFlush path); from the dispatch
-// thread it just costs one drained pipe byte.
+// Wake-on-push is structural now: fireRepeat runs on a timer goroutine, and
+// a bare queue append never wakes the parked loop (the parked loop only
+// watches the display fd + wake pipe) — held-key repeats used to queue up
+// until the next ticker-deadline wake (~500ms) and drain as one visible
+// burst. The contract lives in eventQueue (event_queue.go).
 func (w *wlWin) pushKey(ev Event) {
 	if w == nil {
 		return
 	}
-	w.keyMu.Lock()
-	w.keyEvents = append(w.keyEvents, ev)
-	w.keyMu.Unlock()
-	if h := w.hostForWake(); h != nil {
-		h.WakeUp()
-	}
+	w.keysQ.push(ev)
 }
 
 // --- event callbacks → platform.Event queue ---

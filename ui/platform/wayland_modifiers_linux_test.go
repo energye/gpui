@@ -153,21 +153,14 @@ func TestWaylandModifiersChangedPump(t *testing.T) {
 }
 
 func drainKeys(w *wlWin) {
-	w.keyMu.Lock()
-	w.keyEvents = nil
-	w.keyMu.Unlock()
+	w.keysQ.drain()
 }
 
 func collectKeys(w *wlWin, timeout time.Duration, until func([]Event) bool) []Event {
 	deadline := time.Now().Add(timeout)
 	var out []Event
 	for time.Now().Before(deadline) {
-		w.keyMu.Lock()
-		if len(w.keyEvents) > 0 {
-			out = append(out, w.keyEvents...)
-			w.keyEvents = nil
-		}
-		w.keyMu.Unlock()
+		out = append(out, w.keysQ.drain()...)
 		if until != nil && until(out) {
 			return out
 		}

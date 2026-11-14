@@ -403,17 +403,14 @@ func (st *wlDataDeviceState) dragMimeSnapshot() []string {
 	return append([]string(nil), st.dragMimes...)
 }
 
-// appendDragEvent queues a hover event for the pump drain (same dndEvents
-// queue as the Drop path in wlDDDropCB; st.mu must NOT be held — the queue
-// has its own dndMu, matching the drop ordering).
+// appendDragEvent queues a hover event for the pump drain (same dndQ queue
+// as the Drop path in wlDDDropCB; st.mu must NOT be held — the queue is
+// self-guarded, matching the drop ordering).
 func (st *wlDataDeviceState) appendDragEvent(ev Event) {
 	if st == nil || st.win == nil {
 		return
 	}
-	w := st.win
-	w.dndMu.Lock()
-	w.dndEvents = append(w.dndEvents, ev)
-	w.dndMu.Unlock()
+	st.win.dndQ.push(ev)
 }
 
 // MIME phase 2 budget: per-type and total caps for Drop Data payloads
@@ -448,10 +445,7 @@ func wlDDDropCB(data, dd uintptr) {
 	// the pending entries), but concurrent Get+drain may be mid-flight.
 	files, dropData := wlDndFetchPayloads(st, off, mimes)
 	if len(files) > 0 || len(dropData) > 0 {
-		w := st.win
-		w.dndMu.Lock()
-		w.dndEvents = append(w.dndEvents, Event{Type: EventDrop, Files: files, X: x, Y: y, DropData: dropData})
-		w.dndMu.Unlock()
+		st.win.dndQ.push(Event{Type: EventDrop, Files: files, X: x, Y: y, DropData: dropData})
 	}
 	st.destroyOffer(off)
 }

@@ -66,6 +66,7 @@ func (b *x11Backend) Adopt(ns NativeSurface) (*Window, error) {
 		st.scale = s
 	}
 	h := &x11Host{st: st, lib: lib}
+	h.bindWakes()
 	// Atoms are resolved lazily by the controller (resolveAtoms on demand);
 	// root stays 0 here → EWMH ops (RequestMove/state toggles) return
 	// ErrUnsupported for adopted windows until atoms are probed.
@@ -592,6 +593,7 @@ func x11Create(opts Options) (*Window, error) {
 		st.wmDelete = xInternAtom(dpy, &delName[0], 0)
 	}
 	host := &x11Host{st: st, lib: lib}
+	host.bindWakes()
 	// XIM removed in v2.0; X11 IME now via D-Bus (see x11_dbus_ime_linux.go).
 	// No ximOpen here; Window.IME() will be nil until D-Bus IME lands (plain keyboard degrade).
 	host.destroyFn = func() {
@@ -896,9 +898,16 @@ type x11Host struct {
 	wakeR    *os.File
 	wakeW    *os.File
 
-	// imeMu guards the pending IME event queue drained by WaitEvents.
-	imeMu     sync.Mutex
-	imeEvents []Event
+	// Queues drained by WaitEvents (eventQueue: Push wakes the parked loop —
+	// see event_queue.go for the producer contract).
+	imeQ eventQueue
+	// keysQ carries key events completed asynchronously by the IME: when IME
+	// is active, keys are not emitted directly from drainX but queued here
+	// and emitted later via callback, to avoid fixed-timeout guessing.
+	keysQ eventQueue
+
+	ctlQ eventQueue
+
 	// refreshMu guards the cached RandR refresh rate: probed once on
 	// first DisplayRefreshHz, invalidated on RRScreenChangeNotify
 	// (outputs/modes changed). Probing round-trips the X server, so it
@@ -906,61 +915,48 @@ type x11Host struct {
 	refreshMu     sync.Mutex
 	refreshHz     float64
 	refreshProbed bool
-
-	// keyMu guards the pending key event queue for async ProcessKeyEvent.
-	// When IME is active, keys are not emitted directly from drainX but
-	// queued here and emitted later via callback, to avoid fixed-timeout guessing.
-	keyMu       sync.Mutex
-	pendingKeys []Event
-
-	evMu          sync.Mutex
-	pendingEvents []Event
 }
 
 // ximFocus is a stub after XIM removal in v2.0.
 // X11 IME now via D-Bus, so this is a no-op kept for ABI.
 func (h *x11Host) ximFocus(on bool) {}
 
+// bindWakes 把唤醒通道统一挂到全部生产者队列上（host 构造点调用一次）。
+// 唤醒与入队的结构化契约见 event_queue.go——X fd + self-pipe 停车的主循环
+// 只能被 WakeUp 叫醒，只 append 不唤醒会让事件积压到下一个 ticker 截止才
+// 一次倒出（连发分批的 X11 同类洞）。
+func (h *x11Host) bindWakes() {
+	wak := h.WakeUp
+	h.imeQ.bindWake(wak)
+	h.keysQ.bindWake(wak)
+	h.ctlQ.bindWake(wak)
+}
+
 // pushIME queues an IME event for the next WaitEvents (thread-safe).
-//
-// Async producer contract: queueing alone never wakes the parked WaitEvents
-// (X fd + self-pipe), so D-Bus IME completions would drain at the next
-// ticker deadline and apply as a visible burst. Same fix as the Wayland
-// pushKey wake.
 func (h *x11Host) pushIME(ev Event) {
 	if h == nil {
 		return
 	}
-	h.imeMu.Lock()
-	h.imeEvents = append(h.imeEvents, ev)
-	h.imeMu.Unlock()
-	h.WakeUp()
+	h.imeQ.push(ev)
 }
 
 // pushPendingKey queues a key event completed asynchronously by the IME
-// (thread-safe). Async producer contract: must wake the parked loop.
+// (thread-safe).
 func (h *x11Host) pushPendingKey(ev Event) {
 	if h == nil {
 		return
 	}
-	h.keyMu.Lock()
-	h.pendingKeys = append(h.pendingKeys, ev)
-	h.keyMu.Unlock()
-	h.WakeUp()
+	h.keysQ.push(ev)
 }
 
 // pushEvent queues a controller-side event for the next WaitEvents
 // (thread-safe). Used for state the pump cannot observe itself
-// (Hide/Show have no distinct X event from minimize). Async producer
-// contract: must wake the parked loop.
+// (Hide/Show have no distinct X event from minimize).
 func (h *x11Host) pushEvent(ev Event) {
 	if h == nil {
 		return
 	}
-	h.evMu.Lock()
-	h.pendingEvents = append(h.pendingEvents, ev)
-	h.evMu.Unlock()
-	h.WakeUp()
+	h.ctlQ.push(ev)
 }
 
 func (h *x11Host) destroy() {
@@ -1117,30 +1113,15 @@ func (h *x11Host) setSize(w, ht int) bool {
 	return true
 }
 
-// drain combines native event drain with the pending IME queue.
+// drain combines native event drain with the producer queues.
 func (h *x11Host) drain() []Event {
 	if h == nil {
 		return nil
 	}
 	out := h.drainX()
-	h.imeMu.Lock()
-	if len(h.imeEvents) > 0 {
-		out = append(out, h.imeEvents...)
-		h.imeEvents = nil
-	}
-	h.imeMu.Unlock()
-	h.keyMu.Lock()
-	if len(h.pendingKeys) > 0 {
-		out = append(out, h.pendingKeys...)
-		h.pendingKeys = nil
-	}
-	h.keyMu.Unlock()
-	h.evMu.Lock()
-	if len(h.pendingEvents) > 0 {
-		out = append(out, h.pendingEvents...)
-		h.pendingEvents = nil
-	}
-	h.evMu.Unlock()
+	out = append(out, h.imeQ.drain()...)
+	out = append(out, h.keysQ.drain()...)
+	out = append(out, h.ctlQ.drain()...)
 	return out
 }
 

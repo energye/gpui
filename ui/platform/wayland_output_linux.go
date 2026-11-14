@@ -156,9 +156,7 @@ func (w *wlWin) evaluateScale() {
 	h.scale = float64(eff)
 	h.mu.Unlock()
 	if changed {
-		w.focusMu.Lock()
-		w.focusEvents = append(w.focusEvents, Event{Type: EventScale, Scale: float64(eff)})
-		w.focusMu.Unlock()
+		w.focusQ.push(Event{Type: EventScale, Scale: float64(eff)})
 	}
 }
 
