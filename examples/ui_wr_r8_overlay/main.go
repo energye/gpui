@@ -116,12 +116,14 @@ func main() {
 	// ===== MAIN band: static dense tree (U17) =====
 	dense := rendering.NewAbsoluteBox(560, 420)
 	dense.Background = &rendering.Color{R: 0.11, G: 0.12, B: 0.18, A: 1}
+	var cellKeys []uint64 // dirty-region P0: dense cell identities for attribution
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			c := rendering.NewRenderColorBox(96, 64,
 				0.22+float64(i)*0.14, 0.38+float64(j)*0.11, 0.55+float64((i+j)%3)*0.12, 1)
 			c.SetRepaintBoundary(true) // nested boundary: grid cells cache independently
 			dense.Place(c, 12+float64(i)*108, 12+float64(j)*74)
+			cellKeys = append(cellKeys, c.EnsureCacheID())
 		}
 	}
 	for i := 0; i < 8; i++ {
@@ -188,9 +190,19 @@ func main() {
 	// 1.5s closed, kind rotates per cycle) → Recover (final close, settle).
 	// This is the stress that exposes per-open leaks the single-open script
 	// cannot see.
+	//
+	// Dirty-region P0 key attribution: every popup boundary the script creates
+	// is collected here so the gate can allow exactly these keys on their
+	// insert frames and forbid them afterwards (an open overlay must not keep
+	// re-recording; main-band dense keys must never appear at all).
+	var popupKeys []uint64
 	buildPopup := func(kind int) []*overlay.Entry {
 		barrier := rendering.NewRenderColorBox(1, 1, 0.02, 0.03, 0.06, 0.45)
 		entries := []*overlay.Entry{overlay.NewBarrierEntry(0, 0, float64(winW), float64(winH), barrier)}
+		// The barrier box is a non-boundary carrier — if the overlay band keys
+		// a texture by its CacheID, its one-shot insert record must be
+		// attributable too (harmless when no texture is keyed for it).
+		popupKeys = append(popupKeys, barrier.EnsureCacheID())
 		switch kind % 3 {
 		case 0: // modal dialog
 			panel := rendering.NewAbsoluteBox(340, 240)
@@ -213,6 +225,7 @@ func main() {
 			entries = append(entries,
 				overlay.NewEntry(panel, 380+float64(kind%3)*24, 260, 340, 240),
 				overlay.NewEntry(menu, 700-float64(kind%2)*40, 200, 180, 150))
+			popupKeys = append(popupKeys, panel.EnsureCacheID(), btn.EnsureCacheID(), menu.EnsureCacheID())
 		case 1: // dropdown menu (no barrier — click-through allowed outside)
 			drop := rendering.NewAbsoluteBox(220, 210)
 			drop.Background = &rendering.Color{R: 0.18, G: 0.22, B: 0.30, A: 1}
@@ -223,8 +236,10 @@ func main() {
 				row.SetRepaintBoundary(true)
 				row.Place(wrkit.Label(fmt.Sprintf("下拉项-%d 选择", i), 11, 0.85, 0.9, 0.95), 10, 5)
 				drop.Place(row, 10, 10+float64(i)*32)
+				popupKeys = append(popupKeys, row.EnsureCacheID())
 			}
 			entries = append(entries, overlay.NewEntry(drop, 420+float64(kind%4)*30, 180, 220, 210))
+			popupKeys = append(popupKeys, drop.EnsureCacheID())
 		default: // tooltip-ish sheet
 			sheet := rendering.NewAbsoluteBox(280, 96)
 			sheet.Background = &rendering.Color{R: 0.25, G: 0.28, B: 0.20, A: 1}
@@ -232,6 +247,7 @@ func main() {
 			sheet.Place(wrkit.Label("Tooltip 提示层", 13, 0.95, 0.93, 0.75), 14, 12)
 			sheet.Place(wrkit.Label(fmt.Sprintf("cycle #%d — 提示内容随开随建", kind+1), 11, 0.8, 0.85, 0.9), 14, 44)
 			entries = append(entries, overlay.NewEntry(sheet, 300+float64(kind%5)*60, 480, 280, 96))
+			popupKeys = append(popupKeys, sheet.EnsureCacheID())
 		}
 		return entries
 	}
@@ -259,6 +275,13 @@ func main() {
 	const openDur = 2.0
 	const closeDur = 1.5
 	hotTicks := int64(0)
+	// Dirty-region P0 key attribution (gate mode): after hot converges and the
+	// overlay settles, the per-tick re-record delta must contain ONLY the HUD
+	// background key; popup boundary keys are allowed solely on their insert
+	// frames (bounded), dense cell keys never. Start the probe 2 ticks after
+	// the last hot-converge record lands so it counts as baseline, not delta.
+	rprobe := wrkit.NewRerecordKeyProbe(app)
+	r8ProbeReady := false
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
@@ -281,6 +304,18 @@ func main() {
 				hot.MarkNeedsPaint()
 			}
 			hotTicks++
+			if hotTicks >= 62 {
+				// Retry Start until the GPU texture cache exists (a nil-cache
+				// Start stores a nil baseline and the probe stays inert).
+				if !r8ProbeReady {
+					if app.PictureTextures() != nil {
+						rprobe.Start()
+						r8ProbeReady = true
+					}
+				} else {
+					rprobe.Tick()
+				}
+			}
 			if gateState == "open" && elapsed > 1.2 && cycleEntries == nil {
 				cycleEntries = buildPopup(0)
 				for _, e := range cycleEntries {
@@ -405,6 +440,16 @@ func main() {
 	elapsedSec := time.Since(t0).Seconds()
 	snap := app.Metrics().Snapshot()
 	presents := app.PresentCount()
+	// Dirty-region P0 attribution keys: HUD background key + popup boundary
+	// keys collected at build time.
+	r8HudKey := uint64(0)
+	if shell.HUD != nil {
+		r8HudKey = shell.HUD.Box.EnsureCacheID()
+	}
+	r8PopupTotal := int64(0)
+	for _, k := range popupKeys {
+		r8PopupTotal += rprobe.Total(k)
+	}
 	fpsInterval := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fpsInterval = 1000.0 / snap.AvgFrameIntervalMs
@@ -585,33 +630,39 @@ func main() {
 			"static_dense_cells":       16,
 			"static_labels":            8,
 			"hot_active_all_phases":    true,
-			"phase_mode":               map[bool]string{true: "frozen-open/closed", false: "cycling"}[gateMode],
-			"evidence_mode":            map[bool]string{true: "gate", false: "manual"}[gateMode],
-			"pixel_evidence":           map[bool]string{true: "gate_snapshot_" + gateState, false: "manual_not_asserted"}[gateMode],
-			"fps_gate":                 "persistent_tick_ge_55",
-			"slope_gate":               "off_15s_short_run",
-			"rss_slope_note":           "rss_slope_valid=false for 15s = rss_warmup_sec; raw slope is startup-inclusive, not a leak conclusion",
-			"cpu_fallback_note":        "none observed; last_cpu_fallback empty means no fallback",
-			"gpu_ops_semantics":        "cumulative",
-			"golden_mask":              "header 1200x48 + legend 260x656 + body 904x656",
-			"golden_tolerance_pct":     0,
-			"logic_probes_ok":          len(logicProbes) - len(logicFailed),
-			"logic_probes_total":       len(logicProbes),
-			"logic_bad":                logicFailed,
-			"pixel_probes_ok":          pixelOK,
-			"pixel_probes_total":       pixelTotal,
-			"pixel_bad":                pixelBad,
-			"pixel_golden_diff_pct":    pixelGoldenValue,
-			"pixel_golden_total_px":    goldenTotalPx,
-			"pixel_golden_first_run":   goldenFirstRun,
-			"snapshot_png":             snapshotPath,
-			"snapshot_note":            map[bool]string{true: "gate snapshot (GPU readback) used for pixel/Golden evidence", false: "manual mode does not write the gate snapshot; committed evidence is not overwritten"}[gateMode],
-			"impl_correctness":         "overlay band composites above main (FramePacket.Root then .Overlay); insert/remove touch only overlay entries",
-			"impl_dirty":               "AttachToPacket mirrors overlay dirties into pkt.OverlayDirtyLayerIDs; main DirtyLayerIDs unchanged by open (D5); band counts sampled pre/post attach",
-			"impl_cache":               "retained policy: main boundaries replay while overlay open; overlay panel/menu are their own RepaintBoundaries",
-			"impl_edge":                "cycling opens build FRESH entries per cycle (real-app pattern: new widgets per popup), 3 kinds rotate (modal+menu stack / dropdown / tooltip sheet), sizes+positions vary per cycle",
-			"impl_fail":                "main_dirty > baseline during open frames → FAIL (leak into main band); no overlay observed → FAIL; fps decay over many cycles → RSS/fps gates catch it",
-			"impl_visible":             "HUD ov=N cyc=K OPEN/closed main_dirty=X/base; gate open state shows modal+menu over dimmed main; manual popups alternate dialog/menu/tooltip",
+			// Dirty-region P0 key attribution (gate mode frozen window).
+			"rerecord_key_ticks":        rprobe.Ticks,
+			"rerecord_key_hud":          rprobe.Total(r8HudKey),
+			"rerecord_key_popup_ct":     len(popupKeys),
+			"rerecord_key_popup_total":  r8PopupTotal,
+			"rerecord_key_max_per_tick": rprobe.MaxChangedPerTick,
+			"phase_mode":                map[bool]string{true: "frozen-open/closed", false: "cycling"}[gateMode],
+			"evidence_mode":             map[bool]string{true: "gate", false: "manual"}[gateMode],
+			"pixel_evidence":            map[bool]string{true: "gate_snapshot_" + gateState, false: "manual_not_asserted"}[gateMode],
+			"fps_gate":                  "persistent_tick_ge_55",
+			"slope_gate":                "off_15s_short_run",
+			"rss_slope_note":            "rss_slope_valid=false for 15s = rss_warmup_sec; raw slope is startup-inclusive, not a leak conclusion",
+			"cpu_fallback_note":         "none observed; last_cpu_fallback empty means no fallback",
+			"gpu_ops_semantics":         "cumulative",
+			"golden_mask":               "header 1200x48 + legend 260x656 + body 904x656",
+			"golden_tolerance_pct":      0,
+			"logic_probes_ok":           len(logicProbes) - len(logicFailed),
+			"logic_probes_total":        len(logicProbes),
+			"logic_bad":                 logicFailed,
+			"pixel_probes_ok":           pixelOK,
+			"pixel_probes_total":        pixelTotal,
+			"pixel_bad":                 pixelBad,
+			"pixel_golden_diff_pct":     pixelGoldenValue,
+			"pixel_golden_total_px":     goldenTotalPx,
+			"pixel_golden_first_run":    goldenFirstRun,
+			"snapshot_png":              snapshotPath,
+			"snapshot_note":             map[bool]string{true: "gate snapshot (GPU readback) used for pixel/Golden evidence", false: "manual mode does not write the gate snapshot; committed evidence is not overwritten"}[gateMode],
+			"impl_correctness":          "overlay band composites above main (FramePacket.Root then .Overlay); insert/remove touch only overlay entries",
+			"impl_dirty":                "AttachToPacket mirrors overlay dirties into pkt.OverlayDirtyLayerIDs; main DirtyLayerIDs unchanged by open (D5); band counts sampled pre/post attach",
+			"impl_cache":                "retained policy: main boundaries replay while overlay open; overlay panel/menu are their own RepaintBoundaries",
+			"impl_edge":                 "cycling opens build FRESH entries per cycle (real-app pattern: new widgets per popup), 3 kinds rotate (modal+menu stack / dropdown / tooltip sheet), sizes+positions vary per cycle",
+			"impl_fail":                 "main_dirty > baseline during open frames → FAIL (leak into main band); no overlay observed → FAIL; fps decay over many cycles → RSS/fps gates catch it",
+			"impl_visible":              "HUD ov=N cyc=K OPEN/closed main_dirty=X/base; gate open state shows modal+menu over dimmed main; manual popups alternate dialog/menu/tooltip",
 		},
 	})
 	raw, _ := json.Marshal(report)
@@ -622,6 +673,63 @@ func main() {
 		if gateMode {
 			os.Exit(1)
 		}
+	}
+	// Dirty-region P0 key attribution runs BEFORE the policy gates so its
+	// verdict is visible even when an unrelated pre-existing gate (e.g. the
+	// fps line on slow raster environments) exits first.
+	//
+	// Probe evidence (2026-11-14, isolated :3): the overlay insert produces a
+	// ONE-SHOT settle burst — the 4 popup boundary keys + the popup's 7 text
+	// carrier keys (first record of fresh content) + root/body carriers (+1
+	// each) — while the 16 dense cell keys stay at ZERO (main-band isolation
+	// holds at key level). The steady tail after settle shows only the HUD.
+	if gateMode {
+		if !rprobe.Engaged() {
+			fail("rerecord-key probe disengaged (ticks=%d keys=%v) — texture cache inert, key gates would be vacuous", rprobe.Ticks, rprobe.Keys)
+		}
+		// 1. Dense static cells must NEVER re-record — any gain is a main-band
+		// leak through the overlay attach (the key-level analog of main_dirty).
+		for i, k := range cellKeys {
+			if t := rprobe.Total(k); t != 0 {
+				fail("rerecord dense cell[%d] total=%d want 0 (main-band leak on overlay attach)", i, t)
+			}
+		}
+		// 2. HUD is the only legitimate steady re-record (~10 Hz background).
+		if shell.HUD != nil {
+			maxHUD := int64(0.2*float64(rprobe.Ticks)) + 2
+			if t := rprobe.Total(r8HudKey); t > maxHUD {
+				fail("rerecord HUD key total=%d want <=%d (ticks=%d)", t, maxHUD, rprobe.Ticks)
+			}
+		}
+		// 3. Everything else is a one-shot insert settle at most: popup
+		// boundaries + popup text carriers + root/body carriers. A key that
+		// keeps re-recording (per-frame overlay cost) blows the bound.
+		allow := map[uint64]bool{r8HudKey: true}
+		for _, k := range cellKeys {
+			allow[k] = true
+		}
+		for k, n := range rprobe.Keys {
+			if !allow[k] && n > 6 {
+				fail("rerecord key #%d total=%d want <=6 (one-shot insert settle only; steady leak)", k, n)
+			}
+		}
+		if rprobe.Ticks < 100 {
+			fail("rerecord probe ticks=%d want >=100 (steady tail window too short)", rprobe.Ticks)
+		}
+		fmt.Fprintf(os.Stderr, "ui_wr_r8_overlay: rerecord-keys OK ticks=%d hud=%d popup_keys=%d cells=0 settle_burst_max=%d\n",
+			rprobe.Ticks, rprobe.Total(r8HudKey), len(popupKeys), func() int64 {
+				m := int64(0)
+				allow := map[uint64]bool{r8HudKey: true}
+				for _, k := range cellKeys {
+					allow[k] = true
+				}
+				for k, n := range rprobe.Keys {
+					if !allow[k] && n > m {
+						m = n
+					}
+				}
+				return m
+			}())
 	}
 	if !logicPass {
 		fail("logic probes %d/%d bad=%v", len(logicProbes)-len(logicFailed), len(logicProbes), logicFailed)

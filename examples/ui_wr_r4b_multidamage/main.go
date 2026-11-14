@@ -80,11 +80,13 @@ func main() {
 
 	// 中央大面积静态：6x5 色格 + 8 标签（各自 boundary，retained 下不重绘）。
 	staticCount := 0
+	staticKeys := make([]uint64, 0, 38)
 	for i := 0; i < 6; i++ {
 		for j := 0; j < 5; j++ {
 			c := rendering.NewRenderColorBox(100, 80, 0.16+0.08*float64(i%4), 0.4+0.07*float64(j%3), 0.3+0.08*float64((i+j)%3), 1)
 			c.SetRepaintBoundary(true)
 			shell.Body.Place(c, 240+float64(i)*104, 120+float64(j)*88)
+			staticKeys = append(staticKeys, c.EnsureCacheID())
 			staticCount++
 		}
 	}
@@ -92,6 +94,7 @@ func main() {
 		t := wrkit.Label(fmt.Sprintf("static lbl %02d", i), 12, 0.7, 0.75, 0.85)
 		t.SetRepaintBoundary(true)
 		shell.Body.Place(t, 250+float64(i%4)*160, 100+float64(i/4)*440)
+		staticKeys = append(staticKeys, t.EnsureCacheID())
 		staticCount++
 	}
 
@@ -139,6 +142,18 @@ func main() {
 	hotTick := 0
 	elapsed := 0.0
 	frozen := false
+	// Dirty-region P0 key attribution: established engine behavior (probe
+	// evidence 2026-11-14, isolated :3): content-unchanged dirty marks dedupe
+	// at BOTH the display-list and the GPU texture leg — in the frozen steady
+	// window the only legitimate re-records are the one-shot freeze-settle set
+	// (root/body carriers + phase label, each +1 with raster lag); after
+	// settle the per-key re-record attribution must be EMPTY.
+	rprobe := wrkit.NewRerecordKeyProbe(app)
+	r4bProbeReady := false
+	frozenTicks := 0
+	rerecordSettleTicks := 12 // absorb the freeze frame's commit lag (~3 frames)
+	postSettleKeys := map[uint64]int64{}
+	frozenMetricStart := int64(-1)
 	clock := wrkit.NewPhaseClock(2, 4)
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
@@ -160,6 +175,32 @@ func main() {
 			hotTick++
 			hotTL.MarkNeedsPaint()
 			hotBR.MarkNeedsPaint()
+			frozenTicks++
+			if frozenTicks >= 2 && !r4bProbeReady && app.PictureTextures() != nil {
+				rprobe.Start()
+				r4bProbeReady = true
+				frozenMetricStart = app.Metrics().Snapshot().BoundaryRerecord
+				if os.Getenv("WR_RERECORD_DBG") == "1" {
+					base := app.PictureTextures().RerecordByKeySnapshot()
+					fmt.Fprintf(os.Stderr, "rerecord-probe baseline: %d entries:", len(base))
+					for k, causes := range base {
+						fmt.Fprintf(os.Stderr, " #%d=%v", k, causes)
+					}
+					fmt.Fprintln(os.Stderr)
+				}
+			} else if frozenTicks > 2 {
+				changed := rprobe.Tick()
+				if frozenTicks > rerecordSettleTicks {
+					for _, k := range changed {
+						postSettleKeys[k]++
+					}
+				}
+				if os.Getenv("WR_RERECORD_DBG") == "1" && frozenTicks%30 == 0 {
+					snapH := app.Metrics().Snapshot()
+					fmt.Fprintf(os.Stderr, "rerecord-probe frozen tick=%d dirtyIDs=%v metricRR=%d metricSkip=%d presents=%d\n",
+						frozenTicks, app.LastDirtyLayerIDs(), snapH.BoundaryRerecord, snapH.BoundarySkip, app.PresentCount())
+				}
+			}
 			app.ScheduleFrame()
 			proc.Sample()
 			shell.NoteHUDTick(dt)
@@ -241,6 +282,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
 		os.Exit(1)
 	}
+	// Dirty-region P0 end samples: MUST precede app.Close() — Close clears the
+	// texture-cache attribution map (a post-Close read is always empty).
+	rerecordMapEnd := app.PictureTextures().RerecordByKeySnapshot()
+	frozenMetricEnd := app.Metrics().Snapshot().BoundaryRerecord
 	proc.Stop()
 	app.Close()
 	win.Close()
@@ -249,6 +294,45 @@ func main() {
 
 	elapsedSec := time.Since(t0).Seconds()
 	snap := app.Metrics().Snapshot()
+	// Dirty-region P0 attribution keys: CacheID of the boundary nodes (stable
+	// identity shared with the picture texture cache keys).
+	hotTLKey := hotTL.EnsureCacheID()
+	hotBRKey := hotBR.EnsureCacheID()
+	phaseLabelKey := phaseLabel.EnsureCacheID()
+	hudKey := uint64(0)
+	rootKey, bodyKey := shell.Root.EnsureCacheID(), shell.Body.Box.EnsureCacheID()
+	if shell.HUD != nil {
+		hudKey = shell.HUD.Box.EnsureCacheID()
+	}
+	if os.Getenv("WR_RERECORD_DBG") == "1" {
+		fmt.Fprintf(os.Stderr, "rerecord-ids: hotTL=%d hotBR=%d alignTL=%d alignBR=%d phaseLabel=%d hud=%d root=%d body=%d\n",
+			hotTLKey, hotBRKey, hotTLAlign.EnsureCacheID(), hotBRAlign.EnsureCacheID(),
+			phaseLabelKey, hudKey, rootKey, bodyKey)
+		fmt.Fprintf(os.Stderr, "rerecord-map (%d entries):", len(rerecordMapEnd))
+		for k, causes := range rerecordMapEnd {
+			fmt.Fprintf(os.Stderr, " #%d=%v", k, causes)
+		}
+		fmt.Fprintln(os.Stderr)
+	}
+	// key→role map for probe diagnosis (JSON evidence + failure messages).
+	keyRoles := map[uint64]string{
+		hotTLKey: "hotTL", hotBRKey: "hotBR", phaseLabelKey: "phaseLabel",
+		rootKey: "rootCarrier", bodyKey: "bodyCarrier",
+	}
+	if hudKey != 0 {
+		keyRoles[hudKey] = "hud"
+	}
+	role := func(k uint64) string {
+		if r, ok := keyRoles[k]; ok {
+			return r
+		}
+		for i, sk := range staticKeys {
+			if sk == k {
+				return fmt.Sprintf("static[%d]", i)
+			}
+		}
+		return fmt.Sprintf("key#%d", k)
+	}
 	avgArea, maxArea, samples, multiFrames := app.DamageStats()
 	var avgRatio, maxRatio float64
 	if samples > 0 {
@@ -281,6 +365,16 @@ func main() {
 			"hot_repaints":        hotTick,
 			"boundary_skip":       snap.BoundarySkip,
 			"boundary_rerecord":   snap.BoundaryRerecord,
+			// Dirty-region P0 key attribution (auto-only frozen window):
+			// post-settle re-record attribution must be EMPTY; the freeze
+			// settle set is bounded; the display-list rerecord metric moves
+			// only by the settle amount.
+			"rerecord_key_ticks":           rprobe.Ticks,
+			"rerecord_key_baseline":        rprobe.BaselineSize(),
+			"rerecord_key_settle_ct":       len(rprobe.Keys),
+			"rerecord_key_post_settle_ct":  len(postSettleKeys),
+			"rerecord_key_max_per_tick":    rprobe.MaxChangedPerTick,
+			"rerecord_metric_frozen_delta": frozenMetricEnd - frozenMetricStart,
 		},
 	})
 	raw, _ := json.Marshal(report)
@@ -314,6 +408,38 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: boundary_skip=%d want >0 (中央静态区必须不重绘)", snap.BoundarySkip)
 		os.Exit(1)
 	}
+	// Dirty-region P0 key attribution (frozen steady window, auto-only):
+	// content-unchanged dirty marks dedupe at both legs (probe evidence), so
+	// after the freeze settle the re-record attribution must be EMPTY for
+	// every key — static cells, shell carriers, HUD, and the hot boundaries
+	// alike. The settle set itself is bounded (root/body carriers + phase
+	// label, one commit each with raster lag).
+	if *autoOnly {
+		if rprobe.BaselineSize() == 0 && !rprobe.Engaged() {
+			fmt.Fprintf(os.Stderr, "FAIL: rerecord-key probe disengaged (baseline=%d ticks=%d) — texture cache inert, key gates would be vacuous\n", rprobe.BaselineSize(), rprobe.Ticks)
+			os.Exit(1)
+		}
+		if len(postSettleKeys) > 0 {
+			for k, n := range postSettleKeys {
+				fmt.Fprintf(os.Stderr, "FAIL: rerecord-key post-settle violation %s gained=%d (steady window must re-record nothing)\n", role(k), n)
+			}
+			os.Exit(1)
+		}
+		for k, n := range rprobe.Keys {
+			if n > 3 {
+				fmt.Fprintf(os.Stderr, "FAIL: rerecord settle key %s total=%d want <=3 (one commit each + lag)\n", role(k), n)
+				os.Exit(1)
+			}
+		}
+		if rprobe.MaxChangedPerTick > 4 {
+			fmt.Fprintf(os.Stderr, "FAIL: rerecord max_per_tick=%d want <=4 (settle burst root+body+label)\n", rprobe.MaxChangedPerTick)
+			os.Exit(1)
+		}
+		if d := frozenMetricEnd - frozenMetricStart; d < 0 || d > 6 {
+			fmt.Fprintf(os.Stderr, "FAIL: boundary_rerecord metric delta=%d over frozen window want <=6 (settle only)\n", d)
+			os.Exit(1)
+		}
+	}
 	fpsOK := snap.AvgFrameIntervalMs > 1e-6 && 1000.0/snap.AvgFrameIntervalMs >= 55
 	if !fpsOK {
 		fmt.Fprintf(os.Stderr, "FAIL: fps_interval=%.1f < 55 (持续 tick R4b)", 1000.0/snap.AvgFrameIntervalMs)
@@ -346,9 +472,14 @@ func main() {
 		}
 		goldenSuffix = fmt.Sprintf(" pixel=%d/%d golden=0.0000%% px=%d", len(probes), len(probes), total)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: OK presents=%d ids_max=%d ids=%v multi=%d dmg_avg=%.3f mode=%s skip=%d fps=%.1f elapsed=%.1fs%s\n",
+	rerecordSuffix := ""
+	if *autoOnly {
+		rerecordSuffix = fmt.Sprintf(" rr_ticks=%d settle=%d post_settle=0(max=%d metricΔ=%d)",
+			rprobe.Ticks, len(rprobe.Keys), rprobe.MaxChangedPerTick, frozenMetricEnd-frozenMetricStart)
+	}
+	fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: OK presents=%d ids_max=%d ids=%v multi=%d dmg_avg=%.3f mode=%s skip=%d fps=%.1f elapsed=%.1fs%s%s\n",
 		app.PresentCount(), maxIDs, lastIDs, multiFrames, avgRatio, lastMode,
-		snap.BoundarySkip, 1000.0/snap.AvgFrameIntervalMs, elapsedSec, goldenSuffix)
+		snap.BoundarySkip, 1000.0/snap.AvgFrameIntervalMs, elapsedSec, goldenSuffix, rerecordSuffix)
 }
 
 type ticker struct{ on func(dt float64) }

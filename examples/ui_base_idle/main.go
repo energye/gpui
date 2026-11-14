@@ -106,6 +106,26 @@ func main() {
 		os.Exit(1)
 	}
 	t0 := time.Now()
+
+	// Boundary re-record delta probe (dirty-region P0): the idle window must
+	// not re-record ANY layer key between a mid-run sample and the end, even
+	// if a stray present slipped past the presents_after_warmup ≤ 2 gate (a
+	// present without re-record would pass that gate but still burn GPU).
+	// Sampling runs on a plain timer goroutine (mutex-consistent snapshot
+	// reads, same posture as the RSS sampler), never drives frames, and hands
+	// the sample over a channel — the main thread reads it after Run returns.
+	type idleProbeSample struct {
+		keys             map[uint64]map[string]int64
+		boundaryRerecord int64
+	}
+	probeCh := make(chan idleProbeSample, 1)
+	time.AfterFunc(10*time.Second, func() {
+		probeCh <- idleProbeSample{
+			keys:             app.PictureTextures().RerecordByKeySnapshot(),
+			boundaryRerecord: app.Metrics().Snapshot().BoundaryRerecord,
+		}
+	})
+
 	// RSS-series sampler: measurement must not drive frames, so it runs on a
 	// plain goroutine (reads /proc), never on a UI ticker. A 60s run is the
 	// O3 screening window: rss_slope_valid=false is expected (INCONCLUSIVE),
@@ -130,6 +150,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
 		os.Exit(1)
 	}
+	// Dirty-region P0 sample B: MUST be taken before app.Close() — Close
+	// clears the texture-cache attribution map, so a post-Close read would be
+	// empty and the delta==0 gate would pass vacuously.
+	idleSampleB := app.PictureTextures().RerecordByKeySnapshot()
+	idleMetricsB := app.Metrics().Snapshot().BoundaryRerecord
 	close(sampleStop)
 	<-sampleDone
 	proc.Stop()
@@ -156,10 +181,53 @@ func main() {
 	rssAvailable := snap.RSSStartKB != 0 || snap.RSSEndKB != 0
 	rssOK := rssAvailable && (!snap.RSSSlopeValid || snap.RSSSlopeSteadyKBPerMin <= 30000)
 
+	// Dirty-region P0: boundary re-record delta over the idle tail must be 0 —
+	// no layer key gained re-records and the cumulative boundary counter did
+	// not move. The probe must have engaged (warm-up fills the texture cache);
+	// a disengaged probe is reported as a failure, not a silent pass.
+	var probeSnapA map[uint64]map[string]int64
+	var probeMetricsA int64
+	probeFired := false
+	select {
+	case s := <-probeCh:
+		probeSnapA, probeMetricsA, probeFired = s.keys, s.boundaryRerecord, true
+	default:
+	}
+	probeEngaged := probeFired
+	rerecordDeltaKeys := map[uint64]int64{}
+	textureLegLive := len(probeSnapA) > 0
+	if textureLegLive {
+		for k, causes := range idleSampleB {
+			prevCauses := probeSnapA[k]
+			gained := int64(0)
+			for cause, n := range causes {
+				if d := n - prevCauses[cause]; d > 0 {
+					gained += d
+				}
+			}
+			if gained > 0 {
+				rerecordDeltaKeys[k] = gained
+			}
+		}
+	}
+	boundaryRerecordDelta := idleMetricsB - probeMetricsA
+	// Primary gate = the display-list leg (BoundaryCache cumulative delta):
+	// the idle window's single warmup frame is a vector full present, so the
+	// GPU texture cache never initializes (pictureTex stays nil — established
+	// 2026-11-14) and the texture-leg key attribution is structurally
+	// unavailable here; the key-level check applies only when that leg is live.
+	rerecordDeltaOK := probeEngaged && boundaryRerecordDelta == 0 && len(rerecordDeltaKeys) == 0
+
 	logicProbes := []string{"idle_presents_after_warmup_le_2", "cpu_idle_le_2pct", "cpu_fallback_zero", "rss_no_leak_or_inconclusive"}
+	if gateMode {
+		logicProbes = append(logicProbes, "boundary_rerecord_delta_zero")
+	}
 	logicFailed := make([]string, 0, len(logicProbes))
 	if !presentsOK {
 		logicFailed = append(logicFailed, "idle_presents_after_warmup_le_2")
+	}
+	if gateMode && !rerecordDeltaOK {
+		logicFailed = append(logicFailed, "boundary_rerecord_delta_zero")
 	}
 	if !cpuOK {
 		logicFailed = append(logicFailed, "cpu_idle_le_2pct")
@@ -226,6 +294,11 @@ func main() {
 			"presents_total":              presents,
 			"presents_after_warmup":       presentsAfterWarmup,
 			"warmup_presents":             presents - presentsAfterWarmup,
+			"boundary_rerecord_total_end": snap.BoundaryRerecord,
+			"boundary_rerecord_delta":     boundaryRerecordDelta,
+			"rerecord_probe_engaged":      probeEngaged,
+			"rerecord_texture_leg":        map[bool]string{true: "live", false: "unavailable_no_textured_present"}[textureLegLive],
+			"rerecord_delta_keys":         rerecordDeltaKeys,
 			"evidence_mode":               map[bool]string{true: "gate", false: "manual"}[gateMode],
 			"pixel_evidence":              map[bool]string{true: "gate_snapshot", false: "manual_not_asserted"}[gateMode],
 			"logic_probes_ok":             len(logicProbes) - len(logicFailed),

@@ -194,11 +194,35 @@ func main() {
 	phase := wrkit.PhaseSteady
 	frozen := false
 
+	// Dirty-region P0 key attribution: the shell band boundary (SetShellBoundary)
+	// and its nested button boundaries must NEVER appear in the per-key re-record
+	// attribution — scrolling dirties body carriers only. The probe starts once
+	// warm-up frames are past so cold shell/chip records land in the baseline.
+	rprobe := wrkit.NewRerecordKeyProbe(app)
+	var barKey, btn1Key, btn2Key uint64
+	probeStarted := false
+
 	var elapsed float64
 	var lastWinW, lastWinH int
 	var resizeSkip int
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
+		if os.Getenv("WR_RERECORD_DBG") == "1" && rprobe.Ticks < 3 {
+			fmt.Fprintf(os.Stderr, "r21-dbg: tick elapsed=%.2f warmFrames=%d probeStarted=%v\n", elapsed, warmFrames, probeStarted)
+		}
+		if !probeStarted && warmFrames >= 2 && app.PictureTextures() != nil {
+			// The GPU texture cache initializes with the first GPU frames —
+			// a Start() before that stores a nil baseline and every Tick
+			// early-returns (probe inert, observed 2026-11-14).
+			barKey = bar.EnsureCacheID()
+			btn1Key = btn1.EnsureCacheID()
+			btn2Key = btn2.EnsureCacheID()
+			rprobe.Start()
+			probeStarted = true
+		}
+		if probeStarted {
+			rprobe.Tick()
+		}
 		// Resize/DPR-change frames legally re-record the shell (size changed).
 		// Exclude them from the scroll-gate sample so external WM resize during
 		// a run can't false-fail the shell_rerecord_scroll==0 gate. The rerecord
@@ -296,6 +320,10 @@ func main() {
 
 	elapsedSec := time.Since(t0).Seconds()
 	snap := app.Metrics().Snapshot()
+	r21HudKey := uint64(0)
+	if shell.HUD != nil {
+		r21HudKey = shell.HUD.Box.EnsureCacheID()
+	}
 
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R21",
@@ -306,10 +334,19 @@ func main() {
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
 		Extra: map[string]any{
-			"shell_rerecord_scroll":           scrollShellRerecord, // must be 0
-			"shell_skip_scroll":               scrollShellSkip,     // must be > 0
-			"shell_rerecord_total":            snap.ShellRerecord,  // cold record during warm-up
-			"shell_skip_total":                snap.ShellSkip,
+			"shell_rerecord_scroll": scrollShellRerecord, // must be 0
+			"shell_skip_scroll":     scrollShellSkip,     // must be > 0
+			"shell_rerecord_total":  snap.ShellRerecord,  // cold record during warm-up
+			"shell_skip_total":      snap.ShellSkip,
+			// Dirty-region P0 key attribution: shell bar + nested buttons must
+			// be zero in the per-key re-record attribution for the whole run.
+			"rerecord_key_ticks":              rprobe.Ticks,
+			"rerecord_key_engaged":            rprobe.Engaged(),
+			"rerecord_key_bar":                rprobe.Total(barKey),
+			"rerecord_key_btn1":               rprobe.Total(btn1Key),
+			"rerecord_key_btn2":               rprobe.Total(btn2Key),
+			"rerecord_key_hud":                rprobe.Total(r21HudKey),
+			"rerecord_key_max_per_tick":       rprobe.MaxChangedPerTick,
 			"body_items":                      60,
 			"body_scroll_px_per_frame_steady": 0.5,
 			"body_scroll_px_per_frame_spike":  8.0,
@@ -349,6 +386,40 @@ func main() {
 	if scrollShellSkip <= 0 {
 		fmt.Fprintf(os.Stderr, "FAIL: shell_skip_scroll=%d want >0 (shell Picture must replay during body scroll)\n", scrollShellSkip)
 		os.Exit(1)
+	}
+	// Dirty-region P0 key attribution: shell bar + nested button keys must have
+	// ZERO re-records across the whole run (scroll + frozen). HUD is the only
+	// allowed background key; chip first-records stay bounded. A disengaged
+	// probe (texture cache inert under this policy) downgrades the key gate to
+	// the aggregate partition gates above — reported, never passed silently.
+	if rprobe.Engaged() || rprobe.BaselineSize() > 0 {
+		for name, k := range map[string]uint64{"bar": barKey, "btn1": btn1Key, "btn2": btn2Key} {
+			if t := rprobe.Total(k); t != 0 {
+				fmt.Fprintf(os.Stderr, "FAIL: rerecord shell %s key total=%d want 0 (shell band must never re-record)\n", name, t)
+				os.Exit(1)
+			}
+		}
+		if r21HudKey != 0 {
+			maxHUD := int64(0.2*float64(rprobe.Ticks)) + 2
+			if t := rprobe.Total(r21HudKey); t > maxHUD {
+				fmt.Fprintf(os.Stderr, "FAIL: rerecord HUD key total=%d want <=%d (ticks=%d)\n", t, maxHUD, rprobe.Ticks)
+				os.Exit(1)
+			}
+		}
+		// Everything else (viewport row chips entering the viewport, body
+		// carriers) is a first-view cold record at most — a key that keeps
+		// re-recording is a scroll leak.
+		for k, n := range rprobe.Keys {
+			if k == r21HudKey || k == barKey || k == btn1Key || k == btn2Key {
+				continue
+			}
+			if n > 3 {
+				fmt.Fprintf(os.Stderr, "FAIL: rerecord key #%d total=%d want <=3 (first-view record only; scroll leak)\n", k, n)
+				os.Exit(1)
+			}
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "ui_wr_r21_shell: rerecord-key probe disengaged (baseline=%d ticks=%d) — key gates downgraded to aggregate shell partition gates\n", rprobe.BaselineSize(), rprobe.Ticks)
 	}
 	goldenSuffix := ""
 	if *autoOnly {
