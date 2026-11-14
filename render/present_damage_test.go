@@ -70,3 +70,57 @@ func TestDamageRectsAreaSum(t *testing.T) {
 		t.Fatalf("damageRectsAreaSum(inverted rect) = %d, want 0", got)
 	}
 }
+
+// TestPlanFramePresent_WasteRatioBoundary pins the DamageMultiWasteRatio
+// decision boundary (dirty-region P2): union area ≥ sum×1.35 → independent
+// multi-rect scissors; just below → one union scissor. Exact-equality lands
+// on multi (>=). Rects are ≥2px apart so CoalesceDamageRects cannot merge
+// them (edge-adjacent/intersecting merge would change the inputs).
+func TestPlanFramePresent_WasteRatioBoundary(t *testing.T) {
+	// Exact boundary: two 10x10 rects, 7px gap → union box 27x10 = 270 px,
+	// sum = 200 px, 200×1.35 = 270 → equality → multi.
+	plan := PlanFramePresent([]image.Rectangle{
+		image.Rect(0, 0, 10, 10),
+		image.Rect(17, 0, 27, 10),
+	}, 100, 100)
+	if plan.Mode != PresentModeDamageMulti {
+		t.Fatalf("mode = %v at union==sum*1.35 (270==270), want DamageMulti (>= boundary)", plan.Mode)
+	}
+	if len(plan.Rects) != 2 {
+		t.Fatalf("rects = %v, want 2 independent scissors", plan.Rects)
+	}
+
+	// Just below the boundary: two rects, union 30x13 = 390 px, sum = 290 px,
+	// 290×1.35 = 391.5 → 390 < 391.5 → one union scissor.
+	plan = PlanFramePresent([]image.Rectangle{
+		image.Rect(0, 0, 20, 10),
+		image.Rect(21, 3, 30, 13),
+	}, 100, 100)
+	if plan.Mode != PresentModeDamageUnion {
+		t.Fatalf("mode = %v at union 390 < sum*1.35 391.5, want DamageUnion", plan.Mode)
+	}
+	if len(plan.Rects) != 1 || plan.Rects[0] != image.Rect(0, 0, 30, 13) {
+		t.Fatalf("rects = %v, want single union (0,0,30,13)", plan.Rects)
+	}
+
+	// Well above the boundary: distant corners stay multi (the R4b posture —
+	// two far-apart hot spots must not collapse into a near-full union).
+	plan = PlanFramePresent([]image.Rectangle{
+		image.Rect(0, 0, 20, 10),
+		image.Rect(25, 3, 34, 13),
+	}, 100, 100)
+	if plan.Mode != PresentModeDamageMulti {
+		t.Fatalf("mode = %v at union 442 ≥ sum*1.35 391.5, want DamageMulti", plan.Mode)
+	}
+
+	// Coverage boundary on a single rect (DamageFullCoverageThreshold 0.85):
+	// exactly 85% of the surface → full; just below → union scissor.
+	plan = PlanFramePresent([]image.Rectangle{image.Rect(0, 0, 100, 85)}, 100, 100)
+	if plan.Mode != PresentModeFull {
+		t.Fatalf("mode = %v at single-rect coverage 85%%, want Full (>= boundary)", plan.Mode)
+	}
+	plan = PlanFramePresent([]image.Rectangle{image.Rect(0, 0, 100, 84)}, 100, 100)
+	if plan.Mode != PresentModeDamageUnion {
+		t.Fatalf("mode = %v at single-rect coverage 84%%, want DamageUnion", plan.Mode)
+	}
+}
