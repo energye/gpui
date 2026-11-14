@@ -1,0 +1,947 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+time=2026-11-15T02:07:01.141+08:00 level=INFO msg="gpu-shared: switched to shared GPU device" strategy="GPU (no MSAA)" msaa_samples=1 deviceGen=1
+time=2026-11-15T02:07:01.239+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:01.447+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.524+08:00 level=INFO msg="created surface textures" label=session width=1202 height=802 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.525+08:00 level=INFO msg="created surface textures" label=session width=906 height=658 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.526+08:00 level=INFO msg="created surface textures" label=session width=32 height=32 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.529+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:01.531+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.532+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.563+08:00 level=INFO msg="created surface textures" label=session width=1202 height=50 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.564+08:00 level=INFO msg="created surface textures" label=session width=275 height=18 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.564+08:00 level=INFO msg="created surface textures" label=session width=262 height=658 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.565+08:00 level=INFO msg="created surface textures" label=session width=56 height=16 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.565+08:00 level=INFO msg="created surface textures" label=session width=320 height=16 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.566+08:00 level=INFO msg="created surface textures" label=session width=218 height=16 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.566+08:00 level=INFO msg="created surface textures" label=session width=213 height=16 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.567+08:00 level=INFO msg="created surface textures" label=session width=194 height=16 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.567+08:00 level=INFO msg="created surface textures" label=session width=160 height=16 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.568+08:00 level=INFO msg="created surface textures" label=session width=562 height=422 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.568+08:00 level=INFO msg="created surface textures" label=session width=98 height=66 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.575+08:00 level=INFO msg="created surface textures" label=session width=106 height=15 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.577+08:00 level=INFO msg="created surface textures" label=session width=24 height=13 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.578+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.630+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:01.631+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.632+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.731+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:01.732+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.733+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.831+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:01.831+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.832+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.930+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:01.931+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:01.932+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.031+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.031+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.032+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.131+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.131+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.135+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.231+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.231+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.239+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.331+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.331+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.344+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.434+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.434+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.450+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.537+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.537+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.551+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.588+08:00 level=INFO msg="created surface textures" label=session width=1202 height=802 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.589+08:00 level=INFO msg="created surface textures" label=session width=906 height=658 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.589+08:00 level=INFO msg="created surface textures" label=session width=32 height=32 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.604+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.631+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.632+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.635+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.716+08:00 level=INFO msg="created surface textures" label=session width=3 height=3 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.716+08:00 level=INFO msg="created surface textures" label=session width=342 height=242 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.718+08:00 level=INFO msg="created surface textures" label=session width=176 height=18 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.719+08:00 level=INFO msg="created surface textures" label=session width=104 height=15 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.720+08:00 level=INFO msg="created surface textures" label=session width=122 height=36 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.721+08:00 level=INFO msg="created surface textures" label=session width=57 height=13 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.722+08:00 level=INFO msg="created surface textures" label=session width=182 height=152 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.722+08:00 level=INFO msg="created surface textures" label=session width=74 height=14 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.724+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.732+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.733+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.734+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.832+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.832+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.833+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.932+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:02.932+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:02.933+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.033+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.034+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.035+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.132+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.132+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.134+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.232+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.232+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.234+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.332+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.333+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.334+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.432+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.433+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.434+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.532+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.532+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.534+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.632+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.633+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.634+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.733+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.733+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.735+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.834+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.834+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.836+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.933+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:03.933+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:03.935+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.033+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.033+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.035+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.133+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.134+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.135+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.234+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.234+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.235+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.333+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.334+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.336+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.433+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.433+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.435+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.534+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.534+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.536+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.634+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.634+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.635+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.734+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.734+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.735+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.834+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.834+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.836+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.936+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:04.936+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:04.937+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.051+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.051+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.053+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.151+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.151+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.153+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.251+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.251+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.254+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.351+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.351+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.353+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.451+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.452+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.454+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.552+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.552+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.554+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.652+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.653+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.654+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.752+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.752+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.754+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.852+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.852+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.854+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.953+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:05.953+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:05.954+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.052+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.053+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.054+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.152+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.152+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.154+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.255+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.255+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.257+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.354+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.354+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.356+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.452+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.453+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.454+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.552+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.553+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.554+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.653+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.653+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.654+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.753+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.753+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.754+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.854+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.855+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.856+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.956+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:06.956+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:06.958+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.053+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.054+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.055+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.154+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.154+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.155+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.254+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.254+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.256+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.353+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.354+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.355+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.454+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.454+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.456+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.554+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.554+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.556+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.654+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.654+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.656+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.754+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.754+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.756+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.854+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.855+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.856+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.954+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:07.955+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:07.956+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.054+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.055+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.057+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.155+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.155+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.157+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.255+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.255+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.257+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.355+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.355+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.356+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.455+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.455+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.457+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.555+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.555+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.557+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.656+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.656+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.658+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.756+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.756+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.758+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.857+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.857+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.858+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.956+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:08.956+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:08.958+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.056+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.056+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.058+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.173+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.173+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.175+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.273+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.273+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.275+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.373+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.373+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.375+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.473+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.473+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.475+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.573+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.574+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.575+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.673+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.673+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.675+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.774+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.774+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.776+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.874+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.874+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.876+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.974+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:09.974+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:09.976+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.090+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.091+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.092+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.190+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.191+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.192+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.290+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.291+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.292+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.391+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.391+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.393+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.491+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.491+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.493+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.591+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.591+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.593+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.692+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.692+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.694+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.791+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.791+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.793+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.891+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.892+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.893+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.991+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:10.991+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:10.993+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.092+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.092+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.093+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.191+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.192+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.193+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.292+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.292+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.294+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.392+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.392+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.394+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.492+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.492+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.494+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.594+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.594+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.596+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.692+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.692+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.694+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.792+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.793+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.794+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.893+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.893+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.894+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.993+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:11.993+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:11.995+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.094+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.094+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.095+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.193+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.193+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.194+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.293+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.293+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.295+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.393+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.393+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.395+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.494+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.494+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.496+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.593+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.594+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.596+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.694+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.694+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.696+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.794+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.794+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.796+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.894+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.894+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.896+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.994+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:12.994+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:12.996+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.094+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:13.094+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.096+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.194+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:13.194+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.196+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.294+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:13.295+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.296+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.394+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:13.394+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.396+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.494+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:13.494+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.496+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.595+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:13.595+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.596+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.695+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:13.695+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.697+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.795+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:13.795+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.797+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.895+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:13.895+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:13.897+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.012+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.012+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.014+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.112+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.112+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.114+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.229+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.229+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.231+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.329+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.329+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.330+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.429+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.429+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.431+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.530+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.530+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.532+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.629+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.629+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.631+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.729+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.730+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.731+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.829+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.830+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.831+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.929+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:14.929+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:14.931+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.030+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.031+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.032+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.130+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.130+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.132+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.230+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.230+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.231+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.330+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.330+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.332+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.430+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.431+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.432+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.530+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.530+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.532+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.630+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.631+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.632+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.733+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.733+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.734+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.847+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.847+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.849+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.947+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:15.947+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:15.949+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.048+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.048+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.050+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.148+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.148+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.150+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.248+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.248+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.250+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.347+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.348+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.349+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.448+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.448+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.450+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.548+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.549+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.550+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.649+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.649+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.650+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.765+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.765+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.767+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.866+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.866+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.867+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.965+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:16.966+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:16.967+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.066+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.066+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.068+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.166+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.166+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.167+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.266+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.267+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.268+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.367+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.367+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.369+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.466+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.466+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.468+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.566+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.566+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.567+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.666+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.666+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.668+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.766+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.766+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.768+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.867+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.867+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.868+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.984+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:17.984+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:17.986+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.083+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.084+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.085+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.183+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.184+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.185+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.284+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.285+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.287+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.384+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.384+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.386+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.484+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.484+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.486+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.584+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.584+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.586+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.684+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.684+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.686+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.784+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.785+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.786+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.884+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.885+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.886+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.985+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:18.985+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:18.987+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.085+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.085+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.087+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.184+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.185+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.186+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.285+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.285+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.287+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.385+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.385+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.387+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.485+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.485+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.487+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.585+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.586+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.587+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.685+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.685+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.687+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.785+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.786+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.787+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.885+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.886+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.887+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.986+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:19.986+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:19.988+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.086+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:20.087+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.088+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.186+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:20.186+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.188+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.286+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:20.286+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.288+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.386+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:20.386+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.388+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.486+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:20.486+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.488+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.587+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:20.587+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.589+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.687+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:20.688+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.689+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.803+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:20.804+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.805+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.903+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:20.903+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:20.905+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.004+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.004+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.005+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.103+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.104+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.105+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.204+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.204+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.206+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.321+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.321+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.322+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.421+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.421+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.422+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.521+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.521+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.523+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.621+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.621+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.623+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.722+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.722+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.724+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.821+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.821+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.823+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.921+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:21.922+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:21.924+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.021+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.022+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.023+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.121+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.122+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.123+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.222+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.222+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.223+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.322+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.322+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.324+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.439+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.439+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.441+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.541+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.541+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.542+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.639+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.639+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.640+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.756+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.756+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.758+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.856+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.856+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.858+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.956+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:22.956+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:22.958+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.073+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.073+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.075+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.173+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.173+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.175+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.274+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.274+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.276+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.374+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.374+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.376+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.473+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.473+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.475+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.573+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.574+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.576+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.673+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.673+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.674+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.774+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.774+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.776+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.874+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.874+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.876+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.974+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:23.974+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:23.976+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.074+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.074+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.076+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.174+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.174+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.176+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.274+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.274+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.276+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.374+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.375+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.376+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.474+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.474+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.476+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.575+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.575+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.576+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.675+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.675+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.677+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.775+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.775+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.776+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.875+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.875+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.877+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.975+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:24.975+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:24.977+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.075+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.075+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.077+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.175+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.175+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.177+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.275+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.276+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.277+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.375+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.376+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.378+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.476+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.476+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.478+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.576+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.576+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.577+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.676+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.676+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.678+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.776+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.777+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.778+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.876+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.877+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.878+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.978+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:25.979+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:25.980+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.077+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.077+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.078+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.177+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.177+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.179+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.277+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.277+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.279+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.377+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.377+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.379+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.493+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.493+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.495+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.593+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.594+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.595+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.694+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.694+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.696+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.794+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.794+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.796+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.896+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.896+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.899+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.994+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:26.994+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:26.996+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.094+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:27.095+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.097+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.195+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:27.195+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.197+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.295+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:27.295+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.296+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.411+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:27.412+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.413+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.512+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:27.512+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.513+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.612+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:27.612+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.613+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.712+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:27.712+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.714+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.828+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:27.828+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.830+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.929+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:27.930+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:27.931+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.045+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.046+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.047+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.145+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.146+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.147+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.245+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.246+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.248+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.346+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.346+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.349+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.446+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.446+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.448+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.546+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.546+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.548+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.646+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.647+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.648+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.746+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.747+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.748+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.848+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.848+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.850+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.947+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:28.947+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:28.949+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.046+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.047+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.048+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.147+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.147+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.149+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.246+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.247+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.248+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.347+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.347+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.349+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.447+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.447+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.449+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.547+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.547+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.549+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.647+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.648+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.649+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.747+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.748+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.749+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.847+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.848+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.849+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.948+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:29.948+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:29.949+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.047+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.048+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.049+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.149+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.149+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.150+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.248+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.248+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.250+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.348+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.348+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.350+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.448+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.449+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.450+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.549+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.549+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.551+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.648+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.649+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.650+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.749+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.749+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.751+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.849+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.849+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.851+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.949+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:30.949+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:30.951+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.049+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:31.049+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.051+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.149+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:31.149+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.151+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.250+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:31.250+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.252+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.349+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:31.350+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.352+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.451+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:31.452+08:00 level=INFO msg="created surface textures" label=session width=1206 height=76 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.454+08:00 level=INFO msg="created surface textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+time=2026-11-15T02:07:31.507+08:00 level=DEBUG msg="FillPath: convex fast-path" points=4 fillRule=0
+time=2026-11-15T02:07:31.508+08:00 level=INFO msg="created offscreen textures" label=session width=1200 height=800 msaa_samples=1 msaa_color=false degraded=false
+snapshot: examples/ui_wr_r8_overlay/testdata/showcase_r8_overlay_open.png
+ui_wr_r8_overlay: pixel grid_00            fg  @( 354, 114) got=(0.220,0.380,0.549) want=(0.220,0.380,0.550) ok=true
+ui_wr_r8_overlay: pixel grid_11            fg  @( 462, 188) got=(0.361,0.490,0.788) want=(0.360,0.490,0.790) ok=true
+ui_wr_r8_overlay: pixel grid_20            fg  @( 570, 114) got=(0.502,0.380,0.788) want=(0.500,0.380,0.790) ok=true
+ui_wr_r8_overlay: pixel grid_03            fg  @( 354, 336) got=(0.220,0.710,0.549) want=(0.220,0.710,0.550) ok=true
+ui_wr_r8_overlay: pixel dense_bg           bg  @( 404, 114) got=(0.110,0.122,0.180) want=(0.110,0.120,0.180) ok=true
+ui_wr_r8_overlay: pixel hot_spot           fg  @( 779, 425) got=(0.898,0.451,0.549) want=(0.900,0.450,0.550) ok=true
+ui_wr_r8_overlay: pixel body_bg            bg  @( 984, 560) got=(0.098,0.110,0.129) want=(0.100,0.110,0.130) ok=true
+ui_wr_r8_overlay: pixel legend_bg          bg  @(  32, 680) got=(0.110,0.122,0.149) want=(0.110,0.120,0.150) ok=true
+ui_wr_r8_overlay: pixel top_bg             bg  @(1000,  24) got=(0.122,0.141,0.180) want=(0.120,0.140,0.180) ok=true
+ui_wr_r8_overlay: pixel ov_panel           fg  @( 420, 310) got=(0.149,0.169,0.239) want=(0.150,0.170,0.240) ok=true
+ui_wr_r8_overlay: pixel ov_button          fg  @( 440, 350) got=(0.200,0.502,0.851) want=(0.200,0.500,0.850) ok=true
+ui_wr_r8_overlay: pixel ov_menu            fg  @( 760, 250) got=(0.200,0.239,0.322) want=(0.200,0.240,0.320) ok=true
+ui_wr_r8_overlay: ink   main_label_ink     region=( 310, 400 180x50) ink_px=5751 want>=20 ok=true
+ui_wr_r8_overlay: ink   hot_label_ink      region=( 764, 446  40x14) ink_px=560 want>=6 ok=true
+ui_wr_r8_overlay: ink   ov_panel_ink       region=( 396, 274 220x18) ink_px=980 want>=10 ok=true
+ui_wr_r8_overlay: ink   ov_menu_ink        region=( 712, 210 120x60) ink_px=459 want>=10 ok=true
+ui_wr_r8_overlay: golden showcase_r8_overlay_open.png: diff=1.9226% over 821184 px
+ui_wr_r8_overlay: rerecord-keys OK ticks=1736 hud=287 popup_keys=4 cells=0 settle_burst_max=1
+FAIL: logic probes 9/10 bad=[fps_interval_ge_55]

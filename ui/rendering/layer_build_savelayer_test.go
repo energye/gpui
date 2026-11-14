@@ -32,7 +32,7 @@ func TestBuildFramePacketWithSaveLayer_WiresBuildBudget(t *testing.T) {
 
 	stats := &rendering.SaveLayerStats{}
 	budget := &rendering.SaveLayerBudget{MaxOps: 1, MaxArea: 1e9}
-	pkt := rendering.BuildFramePacketWithSaveLayer(root, 1, 1, 120, 60, stats, budget)
+	pkt := rendering.BuildFramePacketWithSaveLayer(root, 1, 1, 120, 60, stats, budget, nil)
 	if pkt == nil || pkt.Root == nil {
 		t.Fatal("nil packet/root")
 	}
@@ -46,7 +46,7 @@ func TestBuildFramePacketWithSaveLayer_WiresBuildBudget(t *testing.T) {
 
 	// Per-frame reset: a fresh frame allows exactly one again.
 	budget.Reset()
-	rendering.BuildFramePacketWithSaveLayer(root, 2, 1, 120, 60, stats, budget)
+	rendering.BuildFramePacketWithSaveLayer(root, 2, 1, 120, 60, stats, budget, nil)
 	if got := stats.Allow.Load(); got != 2 {
 		t.Fatalf("Allow=%d want 2 after reset", got)
 	}

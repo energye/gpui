@@ -129,7 +129,7 @@ func TestBuildFramePacket_MutateTreeKeepsHandedOffPacket(t *testing.T) {
 // TestBuildFramePacketWithSaveLayerStats_Sealed: the stats path seals too.
 func TestBuildFramePacketWithSaveLayerStats_Sealed(t *testing.T) {
 	box := rendering.NewRenderColorBox(20, 10, 0, 1, 0, 1)
-	pkt, st := rendering.BuildFramePacketWithSaveLayerStats(box, 3, 1, 100, 80, nil, nil)
+	pkt, st := rendering.BuildFramePacketWithSaveLayerStats(box, 3, 1, 100, 80, nil, nil, nil)
 	if pkt == nil || !pkt.IsSealed() {
 		t.Fatal("stats-path packet must be sealed")
 	}

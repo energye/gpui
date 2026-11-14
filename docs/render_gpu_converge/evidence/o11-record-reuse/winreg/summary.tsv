@@ -1,0 +1,12 @@
+window	status	rc	fps	note
+ui_base_idle	rc=1	rc=1	fps=	see stderr
+ui_wr_r4b_multidamage	rc=0	rc=0	fps=57.38550629187817	see stderr
+ui_wr_r8_overlay	rc=1	rc=1	fps=11.732096452822915	see stderr
+ui_wr_r21_shell	rc=0	rc=0	fps=57.42290784982339	see stderr
+kit_f0_content	rc=1	rc=1	fps=57.76195180956164	see stderr
+kit_f0_decor	rc=1	rc=1	fps=57.76626363591226	see stderr
+kit_f0_interact	rc=1	rc=1	fps=57.61995861303395	see stderr
+kit_f0_layout	rc=1	rc=1	fps=57.768987117886766	see stderr
+kit_f0_motion	rc=1	rc=1	fps=49.922606654486316	see stderr
+kit_f0_scope	rc=1	rc=1	fps=57.58732440795469	see stderr
+kit_f0_theme	rc=1	rc=1	fps=57.758787712980016	see stderr

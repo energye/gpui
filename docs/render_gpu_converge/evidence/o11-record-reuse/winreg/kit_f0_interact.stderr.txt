@@ -1,0 +1,8 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/kit_f0_interact/testdata/showcase_interact.png
+kit_f0_interact: solid disabled_gray  ok=true
+kit_f0_interact: solid overlay_box    ok=true
+kit_f0_interact: solid click_hover    ok=true
+kit_f0_interact: text field_density  ink_px=9677 (want >=60) ok=true
+golden showcase_interact.png: diff=1.1373% over 266240 px
+FAIL: pixel_golden_diff_pct=1.1373 want 0 over 266240 px

@@ -34,6 +34,12 @@ type PipelineOwner struct {
 	// nodes on this tree. Shared across presents so skip is observable.
 	boundaryCache *BoundaryCache
 
+	// layerCache is the process-lifetime incremental-build recording cache
+	// (O11 ① 层录制复用): the retained packet build consults it so clean
+	// layers reuse their previous display list by pointer instead of
+	// re-recording every frame.
+	layerCache *LayerCache
+
 	// tickers 是本棵树的「按 dt 推进显示态」参与者注册表。契约与实现都直接用
 	// ui/scheduler 那一份（不再自建同形状接口）：参与者的 Tick(dt) 返回 false
 	// 即由注册表自动摘除。光标闪烁、动图逐帧都注册到这里，嵌道层的泵把它接进
@@ -147,6 +153,7 @@ func NewPipelineOwner(root RenderObject) *PipelineOwner {
 	o := &PipelineOwner{
 		root:          root,
 		boundaryCache: NewBoundaryCache(),
+		layerCache:    NewLayerCache(),
 	}
 	if root != nil {
 		attachOwner(root, o)
@@ -166,6 +173,22 @@ func (o *PipelineOwner) BoundaryCache() *BoundaryCache {
 		o.boundaryCache = NewBoundaryCache()
 	}
 	return o.boundaryCache
+}
+
+// LayerCache returns the tree's incremental-build recording cache (never nil
+// for a non-nil owner). The retained packet build consults it so clean layers
+// reuse their previous display list by pointer instead of re-recording every
+// frame (O11; Flutter paint-phase layer/picture reuse semantics).
+func (o *PipelineOwner) LayerCache() *LayerCache {
+	if o == nil {
+		return nil
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.layerCache == nil {
+		o.layerCache = NewLayerCache()
+	}
+	return o.layerCache
 }
 
 // SetRoot replaces the root and attaches owner.

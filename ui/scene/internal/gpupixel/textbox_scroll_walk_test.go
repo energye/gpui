@@ -107,7 +107,7 @@ func walkScroll(t *testing.T, root rendering.RenderObject, W, H int, stops []str
 	frame := 0
 	present := func() image.Image {
 		frame++
-		pkt := rendering.BuildFramePacketWithSaveLayer(root, uint64(frame), 1, float64(W), float64(H), nil, nil)
+		pkt := rendering.BuildFramePacketWithSaveLayer(root, uint64(frame), 1, float64(W), float64(H), nil, nil, nil)
 		keys, n := scene.CollectCacheableKeys(pkt)
 		tex.EnsureCapacity(n + n/4 + 16)
 		tex.SetLiveKeys(keys)
@@ -266,7 +266,7 @@ func TestResize_WidensPaintedBox(t *testing.T) {
 	frame := 0
 	present := func() image.Image {
 		frame++
-		pkt := rendering.BuildFramePacketWithSaveLayer(rendering.RenderObject(box), uint64(frame), 1, float64(W), float64(H), nil, nil)
+		pkt := rendering.BuildFramePacketWithSaveLayer(rendering.RenderObject(box), uint64(frame), 1, float64(W), float64(H), nil, nil, nil)
 		keys, n := scene.CollectCacheableKeys(pkt)
 		tex.EnsureCapacity(n + n/4 + 16)
 		tex.SetLiveKeys(keys)

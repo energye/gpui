@@ -658,7 +658,7 @@ func main() {
 			}
 			frameID := uint64(1) << 62
 			grabRetained := func(tag string) {
-				pkt := rendering.BuildFramePacketWithSaveLayer(shell.Root, frameID, dpr, winW, winH, nil, nil)
+				pkt := rendering.BuildFramePacketWithSaveLayer(shell.Root, frameID, dpr, winW, winH, nil, nil, nil)
 				frameID++
 				keys, n := scene.CollectCacheableKeys(pkt)
 				app.SnapshotAsync(func() {
@@ -709,7 +709,7 @@ func main() {
 				boxB.SetCaretOn(!boxB.IsCaretOn())
 				app.ScheduleFrame()
 			}
-			pkt := rendering.BuildFramePacketWithSaveLayer(shell.Root, uint64(1)<<62+100, dpr, winW, winH, nil, nil)
+			pkt := rendering.BuildFramePacketWithSaveLayer(shell.Root, uint64(1)<<62+100, dpr, winW, winH, nil, nil, nil)
 			keys, n := scene.CollectCacheableKeys(pkt)
 			app.SnapshotAsync(func() {
 				off := render.NewContext(winW, winH)
@@ -747,7 +747,7 @@ func main() {
 				if dc0 := app.Target().Context(); dc0 != nil && dc0.DeviceScale() > 0 {
 					dpr = dc0.DeviceScale()
 				}
-				pkt := rendering.BuildFramePacketWithSaveLayer(sb.ro, uint64(1)<<62+200, dpr, 880, 40, nil, nil)
+				pkt := rendering.BuildFramePacketWithSaveLayer(sb.ro, uint64(1)<<62+200, dpr, 880, 40, nil, nil, nil)
 				keys, n := scene.CollectCacheableKeys(pkt)
 				tag, ro := sb.tag, sb.ro
 				_ = ro

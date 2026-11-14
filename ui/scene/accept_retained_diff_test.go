@@ -43,7 +43,7 @@ func compositeFrame(t *testing.T, dc *render.Context, tex *scene.PictureTextureC
 	if dpr <= 0 {
 		dpr = 1
 	}
-	pkt := rendering.BuildFramePacketWithSaveLayer(root, frameID, dpr, 1200, 800, nil, nil)
+	pkt := rendering.BuildFramePacketWithSaveLayer(root, frameID, dpr, 1200, 800, nil, nil, nil)
 	keys, n := scene.CollectCacheableKeys(pkt)
 	tex.EnsureCapacity(n + n/4 + 16)
 	tex.SetLiveKeys(keys)

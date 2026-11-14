@@ -1,0 +1,7 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/kit_f0_decor/testdata/showcase_decor.png
+kit_f0_decor: pixel decor_solid_center   @( 392, 148) got=(1.000,1.000,1.000) want=(1.000,1.000,1.000) ok=true
+kit_f0_decor: pixel opacity_group_blend  @(1081, 148) got=(0.686,0.690,0.694) want=(0.685,0.689,0.696) ok=true
+kit_f0_decor: pixel clip_center          @( 590, 290) got=(0.902,0.957,1.000) want=(0.902,0.957,1.000) ok=true
+golden showcase_decor.png: diff=0.9819% over 252160 px
+FAIL: pixel_golden_diff_pct=0.9819 want 0 over 252160 px

@@ -1,0 +1,8 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/kit_f0_theme/testdata/showcase_theme_default.png
+kit_f0_theme: solid theme_btn2     ok=true
+kit_f0_theme: solid theme_btn0     ok=true
+kit_f0_theme: solid theme_btn1     ok=true
+kit_f0_theme: text info_density   ink_px=873 (want >=60) ok=true
+golden showcase_theme_default.png: diff=1.3350% over 249280 px
+FAIL: pixel_golden_diff_pct=1.3350 want 0 over 249280 px

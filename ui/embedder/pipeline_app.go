@@ -613,6 +613,16 @@ func (a *PipelineApp) BoundaryCache() *rendering.BoundaryCache {
 	return a.pipe.BoundaryCache()
 }
 
+// LayerCache returns the PipelineOwner's long-lived incremental-build
+// recording cache (O11 ① 层录制复用): window-side gates read Totals() to
+// prove a steady retained frame reuses display lists instead of re-recording.
+func (a *PipelineApp) LayerCache() *rendering.LayerCache {
+	if a == nil || a.pipe == nil {
+		return nil
+	}
+	return a.pipe.LayerCache()
+}
+
 // PictureTextures returns the retained-path layer texture cache (raster-thread
 // owned; read-only inspection from snapshot closures is safe because drains
 // run serialized on the raster thread).
@@ -1587,7 +1597,7 @@ func (a *PipelineApp) Run() error {
 		// T2 D14 single-side budget: shared template never mutates; each
 		// frame clones its own budget for packet extras plus raster job alone.
 		frameBudget := cloneFrameBudget(a.saveBudget)
-		pkt, fbStats := rendering.BuildFramePacketWithSaveLayerStats(a.root, frameID, scale, float64(w), float64(h), a.saveStats, frameBudget)
+		pkt, fbStats := rendering.BuildFramePacketWithSaveLayerStats(a.root, frameID, scale, float64(w), float64(h), a.saveStats, frameBudget, a.pipe.LayerCache())
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			fmt.Fprintf(os.Stderr, "DBG frame %d viewport=%dx%d dirty=%v\n", frameID, w, h, pkt.DirtyLayerIDs)
 		}

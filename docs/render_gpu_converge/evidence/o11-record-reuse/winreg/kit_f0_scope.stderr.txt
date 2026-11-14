@@ -1,0 +1,7 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/kit_f0_scope/testdata/showcase_scope.png
+kit_f0_scope: pixel default_bg_swatch        @( 436, 177) got=(0.902,0.957,1.000) want=(0.902,0.957,1.000) ok=true
+kit_f0_scope: pixel disabled_container_dim   @( 436, 309) got=(0.961,0.961,0.961) want=(0.960,0.960,0.960) ok=true
+kit_f0_scope: pixel caption_text_density     text_px=1078 (want >=120) ok=true
+golden showcase_scope.png: diff=1.5696% over 311680 px
+FAIL: pixel_golden_diff_pct=1.5696 want 0 over 311680 px

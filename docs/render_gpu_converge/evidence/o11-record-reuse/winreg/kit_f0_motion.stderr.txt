@@ -1,0 +1,8 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/kit_f0_motion/testdata/showcase_motion.png
+kit_f0_motion: solid spin_track     ok=true
+kit_f0_motion: solid wave_box       ok=true
+kit_f0_motion: solid frozen_ok      ok=true
+kit_f0_motion: text info_density   ink_px=1289 (want >=60) ok=true
+golden showcase_motion.png: diff=1.3611% over 256640 px
+FAIL: FAIL: fps=49.92 (interval=49.92 wall=48.95) < 55.00 (60Hz-class gate)

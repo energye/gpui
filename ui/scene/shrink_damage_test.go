@@ -90,7 +90,7 @@ func TestShrinkRerecordDamagesClearedTail(t *testing.T) {
 		if dpr <= 0 {
 			dpr = 1
 		}
-		pkt := rendering.BuildFramePacketWithSaveLayer(root, id, dpr, 1200, 800, nil, nil)
+		pkt := rendering.BuildFramePacketWithSaveLayer(root, id, dpr, 1200, 800, nil, nil, nil)
 		keys, n := scene.CollectCacheableKeys(pkt)
 		tex.EnsureCapacity(n + n/4 + 16)
 		tex.SetLiveKeys(keys)
@@ -162,7 +162,7 @@ func TestClearToEmptyDamagesOldRegion(t *testing.T) {
 		if dpr <= 0 {
 			dpr = 1
 		}
-		pkt := rendering.BuildFramePacketWithSaveLayer(root, id, dpr, 1200, 800, nil, nil)
+		pkt := rendering.BuildFramePacketWithSaveLayer(root, id, dpr, 1200, 800, nil, nil, nil)
 		keys, n := scene.CollectCacheableKeys(pkt)
 		tex.EnsureCapacity(n + n/4 + 16)
 		tex.SetLiveKeys(keys)

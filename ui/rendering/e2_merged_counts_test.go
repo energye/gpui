@@ -62,7 +62,7 @@ func TestE2Merged_CountsHonestAndPacketEqual(t *testing.T) {
 
 	// 新路径：一次建包顺手出四个数。
 	scene.ResetLayerIDGen()
-	pktNew, st := rendering.BuildFramePacketWithSaveLayerStats(root, 1, 1, 800, 600, nil, nil)
+	pktNew, st := rendering.BuildFramePacketWithSaveLayerStats(root, 1, 1, 800, 600, nil, nil, nil)
 	if pktNew == nil || pktNew.Root == nil {
 		t.Fatal("nil packet")
 	}
@@ -98,7 +98,7 @@ func TestE2Merged_CountsHonestAndPacketEqual(t *testing.T) {
 	// 建包不碰渲染树脏标记，两次脏集相同；层 ID 发号器重置后两次
 	// 分配顺序一致，脏号可逐位比。
 	scene.ResetLayerIDGen()
-	pktOld := rendering.BuildFramePacketWithSaveLayer(root, 1, 1, 800, 600, nil, nil)
+	pktOld := rendering.BuildFramePacketWithSaveLayer(root, 1, 1, 800, 600, nil, nil, nil)
 	kindsNew := layerKinds(pktNew.Root)
 	kindsOld := layerKinds(pktOld.Root)
 	if len(kindsNew) != len(kindsOld) {
@@ -162,7 +162,7 @@ func TestE2Merged_NewSequenceWalkCount(t *testing.T) {
 	kids[0].MarkNeedsPaint()
 
 	// 新序列：一次建包（边界/操作数/字命中顺手出）+ 原位清旗。
-	pkt, st := rendering.BuildFramePacketWithSaveLayerStats(root, 1, 1, 800, 600, nil, nil)
+	pkt, st := rendering.BuildFramePacketWithSaveLayerStats(root, 1, 1, 800, 600, nil, nil, nil)
 	if pkt == nil || pkt.Root == nil {
 		t.Fatal("nil packet")
 	}

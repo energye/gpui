@@ -64,7 +64,7 @@ func TestCaretTransparentRerecordClearsStale(t *testing.T) {
 		if dpr <= 0 {
 			dpr = 1
 		}
-		pkt := rendering.BuildFramePacketWithSaveLayer(root, id, dpr, 1200, 800, nil, nil)
+		pkt := rendering.BuildFramePacketWithSaveLayer(root, id, dpr, 1200, 800, nil, nil, nil)
 		// The caret bar is the only thin-tall FillRect layer (1.5x24).
 		scene.Walk(pkt.Root, func(l scene.Layer) {
 			pl, ok := l.(*scene.PictureLayer)

@@ -1,0 +1,10 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/kit_f0_content/testdata/showcase_content.png
+kit_f0_content: text single_density   ink_px=210 (want >=60) ok=true
+kit_f0_content: text multi_density    ink_px=478 (want >=60) ok=true
+kit_f0_content: text rich_density     ink_px=380 (want >=60) ok=true
+kit_f0_content: picture picture_ready_one_cell ok=true (readyDirty=true sibClean=true noLayout=true errDirty=true sibClean=true noLayout=true frames readyΔ=230 errorΔ=57)
+kit_f0_content: picture picture_error_one_cell ok=true (readyDirty=true sibClean=true noLayout=true errDirty=true sibClean=true noLayout=true frames readyΔ=230 errorΔ=57)
+kit_f0_content: picture picture_ready_phase    ok=true (readyDirty=true sibClean=true noLayout=true errDirty=true sibClean=true noLayout=true frames readyΔ=230 errorΔ=57)
+golden showcase_content.png: diff=0.7708% over 237160 px
+FAIL: pixel_golden_diff_pct=0.7708 want 0 over 237160 px

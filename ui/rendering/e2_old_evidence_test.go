@@ -66,7 +66,7 @@ func TestEVerify_E2_OldEvidence(t *testing.T) {
 	// 1) 数边界：整树一遍。
 	rendering.CountRepaintBoundaries(root)
 	// 2) 建包：整树一遍（BuildFramePacketWithSaveLayer 内 appendNode 递归）。
-	pkt := rendering.BuildFramePacketWithSaveLayer(root, 1, 1, 800, 600, nil, nil)
+	pkt := rendering.BuildFramePacketWithSaveLayer(root, 1, 1, 800, 600, nil, nil, nil)
 	if pkt == nil || pkt.Root == nil {
 		t.Fatal("nil packet")
 	}
@@ -107,7 +107,7 @@ func TestEVerify_E2_OldEvidence(t *testing.T) {
 		t.Fatalf("dirtying one leaf walked tree: calls=%d want 0", got)
 	}
 	rendering.CountRepaintBoundaries(root2)
-	rendering.BuildFramePacketWithSaveLayer(root2, 1, 1, 800, 600, nil, nil)
+	rendering.BuildFramePacketWithSaveLayer(root2, 1, 1, 800, 600, nil, nil, nil)
 	rendering.TreeMeasureCacheStats(root2)
 	owner2.ConsumeNeedsPaint()
 	got := atomic.LoadInt64(&calls2)

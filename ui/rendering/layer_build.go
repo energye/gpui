@@ -58,24 +58,36 @@ func BuildLayerTreeStats(root RenderObject) (*scene.LayerBuilder, FrameBuildStat
 	return buildLayerTreeWired(root, nil)
 }
 
-// saveLayerWire carries the embedder-owned per-frame SaveLayer budget and
-// outcome stats into the OnPaint closures the build records (see
-// recordLayerContent). A node that asks for a save layer is charged where it
+// buildWire carries the embedder-owned per-frame build environment into the
+// walk: the SaveLayer budget and outcome stats charged into the OnPaint
+// closures the build records (see recordLayerContent), plus the incremental
+// layer cache the recording-reuse decision consults (O11; nil lc = legacy
+// always-record). A node that asks for a save layer is charged where it
 // asks — this frame, this thread — so no request can slip past the budget by
-// being deferred to a later pass. nil = legacy unlimited path (tests / CPU
-// builds).
-type saveLayerWire struct {
+// being deferred to a later pass. nil wire = legacy unlimited path (tests /
+// CPU builds).
+type buildWire struct {
 	stats  *SaveLayerStats
 	budget *SaveLayerBudget
+	lc     *LayerCache
 }
 
-func buildLayerTreeWired(root RenderObject, wire *saveLayerWire) (*scene.LayerBuilder, FrameBuildStats) {
+func buildLayerTreeWired(root RenderObject, wire *buildWire) (*scene.LayerBuilder, FrameBuildStats) {
 	b := scene.NewLayerBuilder()
 	var st FrameBuildStats
 	if root == nil {
 		return b, st
 	}
+	if wire != nil && wire.lc != nil {
+		// O11 recording reuse: the alive sets must reflect exactly this
+		// build's visited layers; Prune at the end releases entries whose
+		// owner left the tree (scrolled-out cells, unmounted subtrees).
+		wire.lc.BeginFrame()
+	}
 	appendNode(root, b, wire, 0, &st, make(dirtyMemo, 256))
+	if wire != nil && wire.lc != nil {
+		wire.lc.Prune()
+	}
 	return b, st
 }
 
@@ -124,7 +136,7 @@ func memoSubtreeNeedsPaint(n RenderObject, m dirtyMemo) bool {
 // Boundary depth only nests at boundaries — same rule as
 // CountRepaintBoundaries. Text stats are read after the node's own content
 // is recorded (see FrameBuildStats).
-func appendNode(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire, bdepth int, st *FrameBuildStats, m dirtyMemo) {
+func appendNode(n RenderObject, b *scene.LayerBuilder, wire *buildWire, bdepth int, st *FrameBuildStats, m dirtyMemo) {
 	if n == nil || b == nil {
 		return
 	}
@@ -145,7 +157,7 @@ func appendNode(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire, bdep
 	}
 }
 
-func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire, bdepth int, st *FrameBuildStats, m dirtyMemo) {
+func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *buildWire, bdepth int, st *FrameBuildStats, m dirtyMemo) {
 	off := n.Offset()
 	// One child-list fetch per node (E2): the branches below used to call
 	// Children() twice (len check + range). The tree structure is not
@@ -400,7 +412,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 // container backgrounds or OnPaint-only boxes (Flutter paint semantics: every
 // node's own paint is part of its display list). No-op for nodes with nothing
 // of their own to draw.
-func addOwnContent(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
+func addOwnContent(b *scene.LayerBuilder, n RenderObject, wire *buildWire) {
 	if n == nil || b == nil {
 		return
 	}
@@ -433,13 +445,83 @@ func addOwnContent(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
 // addOwnPicture adds a PictureLayer holding n's own content and binds n's
 // stable cache key (own content and leaf share the identity — a node never
 // appears twice, so keys cannot collide).
-func addOwnPicture(b *scene.LayerBuilder, n RenderObject, needsRaster bool, sz Size, wire *saveLayerWire, draw func(pc *PaintContext, sz Size)) *scene.PictureLayer {
+func addOwnPicture(b *scene.LayerBuilder, n RenderObject, needsRaster bool, sz Size, wire *buildWire, draw func(pc *PaintContext, sz Size)) *scene.PictureLayer {
 	pl := b.AddPicture(needsRaster)
 	if base, ok := baseOf(n); ok {
 		pl.SetCacheKey(base.EnsureCacheID())
 	}
-	pl.SetRecording(recordLayerContent(sz, wire, draw))
+	pl.SetRecording(buildLayerRecording(wire, n, sz, draw))
 	return pl
+}
+
+// buildLayerRecording decides reuse-vs-record for one picture layer (O11 ①
+// 层录制复用): a layer whose cached display list still matches size and
+// content fingerprint reuses the previous recording by pointer — the Flutter
+// paint-phase contract (object.dart repaintCompositedChild: layers and
+// pictures are re-used for subtrees that don't need repaint). Cache misses
+// record fresh and store, so the next frame can reuse. nil cache or key-less
+// nodes (no Base) record fresh every time — previous behavior, byte-identical.
+//
+// Trust contract: for types whose recording is a pure function of the
+// fingerprinted inputs (complete fingerprint: AbsoluteBox background,
+// ColorBox) the fingerprint is authoritative — a NeedsPaint flag that arrived
+// via descendant propagation (MarkNeedsPaint marks up to the boundary) must
+// not re-record unchanged own content. For incomplete fingerprints (Text
+// hashes only a prefix; custom paint reads arbitrary state) NeedsPaint stays
+// authoritative — the same trust the raster texture admission already
+// exercises on these exact recordings (scene/textured.go: changed :=
+// dirtyID || NeedsRaster); the fingerprint is the safety net that makes a
+// silent mutation self-heal within one frame instead of freezing.
+// Recordings are immutable post-seal, so pointer sharing across frames is the
+// scene COW contract (scene/layer.go).
+func buildLayerRecording(wire *buildWire, n RenderObject, sz Size, draw func(pc *PaintContext, sz Size)) *recording.Recording {
+	if wire == nil || wire.lc == nil || n == nil {
+		return recordLayerContent(sz, wire, draw)
+	}
+	base, ok := baseOf(n)
+	if !ok {
+		return recordLayerContent(sz, wire, draw)
+	}
+	key := base.EnsureCacheID()
+	w := int(math.Ceil(sz.Width))
+	h := int(math.Ceil(sz.Height))
+	fp, complete := ownLayerFingerprint(n, sz.Width, sz.Height)
+	if complete || !n.NeedsPaint() {
+		if rec := wire.lc.ReuseRecording(key, fp, w, h); rec != nil {
+			return rec
+		}
+	}
+	rec := recordLayerContent(sz, wire, draw)
+	wire.lc.StoreRecording(key, fp, rec, w, h)
+	return rec
+}
+
+// ownLayerFingerprint fingerprints one picture layer's own recording content
+// — not the node's whole subtree: AbsoluteBox's own layer is the background
+// only (children are separate layers with their own keys), so the node-level
+// aggregate key would over-invalidate. The second result reports whether the
+// fingerprint COMPLETELY determines the recording (reuse may then override a
+// propagated NeedsPaint); types whose paint reads state the hash does not
+// cover return complete=false (NeedsPaint authoritative). Types without any
+// fingerprint return (0, false).
+func ownLayerFingerprint(n RenderObject, w, h float64) (uint64, bool) {
+	if a, ok := n.(*AbsoluteBox); ok {
+		if a.Background == nil {
+			return 0, false
+		}
+		bg := a.Background
+		return colorKey(bg.R, bg.G, bg.B, bg.A, w, h), true
+	}
+	switch n.(type) {
+	case *RenderColorBox:
+		// fillRect(R,G,B,A,w,h): the fingerprint inputs are the recording's
+		// whole input set.
+		return contentKeyOf(n, w, h), true
+	default:
+		// Text (prefix hash), image (identity+placeholder), custom paint:
+		// NeedsPaint authoritative.
+		return contentKeyOf(n, w, h), false
+	}
 }
 
 // addLeafPicture records a leaf node's own content into a PictureLayer and
@@ -448,7 +530,7 @@ func addOwnPicture(b *scene.LayerBuilder, n RenderObject, needsRaster bool, sz S
 // Leaves with neither capturable content nor an OnPaint hook keep an empty
 // recording and a zero cache key (vector replay paints nothing — the RO type
 // has no layer-tree representation, consistent with Flutter layer semantics).
-func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
+func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *buildWire) {
 	if n == nil {
 		return
 	}
@@ -467,7 +549,7 @@ func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) 
 		pl.SetCacheKey(0)
 	}
 	onPaint, hasOwnPaint := ownBoxPaint(n)
-	pl.SetRecording(recordLayerContent(n.Size(), wire, func(pc *PaintContext, sz Size) {
+	pl.SetRecording(buildLayerRecording(wire, n, n.Size(), func(pc *PaintContext, sz Size) {
 		recordLeafContent(pc.DC, n)
 		// The capturable types and OnPaint providers are disjoint (OwnPaint
 		// only exists on RenderBox and its wrappers, never on the color /
@@ -528,7 +610,7 @@ func addTextureLeaves(b *scene.LayerBuilder, tp TextureLeafProvider) bool {
 // through the wire (see saveLayerWire): the budget is charged where the
 // SaveLayer is recorded — on this thread, in this pass — so a request can never
 // bypass it by arriving from a later raster pass.
-func recordLayerContent(sz Size, wire *saveLayerWire, draw func(pc *PaintContext, sz Size)) *recording.Recording {
+func recordLayerContent(sz Size, wire *buildWire, draw func(pc *PaintContext, sz Size)) *recording.Recording {
 	w := int(math.Ceil(sz.Width))
 	h := int(math.Ceil(sz.Height))
 	if w < 0 {
@@ -643,10 +725,10 @@ func BuildFramePacket(root RenderObject, frameID uint64, dpr, w, h float64) *sce
 // wiring the embedder-owned per-frame SaveLayer budget and outcome stats into
 // raster-time OnPaint callbacks. Retained mode defers RenderBox.OnPaint to
 // texture-record time; without this wiring a configured budget (PipelineOptions
-// SaveLayerMaxOps/MaxArea) never sees those requests. stats/budget may be nil
-// (= BuildFramePacket behavior).
-func BuildFramePacketWithSaveLayer(root RenderObject, frameID uint64, dpr, w, h float64, stats *SaveLayerStats, budget *SaveLayerBudget) *scene.FramePacket {
-	pkt, _ := BuildFramePacketWithSaveLayerStats(root, frameID, dpr, w, h, stats, budget)
+// SaveLayerMaxOps/MaxArea) never sees those requests. stats/budget/lc may be
+// nil (= BuildFramePacket behavior; nil lc records every display list fresh).
+func BuildFramePacketWithSaveLayer(root RenderObject, frameID uint64, dpr, w, h float64, stats *SaveLayerStats, budget *SaveLayerBudget, lc *LayerCache) *scene.FramePacket {
+	pkt, _ := BuildFramePacketWithSaveLayerStats(root, frameID, dpr, w, h, stats, budget, lc)
 	return pkt
 }
 
@@ -654,9 +736,12 @@ func BuildFramePacketWithSaveLayer(root RenderObject, frameID uint64, dpr, w, h 
 // BuildFramePacketWithSaveLayer and also returns the frame counts gathered
 // along the single build walk (boundary discovery, picture op total, text
 // measure-cache totals). Old standalone counters stay for other callers.
-func BuildFramePacketWithSaveLayerStats(root RenderObject, frameID uint64, dpr, w, h float64, stats *SaveLayerStats, budget *SaveLayerBudget) (*scene.FramePacket, FrameBuildStats) {
+// Non-nil lc enables the O11 recording-reuse decision: clean layers whose
+// cached display list still matches size and content fingerprint reuse the
+// previous recording by pointer instead of re-recording.
+func BuildFramePacketWithSaveLayerStats(root RenderObject, frameID uint64, dpr, w, h float64, stats *SaveLayerStats, budget *SaveLayerBudget, lc *LayerCache) (*scene.FramePacket, FrameBuildStats) {
 	begin := time.Now().UnixNano()
-	b, st := buildLayerTreeWired(root, &saveLayerWire{stats: stats, budget: budget})
+	b, st := buildLayerTreeWired(root, &buildWire{stats: stats, budget: budget, lc: lc})
 	pkt := b.BuildPacket(frameID, dpr, w, h)
 	st.PictureOpCount = b.PictureOpCount()
 	sealBuiltPacket(pkt, begin)
@@ -681,14 +766,14 @@ func sealBuiltPacket(pkt *scene.FramePacket, beginNs int64) {
 	pkt.Seal()
 }
 
-func wireStats(w *saveLayerWire) *SaveLayerStats {
+func wireStats(w *buildWire) *SaveLayerStats {
 	if w == nil {
 		return nil
 	}
 	return w.stats
 }
 
-func wireBudget(w *saveLayerWire) *SaveLayerBudget {
+func wireBudget(w *buildWire) *SaveLayerBudget {
 	if w == nil {
 		return nil
 	}
