@@ -470,6 +470,14 @@ func (w *wlWin) refreshTextInput() {
 }
 
 // pushKey queues a keyboard event for the next poll (thread-safe).
+//
+// The parked event loop only watches the display fd + wake pipe, so a bare
+// queue append never wakes it: timer-synthesized repeats (fireRepeat runs on
+// a timer goroutine) would sit here until the next ticker-deadline wake
+// (caret blink / HUD, ~500ms) and drain as one visible burst — held-key
+// delete/move jumped a dozen characters at a time. WakeUp is the async
+// producer contract (same as the ti-queue postFlush path); from the dispatch
+// thread it just costs one drained pipe byte.
 func (w *wlWin) pushKey(ev Event) {
 	if w == nil {
 		return
@@ -477,6 +485,9 @@ func (w *wlWin) pushKey(ev Event) {
 	w.keyMu.Lock()
 	w.keyEvents = append(w.keyEvents, ev)
 	w.keyMu.Unlock()
+	if h := w.hostForWake(); h != nil {
+		h.WakeUp()
+	}
 }
 
 // --- event callbacks → platform.Event queue ---

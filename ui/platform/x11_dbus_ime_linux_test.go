@@ -184,3 +184,33 @@ func TestX11TruncateSyncB10(t *testing.T) {
 		}
 	}
 }
+
+// TestX11AsyncProducersWakeLoop 钉 X11 侧「异步生产者必须唤醒主循环」契约
+// （与 Wayland pushKey 唤醒同一洞级）。D-Bus IME 的信号 goroutine 与异步
+// 补全 goroutine 在 IME 激活时只 append 队列不唤醒，事件会积压到下一个
+// ticker 截止才被倒出，与 Wayland 连发分批同形态。
+func TestX11AsyncProducersWakeLoop(t *testing.T) {
+	h := &x11Host{st: &x11State{}}
+	producers := []struct {
+		name string
+		push func()
+	}{
+		{"pushIME", func() { h.pushIME(Event{Type: EventIME, IMEKind: 0}) }},
+		{"pushPendingKey", func() { h.pushPendingKey(Event{Type: EventKey, KeyCode: 0xff61}) }},
+		{"pushEvent", func() { h.pushEvent(Event{Type: EventWake}) }},
+	}
+	for _, p := range producers {
+		ch := h.wakeChan()
+		// 清掉上一轮残留的 wake 令牌
+		select {
+		case <-ch:
+		default:
+		}
+		p.push()
+		select {
+		case <-ch:
+		default:
+			t.Fatalf("%s must wake the parked loop", p.name)
+		}
+	}
+}

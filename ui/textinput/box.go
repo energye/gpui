@@ -79,8 +79,11 @@ type Box struct {
 	dragging    bool
 	dragStart   int // utf16 offset at drag start
 	highlights  []*rendering.RenderColorBox
-	// 严格对齐 Flutter 闪烁：~500ms 周期，编辑/获焦后重置为常亮
-	blinkElapsed      float64
+	// 严格对齐 Flutter 闪烁：~500ms 半周期，编辑/获焦重置锚点为常亮。
+	// 相位 = 墙钟自锚点起走的时长，不靠 dt 累积——tickPump 喂的是自上次
+	// tick 以来的整段间隔，中段发生的重置（焦点切换/编辑）若靠 dt 会被
+	// 一步冲掉（切框后光标先隐藏约半秒的病根）。
+	blinkBase         time.Time
 	dragLastX         float64
 	dragLastY         float64
 	autoScrollRunning bool
@@ -652,13 +655,26 @@ func (b *Box) SetCaretOn(v bool) {
 		return
 	}
 	b.caretOn = v
-	b.blinkElapsed = 0
+	b.blinkBase = time.Now()
 	b.layoutCaret()
 	b.MarkNeedsPaint()
 }
 
-// TickCaret advances the caret blink phase on UI-thread dt.
+// blinkPhaseSeconds returns the wall-clock phase (seconds since the anchor).
+// A zero anchor (never reset) counts as phase 0 so a fresh box starts solid.
+func (b *Box) blinkPhaseSeconds() float64 {
+	if b.blinkBase.IsZero() {
+		return 0
+	}
+	return time.Since(b.blinkBase).Seconds()
+}
+
+// TickCaret advances the caret blink from the wall-clock phase. dt is
+// intentionally unused: the pump feeds the whole interval since its last
+// tick, which would overrun a mid-gap reset (focus switch / edit) and hide
+// the caret for a full half period.
 func (b *Box) TickCaret(dt float64) {
+	_ = dt
 	if b == nil || !b.focused {
 		if b != nil && b.caretOn {
 			b.caretOn = false
@@ -667,9 +683,9 @@ func (b *Box) TickCaret(dt float64) {
 		}
 		return
 	}
-	var toggled bool
-	b.caretOn, b.blinkElapsed, toggled = stepBlink(b.caretOn, b.blinkElapsed, dt)
-	if toggled {
+	want := blinkStateAt(b.blinkPhaseSeconds())
+	if want != b.caretOn {
+		b.caretOn = want
 		b.layoutCaret()
 		b.MarkNeedsPaint()
 	}
@@ -687,13 +703,14 @@ func (b *Box) Tick(dt float64) bool {
 	return b.focused
 }
 
-// NextWake 实现 scheduler.DeadlineWanter：报出当前闪烁相位还剩多久到头，让
-// 事件循环睡到点再醒，而不是占住帧节拍。失焦或稳态报不出截止（false）。
+// NextWake 实现 scheduler.DeadlineWanter：报出当前闪烁相位到下一个翻转
+// 边界的剩余时长，让事件循环睡到点再醒，而不是占住帧节拍。相位随墙钟
+// 自走，不依赖 tick 喂 dt。失焦报不出截止（false）。
 func (b *Box) NextWake() (time.Duration, bool) {
 	if b == nil || !b.focused {
 		return 0, false
 	}
-	return blinkNextWake(b.blinkElapsed)
+	return blinkNextWakeFrom(b.blinkPhaseSeconds())
 }
 
 // SetFace sets the font face for this box.
@@ -1173,7 +1190,7 @@ func (b *Box) sync() {
 		b.syncVirtual()
 		b.syncHighlight()
 		b.caretOn = true
-		b.blinkElapsed = 0
+		b.blinkBase = time.Now()
 		b.layoutCaret()
 		if b.sched != nil {
 			b.sched()
@@ -1293,9 +1310,9 @@ func (b *Box) sync() {
 		b.ensureVisible(m)
 	}
 	b.syncHighlight()
-	// 严格对齐 Flutter：编辑/同步后光标立即可见且闪烁计时重置为 0
+	// 严格对齐 Flutter：编辑/同步后光标立即可见且闪烁锚点重置（常亮）
 	b.caretOn = true
-	b.blinkElapsed = 0
+	b.blinkBase = time.Now()
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
@@ -2385,37 +2402,36 @@ func syncTickerRegistration(box *rendering.RenderBox, focused bool, t scheduler.
 // half period. A full blink cycle is twice this.
 const blinkHalfPeriod = 0.5
 
-// stepBlink advances caret blink by dt seconds and reports whether the
-// visible state changed. Oversized steps count every crossed half period,
-// so the state keeps true parity and the remainder preserves the cadence.
-func stepBlink(caretOn bool, elapsed, dt float64) (bool, float64, bool) {
-	if dt < 0 {
-		dt = 0
+// blinkStateAt maps the wall-clock phase (seconds since the blink anchor)
+// to the visible state: even half periods on, odd off. The phase starts at
+// the reset moment (focus/edit) with the caret on.
+func blinkStateAt(phase float64) bool {
+	if phase < 0 {
+		phase = 0
 	}
-	elapsed += dt
-	n := int(elapsed / blinkHalfPeriod)
-	if n <= 0 {
-		return caretOn, elapsed, false
-	}
-	elapsed -= float64(n) * blinkHalfPeriod
-	if n%2 == 0 {
-		return caretOn, elapsed, false
-	}
-	return !caretOn, elapsed, true
+	n := int(phase / blinkHalfPeriod)
+	return n%2 == 0
 }
 
-// blinkNextWake 报出当前闪烁相位还剩多久结束。
+// blinkNextWakeFrom 报出距下一个闪烁翻转边界的剩余时长。
 //
-// elapsed: 本相位已经走过的秒数。
-// 返回: 距相位翻转的时长；相位已超支（elapsed ≥ 半周期）时返回 0, true，
-// 意思是「立刻该再来一次」。调用方（Box.NextWake）负责处理未聚焦的无截止态。
-func blinkNextWake(elapsed float64) (time.Duration, bool) {
-	d := blinkHalfPeriod - elapsed
-	if d < 0 {
-		d = 0
+// phase: 墙钟相位（自锚点起走的秒数）。
+// 返回: 剩余时长（恒有截止）；调用方（Box.NextWake）负责处理未聚焦的无截止态。
+func blinkNextWakeFrom(phase float64) (time.Duration, bool) {
+	if phase < 0 {
+		phase = 0
+	}
+	n := int(phase / blinkHalfPeriod)
+	next := float64(n+1) * blinkHalfPeriod
+	d := next - phase
+	if d <= 0 {
+		d = blinkHalfPeriod // 边界上（罕见）：按下一整段报
 	}
 	return time.Duration(d * float64(time.Second)), true
 }
+
+// （旧 stepBlink/blinkNextWake dt 累积模型已删除：相位统一由
+// blinkStateAt/blinkNextWakeFrom 按墙钟承载，见上。）
 
 func absoluteOrigin(n rendering.RenderObject) rendering.Point {
 	x, y := 0.0, 0.0

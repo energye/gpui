@@ -922,6 +922,11 @@ type x11Host struct {
 func (h *x11Host) ximFocus(on bool) {}
 
 // pushIME queues an IME event for the next WaitEvents (thread-safe).
+//
+// Async producer contract: queueing alone never wakes the parked WaitEvents
+// (X fd + self-pipe), so D-Bus IME completions would drain at the next
+// ticker deadline and apply as a visible burst. Same fix as the Wayland
+// pushKey wake.
 func (h *x11Host) pushIME(ev Event) {
 	if h == nil {
 		return
@@ -929,8 +934,11 @@ func (h *x11Host) pushIME(ev Event) {
 	h.imeMu.Lock()
 	h.imeEvents = append(h.imeEvents, ev)
 	h.imeMu.Unlock()
+	h.WakeUp()
 }
 
+// pushPendingKey queues a key event completed asynchronously by the IME
+// (thread-safe). Async producer contract: must wake the parked loop.
 func (h *x11Host) pushPendingKey(ev Event) {
 	if h == nil {
 		return
@@ -938,11 +946,13 @@ func (h *x11Host) pushPendingKey(ev Event) {
 	h.keyMu.Lock()
 	h.pendingKeys = append(h.pendingKeys, ev)
 	h.keyMu.Unlock()
+	h.WakeUp()
 }
 
 // pushEvent queues a controller-side event for the next WaitEvents
 // (thread-safe). Used for state the pump cannot observe itself
-// (Hide/Show have no distinct X event from minimize).
+// (Hide/Show have no distinct X event from minimize). Async producer
+// contract: must wake the parked loop.
 func (h *x11Host) pushEvent(ev Event) {
 	if h == nil {
 		return
@@ -950,6 +960,7 @@ func (h *x11Host) pushEvent(ev Event) {
 	h.evMu.Lock()
 	h.pendingEvents = append(h.pendingEvents, ev)
 	h.evMu.Unlock()
+	h.WakeUp()
 }
 
 func (h *x11Host) destroy() {

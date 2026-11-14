@@ -143,7 +143,8 @@ func (in *AnimatedImageInstance) stopLocked() {
 //
 // 返回 (剩余时长, true)；不驱动（暂停/停播/无动图/已释放）时 (0, false)。
 // 帧时长为 0（合法，动图 WebP 编码器会产出）时报 0——「立刻该再来一次」，
-// 与 blinkNextWake 的超支口径一致。
+// 与 textinput 闪烁截止（blinkNextWakeFrom 报下一边界剩余）同一
+// DeadlineWanter 口径。
 func (in *AnimatedImageInstance) NextWake() (time.Duration, bool) {
 	if in == nil {
 		return 0, false

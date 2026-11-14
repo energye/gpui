@@ -465,6 +465,14 @@ func main() {
 		_ = os.MkdirAll(selfDiff, 0o755)
 	}
 	router.OnKey = func(ke input.KeyEvent) {
+		// Diagnosis only: per-key arrival rhythm (GPUI_ACCEPT_KEYLOG=1).
+		// Holding a key should arrive at the repeat cadence (~40ms apart);
+		// bursts of many keys within ms followed by ~0.5-1s silence mean
+		// the parked loop is draining a queue instead of waking per event.
+		if os.Getenv("GPUI_ACCEPT_KEYLOG") == "1" {
+			fmt.Fprintf(os.Stderr, "KEYLOG t=%s key=%v rune=%q pressed=%v repeat=%v\n",
+				time.Now().Format("15:04:05.000"), ke.Key, ke.Rune, ke.Pressed, ke.Repeat)
+		}
 		switch {
 		case boxF.IsFocused():
 			boxF.OnKey(ke)

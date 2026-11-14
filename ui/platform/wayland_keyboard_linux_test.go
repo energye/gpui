@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // TestXKBResolve verifies libxkbcommon entry points resolve.
@@ -143,4 +145,29 @@ func TestWLKeyRepeatModifierNotArmed(t *testing.T) {
 	if n := len(drainKeyEvents(w)); n != 0 {
 		t.Fatalf("modifier/unknown keysym repeated: %d events", n)
 	}
+}
+
+// TestPushKeyWakesParkedLoop 钉「异步生产者必须唤醒主循环」契约。
+//
+// 病根背景：主循环空闲时睡在 WaitEvents 的 deadline park（display fd +
+// wake pipe），只 append 队列的 pushKey 永远叫不醒它——定时器合成的连发
+// 事件（fireRepeat，timer goroutine）会在队列里积压到下一个 ticker 截止
+// （闪烁/HUD，~500ms）才被一次倒出，按住按键的删除/移动呈「一批一批」。
+// 物理按键走 display fd 能即时唤醒，所以单按正常。修法与 IME postFlush
+// 同款：队列化后必须 WakeUp。
+func TestPushKeyWakesParkedLoop(t *testing.T) {
+	h := &wlHost{}
+	h.ensureWakePipe()
+	if h.wakePipe[0] == 0 {
+		t.Skip("wake pipe unavailable")
+	}
+	w := &wlWin{hostRef: h}
+	w.pushKey(Event{Type: EventKey, KeyCode: 0xff61, Rune: 'a', Pressed: true})
+	// 非阻塞读 wake pipe：pushKey 之后必须可读（WakeUp 写过一个字节）。
+	var buf [1]byte
+	n, _ := unix.Read(h.wakePipe[0], buf[:])
+	if n <= 0 {
+		t.Fatal("pushKey must wake the parked loop: wake pipe unreadable after queueing")
+	}
+	h.drainWake()
 }
