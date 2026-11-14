@@ -107,6 +107,12 @@ type Report struct {
 	// W1 boundary cache (from MetricsStore; also mirrored in ability_extra).
 	BoundaryRerecord int64 `json:"boundary_rerecord"`
 	BoundarySkip     int64 `json:"boundary_skip"`
+	// Dirty-region P1: OS-present counters (④ evidence; partial stays 0 on
+	// backends/displays without an OS damage-present protocol) and the
+	// cumulative re-record texture bytes (② upload-cost proxy).
+	OSPresentPartial   uint64 `json:"os_present_partial,omitempty"`
+	OSPresentFull      uint64 `json:"os_present_full,omitempty"`
+	TextureRecordBytes int64  `json:"texture_record_bytes,omitempty"`
 	// R20 filter layers applied in the last composite (0 on blit-cache hits).
 	FilterLayerCount int64 `json:"filter_layer_count"`
 	BoundaryCount    int64 `json:"boundary_count,omitempty"`
@@ -296,6 +302,9 @@ func BuildReport(in BuildInput) Report {
 		ElapsedSec:             el,
 		BoundaryRerecord:       in.Snap.BoundaryRerecord,
 		BoundarySkip:           in.Snap.BoundarySkip,
+		OSPresentPartial:       in.Snap.OSPresentPartial,
+		OSPresentFull:          in.Snap.OSPresentFull,
+		TextureRecordBytes:     in.Snap.TextureRecordBytes,
 		FilterLayerCount:       in.Snap.FilterLayerCount,
 		BoundaryCount:          in.Snap.BoundaryCount,
 		BoundaryMaxDepth:       in.Snap.BoundaryMaxDepth,

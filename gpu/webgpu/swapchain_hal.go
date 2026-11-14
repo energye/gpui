@@ -74,6 +74,14 @@ func (a *halSwapchainAdapter) EndFrameWithDamage(f *hal.SwapchainFrame, rects []
 	}
 	return a.sc.EndFrameWithDamage(wf, rects)
 }
+
+// PresentStats reports zero partial counts: wgpu-native deliberately ignores
+// the damage rects (surface.go present path presents full every frame), so
+// there is no OS partial-present counter to report on this backend
+// (协议不可做，非未实现).
+func (a *halSwapchainAdapter) PresentStats() hal.PresentStats {
+	return hal.PresentStats{}
+}
 func (a *halSwapchainAdapter) MarkNeedsReconfigure() { a.sc.MarkNeedsReconfigure() }
 func (a *halSwapchainAdapter) Release()              { a.sc.Release() }
 func (a *halSwapchainAdapter) SetPreferVSync()       { a.sc.SetPreferVSync() }

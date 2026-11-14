@@ -118,8 +118,8 @@ type PipelineApp struct {
 	// frames counts completed raster jobs (MaxFrames). presents counts only
 	// frames that actually hit the swapchain (idle plans present nothing), so
 	// fps/present metrics cannot hide a frozen window behind job completions.
-	frames atomic.Int64
-	frameID  atomic.Uint64
+	frames  atomic.Int64
+	frameID atomic.Uint64
 	// lastStats holds the last raster-thread dirty-layer stats (T2: written
 	// on raster, read on UI via LastRasterStats — guarded, never bare).
 	lastStatsMu sync.Mutex
@@ -1787,6 +1787,9 @@ func (a *PipelineApp) Run() error {
 					metrics.NotePresentOutcome(mode, area)
 					metrics.SetPaintVisits(frameVisits)
 					a.noteDamage(area, target.LastDamageRectSumPx(), mode)
+					// Dirty-region P1: OS-present counters (④ evidence) +
+					// cumulative re-record texture bytes (② upload proxy).
+					a.noteOSPresentStats(target)
 					// M-GPU-*: float render path routing into UI JSON (no ui→gpu).
 					if dc := target.Context(); dc != nil {
 						st := dc.RenderPathStats()
@@ -2211,6 +2214,25 @@ func (a *PipelineApp) inFullRecovery() bool {
 	return a.target != nil && a.target.InFullRecovery()
 }
 
+// noteOSPresentStats samples the target's cumulative OS-present counters and
+// the retained-path texture-record byte total into metrics. Called on the
+// raster thread after each real present (the swapchain counters were just
+// advanced by that present); idle frames present nothing and change nothing.
+func (a *PipelineApp) noteOSPresentStats(target *render.PresentTarget) {
+	m := a.sched.Metrics()
+	if m == nil {
+		return
+	}
+	if target != nil {
+		if p, f := target.OSPresentStats(); p > 0 || f > 0 {
+			m.SetOSPresentStats(p, f)
+		}
+	}
+	if tex := a.PictureTextures(); tex != nil {
+		m.SetTextureRecordBytes(int64(tex.RecordedBytes()))
+	}
+}
+
 func (a *PipelineApp) presentSyncFull() {
 	if a.target == nil {
 		return
@@ -2219,6 +2241,7 @@ func (a *PipelineApp) presentSyncFull() {
 	opts := paintPresentTreeOpts{debugRepaint: a.debugRepaint.Load(), debugDraws: &frameDraws, layerStats: a.saveStats, layerBudget: a.saveBudget}
 	_, _ = presentTreeOpts(a.target, a.pipe, a.root, a.opts.Overlay, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, opts)
 	a.debugRepaintDraws.Add(frameDraws)
+	a.noteOSPresentStats(a.target)
 	// Warm-up full paint also produces boundary/shell cache stats (its very
 	// first Store is the cold shell record R21 must report honestly).
 	if m := a.sched.Metrics(); m != nil {

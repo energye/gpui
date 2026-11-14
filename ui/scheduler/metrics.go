@@ -211,6 +211,21 @@ type FrameMetrics struct {
 	ShellRerecord int64 `json:"shell_rerecord,omitempty"`
 	ShellSkip     int64 `json:"shell_skip,omitempty"`
 
+	// OSPresentPartial / OSPresentFull are the cumulative OS-present counters
+	// sampled from the swapchain (hal.Swapchain.PresentStats) after each real
+	// present: partial = OS damage/present protocols used (EGL
+	// SwapBuffersWithDamage on the Go GL backend), full = whole-surface swaps.
+	// Backends without an OS damage-present protocol report zero partials
+	// honestly (wgpu-native deliberately ignores damage; Windows WGL has none)
+	// — dirty region ④ narrowing is measured against os_present_partial.
+	OSPresentPartial uint64 `json:"os_present_partial,omitempty"`
+	OSPresentFull    uint64 `json:"os_present_full,omitempty"`
+	// TextureRecordBytes is the cumulative GPU texture bytes written by
+	// boundary-layer re-records (record full-surface + recordLocal bounds,
+	// w*h*4 each) — the honest proxy for retained-path texture upload cost;
+	// dirty region ② upload narrowing is measured against this.
+	TextureRecordBytes int64 `json:"texture_record_bytes,omitempty"`
+
 	SaveLayerAllow  int64 `json:"savelayer_allow,omitempty"`
 	SaveLayerReject int64 `json:"savelayer_reject,omitempty"`
 
@@ -861,6 +876,30 @@ func (s *MetricsStore) SetCacheBudget(entries, evictions int64) {
 	s.mu.Lock()
 	s.m.CacheEntries = entries
 	s.m.CacheEvictions = evictions
+	s.mu.Unlock()
+}
+
+// SetOSPresentStats stores the cumulative OS-present counters sampled from
+// the swapchain after a real present (dirty region ④ evidence). Backends
+// without an OS damage-present protocol keep partial at 0.
+func (s *MetricsStore) SetOSPresentStats(partial, full uint64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.OSPresentPartial = partial
+	s.m.OSPresentFull = full
+	s.mu.Unlock()
+}
+
+// SetTextureRecordBytes stores the cumulative re-record texture byte total
+// (dirty region ② upload-cost proxy). Sampled per frame by PipelineApp.
+func (s *MetricsStore) SetTextureRecordBytes(b int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.TextureRecordBytes = b
 	s.mu.Unlock()
 }
 

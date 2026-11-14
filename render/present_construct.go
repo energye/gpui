@@ -199,6 +199,16 @@ type PresentTarget struct {
 	lastDamageArea    int64 // physical px² of last FrameDamage union (0 if idle/empty)
 	lastDamageRectSum int64 // physical px² sum of the coalesced damage rects
 
+	// osPresentPartial / osPresentFull accumulate the swapchain's OS-present
+	// counters (hal.Swapchain.PresentStats) across swapchain reconfigures:
+	// the backend counters reset on recreation, so each present adds the
+	// delta since the previous query, clamped at 0 on a reset. Backends
+	// without an OS damage-present protocol report zero partials honestly
+	// (wgpu-native ignores damage; Windows WGL has no such protocol).
+	osStatsPrev      hal.PresentStats
+	osPresentPartial uint64
+	osPresentFull    uint64
+
 	// fallbacks counts downgrade levels retried before this target opened
 	// (0 = first level succeeded). Set once by NewPresentTarget.
 	fallbacks int

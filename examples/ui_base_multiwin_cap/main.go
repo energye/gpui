@@ -73,6 +73,92 @@ type phaseResult struct {
 	Steady60        bool    `json:"steady_60fps"`
 }
 
+// isoSnapshot is a per-window dirty-region sample point (dirty-region P1
+// multiwindow isolation): presents + cumulative damage sums, ALL windows —
+// measurePhase only samples the active prefix.
+type isoSnapshot struct {
+	presents []int64
+	dmgSum   []int64
+	dmgMax   []int64
+}
+
+// isoWinDelta is one window's phase delta in the isolation record.
+type isoWinDelta struct {
+	Presents      int64 `json:"presents"`
+	DamageSum     int64 `json:"damage_sum_px"`
+	AvgDamagePerP int64 `json:"avg_damage_per_present_px"`
+	Active        bool  `json:"active"`
+}
+
+// isoResult proves per-phase dirty isolation: every active window's average
+// per-present damage stays inside its own surface (damage 只含自家) while
+// every idle window accumulates exactly zero presents and zero damage.
+type isoResult struct {
+	Windows int           `json:"windows"`
+	Wins    []isoWinDelta `json:"wins"`
+	OK      bool          `json:"ok"`
+	Bad     []string      `json:"bad,omitempty"`
+}
+
+func isoAllOK(rs []isoResult) bool {
+	for _, r := range rs {
+		if !r.OK {
+			return false
+		}
+	}
+	return len(rs) > 0
+}
+
+func sampleIso(wins []*win) isoSnapshot {
+	s := isoSnapshot{
+		presents: make([]int64, len(wins)),
+		dmgSum:   make([]int64, len(wins)),
+		dmgMax:   make([]int64, len(wins)),
+	}
+	for i, w := range wins {
+		s.presents[i] = w.app.PresentCount()
+		sum, max, _, _ := w.app.DamageStats()
+		s.dmgSum[i], s.dmgMax[i] = sum, max
+	}
+	return s
+}
+
+func evalIso(n int, a, b isoSnapshot) isoResult {
+	r := isoResult{Windows: n, OK: true}
+	for i := range a.presents {
+		d := isoWinDelta{
+			Presents:  b.presents[i] - a.presents[i],
+			DamageSum: b.dmgSum[i] - a.dmgSum[i],
+			Active:    i < n,
+		}
+		if d.Presents > 0 {
+			d.AvgDamagePerP = d.DamageSum / d.Presents
+		}
+		if d.Active {
+			// Each active window animates its own hot spot: it must present,
+			// and its average per-present damage must stay inside its own
+			// surface (own-window bounds only, 5% slack for cursor/HUD edges).
+			if d.Presents <= 0 {
+				r.OK = false
+				r.Bad = append(r.Bad, fmt.Sprintf("win%d active presents=%d want >0", i+1, d.Presents))
+			}
+			if d.AvgDamagePerP > int64(winW*winH)*105/100 {
+				r.OK = false
+				r.Bad = append(r.Bad, fmt.Sprintf("win%d avg_damage=%d want <=%d (damage must stay own-window)", i+1, d.AvgDamagePerP, int64(winW*winH)))
+			}
+		} else {
+			// Idle windows must accumulate NOTHING: no presents, no damage —
+			// another window's hot spot cannot leak damage into them.
+			if d.Presents != 0 || d.DamageSum != 0 {
+				r.OK = false
+				r.Bad = append(r.Bad, fmt.Sprintf("win%d idle presents=%d damage=%d want 0/0 (cross-window damage leak)", i+1, d.Presents, d.DamageSum))
+			}
+		}
+		r.Wins = append(r.Wins, d)
+	}
+	return r
+}
+
 type win struct {
 	idx  int
 	win  *platform.Window
@@ -353,6 +439,8 @@ func main() {
 	}
 
 	var phases []phaseResult
+	var isoMu sync.Mutex
+	var isoResults []isoResult
 	var phaseMu sync.Mutex
 	stop := make(chan struct{})
 	var stopOnce sync.Once
@@ -376,7 +464,16 @@ func main() {
 			if !sleepStop(time.Duration(settleSec*float64(time.Second)), stop) {
 				return
 			}
+			// Dirty-region P1 isolation evidence: sample ALL windows before
+			// and after the phase window; the deltas prove active windows keep
+			// their damage own-window while idle windows accumulate nothing.
+			isoA := sampleIso(wins)
 			res, ok := measurePhase(wins, n, stop)
+			iso := evalIso(n, isoA, sampleIso(wins))
+			isoMu.Lock()
+			isoResults = append(isoResults, iso)
+			isoMu.Unlock()
+			fmt.Fprintf(os.Stderr, "ui_base_multiwin_cap: iso n=%d ok=%v bad=%v\n", n, iso.OK, iso.Bad)
 			if !ok {
 				return
 			}
@@ -491,6 +588,20 @@ func main() {
 	phaseMu.Lock()
 	gotPhases := append([]phaseResult{}, phases...)
 	phaseMu.Unlock()
+	isoMu.Lock()
+	gotIso := append([]isoResult{}, isoResults...)
+	isoMu.Unlock()
+	// Dirty-region P1 metric totals across the ladder (backend-dependent:
+	// partial present counts only on OS damage-present backends).
+	var osPartialTotal, osFullTotal, texRecordTotal uint64
+	for _, w := range wins {
+		m := w.app.Metrics().Snapshot()
+		osPartialTotal += m.OSPresentPartial
+		osFullTotal += m.OSPresentFull
+		if m.TextureRecordBytes > 0 {
+			texRecordTotal += uint64(m.TextureRecordBytes)
+		}
+	}
 	for i := 1; i < len(gotPhases); i++ {
 		dn := gotPhases[i].Windows - gotPhases[i-1].Windows
 		if dn > 0 {
@@ -595,6 +706,13 @@ func main() {
 		"rss_slope_scope":           "whole run after max(25% elapsed, 15s) warmup; all 8 pre-opened+warmed before the ladder",
 		"rss_slope_line_kb_per_min": 30000,
 		"events_total":              eventsTotal.Load(),
+		// Dirty-region P1: per-phase multiwindow dirty isolation + the new
+		// present/texture metric totals.
+		"iso_results":                gotIso,
+		"iso_ok":                     isoAllOK(gotIso),
+		"os_present_partial_total":   osPartialTotal,
+		"os_present_full_total":      osFullTotal,
+		"texture_record_bytes_total": texRecordTotal,
 	}
 	if !gateMode {
 		extra["pixel_golden_diff_pct"] = nil
@@ -638,6 +756,15 @@ func main() {
 			for i, d := range p.Presents {
 				if d <= 0 {
 					fail("phase n=%d window %d presents delta=%d want >0", p.Windows, i+1, d)
+				}
+			}
+		}
+		// Dirty-region P1: per-phase multiwindow dirty isolation — active
+		// windows keep damage own-window, idle windows accumulate nothing.
+		if !isoAllOK(gotIso) {
+			for _, r := range gotIso {
+				if !r.OK {
+					fail("iso n=%d bad=%v", r.Windows, r.Bad)
 				}
 			}
 		}

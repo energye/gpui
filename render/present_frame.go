@@ -85,6 +85,45 @@ func (t *PresentTarget) LastPresentOutcome() PresentOutcome {
 	return t.lastOutcome
 }
 
+// noteOSPresentStats accumulates the swapchain's cumulative OS-present
+// counters into the target totals. Called on the raster thread right after a
+// successful present (same thread that presented — the backend counters are
+// written by that present). A swapchain reconfigure resets the backend
+// counters; the clamped delta keeps the totals monotonic across resets.
+func (t *PresentTarget) noteOSPresentStats() {
+	if t == nil || t.sc == nil {
+		return
+	}
+	cur := t.sc.PresentStats()
+	if os.Getenv("WR_OSPRESENT_DBG") == "1" && (t.osPresentPartial+t.osPresentFull == 0 || (cur.PartialCount+cur.FullCount)%120 == 0) {
+		fmt.Fprintf(os.Stderr, "DBG ospresent cur=%+v acc=(%d,%d)\n", cur, t.osPresentPartial, t.osPresentFull)
+	}
+	dP := cur.PartialCount - t.osStatsPrev.PartialCount
+	dF := cur.FullCount - t.osStatsPrev.FullCount
+	if dP < 0 {
+		dP = 0 // swapchain reconfigured: counters reset
+	}
+	if dF < 0 {
+		dF = 0
+	}
+	t.osStatsPrev = cur
+	t.osPresentPartial += uint64(dP)
+	t.osPresentFull += uint64(dF)
+}
+
+// OSPresentStats reports the accumulated OS-present counters (partial/damage
+// swaps vs full swaps) of this target. Metrics JSON exposes them as
+// os_present_partial / os_present_full; backends without an OS damage
+// present protocol report zero partials honestly.
+func (t *PresentTarget) OSPresentStats() (partial, full uint64) {
+	if t == nil {
+		return 0, 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.osPresentPartial, t.osPresentFull
+}
+
 // Fallbacks reports how many downgrade levels were retried before this
 // target opened (0 = first level succeeded). Metrics JSON uses it.
 // Fallbacks reports how many downgrade levels were retried before this
@@ -337,6 +376,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		if err != nil {
 			return err
 		}
+		t.noteOSPresentStats()
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			if d := time.Since(pEnd); d > 20*time.Millisecond {
 				fmt.Fprintf(os.Stderr, "DBG phase endframe=%dms (frame %dx%d)\n", d.Milliseconds(), frame.Width, frame.Height)

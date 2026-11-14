@@ -41,6 +41,17 @@ type SwapchainFrame struct {
 	Payload any
 }
 
+// PresentStats is the cumulative OS-present accounting of one swapchain.
+// PartialCount counts presents that used OS-level damage/partial present
+// (EGL SwapBuffersWithDamage on the Go GL backend); FullCount counts full
+// swaps. Backends without an OS damage-present protocol (wgpu-native
+// deliberately ignores damage; Windows WGL has no damage present) report
+// PartialCount=0 — the zero is honest, not missing data.
+type PresentStats struct {
+	PartialCount uint64
+	FullCount    uint64
+}
+
 // Swapchain is the backend-neutral online present surface.
 // webgpu.Swapchain and gwgpu/gles.Swapchain both implement it so render
 // stays single-path: creation picks a backend once, afterwards render only
@@ -55,6 +66,12 @@ type Swapchain interface {
 	// EndFrameWithDamage forwards damage rects when the backend supports
 	// partial present; backends without support present full.
 	EndFrameWithDamage(frame *SwapchainFrame, rects []image.Rectangle) error
+	// PresentStats reports the cumulative OS-present counters (partial vs
+	// full swaps) of this swapchain. Counters reset when the swapchain is
+	// reconfigured/recreated — render accumulates deltas. The same thread
+	// that presented reads the counters, so no extra synchronization is
+	// required beyond the backend's own present serialization.
+	PresentStats() PresentStats
 	// MarkNeedsReconfigure schedules a reconfigure on the next BeginFrame.
 	MarkNeedsReconfigure()
 	Release()

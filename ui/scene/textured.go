@@ -121,6 +121,12 @@ type PictureTextureCache struct {
 	// Evictions is the cumulative count of entries dropped by the capacity
 	// LRU in evictForNew. Guarded by mu.
 	Evictions int64
+	// recordedBytes is the cumulative GPU texture bytes written by re-records
+	// (record = full-surface w*h*4, recordLocal = bounds w*h*4) — the honest
+	// proxy for per-frame texture upload cost under the retained path (dirty
+	// region ② narrowing is measured against this). Guarded by mu; read via
+	// RecordedBytes.
+	recordedBytes uint64
 	// budgetRefusals counts EnsureCapacity growth refusals under
 	// multi-window budget pressure. Guarded by mu; read via
 	// BudgetRefusals.
@@ -354,6 +360,18 @@ func (c *PictureTextureCache) EvictionCount() int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.Evictions
+}
+
+// RecordedBytes reports the cumulative GPU texture bytes written by
+// re-records (full-surface + bounds-local, w*h*4 each). Lock-guarded: read
+// this, not the bare recordedBytes field, off the owner thread.
+func (c *PictureTextureCache) RecordedBytes() uint64 {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.recordedBytes
 }
 
 // avgEntryBytesLocked estimates one entry from live entries (caller holds
@@ -886,6 +904,7 @@ func (c *PictureTextureCache) record(id uint64, rec *recording.Recording) (image
 	e.recordedIn = c.recordFrame
 	c.usedNow[id] = struct{}{}
 	c.noteRerecord(id, "full")
+	c.recordedBytes += uint64(c.width) * uint64(c.height) * 4
 	c.FrameRerecord.Add(1)
 	return e.bounds, true
 }
@@ -1069,6 +1088,7 @@ func (c *PictureTextureCache) recordLocal(id uint64, rec *recording.Recording, b
 	e.recordedIn = c.recordFrame
 	c.usedNow[id] = struct{}{}
 	c.noteRerecord(id, "local")
+	c.recordedBytes += uint64(w) * uint64(h) * 4
 	c.FrameRerecord.Add(1)
 	return e.bounds, true
 }

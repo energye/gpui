@@ -72,6 +72,12 @@ func (a *halSwapchainAdapter) EndFrameWithDamage(f *hal.SwapchainFrame, rects []
 	}
 	return a.sc.EndFrameWithDamage(gf, rects)
 }
+
+// PresentStats delegates to the swapchain's per-OS implementation
+// (swapchain_stats_linux.go / swapchain_stats_windows.go).
+func (a *halSwapchainAdapter) PresentStats() hal.PresentStats {
+	return a.sc.PresentStats()
+}
 func (a *halSwapchainAdapter) MarkNeedsReconfigure() {}
 func (a *halSwapchainAdapter) Release()              { a.sc.Release() }
 func (a *halSwapchainAdapter) SetPreferVSync()       { a.sc.SetPreferVSync() }
