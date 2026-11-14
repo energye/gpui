@@ -814,7 +814,9 @@ func itemizeRunsWithSegs(line string, face text.Face, segs []text.Segment) []ite
 // cursor0/prevX0 seed the pen for window reuse (full-line builds pass 0,0);
 // Cluster/Caret ByteOff stay relative to line, glyph X absorbs cursor0.
 func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64, letterSpacing, wordSpacing float64) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun, bool) {
-	runeByte := make([]int, 0)
+	// 容量预估：每可见行都走这里，零容量 append 会逐行触发 2-3 次
+	// growslice（hitch 分配削减专项画像 buildShapedCarets 12.5%）。
+	runeByte := make([]int, 0, utf8.RuneCountInString(line)+1)
 	for i := range line {
 		if utf8.RuneStart(line[i]) {
 			runeByte = append(runeByte, i)

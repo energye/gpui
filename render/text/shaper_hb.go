@@ -55,6 +55,12 @@ type hbFontKey struct {
 type HbShaper struct {
 	mu    sync.RWMutex
 	faces map[hbFontKey]*hbFont
+	// buf 和 runesScratch 是 Shape 的工作缓冲，由 mu 保护复用（Shape 全程
+	// 持锁）。Skia SkShaper_harfbuzz.cpp 同款：`HBBuffer fBuffer` 挂 shaper
+	// 成员跨调用复用，Clear() 保留底层容量——滚动场景每行新行的整形不再
+	// 逐次分配 Buffer 与 Info/Pos 扩容（hitch 分配削减专项）。
+	buf          *hb.Buffer
+	runesScratch []rune
 }
 
 // NewHbShaper creates a new HarfBuzz-backed shaper.
@@ -90,11 +96,19 @@ func (s *HbShaper) Shape(text string, face Face) []ShapedGlyph {
 	hbf.hbf.XScale = int32(math.Round(size * (1 << hbScaleBits)))
 	hbf.hbf.YScale = hbf.hbf.XScale
 
-	runes := []rune(text)
+	runes := s.runesScratch[:0]
+	for _, r := range text {
+		runes = append(runes, r)
+	}
+	s.runesScratch = runes
 
 	// Buffer 填充：跳过控制字符（与 OwnShaper runeToGlyphs 一致），
 	// tab 映射为 space（advance 在输出阶段按 tab-stop 放大）。
-	buf := hb.NewBuffer()
+	if s.buf == nil {
+		s.buf = hb.NewBuffer()
+	}
+	buf := s.buf
+	buf.Clear()
 	buf.Flags = hb.Bot | hb.Eot
 	buf.ClusterLevel = hb.MonotoneGraphemes
 	buf.Props.Direction = hbDirection(face.Direction())

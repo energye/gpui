@@ -1425,7 +1425,10 @@ func rebaseGlyphs(part []text.ShapedGlyph) (shifted []text.ShapedGlyph, off floa
 		return nil, 0
 	}
 	off = part[0].X
-	shifted = append([]text.ShapedGlyph(nil), part...)
+	// 预分配精确容量：append(nil, part...) 在未知长度时会走 growslice
+	// 倍增路径（hitch 分配削减专项画像 rebaseGlyphs 7.4%）。
+	shifted = make([]text.ShapedGlyph, len(part))
+	copy(shifted, part)
 	if off != 0 {
 		for i := range shifted {
 			shifted[i].X -= off

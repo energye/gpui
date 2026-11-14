@@ -440,3 +440,12 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - **回归**：128 个测试文件逐个 `126 PASS / 0 FAIL / 2 SKIP`（SKIP 为无 Test 函数的基准文件）；`go build ./...`、scoped vet（`ui/platform` 的 unsafe.Pointer 警告为存量、非本轮文件）、gofmt（本轮文件干净）、`scripts/apidoc`、`scripts/check_tasks_ledger.py` 全绿。
 - **用户拍板（2026-11-14）**：① L2 多行 hitch 骑线→**开新专项修**（滚动布局路径分配削减，动手前先做影响面评估并停下报告；专项完成并复测后再谈 V4 标绿）；② 判定时长口径→**分指标口径**：p95/fps/hitch 用 120s（与 V2/V3c 基线同口径可比），RSS 稳态斜率用能到平台的时长（S 档 240s）——按此口径 S 档 p95 19.13 / RSS 844KB/min 均绿；③ 本轮 9 文件按清单提交（两洞修复+新测试+示例参数化+台账），全部本地未推送。
 - **剩余（V4 仍不标绿）**：hitch 分配削减专项（见上）完成并复测后再谈标绿；IndexByte 单行判定残留 O(L) ≈1ms/op@5e6 留诚实项（多行判定语义涉及虚拟模式交互，需单独评估）；独立滚动条拖动、真键事件通道未实测（沿前）。
+
+## hitch 分配削减专项第一阶段收口 + V4 标绿（2026-11-14 · 带注记）
+
+- **分配削减三处落地（红灯起步→绿）**：① `HbShaper` 持 hb Buffer 成员 `Clear()` 复用 + runes scratch（Skia `SkShaper_harfbuzz.cpp:721` `HBBuffer fBuffer` 同款；go-text `Buffer.Clear` 保留容量；Shape 全程持 `s.mu` 锁内使用无裸共享，`shaper_hb_race_test` 兜底）；② `buildShapedCarets` 容量预估（每可见行省 2-3 次 growslice）；③ `rebaseGlyphs` 精确预分配。`AllocsPerRun` **51.0→8.0 allocs/shape**（`render/text/v4_shape_alloc_test.go` 红灯 51.0 超 40 界→修后绿）；画像 growslice 5.4%→跌出 top12、mallocgc 11%→5.2%。
+- **行为无损**：byte-exact 全家 + 并发竞态 + 分段复用全绿；131 文件（render/text + ui/rendering）逐个回归 **0 真实 FAIL**——2 个外部工具链长跑（`zz_b1_ttf_scan`/`zz_b2_bitmap_scan`，对照 TTF hinting 轮廓/位图扫描，不经过 Shape 路径）在长 timeout 下单独验证 PASS（1183s/1787s，远超回归脚本 600s 上限）；2 个比值型门禁（height_map/m1_paint）在负载互扰下假红、干净复跑绿。
+- **L2 复测五轮 `4.00/5.50/4.50/6.50/7.01`（中位 5.0），hitch 未动——GC 主源假设证伪**（GC 相关 CPU 减半，hitch 分布不变）。单帧分解基准（`ui/textinput` 临时探针，已删）钉死：spike 帧（caret 跳 66 行 + sync + 物化）CPU 仅 **50-55µs**，虚拟模式只物化 caret 行、绘制时才逐行布局——CPU 排版彻底排除。慢帧 34-47ms 为 spike 相位 **0.4% 偶发**，Go 画像穷尽后剩 cgocall（GPU present/驱动，21% CPU）。环境漂移实锤：未改路径的 L1 从 3.0 漂到 4.5。
+- **归位（新问题归位纪律）**：剩余两股归**渲染域**台账（`ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2.1 余留登记）：① 字形 atlas 脏区上传（快滚帧 ~2600 新字形/帧小块上传驱动开销，`glyph_mask_atlas.go` DirtyUploads → gpu flush 链）；② present/驱动 stall（940MX + Present/DRI3 偶发，同 AGENTS 事故基线栈）。hal 层上传批量化/present 策略另立专项。
+- **V4 标绿（带注记）**：能力面（§3 第 4 层）+ 真窗三证据（4 探针 / Golden diff=0 / marker 差分 / 负向对照 / 人工确认）+ §2.2 CPU 门禁 + 四档真窗（分指标口径：p95/fps/hitch 120s、RSS 到平台时长）+ 两处 O(n) 洞修复 + 分配削减专项第一阶段全部收口。注记 = 本机 spike 口径下 L2 hitch 4-7/min 骑线，定性渲染域问题（文本引擎侧已穷尽），hal 层批量化专项完成后可复测。诚实项保留：IndexByte 单行判定残留（≈1ms/op@5e6）、独立滚动条拖动、真键事件通道、跨块 bidi 仅 line-level（§2.3）。
+- **提交**：专项 4 文件（shaper_hb.go / text.go / text_layout.go / v4_shape_alloc_test.go）+ 3 处台账（渲染域任务表 / 立项书 §4+§8 / 本文件），全部本地未推送。

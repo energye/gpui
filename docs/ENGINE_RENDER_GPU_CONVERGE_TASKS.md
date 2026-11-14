@@ -90,6 +90,8 @@
 - N1（backdrop 静止帧 + retained/hybrid 二轮量测）为可选后续，见 §2.2。
 - 历史尾巴（P2.4e / P3.1 / P3.5 期立案，快照内未见销账，未销即仍挂）：`misc_draw` wgpu 执行态（需 GPU capture 工具）、`SeatCapCB` 回调 robustness（flaky 实证）、gles `DeviceLost` / `X11KeyRepeat` 两新立案、P3.1b「sRGB 目标格式整链」（HDR/广色域前置；M5 格式参数化只承接其中一部分，整链未单独收口）；ui 5 条既有红（app_test SIGSEGV / x11_s6_p0 / m1 / m5 / gpupixel）在红名单登记、不阻塞。以 `evidence/P2.4e/summary.md`、`baseline/tests/` 与各自证据目录的实际状态为准，销账时回写。
 
+- **文本域 L2 滚动 hitch 骑线（2026-11-14 归位，渲染域两股）**：文本引擎 CPU 侧已穷尽——spike 帧（4000 行/s）CPU 只 50-55µs、整形分配削减 51→8 allocs/shape、GC CPU 减半，hitch（4-7/min 压 ≤5 门线）不动。慢帧 34-47ms 为 0.4% 偶发，归位两股：① **字形 atlas 脏区上传**（快滚帧 ~2600 新字形/帧的小块上传驱动开销，`render/text/glyph_mask_atlas.go` DirtyUploads → `render/internal/gpu` flush 链）；② **present/驱动 stall**（940MX + Present/DRI3 路径偶发阻塞，cgocall 21% CPU 内，同 AGENTS 事故基线栈）。归属：渲染域性能，文本域无关（证据：`/tmp/v4t/ls_L2_hitchfix*.json/.prof`、ui_textinput 单帧分解基准）。待办：hal 层上传批量化/合并脏区、present 策略复测，另立专项。
+
 #### 2.1.1 任务总表（P0–P4，状态唯一入口）
 
 | 编号 | 任务 | 依赖 | 状态 | 证据目录 |
