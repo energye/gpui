@@ -51,7 +51,11 @@ func m5ShiftCompare(t *testing.T, got, want *TextLayout, label string) {
 		t.Fatalf("%s BoxesForRange len got %d want %d", label, len(gb), len(wb))
 	}
 	for i := range wb {
-		if gb[i] != wb[i] {
+		// 真字体下增量与全量两条路径的行高浮点运算顺序不同，存在 1e-16 级
+		// 固有噪声（46.08749999999999 vs 46.0875）；1e-9 容差对 nil face 的
+		// 精确相等判定无影响。
+		if math.Abs(gb[i].Min.X-wb[i].Min.X) > 1e-9 || math.Abs(gb[i].Min.Y-wb[i].Min.Y) > 1e-9 ||
+			math.Abs(gb[i].Max.X-wb[i].Max.X) > 1e-9 || math.Abs(gb[i].Max.Y-wb[i].Max.Y) > 1e-9 {
 			t.Fatalf("%s BoxesForRange[%d] got %+v want %+v", label, i, gb[i], wb[i])
 		}
 	}

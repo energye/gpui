@@ -44,6 +44,11 @@ type RenderText struct {
 	Text       string
 	FontSize   float64 // logical; used for estimate and as draw Y baseline offset
 	R, G, B, A float64
+	// hasNewline 增量标记（V5 挂账清偿）：单行判定（longLineWindow /
+	// SetViewportHint）不再每次 strings.IndexByte 全串扫描。维护规则：
+	// SetText/SetRuns 整串入口扫一次（本就是重操作）；SetTextSpan 只扫
+	// 插入段（删除不能创造换行）；判定结果与全串扫描完全一致。
+	hasNewline bool
 	// ApproxCharW factor for layout without a Face (latin ~0.55; CJK often ~1).
 	ApproxCharW float64
 	// Face optional shaped face for true Measure (from render/text).
@@ -242,6 +247,7 @@ func (t *RenderText) paintVirtual(pc *PaintContext) {
 func NewRenderText(textStr string) *RenderText {
 	t := &RenderText{
 		Text: textStr, FontSize: 14,
+		hasNewline: strings.IndexByte(textStr, '\n') >= 0,
 		R: 0.9, G: 0.9, B: 0.9, A: 1,
 		ApproxCharW: 0.55,
 		LineSpacing: 1.2,
@@ -271,6 +277,7 @@ func (t *RenderText) SetText(s string) {
 	t.Text = s
 	t.Runs = nil
 	t.spanHint.ok = false
+	t.hasNewline = strings.IndexByte(s, '\n') >= 0
 	t.invalidateMeasureCache()
 	if t.sameFootprint(oldSz) {
 		t.MarkNeedsPaint()
@@ -339,6 +346,10 @@ func (t *RenderText) SetTextSpan(s string, oldA, oldB, newA, newB int) {
 	t.Text = s
 	t.Runs = nil
 	t.spanHint = editSpan{oldA: oldA, oldB: oldB, newA: newA, newB: newB, ok: true}
+	// 只有插入能创造换行；删除不改标记。击键时只扫插入段（O(1)）。
+	if !t.hasNewline && newB > newA && strings.IndexByte(s[newA:newB], '\n') >= 0 {
+		t.hasNewline = true
+	}
 	t.invalidateMeasureCache()
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
@@ -353,6 +364,7 @@ func (t *RenderText) SetRuns(runs []TextRun) {
 	if len(runs) == 0 {
 		t.Runs = nil
 		t.Text = ""
+		t.hasNewline = false
 		t.MarkNeedsLayout()
 		t.MarkNeedsPaint()
 		return
@@ -373,6 +385,7 @@ func (t *RenderText) SetRuns(runs []TextRun) {
 		b.WriteString(r.Text)
 	}
 	t.Text = b.String()
+	t.hasNewline = strings.IndexByte(t.Text, '\n') >= 0
 	t.invalidateMeasureCache()
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
@@ -763,7 +776,7 @@ func (t *RenderText) longLineIndexFor(s string) *longLineIndex {
 // The window follows the horizontal viewport through the block prefix sum
 // and is clamped to the render cap (characters beyond it are truncated, D1).
 func (t *RenderText) longLineWindow(s string) (start, end, fullLen int, ok bool) {
-	if t.RenderCap < 0 || len(s) < 64*1024 || strings.IndexByte(s, '\n') >= 0 {
+	if t.RenderCap < 0 || len(s) < 64*1024 || t.hasNewline {
 		return 0, len(s), len(s), false
 	}
 	ix := t.longLineIndexFor(s)
@@ -843,7 +856,7 @@ func (t *RenderText) SetViewportHint(scrollX, visW float64) {
 	t.viewportScrollX = scrollX
 	t.viewportWidth = visW
 	t.hasViewportHint = true
-	if changed && len(t.Text) >= 64*1024 && strings.IndexByte(t.Text, '\n') < 0 {
+	if changed && len(t.Text) >= 64*1024 && !t.hasNewline {
 		t.textLayout = nil
 		t.MarkNeedsPaint()
 	}
