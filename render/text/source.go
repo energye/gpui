@@ -13,7 +13,7 @@ package text
 import (
 	"encoding/binary"
 	"fmt"
-	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
 )
@@ -36,6 +36,13 @@ type FontSource struct {
 	// Font data
 	data   []byte
 	parsed ParsedFont // Abstracted font interface (pluggable backend)
+
+	// file is the shared per-path mapping backing data when this source was
+	// loaded from a file (nil for in-memory sources). A runtime.AddCleanup
+	// drops its reference when the source becomes unreachable — the mapping
+	// must outlive every handed-out source because lazy table parsing reads
+	// the bytes at any time.
+	file *fontFileData
 
 	// Metadata
 	name string
@@ -115,23 +122,42 @@ func newFontSourceOwned(data []byte, config sourceConfig) (*FontSource, error) {
 
 // NewFontSourceFromFile loads a FontSource from a font file path.
 //
-// Loads are shared process-wide per (absolute path, collection index,
-// parser): every caller gets the same FontSource, and each file is read and
-// parsed once. File updates on disk are not picked up until
-// PurgeFontSourceCache is called. Close on the returned source is a no-op.
+// The file bytes are mapped read-only into the address space (mmap; Skia
+// SkData::MakeFromFileName / Flutter fml::FileMapping model) and shared per
+// resolved path across every (path, ttcIndex, parser) cache key — a
+// same-file multi-index font chain pins the bytes once, never once per
+// index. Platforms without mmap fall back to os.ReadFile with the same
+// per-path sharing. Loads are shared process-wide: every caller gets the
+// same FontSource, and each file is mapped and parsed once. File updates on
+// disk are not picked up until PurgeFontSourceCache is called (which also
+// closes the mappings). Close on the returned source is a no-op.
 func NewFontSourceFromFile(path string, opts ...SourceOption) (*FontSource, error) {
 	config := defaultSourceConfig()
 	for _, opt := range opts {
 		opt(&config)
 	}
 	key := fontSourceKeyFor(path, config)
-	return globalFontSourceCache.getOrLoad(key, func() (*FontSource, error) {
-		// #nosec G304 -- Font file path is provided by the user
-		data, err := os.ReadFile(path)
+	return globalFontSourceCache.getOrLoad(key, func() (*FontSource, int64, error) {
+		file, err := fontFileAcquire(key.path)
 		if err != nil {
-			return nil, fmt.Errorf("text: failed to read font file: %w", err)
+			return nil, 0, fmt.Errorf("text: failed to load font file: %w", err)
 		}
-		return newFontSourceOwned(data, config)
+		src, err := newFontSourceOwned(file.data, config)
+		if err != nil {
+			file.release()
+			return nil, 0, err
+		}
+		src.file = file
+		// The mapping must outlive the source (lazy table parsing reads the
+		// bytes at any later time); cleanup drops the reference when the
+		// source becomes unreachable. Cached sources stay referenced by the
+		// cache, so they are never collected while cached.
+		runtime.AddCleanup(src, func(f *fontFileData) { f.release() }, file)
+		charge := int64(0)
+		if file.created {
+			charge = int64(len(file.data))
+		}
+		return src, charge, nil
 	})
 }
 

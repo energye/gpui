@@ -92,6 +92,20 @@ func NewColorGlyphAtlas(pageSize, maxPages int) *ColorGlyphAtlas {
 	}
 }
 
+// PurgeEvictable implements the OOM purge contract: evicts every color-glyph
+// page (entries go with their page, pending dirty uploads for dropped pages
+// go stale exactly like evictColdestPageLocked) and returns entries freed.
+// The next lookup re-rasterizes the color glyph. O9 清账：彩色字形图集进
+// OOM 熔断链。
+func (a *ColorGlyphAtlas) PurgeEvictable() int64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	total := int64(len(a.entries))
+	for a.evictColdestPageLocked() {
+	}
+	return total
+}
+
 // Get returns the packed region for a cached glyph and refreshes its LRU
 // stamp.
 func (a *ColorGlyphAtlas) Get(key ColorGlyphKey) (ColorGlyphRegion, bool) {

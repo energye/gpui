@@ -40,7 +40,7 @@ type fontSourceKey struct {
 type fontSourceEntry struct {
 	key   fontSourceKey
 	src   *FontSource
-	bytes int64
+	bytes int64 // charged bytes: file size only for the entry that created the mapping
 }
 
 type fontSourceLoad struct {
@@ -116,10 +116,14 @@ func PurgeFontSourceCache() {
 	if len(c.entries) > 0 {
 		c.stats.Purges++
 	}
+	// Sources handed out keep their file mappings alive (their lazily parsed
+	// tables read those bytes); cleanup drops each mapping when its source
+	// becomes unreachable. The purge only drops the cache bookkeeping.
 	c.entries = make(map[fontSourceKey]*list.Element, c.maxItems)
 	c.lru.Init()
 	c.bytes = 0
 	c.mu.Unlock()
+	fontFilePurgeUnreferenced()
 
 	// Drop the global caches that pin sources (or their parsed font) alive.
 	ClearFontScanFallbackCache()
@@ -136,7 +140,7 @@ func PurgeFontSourceCache() {
 	})
 }
 
-func (c *fontSourceCache) getOrLoad(key fontSourceKey, load func() (*FontSource, error)) (*FontSource, error) {
+func (c *fontSourceCache) getOrLoad(key fontSourceKey, load func() (*FontSource, int64, error)) (*FontSource, error) {
 	for {
 		c.mu.Lock()
 		if el, ok := c.entries[key]; ok {
@@ -157,14 +161,14 @@ func (c *fontSourceCache) getOrLoad(key fontSourceKey, load func() (*FontSource,
 		c.stats.Misses++
 		c.mu.Unlock()
 
-		src, err := load()
+		src, charge, err := load()
 
 		c.mu.Lock()
 		delete(c.inflight, key)
 		if err == nil && src != nil {
 			src.cached.Store(true)
 			c.stats.Loads++
-			c.insertLocked(key, src, int64(len(src.data)))
+			c.insertLocked(key, src, charge)
 		}
 		call.src = src
 		call.err = err
@@ -192,6 +196,10 @@ func (c *fontSourceCache) insertLocked(key fontSourceKey, src *FontSource, size 
 		c.lru.Remove(back)
 		delete(c.entries, ent.key)
 		c.bytes -= ent.bytes
+		// The source's file mapping is NOT released here: a handed-out
+		// FontSource may still lazily parse its bytes at any time. Its
+		// runtime.AddCleanup drops the mapping when the source becomes
+		// unreachable (mmap pages are OS page cache, not Go heap).
 		c.stats.Evictions++
 	}
 }

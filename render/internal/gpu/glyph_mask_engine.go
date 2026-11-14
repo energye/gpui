@@ -118,6 +118,11 @@ func newGlyphMaskAtlasFromBudget() *text.GlyphMaskAtlas {
 		cfg.MaxAtlases = int(b.MaxBytes / int64(pageBytes))
 	}
 	atlas, _ := text.NewGlyphMaskAtlas(cfg)
+	if atlas != nil {
+		// O9: the atlas is rebuildable (next lookup re-rasterizes), so it
+		// joins the texture-OOM purge chain alongside the image cache.
+		render.RegisterPurgeEvictable("glyph-mask-atlas", atlas)
+	}
 	return atlas
 }
 

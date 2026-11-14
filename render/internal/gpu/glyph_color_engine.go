@@ -44,10 +44,14 @@ type ColorGlyphEngine struct {
 
 // NewColorGlyphEngine creates a color glyph engine with default atlas pages.
 func NewColorGlyphEngine() *ColorGlyphEngine {
-	return &ColorGlyphEngine{
+	e := &ColorGlyphEngine{
 		atlas:  NewColorGlyphAtlas(1024, render.DefaultBudget(render.BudgetGlyphColor).MaxEntries),
 		raster: text.NewColorRasterCache(256),
 	}
+	// O9: color atlas pages are rebuildable (next lookup re-rasterizes), so
+	// the atlas joins the texture-OOM purge chain.
+	render.RegisterPurgeEvictable("glyph-color-atlas", e.atlas)
+	return e
 }
 
 // LayoutColorGlyphs converts pre-shaped glyphs into a color batch.

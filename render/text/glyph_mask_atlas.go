@@ -778,6 +778,22 @@ func (a *GlyphMaskAtlas) resetPage(page *glyphMaskPage) {
 	a.generation.Add(1)
 }
 
+// PurgeEvictable implements the OOM purge contract (structurally matches
+// render.PurgeEvictable without importing render — the GPU layer registers
+// this atlas). Evicts every cached glyph entry (pages with no entries left
+// reset and free their pixel buffers) and returns the entries freed; the
+// next lookup re-rasterizes. O9 清账：字形图集进 OOM 熔断链。
+func (a *GlyphMaskAtlas) PurgeEvictable() int64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	var freed int64
+	for a.tail != nil {
+		a.evictTail()
+		freed++
+	}
+	return freed
+}
+
 // LRU list operations. Must be called with a.mu held.
 
 func (a *GlyphMaskAtlas) addToFront(entry *glyphMaskEntry) {

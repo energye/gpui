@@ -4,6 +4,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 func cacheTestLoad(t *testing.T, path string) *FontSource {
@@ -67,7 +68,64 @@ func TestFontSourceCacheTTCIndexesAreDistinct(t *testing.T) {
 	PurgeFontSourceCache()
 }
 
+// 并发只载一次 + waiter 加入：用局部缓存 + 受控慢 load 锁死确定性。
+// mmap 之后真实装载快到「没有任何 waiter 赶上 inflight」成为常态
+// （原竞速写法在 mmap 下 10 次 4 红），竞速窗口必须由测试自己构造。
 func TestFontSourceCacheConcurrentLoadOnce(t *testing.T) {
+	c := newFontSourceCache(4, 0)
+	const goroutines = 16
+	const testPath = "testdata/wqy-microhei.ttf"
+
+	key := fontSourceKey{path: testPath}
+	loadGate := make(chan struct{})
+	load := func() (*FontSource, int64, error) {
+		// 第一个进 inflight 的装载在这里停住，保证其余 goroutine 全部
+		// 以 waiter 身份挂上 inflight（确定性，不赌竞速）。
+		<-loadGate
+		data, err := os.ReadFile(testPath)
+		if err != nil {
+			return nil, 0, err
+		}
+		src, err := newFontSourceOwned(data, defaultSourceConfig())
+		return src, 0, err
+	}
+
+	results := make([]*FontSource, goroutines)
+	errs := make([]error, goroutines)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			results[i], errs[i] = c.getOrLoad(key, load)
+		}(i)
+	}
+	close(start)
+	time.Sleep(100 * time.Millisecond) // 16 个 goroutine 全部挂上 inflight/waiter
+	close(loadGate)
+	wg.Wait()
+
+	for i := range results {
+		if errs[i] != nil {
+			t.Fatalf("goroutine %d: %v", i, errs[i])
+		}
+		if results[i] != results[0] {
+			t.Fatalf("goroutine %d got a different FontSource (%p vs %p)", i, results[i], results[0])
+		}
+	}
+	if c.stats.Loads != 1 {
+		t.Errorf("Loads = %d, want 1 (singleflight)", c.stats.Loads)
+	}
+	if c.stats.Waits != goroutines-1 {
+		t.Errorf("Waits = %d, want %d (everyone but the loader)", c.stats.Waits, goroutines-1)
+	}
+}
+
+// 全局缓存并发只载一次（mmap 后装载很快，只断言 singleflight 本身，
+// 不再断言 Waits——那是时序竞速断言，见上面的确定性版本）。
+func TestFontSourceCacheConcurrentGlobalLoadOnce(t *testing.T) {
 	PurgeFontSourceCache()
 	ResetFontSourceCacheStats()
 
@@ -100,22 +158,20 @@ func TestFontSourceCacheConcurrentLoadOnce(t *testing.T) {
 	if stats.Loads != 1 {
 		t.Errorf("Loads = %d, want 1 (singleflight)", stats.Loads)
 	}
-	if stats.Waits == 0 {
-		t.Error("expected at least one waiter to join the in-flight load")
-	}
 
 	PurgeFontSourceCache()
 }
 
 func TestFontSourceCacheEviction(t *testing.T) {
 	c := newFontSourceCache(2, 0)
-	load := func(path string) func() (*FontSource, error) {
-		return func() (*FontSource, error) {
+	load := func(path string) func() (*FontSource, int64, error) {
+		return func() (*FontSource, int64, error) {
 			data, err := os.ReadFile(path)
 			if err != nil {
-				return nil, err
+				return nil, 0, err
 			}
-			return newFontSourceOwned(data, defaultSourceConfig())
+			src, err := newFontSourceOwned(data, defaultSourceConfig())
+			return src, 0, err
 		}
 	}
 
