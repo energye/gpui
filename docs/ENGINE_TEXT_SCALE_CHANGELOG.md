@@ -458,3 +458,10 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - **MAILBOX 实验不可判，已回退**：`SetPreferMailboxSteady`（Mailbox→FifoRelaxed→Fifo 无 tearing）+ `GPUI_PRESENT_MAILBOX=1` env 开关，四轮 28-34/min vs 回退 Fifo 基线 34/min 无显著差异——测量时段 load average **3.53-4.39**（4 核满载边缘：ZCode renderer 38.5% CPU 等常驻负载），对比被环境漂移淹没。开关与方法按「不交付无效改动」回退，行为零变化。
 - **最终定性**：hitch 骑线 = 4 核满载边缘机器上的**测量环境负载依赖**（同一份代码：凌晨空闲 3.0-4.5/min → 高负载时段 9-34/min）+ GPU 消化偶发超帧预算（wgpu/驱动内部，需 GPU capture 工具深挖，同「misc_draw wgpu 执行态」先例挂账）。引擎侧四路全验证穷尽（CPU/GC/atlas/present 策略）。**复测口径**：干净时段（load <1）跑一轮分段直方图滚动轮即可复核，无需改代码；明细归位 `ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2.1。
 - **V4 标绿注记维持**，如干净时段复测 hitch 回到 ≤5 带内，注记可摘。
+
+## hitch 终判：注记摘除 + p95 先例判机器基线（2026-11-14 · 用户终判）
+
+- **用户空闲环境终判两轮**（codebuddy 关闭、ZCode/agent 会话闲置）：L2 hitch **1.00 / 2.00 per min**（门 ≤5，大幅达标）、fps 58.20/58.19、virtual=True、24.2 万行真实滚动——**V4 标绿的 hitch 注记摘除**。
+- **p95 23.71/26.15 稳定超 22**：同环境 L1 对照 26.21/hitch 31.51——L1/L2 同波动带（19-27，跨两天多轮），**非 3e6 规模回归、非本轮引入**；援引 V3c 收口先例（22.95-23.03 判「当前机器基线」）判为机器基线；空闲下分段 raster_p95 5.8/acquire_p95 2.7 全干净，尾巴=环境（桌面负载/显示栈/GPU 频率档）。
+- **测量环境事实**：hitch 同代码 3-34/min 随环境强波动（agent 会话活跃时 6-34、凌晨空闲 3-7、用户空闲 1-2）；940MX utilization 全程 0% + glxinfo renderer=Intel HD 520（渲染在核显，940MX 135MHz 归因修正）；940MX 笔记本卡锁频不支持（`-lgc` not supported 实测）。
+- **复测口径沉淀**：终判须 agent 会话闲置+桌面无重负载；stdout 单独重定向（2>&1 混入启动日志会破坏 JSON 解析）。
