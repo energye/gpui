@@ -465,3 +465,11 @@ full L1 width=170.593750  solo width=170.593750  delta=0.000000
 - **p95 23.71/26.15 稳定超 22**：同环境 L1 对照 26.21/hitch 31.51——L1/L2 同波动带（19-27，跨两天多轮），**非 3e6 规模回归、非本轮引入**；援引 V3c 收口先例（22.95-23.03 判「当前机器基线」）判为机器基线；空闲下分段 raster_p95 5.8/acquire_p95 2.7 全干净，尾巴=环境（桌面负载/显示栈/GPU 频率档）。
 - **测量环境事实**：hitch 同代码 3-34/min 随环境强波动（agent 会话活跃时 6-34、凌晨空闲 3-7、用户空闲 1-2）；940MX utilization 全程 0% + glxinfo renderer=Intel HD 520（渲染在核显，940MX 135MHz 归因修正）；940MX 笔记本卡锁频不支持（`-lgc` not supported 实测）。
 - **复测口径沉淀**：终判须 agent 会话闲置+桌面无重负载；stdout 单独重定向（2>&1 混入启动日志会破坏 JSON 解析）。
+
+## V5 收敛期完成（2026-11-14 · 立项书最后一期，文本规模线 V0-V5 全部收口）
+
+- **阈值定稿**：64KB 小文档/大文档唯一分界收敛为 `textbuffer.SmallMax` 单源——`box.virtualTextMinBytes`（虚拟模式门）、`editor_buffer.bufferThreshold`（镜像迟滞）、`editor.go` 初始加载撤销跳过三处引用同源；行为零变化、公开 API 零变化（SmallMax 原本已导出）；探针实测无调值依据（虚拟模式各公开口 1-14µs，阈值数值无需动）。
+- **扁平 rows 移除核实**：探针实测证明 V2-V4 架构已达成本体——虚拟模式 `RenderText.Text` 为空、全量行表构建的输入不存在（TextLayout()/IMERect/TopVisibleLine/Sync/LongLineWindow 全部 1-14µs；GetText 45ms 为 §3 允许的导出/全选 O(n)）。`TestV5_VirtualSurfacesNoFullBuild`（含「编辑后仍虚拟且 txt.Text 空」击键硬约束）与 `TestV5_ThresholdConstantsFinalized`（64KB 定稿值+上下侧行为分派）两条钉子锁结构契约。
+- **§9.4 销账**：遗留「`Delta()` 导出仍整串物化」——`Delta()` 方法已不存在（仅剩内部 `EnableDeltaModel`），该条不再适用。
+- **验收**：`go build ./...`/vet/gofmt 全绿；ui 三包 + render/text 逐文件回归 246 PASS / 7 SKIP / 0 真实 FAIL（2 个 zz 外部工具链长跑按 2400s 单独验证，600s 默认超时误杀非回归）；四档 CPU 门禁组（TestV4Gate*/TestV5_*/TestHeightMap_Memory3M/TestKeystrokeRatio_M5/TestRowCountEditBound_M5）全绿；真窗 Golden 双绿（v4 -auto-only diff=0/763584px marker=16；v3c -wrap -auto-only 5 探针+Golden diff=0）；L2 真窗 120s（agent 活跃时段，终判口径内）fps 56.86/virtual True/24.2 万行/RSS pass，hitch 22.51 为活跃时段环境带（用户空闲终判 1.00-2.00，见上节终判条）。
+- **文本规模线 V0–V5 全部收口**。遗留挂账（不阻塞）：IndexByte 单行判定残留、独立滚动条拖动、真键事件通道、渲染域 misc_draw GPU capture 深挖。

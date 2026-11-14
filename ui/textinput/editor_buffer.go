@@ -13,7 +13,8 @@ import "github.com/energye/gpui/ui/textbuffer"
 
 // bufferThreshold keeps the legacy mirror-active flag in sync for
 // observability/tests; the buffer itself is always the storage engine.
-const bufferThreshold = 64 * 1024
+// 同源 textbuffer.SmallMax（V5 收敛定稿：64KB 唯一分界）。
+const bufferThreshold = textbuffer.SmallMax
 
 // updateBufOn mirrors the old mirror hysteresis (activate at 64KB, release
 // below 32KB) without gating the buffer.

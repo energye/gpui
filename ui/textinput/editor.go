@@ -652,7 +652,7 @@ func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	e.composingRange = comp
 	e.composing = hasComp
 	if changed {
-		if cur == "" && len(text) >= 64*1024 {
+		if cur == "" && len(text) >= textbuffer.SmallMax {
 			// 初始大文档加载不进撤销历史(整篇 delta 会常驻一份全文拷贝).
 			e.history = nil
 			e.redoStack = nil

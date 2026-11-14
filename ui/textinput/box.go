@@ -21,6 +21,7 @@ import (
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
+	"github.com/energye/gpui/ui/textbuffer"
 )
 
 // defaultCursorWidth is the caret bar width (Flutter RenderEditable
@@ -972,7 +973,9 @@ func (b *Box) imeRectVirtual() (platform.Rect, bool) {
 
 func (b *Box) Sync() { b.sync() }
 
-const virtualTextMinBytes = 64 * 1024
+// virtualTextMinBytes 与 textbuffer.SmallMax（buffer 分代阈值）同源同值：
+// V5 收敛定稿，小文档/大文档的唯一分界（64KB），钉子测试锁一致性。
+const virtualTextMinBytes = textbuffer.SmallMax
 
 // canVirtual reports whether the box can use the viewport line model:
 // multi-line, not composing/password, large doc. Wrap is supported: the
