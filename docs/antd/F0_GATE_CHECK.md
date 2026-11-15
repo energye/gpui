@@ -14,6 +14,8 @@
 | 接线 | 产品禁直调 render/gpu，只许调 prim/behavior/scope+theme | 直调即 FAIL |
 | Token | 颜色全走主题，Render 层零用户值硬编码 | 硬编码即 FAIL |
 
+绑定契约查（KIT_FRAME_BINDING_PLAN 件 1/2 落地起，第五查）：新组件 Instance 必须实现 `scope.Instance`（Mount/UpdateCtx/Unmount/Node/DirtyClassOf）+ Build 尾 `scope.Attach` 焊 WidgetNode + SetState 交 relay 标脏 + 挂树走 Registry.Subscribe 登记 aspects；不焊绑定即 FAIL。
+
 ## API 总账覆盖检查命令（合入前必跑）
 
 ```bash

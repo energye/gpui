@@ -108,7 +108,7 @@ type FocusScope struct {
 
 | 件 | 状态 | 单测 | 验收窗 | 日期 |
 |---|---|---|---|---|
-| 1 Element 绑定 | 未开工 | — | F2 Button 标杆 | — |
-| 2 Inherited 登记 | 未开工 | — | F2 Button 标杆 | — |
+| 1 Element 绑定 | ✅ 落地（`ui/kit/internal/scope/bind.go`：`Instance` 框架面四方法 + `WidgetNode`（Attach/Mount/MarkStateDirty/Unmount）+ `DirtyTable.Classify/Diff`；Update 因 Go 无协变留在各组件具体类型） | `scope/bind_test.go` 9 用例：SetState→Root.NeedsPaint/Layout、DirtyNone 不脏、未挂树/卸载后静默、挂载幂等、Diff 异或语义、nil 根焊点 panic、组合位最强类 | F2 Button 标杆 | 2026-11-16 |
+| 2 Inherited 登记 | ✅ 落地（`ui/kit/internal/scope/registry.go`：`Registry.Subscribe/Unsubscribe/SetCtx`，内部走 `ChangedAspects` 只刷依赖者，通知按订阅序；`NotifyCtx` 转发 UpdateCtx + MarkNeedsPaint） | `scope/registry_test.go` 7 用例：theme 订阅者对 locale-only 变更零通知、Unsubscribe 后不通知、无变更静默、多 aspect、resubscribe 换表、双订阅者各通知一次、nil 安全；负向验证=摘掉 aspect 过滤三测红→还原绿 | F2 Button 标杆 | 2026-11-16 |
 | 3 竞技场接线 | 未开工 | — | f0_interact 回归 + Button | — |
 | 4 FocusScope 树 | 未开工 | — | F4 前独立验 | — |

@@ -84,13 +84,16 @@ type ButtonInstance struct {
     // …焦点/手势句柄（L2 给的，不自建）
 }
 
-func (in *ButtonInstance) Mount(ctx *scope.Ctx)
-func (in *ButtonInstance) Update(ctx *scope.Ctx, next ButtonProps) // Props 变了：换快照、重算、标脏
+func (in *ButtonInstance) Mount(ctx scope.Ctx, relay scope.DirtyRelay) // 挂树：快照 ctx + 接收标脏中继（relay=WidgetNode）
+func (in *ButtonInstance) Update(ctx scope.Ctx, next ButtonProps)      // Props 变了：换快照、改节点属性、经 relay 标脏（Go 无协变，Update 留在具体类型）
 func (in *ButtonInstance) Unmount()
-func (in *ButtonInstance) SetState(f func(*WidgetState)) // 唯一改状态的口：改完标脏，重排重画
+func (in *ButtonInstance) Node() rendering.RenderObject               // Build 产出的组件根节点（绑定契约）
+func (in *ButtonInstance) DirtyClassOf(changed scope.WidgetState) scope.DirtyClass // 声明脏类：状态位→Paint/Layout
+func (in *ButtonInstance) SetState(f func(*ButtonInstance), changed scope.WidgetState) // 唯一改状态的口：改完把变更位交给 relay 标脏
 ```
 
-- 生命周期归属（谁调，不许自创）：窗口（窗侧 shell）建→调 `Mount`；Props 变→窗侧调 `Update`；窗口关→窗侧调 `Unmount`，按“浮层/定时器/图片请求先放，状态机后放”顺序；组件内部不许自己开关窗口、不许自己起 goroutine 常驻（动效走 `ui/scheduler` 节拍）。
+- **绑定契约（KIT_FRAME_BINDING_PLAN 件 1，已落地）**：Instance 实现 `scope.Instance` 框架面（Mount/UpdateCtx/Unmount/Node/DirtyClassOf），Build 尾用 `scope.Attach(inst, aspects...)` 焊出 `WidgetNode`（Element 的 Go 版：持绑定/管生命周期/转标脏三职责）；`SetState` 改完状态位必须把变更位交给 `WidgetNode.MarkStateDirty` —— 影响几何的状态（如 loading 换转圈）→ Root.MarkNeedsLayout，仅外观（hover/pressed/focus）→ MarkNeedsPaint；脏类用 `scope.DirtyTable`（LayoutBits/PaintBits）声明，`Diff` 按异或分类（已置位不变不算变更）。未挂树/已卸载时 SetState 静默（数据照改、树不动）。
+- 生命周期归属（谁调，不许自创）：窗口（窗侧 shell）建→调 `WidgetNode.Mount`；Props 变→窗侧调具体 `Update`；窗口关→窗侧调 `WidgetNode.Unmount`，按“浮层/定时器/图片请求先放，状态机后放”顺序；组件内部不许自己开关窗口、不许自己起 goroutine 常驻（动效走 `ui/scheduler` 节拍）。
 
 - 状态机（B 类通用，C/D/E 只加不减）：`idle→hover→pressed→idle`；`disabled` 全吞；`loading` 转且防重（点多少次只算一次）；`delay` 未到不转。
 - 受控 vs 非受控（C 类）：值有 `Value` + `DefaultValue` + `OnChange` 三件（抄 `FormField`/`Input`）；外面给了 `Value` 就是受控（内部不改，只回调），没给就是非受控（内部存一份）。Render 段只读“当前值”（一个 `Value()` 函数），不问受控非受控。
@@ -143,6 +146,8 @@ type Ctx struct {
 ```
 
 `ConfigProvider`/`App`（F 类）就是“往 Ctx 里放东西”的组件；产品组件用 `scope.Use(ctx)` 取。换肤、整树禁用、尺寸切换 = 换 Ctx 重跑 `Build`，组件代码不动。
+
+- **Inherited 依赖登记（KIT_FRAME_BINDING_PLAN 件 2，已落地）**：宿主持 `scope.Registry`（`scope.NewRegistry(ctx)`）；挂树时 `reg.Subscribe(node, aspects...)` 登记本组件 Build 实际读的 aspect（各组件的 `<Comp>SubscribedAspects()` 就是这张表）；`reg.SetCtx(next)` 内部走 `ChangedAspects` diff——**只通知订阅了变更 aspect 的 WidgetNode**（对齐 `dependOnInheritedWidgetOfExactType` 只刷依赖者语义），通知 = `UpdateCtx(新ctx)` + `Root.MarkNeedsPaint()`。没被任何人订阅的 aspect 变更零通知零重画；Unsubscribe（卸载时）后不再通知。
 
 ## 6. Theme（主题，对标 ButtonStyle：三级盖+按状态取）
 
