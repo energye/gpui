@@ -1,0 +1,825 @@
+anim	const		BlendAdditive	
+anim	const		BlendReplace	
+anim	const		DefaultLodNearDist	
+anim	const		InBack	
+anim	const		InBounce	
+anim	const		InCirc	
+anim	const		InCubic	
+anim	const		InElastic	
+anim	const		InExpo	
+anim	const		InOutBack	
+anim	const		InOutBounce	
+anim	const		InOutCirc	
+anim	const		InOutCubic	
+anim	const		InOutElastic	
+anim	const		InOutExpo	
+anim	const		InOutQuad	
+anim	const		InOutQuart	
+anim	const		InOutQuint	
+anim	const		InOutSine	
+anim	const		InQuad	
+anim	const		InQuart	
+anim	const		InQuint	
+anim	const		InSine	
+anim	const		Linear	
+anim	const		OutBack	
+anim	const		OutBounce	
+anim	const		OutCirc	
+anim	const		OutCubic	
+anim	const		OutElastic	
+anim	const		OutExpo	
+anim	const		OutQuad	
+anim	const		OutQuart	
+anim	const		OutQuint	
+anim	const		OutSine	
+anim	func		AllKinds	
+anim	func		ParseSkeleton	
+anim	func		ShouldUpdate	
+anim	method	Machine	BlendDur	
+anim	method	Machine	StateCount	
+anim	method	Pose	ApplyPhysics	
+anim	method	Pose	BlendFrom	
+anim	method	Skeleton	Bone	
+anim	method	Skeleton	BoneIndex	
+anim	method	Skeleton	IK	
+anim	method	Skeleton	SetDrawOrder	
+anim	method	Skeleton	SetSkin	
+anim	method	Skeleton	SkinNames	
+anim	method	Skeleton	Slot	
+anim	method	Skeleton	SlotCount	
+anim	method	Skeleton	SlotIndex	
+anim	method	Timeline	EventCount	
+anim	method	Timeline	IsPlaying	
+anim	method	Timeline	KeyCount	
+anim	method	Timeline	Seek	
+anim	type		Bone	
+anim	type		IKConstraint	
+anim	type		LodFrame	
+anim	type		LodPolicy	
+anim	type		LodScheduler	
+anim	type		Skin	
+anim	type		Slot	
+anim	type		TransformConstraint	
+anim	type		VertexWeight	
+anim	var		CurrentSkeletonVersion	
+asset	const		AtlasPad	
+asset	const		DefaultAtlasExtrude	
+asset	const		DefaultAtlasGutter	
+asset	const		HotEmpty	
+asset	const		HotWatching	
+asset	const		KindRaw	
+asset	const		MaxAssetBytes	
+asset	const		MaxAssets	
+asset	const		MaxAtlasExtrude	
+asset	const		MaxAtlasGutter	
+asset	const		MaxAtlasJSONBytes	
+asset	const		MaxAtlasNameLen	
+asset	const		MaxAtlasSize	
+asset	const		MaxBrokenReports	
+asset	const		MaxBytes	
+asset	const		MaxDeps	
+asset	const		MaxLargeBroken	
+asset	const		MaxLargeDimension	
+asset	const		MaxLargeEstimateCount	
+asset	const		MaxLargeEstimates	
+asset	const		MaxLargeNameLen	
+asset	const		MaxLargePixels	
+asset	const		MaxLargeSetMembers	
+asset	const		MaxLargeSets	
+asset	const		MaxLargeTotalImages	
+asset	const		MaxReloadLogs	
+asset	const		MaxSetMembers	
+asset	const		MaxSetNameLen	
+asset	const		MaxSets	
+asset	const		MaxSprites	
+asset	const		MinAtlasExtrude	
+asset	const		MinAtlasGutter	
+asset	const		StateFailed	
+asset	const		TierPerformance	
+asset	const		TierQuality	
+asset	const		ToolAtlasSizeLarge	
+asset	const		ToolAtlasSizeSmall	
+asset	func		AtlasToSpriteUV	
+asset	func		CheckStrokeBlackLine	
+asset	func		DefaultPackOptions	
+asset	func		EstimatePixels	
+asset	func		EstimateUpload	
+asset	func		HashBytes	
+asset	func		IsSeamTransparent	
+asset	func		NewSetReloader	
+asset	func		Pack	
+asset	func		PackToolAtlas	
+asset	func		PackWithOptions	
+asset	func		PolicyFor	
+asset	func		SeamTransparentMaxDiff	
+asset	func		SpriteToAtlasUV	
+asset	func		SummarizeBroken	
+asset	func		ToolAtlasToSpriteUV	
+asset	func		ValidateToolAtlasSize	
+asset	method	Atlas	Find	
+asset	method	BrokenLink	Unwrap	
+asset	method	Budget	EstimateSet	
+asset	method	Budget	Manifest	
+asset	method	Budget	Reloader	
+asset	method	Budget	SetTier	
+asset	method	Budget	SuggestEvictions	
+asset	method	Entry	Nine	
+asset	method	Entry	Pivot	
+asset	method	Entry	PivotX	
+asset	method	Entry	PivotY	
+asset	method	Manager	Evict	
+asset	method	Manager	HashOf	
+asset	method	Manager	Ready	
+asset	method	Manager	Unload	
+asset	method	Manager	VersionOf	
+asset	method	PackOptions	Normalized	
+asset	method	SetReloader	Live	
+asset	method	SetReloader	Logs	
+asset	method	SetReloader	RegisterSet	
+asset	method	SetReloader	ReloadOne	
+asset	method	SetReloader	ReloadOneFile	
+asset	method	SetReloader	Reports	
+asset	method	SetReloader	SetLive	
+asset	method	SetReloader	SetOf	
+asset	method	SetReloader	VerifyLinks	
+asset	method	Watcher	Unwatch	
+asset	type		Asset	
+asset	type		Atlas	
+asset	type		BrokenLink	
+asset	type		BrokenSummary	
+asset	type		EdgeBleed	
+asset	type		HotState	
+asset	type		HotStats	
+asset	type		LargeEstimate	
+asset	type		LargeLink	
+asset	type		LargeLinksFile	
+asset	type		LargeMember	
+asset	type		LargeScale	
+asset	type		LargeSet	
+asset	type		PackOptions	
+asset	type		ReloadLog	
+asset	type		ReloadSetResult	
+asset	type		SetMember	
+asset	type		SetReloader	
+asset	type		TierPolicy	
+asset	var		CurrentAtlasVersion	
+audio	const		DefaultAttenuation	
+audio	const		DefaultBusVolume	
+audio	const		DefaultFade	
+audio	const		DefaultMaxVoices	
+audio	const		DefaultPanStrength	
+audio	const		MaxBeatsPerBar	
+audio	const		MaxBPM	
+audio	const		MaxMixerVoices	
+audio	const		MaxMusicStack	
+audio	const		MaxVoiceRequests	
+audio	const		MinBeatsPerBar	
+audio	const		MinBPM	
+audio	func		MixAll	
+audio	func		NewMusicPlayer	
+audio	func		SelectAtListener	
+audio	method	BeatClock	Bar	
+audio	method	BeatClock	BeatInBar	
+audio	method	BeatClock	Interval	
+audio	method	BeatClock	Seek	
+audio	method	BeatClock	SetBeatsPerBar	
+audio	method	BeatClock	SetBPM	
+audio	method	Bus	Muted	
+audio	method	Bus	SetMute	
+audio	method	Bus	SetVolume	
+audio	method	Bus	Volume	
+audio	method	Listener2D	MixStereo	
+audio	method	Mixer	MaxVoices	
+audio	method	Mixer	SetMaxVoices	
+audio	method	MusicPlayer	CrossfadeTo	
+audio	method	MusicPlayer	IsFading	
+audio	type		BeatClock	
+audio	type		Ducker	
+audio	type		MixResult	
+audio	type		MusicPlayer	
+audio	type		VoiceStats	
+camera	const		BasisScale	
+camera	const		MinZoom	
+camera	const		ViewFrontSide	
+camera	const		ViewIsometric	
+camera	const		ViewObliqueY	
+camera	const		ViewObliqueZ	
+camera	const		ViewTopDown	
+camera	const		YSortZBase	
+camera	const		YSortZRange	
+camera	const		YSortZStep	
+camera	func		YSortEffectiveZ	
+camera	func		YSortKeySlightXZ	
+camera	func		YSortLessWithKey	
+camera	func		YSortTreeWithKey	
+camera	method	Basis25D	ProjectPoints	
+camera	method	Camera	Anchor	
+camera	method	Camera	SetZoom	
+camera	method	Camera	Shake	
+camera	method	Camera	Zoom	
+camera	method	Layer	ScreenQuad	
+camera	method	Projector	DepthToScale	
+camera	method	Projector	Focal	
+camera	method	Projector	Unproject	
+camera	type		Projector	
+camera	type		YSortKeyFn	
+core	const		Hour	
+core	const		Minute	
+core	func		BadData	
+core	func		FirstStep	
+core	func		Identity2D	
+core	func		InvalidArg	
+core	func		NotFound	
+core	func		OutOfMemory	
+core	func		ParseHex	
+core	func		Rotate2D	
+core	func		Scale2D	
+core	func		Translate2D	
+core	func		VersionMismatch	
+core	method	Color	Clamped	
+core	method	Color	Premultiplied	
+core	method	Color	Unpremultiplied	
+core	method	Duration	Clamp	
+core	method	Error	Unwrap	
+core	method	Handle	Refs	
+core	method	Rand	Int63	
+core	method	Rand	RangeInt	
+core	method	Rand	Shuffle	
+core	method	Rect	ContainsRect	
+core	method	Rect	Intersection	
+core	method	Rect	Intersects	
+core	method	Rect	Union	
+core	method	Vec2	Cross	
+core	method	Vec2	Div	
+core	method	Vec2	Dot	
+core	method	Vec2	LengthSq	
+core	method	Vec2	Neg	
+core	method	Vec2	Perp	
+core	method	Version	CheckCompatibility	
+core	method	Version	CompatibleWith	
+core	type		Handle	
+core	type		Mat2D	
+core	var		SchemaVersion	
+core	var		Transparent	
+debug	const		MaxBytes	
+debug	const		MaxFrameDt	
+debug	const		MaxMemoryBytes	
+debug	const		MaxNameLen	
+debug	const		MaxShaders	
+debug	const		MaxSpansPerFrame	
+debug	const		SlowFrameDt	
+debug	func		LoadCrash	
+debug	func		LoadReport	
+debug	func		NewFrame	
+debug	func		NewSpan	
+debug	func		NewStats	
+debug	func		ParseCrash	
+debug	func		ParseReport	
+debug	func		StoreCrash	
+debug	func		StoreReport	
+debug	method	Frame	Dt	
+debug	method	Frame	MemBytes	
+debug	method	Frame	Overdraw	
+debug	method	Span	Took	
+debug	method	Stats	AvgDraws	
+debug	method	Stats	AvgFrame	
+debug	method	Stats	AvgOverdraw	
+debug	method	Stats	Breakdown	
+debug	method	Stats	CurMemory	
+debug	method	Stats	Gaps	
+debug	method	Stats	NoteMemory	
+debug	method	Stats	OOMs	
+debug	method	Stats	P95Frame	
+debug	method	Stats	PeakMemory	
+debug	method	Stats	RecordFrame	
+debug	method	Stats	RecordShader	
+debug	method	Stats	Shaders	
+debug	method	Stats	ShaderTotal	
+debug	method	Stats	SlowFrames	
+debug	method	Stats	TopSpans	
+debug	method	Stats	TotalDraws	
+debug	method	Stats	TotalFrames	
+debug	type		CrashLog	
+debug	type		ShaderStat	
+debug	type		Span	
+debug	type		SpanStat	
+dirty	func		NewDirtyTracker	
+dirty	method	DirtyTracker	Coverage	
+dirty	method	DirtyTracker	DirtyArea	
+dirty	method	DirtyTracker	IsSprite	
+dirty	method	DirtyTracker	MarkFull	
+dirty	type		DirtyStats	
+fx	const		CustomDissolve	
+fx	const		CustomIdentity	
+fx	const		DefaultTonemap	
+fx	const		MaxBloomIntensity	
+fx	const		MaxBloomSigma	
+fx	const		MaxCustomNameLen	
+fx	const		MaxCustomOutlineWidth	
+fx	const		MaxCustomParams	
+fx	const		MaxCustomSeed	
+fx	const		MaxCustomSlots	
+fx	const		MaxExposure	
+fx	const		MaxImagePixels	
+fx	const		MaxLUTSize	
+fx	const		MaxVignetteRadius	
+fx	const		MaxWarpDimension	
+fx	const		MaxWarpPixels	
+fx	const		MinLUTSize	
+fx	const		TonemapACES	
+fx	const		TonemapFilmic	
+fx	const		TonemapNone	
+fx	const		TonemapReinhard	
+fx	func		ApplyTonemap	
+fx	func		NewCustom	
+fx	func		NewIdentityLUT	
+fx	func		SampleClamped	
+fx	method	Custom	Param	
+fx	method	Custom	SetParam	
+fx	method	Grade	ExposureValue	
+fx	method	Warp	SetNoise	
+fx	method	Warp	SetStrength	
+fx	method	Warp	WarpPoint	
+fx	type		Noise	
+fx	type		Registry	
+hdr	const		MaxFloatDimension	
+hdr	ifacemethod	TextureView	Destroy	
+hdr	method	FloatTarget	FloatPixels	
+input	const		DeviceAny	
+input	const		SourceKey	
+input	const		SourcePadAxis	
+input	const		SourcePadButton	
+input	const		SourcePinch	
+input	func		AllSources	
+input	func		NewPadAxisBinding	
+input	func		NewPadButtonBinding	
+input	func		NewPinchBinding	
+input	method	Buffer	SetWindow	
+input	method	Map	ActionCount	
+input	method	Map	ClearBindings	
+input	method	Map	ClearPinch	
+input	method	Map	Pinch	
+input	method	Map	RemoveAction	
+input	method	Map	RumbleActive	
+input	method	Map	Unbind	
+input	type		BufferedPress	
+light	const		DefaultSoftMode	
+light	const		DefaultSoftRadius	
+light	const		LargeLightPixelsWarn	
+light	const		MaxCookieDimension	
+light	const		MaxImagePixels	
+light	const		MaxIntensity	
+light	const		MaxLightRange	
+light	const		MaxLights	
+light	const		MaxOccluders	
+light	const		MaxOccluderVerts	
+light	const		MaxShadowLength	
+light	const		MinLitGain	
+light	const		MinLitPixels	
+light	const		MinNightChannel	
+light	const		RoughWeightTol	
+light	func		CoverPixels	
+light	func		DefaultRoughWeights	
+light	func		FlatRough	
+light	func		HitsLayer	
+light	func		LitCPU	
+light	func		LitGPU	
+light	func		LitNormalCPU	
+light	func		LitNormalGPU	
+light	func		LitRoughCPU	
+light	func		LitRoughGPU	
+light	func		NdotL	
+light	func		NewNormalMapFromColors	
+light	func		NewRoughMap	
+light	func		NewRoughScene	
+light	func		NewRoughWeights	
+light	func		NightOnlyPixel	
+light	func		NormalFactorGPU	
+light	func		RoughFactor	
+light	func		RoughFactorGPU	
+light	func		RoughSpec	
+light	method	FrameBill	WarnLarge	
+light	method	Image	PosAt	
+light	method	Light	HitsLayer	
+light	method	NormalScene	ApplyCPU	
+light	method	NormalScene	LitGPU	
+light	method	RoughScene	ApplyCPU	
+light	method	RoughScene	LitGPU	
+light	method	Scene	ApplyCPU	
+light	method	Scene	LitGPU	
+light	method	Shadow	ApplyCPU	
+light	method	Shadow	LitGPU	
+light	method	SoftShadow	ApplyCPU	
+light	method	SoftShadow	DowngradeOnAllocFail	
+light	method	SoftShadow	SoftLit	
+light	method	SoftShadow	SoftLitGPU	
+light	type		RoughMap	
+light	type		RoughScene	
+light	type		RoughWeights	
+loop	const		MaxPendingPackets	
+loop	method	Loop	AddSystem	
+loop	method	Loop	Dt	
+loop	method	Loop	InjectPacket	
+loop	method	Loop	PendingPackets	
+loop	method	Loop	SetPacketHook	
+loop	method	Loop	SetSubmit	
+loop	method	Loop	SystemCount	
+loop	method	Loop	Systems	
+loop	type		System	
+nav	const		MaxGridCells	
+nav	const		MaxGridH	
+nav	const		MaxGridW	
+nav	const		MaxPerFrame	
+nav	const		StatusGoalBlocked	
+nav	const		StatusInvalid	
+nav	const		StatusNoPath	
+nav	const		StatusStartBlocked	
+nav	func		CellsToWorld	
+nav	func		DrainFrames	
+nav	func		LoadTuning	
+nav	func		NewGrid	
+nav	method	Agent	Remaining	
+nav	method	Agent	SetWaypoints	
+nav	method	Agent	Waypoints	
+nav	method	Grid	InBounds	
+nav	method	Grid	SetSolid	
+nav	method	Grid	SolidCount	
+nav	method	Queue	Results	
+nav	method	Queue	SetPerFrame	
+nav	type		Tuning	
+particle	const		JointBevel	
+particle	const		MaxParticlesCap	
+particle	const		MaxPoolTrailsCap	
+particle	const		MaxRate	
+particle	const		MaxSpeed	
+particle	const		MaxSubPerDeath	
+particle	const		MaxTrailPointsCap	
+particle	const		RoundArcSteps	
+particle	const		ShapeBox	
+particle	const		ShapeCone	
+particle	const		ShapePoint	
+particle	const		ShapeRing	
+particle	func		ParseShape	
+particle	method	Emitter	Died	
+particle	method	GPUPool	Died	
+particle	method	Particle	AgeFrac	
+particle	method	Turbulence	Vec	
+particle	type		JointKind	
+particle	type		TrailSegment	
+particle	type		TrailVert	
+physics	const		DefaultBroadphaseCell	
+physics	const		DefaultFloorMaxAngle	
+physics	const		DefaultMaxCandidates	
+physics	const		DefaultSafeMargin	
+physics	const		DefaultSleepEps	
+physics	const		DefaultSleepFrames	
+physics	const		DefaultSnapLength	
+physics	const		MaxBroadphaseBodies	
+physics	const		MotionModeGrounded	
+physics	const		ShapeBox	
+physics	const		ShapeCircle	
+physics	func		FeetOf	
+physics	func		FloorNormal	
+physics	func		Grounded	
+physics	func		UpDirection	
+physics	func		WithFeet	
+physics	method	Broadphase	AutoWake	
+physics	method	Broadphase	LastQueryUs	
+physics	method	Broadphase	MaxCandidates	
+physics	method	Broadphase	Queries	
+physics	method	Broadphase	SetAutoWake	
+physics	method	Broadphase	SetSleep	
+physics	method	Broadphase	SetStatic	
+physics	method	Broadphase	Trimmed	
+physics	method	Broadphase	Wake	
+physics	method	Slope	SlideDir	
+physics	method	Slope	Walkable	
+physics	type		Contact	
+physics	type		Hit	
+physics	type		MotionMode	
+pool	const		ColorBytes	
+pool	const		FloatBytes	
+pool	const		MaxLen	
+pool	const		MaxRetained	
+pool	const		VecBytes	
+pool	func		NewPool	
+pool	method	Pool	GetColor	
+pool	method	Pool	GetFloat	
+pool	method	Pool	GetVec	
+pool	method	Pool	HitRate	
+pool	method	Pool	PutColor	
+pool	method	Pool	PutFloat	
+pool	method	Pool	PutVec	
+pool	method	Pool	ResetStats	
+pool	method	Pool	RetainedBytes	
+preview	const		MaxNameLen	
+preview	const		MaxPixels	
+preview	func		Breakdown	
+preview	func		NewFrame	
+preview	func		NewNode	
+preview	func		Record	
+preview	type		Row	
+quality	const		MaxQualityBytes	
+quality	func		LoadQuality	
+quality	func		ParseQuality	
+quality	func		StoreQuality	
+quality	var		QualityVersion	
+recording	func		Unregister	
+recording	method	RadialGradientBrush	SetFocus	
+recording	method	Recorder	AppendPath	
+recording	method	Recorder	DrawShapedGlyphs	
+recording	method	Recorder	SetDeviceScale	
+recording	method	Recorder	SetFontFamily	
+recording	method	Recording	ImageBufs	
+recording	method	Recording	NeedsCPUPassScratch	
+recording	method	Rect	Union	
+recording	type		LineCap	
+recording	type		LineJoin	
+render	const		MaxBloomIntensity	
+render	const		MaxBloomSigma	
+render	const		OOMExitThreshold	
+render	const		PresentModeDamageMulti	
+render	const		PresentModeIdle	
+render	const		PresentPlatformAppKit	
+render	const		PresentPlatformWayland	
+render	const		PresentPlatformWin32	
+render	const		PresentPlatformX11	
+render	const		ShapeCircle	
+render	const		TextDecorationNone	
+renderconv	func		ColorFromRender	
+render	func		DecodeImage	
+render	func		DecodeImageConfig	
+render	func		GetTextureSource	
+render	func		ImageEncodingOfBytes	
+render	func		NewPresentTargetWithBackend	
+render	func		ParseHex	
+render	func		ParseSVGPath	
+render	func		PictureCacheFairMax	
+render	func		RegisterPurgeEvictable	
+render	func		UnregisterPurgeEvictable	
+render	func		VramPressureHigh	
+render	ifacemethod	Canvas	AppendPath	
+render	ifacemethod	Canvas	DrawShapedGlyphs	
+render	ifacemethod	PurgeEvictable	PurgeEvictable	
+render	ifacemethod	TextureSource	PaintTexture	
+render	method	Context	AppendPath	
+render	method	Context	BeginOffscreenPass	
+render	method	Context	BeginPassScratch	
+render	method	Context	CommitPassScratchToView	
+render	method	Context	DrawShapedGlyphs	
+render	method	Context	ExportImageBuf	
+render	method	Context	Invalidate	
+render	method	Context	MarkFullRedraw	
+render	method	Context	SetDeviceScale	
+render	method	Context	TrackDamageRect	
+render	method	OOMExit	RunErr	
+render	method	PathBuilder	Polygon	
+render	method	Path	ComputeMetrics	
+render	method	Point	Cross	
+render	method	Point	Div	
+render	method	Point	Dot	
+render	method	PoolDomainStats	HitRate	
+render	method	PresentTarget	InFullRecovery	
+render	method	PresentTarget	LastDamageAreaPx	
+render	method	PresentTarget	LastDamageRectSumPx	
+render	method	PresentTarget	LastPresentOutcome	
+render	method	PresentTarget	OSPresentStats	
+render	method	PresentTarget	PresentClear	
+render	method	PresentTarget	PresentWith	
+render	method	PresentTarget	PresentWithAuto	
+render	method	PresentTarget	SetOnSwapchainResized	
+render	method	PresentTarget	SetVsync	
+render	method	PresentTarget	WaitIdle	
+render	method	RadialGradientBrush	SetFocus	
+render	method	Rect	Union	
+render	method	ShaderEffect	Closed	
+render	method	SoftwareRenderer	SetDeviceScale	
+render	method	SolidBrush	Transparent	
+render	method	Vec2	Cross	
+render	method	Vec2	Div	
+render	method	Vec2	Dot	
+render	method	Vec2	LengthSq	
+render	method	Vec2	Neg	
+render	method	Vec2	Perp	
+render	method	VideoBridge	PaintTexture	
+render	method	VideoBridge	UploadFrame	
+render	method	VideoBridge	UploadPlanesFrame	
+render	method	VideoBridge	UploadPlanesFrameAsync	
+render	type		LineCap	
+render	type		LineJoin	
+render	type		OOMExit	
+render	type		Painter	
+render	type		ParagraphBuilder	
+render	type		PathMetric	
+render	type		PresentNativeSurface	
+render	type		PresentOutcome	
+render	type		PresentPlatform	
+render	type		PresentTarget	
+render	type		PurgeEvictable	
+render	type		TexturePaintOptions	
+render	var		FrameAcquireWaitMs	
+render	var		FrameFlushMs	
+render	var		FramePresentWaitMs	
+render	var		Transparent	
+save	const		MaxBytes	
+save	const		MaxInventory	
+save	const		MaxItemCount	
+save	const		MaxNameLen	
+save	const		MaxSlots	
+save	const		MaxStars	
+save	const		MaxStarsPerLevel	
+save	func		Migrate	
+save	func		NewProgress	
+save	method	Progress	Checkpoint	
+save	method	Progress	PlayMs	
+save	method	Save	AddItem	
+save	method	Save	Inventory	
+save	method	Save	SetProgress	
+save	method	Save	SetStars	
+save	method	Save	Slot	
+save	method	Save	Stars	
+save	method	Save	StarsOf	
+scene	method	LayerCache	Invalidate	
+scene	method	LayerCache	ResetStats	
+scene	method	Path	Reverse	
+scene	method	Rect	Union	
+scene	method	Renderer	CacheStats	
+scene	method	Renderer	TileCount	
+scene	type		CacheStats	
+scene	type		Decoder	
+scene	type		LineCap	
+scene	type		LineJoin	
+sprite	func		SetDepth	
+sprite	func		Skippable	
+sprite	func		ZIndexForLayer	
+sprite	method	AtlasSprite	HasTint	
+sprite	method	AtlasSprite	PivotPoint	
+sprite	method	AtlasSprite	Skippable	
+sprite	method	Flipbook	IsPlaying	
+step	const		MaxFrame	
+step	const		MaxScale	
+step	func		Interp	
+step	func		InterpFloat	
+step	func		InterpVec	
+step	func		NewClock	
+step	func		NewFixed	
+step	method	Clock	SetPaused	
+step	method	Clock	SetTimeScale	
+step	method	Clock	TimeScale	
+step	method	Clock	UIElapsed	
+step	method	Clock	WorldElapsed	
+step	method	Fixed	Accum	
+step	method	Fixed	Dt	
+step	type		Clock	
+step	type		Fixed	
+tex	const		AnisoMax	
+tex	const		AnisoMin	
+tex	const		FormatASTCRGBA4x4	
+tex	const		FormatUnknown	
+tex	const		LargeTranscodePixels	
+tex	const		MaxDimension	
+tex	const		MaxPixels	
+tex	const		MipUnknown	
+tex	const		RealisticAniso	
+tex	const		SchemeBasisLZ	
+tex	const		SchemeNone	
+tex	const		SchemeZlib	
+tex	const		SchemeZstd	
+tex	const		StateFailed	
+tex	const		TargetBC1	
+tex	const		TargetNative	
+tex	const		TargetPink	
+tex	const		UsageColor	
+tex	const		UsageNormal	
+tex	func		CheckUsage	
+tex	func		IsPink	
+tex	func		IsPixelAligned	
+tex	func		LoadBasis	
+tex	func		NearestFilter	
+tex	func		NeedsAsync	
+tex	func		ParseBasis	
+tex	func		PixelArtFilter	
+tex	func		SnapPixel	
+tex	func		SnapPixelInt	
+tex	func		Transcode	
+tex	func		TranscodeAsync	
+tex	func		TranscodeTargetFor	
+tex	method	Filter	AnisoWarning	
+tex	method	Filter	IsAnisoValid	
+tex	method	Filter	LogAnisoWarning	
+tex	method	Filter	Normalized	
+tex	method	Format	BlockBytes	
+tex	method	Format	BlockExtent	
+tex	method	Format	VkFormat	
+tex	method	Image	Ratio	
+tex	method	Stream	Evict	
+tex	method	Stream	Ready	
+tex	method	Stream	Unload	
+text	const		DirectionRTL	
+text	const		WrapNone	
+text	const		WrapWordChar	
+text	func		ApplySpacing	
+text	func		ClusterStarts	
+text	func		GlyphsHaveColor	
+text	func		ReorderRTLShapedGlyphs	
+text	func		RuneAdvance	
+text	func		SegmentReuse	
+text	func		SegmentText	
+text	func		SnapCluster	
+text	func		SnapInStarts	
+text	func		WrapTextWithSpacing	
+text	ifacemethod	Face	Glyphs	
+text	ifacemethod	Face	Hinting	
+text	ifacemethod	Face	Language	
+text	ifacemethod	ParsedFont	GlyphBounds	
+text	method	FilteredFace	Glyphs	
+text	method	FilteredFace	Hinting	
+text	method	FilteredFace	Language	
+text	method	GlyphCache	Delete	
+text	method	GlyphCache	HitRate	
+text	method	GlyphCache	ResetStats	
+text	method	GlyphMaskAtlas	PurgeEvictable	
+text	method	MultiFace	Glyphs	
+text	method	MultiFace	Hinting	
+text	method	MultiFace	Language	
+text	method	Script	IsRTL	
+text	method	Segment	RuneCount	
+text	method	SubpixelCache	Delete	
+text	method	SubpixelCache	HitRate	
+text	method	SubpixelCache	ResetStats	
+text	type		Engine	
+text	type		FontResolver	
+text	type		Glyph	
+text	type		Hinting	
+text	type		WrapMode	
+text	type		WrapResult	
+tex	type		GPUCaps	
+tex	type		MipMode	
+tex	type		Table	
+tex	type		Transcoder	
+tex	type		TranscodeResult	
+tex	type		TranscodeTarget	
+tex	type		Usage	
+tex	var		CapsDesktopBC1	
+tex	var		CapsMobileASTC	
+tex	var		CapsNone	
+tex	var		CapsUniversal	
+tilemap	const		DefaultMergePerFrame	
+tilemap	const		KindDecoration	
+tilemap	const		LargeChunkH	
+tilemap	const		LargeChunkW	
+tilemap	const		MaxChunks	
+tilemap	const		MaxLargeTiles	
+tilemap	const		OrientIsometric	
+tilemap	func		NewLargeSized	
+tilemap	func		NewObject	
+tilemap	func		NewTileset	
+tilemap	method	Chunk	Unload	
+tilemap	method	Iso	DiamondContains	
+tilemap	method	Iso	TileBounds	
+tilemap	method	Iso	TileToWorld	
+tilemap	method	Layer	GIDs	
+tilemap	method	Tilemap	AddObject	
+tilemap	method	Tilemap	AddTileset	
+tilemap	method	Tilemap	CellBounds	
+tilemap	method	Tilemap	LayerIndex	
+tilemap	method	Tileset	Columns	
+tilemap	method	Tileset	TileCount	
+tilemap	type		Iso	
+tilemap	type		Object	
+tilemap	type		Orientation	
+tilemap	type		Tileset	
+world	const		LifeSleeping	
+world	const		MaxCullEntities	
+world	const		MaxPrefabBytes	
+world	const		MaxPrefabComps	
+world	const		MaxPrefabNameLen	
+world	const		MaxSceneBytes	
+world	const		MaxSceneComps	
+world	const		MaxSceneEntities	
+world	const		MaxSceneNameLen	
+world	func		LocalMatrix	
+world	func		NewPrefab	
+world	method	Cull	AutoSleep	
+world	method	Cull	InView	
+world	method	Cull	LastRefreshUs	
+world	method	Cull	MaxActive	
+world	method	Cull	Refreshes	
+world	method	Cull	SetMaxActive	
+world	method	Cull	Trimmed	
+world	method	Cull	Untrack	
+world	method	Prefab	Local	
+world	method	Prefab	SavePrefab	
+world	method	Prefab	SetLocal	
+world	method	SceneFile	SaveScene	
+world	method	Scene	IsSleeping	
+world	method	Scene	Wake	
+world	method	World	Despawn	
+world	method	World	Local	
+world	method	World	RemoveComp	
+world	type		ActiveSnap	
+world	type		LifeState	
+world	type		Prefab	
+world	type		SceneNode	
+world	var		PrefabVersion	
+world	var		SceneFileVersion	

@@ -1,0 +1,1842 @@
+anim	type		Kind	engine/anim/easing.go	21
+anim	const		Linear	engine/anim/easing.go	24
+anim	const		InSine	engine/anim/easing.go	25
+anim	const		OutSine	engine/anim/easing.go	26
+anim	const		InOutSine	engine/anim/easing.go	27
+anim	const		InQuad	engine/anim/easing.go	28
+anim	const		OutQuad	engine/anim/easing.go	29
+anim	const		InOutQuad	engine/anim/easing.go	30
+anim	const		InCubic	engine/anim/easing.go	31
+anim	const		OutCubic	engine/anim/easing.go	32
+anim	const		InOutCubic	engine/anim/easing.go	33
+anim	const		InQuart	engine/anim/easing.go	34
+anim	const		OutQuart	engine/anim/easing.go	35
+anim	const		InOutQuart	engine/anim/easing.go	36
+anim	const		InQuint	engine/anim/easing.go	37
+anim	const		OutQuint	engine/anim/easing.go	38
+anim	const		InOutQuint	engine/anim/easing.go	39
+anim	const		InExpo	engine/anim/easing.go	40
+anim	const		OutExpo	engine/anim/easing.go	41
+anim	const		InOutExpo	engine/anim/easing.go	42
+anim	const		InCirc	engine/anim/easing.go	43
+anim	const		OutCirc	engine/anim/easing.go	44
+anim	const		InOutCirc	engine/anim/easing.go	45
+anim	const		InBack	engine/anim/easing.go	46
+anim	const		OutBack	engine/anim/easing.go	47
+anim	const		InOutBack	engine/anim/easing.go	48
+anim	const		InBounce	engine/anim/easing.go	49
+anim	const		OutBounce	engine/anim/easing.go	50
+anim	const		InOutBounce	engine/anim/easing.go	51
+anim	const		InElastic	engine/anim/easing.go	52
+anim	const		OutElastic	engine/anim/easing.go	53
+anim	const		InOutElastic	engine/anim/easing.go	54
+anim	func		Valid	engine/anim/easing.go	74
+anim	func		Name	engine/anim/easing.go	77
+anim	func		Parse	engine/anim/easing.go	86
+anim	func		AllKinds	engine/anim/easing.go	96
+anim	func		Ease	engine/anim/easing.go	140
+anim	func		Lerp	engine/anim/easing.go	260
+anim	type		LodLevel	engine/anim/lod.go	22
+anim	const		LodOff	engine/anim/lod.go	26
+anim	const		LodFar	engine/anim/lod.go	28
+anim	const		LodNear	engine/anim/lod.go	30
+anim	method	LodLevel	String	engine/anim/lod.go	34
+anim	const		DefaultLodNearDist	engine/anim/lod.go	48
+anim	type		LodPolicy	engine/anim/lod.go	56
+anim	func		NewLodPolicy	engine/anim/lod.go	62
+anim	method	LodPolicy	NearDist	engine/anim/lod.go	71
+anim	method	LodPolicy	Classify	engine/anim/lod.go	77
+anim	method	LodPolicy	Batch	engine/anim/lod.go	105
+anim	func		ShouldUpdate	engine/anim/lod.go	117
+anim	type		LodFrame	engine/anim/lod.go	133
+anim	type		LodScheduler	engine/anim/lod.go	143
+anim	func		NewLodScheduler	engine/anim/lod.go	150
+anim	method	LodScheduler	Policy	engine/anim/lod.go	158
+anim	method	LodScheduler	Tick	engine/anim/lod.go	167
+anim	method	LodScheduler	Reset	engine/anim/lod.go	175
+anim	method	LodScheduler	NextFrame	engine/anim/lod.go	186
+anim	var		CurrentSkeletonVersion	engine/anim/skeleton.go	30
+anim	type		BlendMode	engine/anim/skeleton.go	33
+anim	const		BlendReplace	engine/anim/skeleton.go	37
+anim	const		BlendAdditive	engine/anim/skeleton.go	39
+anim	method	BlendMode	String	engine/anim/skeleton.go	43
+anim	type		Bone	engine/anim/skeleton.go	57
+anim	type		Slot	engine/anim/skeleton.go	73
+anim	type		VertexWeight	engine/anim/skeleton.go	84
+anim	type		Attachment	engine/anim/skeleton.go	96
+anim	type		Skin	engine/anim/skeleton.go	110
+anim	type		IKConstraint	engine/anim/skeleton.go	120
+anim	type		TransformConstraint	engine/anim/skeleton.go	134
+anim	type		Skeleton	engine/anim/skeleton.go	151
+anim	type		BoneLocal	engine/anim/skeleton.go	167
+anim	type		Pose	engine/anim/skeleton.go	179
+anim	func		ParseSkeleton	engine/anim/skeleton.go	234
+anim	func		LoadSkeletonFile	engine/anim/skeleton.go	311
+anim	method	Skeleton	Version	engine/anim/skeleton.go	909
+anim	method	Skeleton	BoneCount	engine/anim/skeleton.go	917
+anim	method	Skeleton	SlotCount	engine/anim/skeleton.go	925
+anim	method	Skeleton	BoneIndex	engine/anim/skeleton.go	934
+anim	method	Skeleton	Bone	engine/anim/skeleton.go	951
+anim	method	Skeleton	SlotIndex	engine/anim/skeleton.go	964
+anim	method	Skeleton	Slot	engine/anim/skeleton.go	980
+anim	method	Skeleton	SkinNames	engine/anim/skeleton.go	993
+anim	method	Skeleton	CurrentSkin	engine/anim/skeleton.go	1006
+anim	method	Skeleton	SetSkin	engine/anim/skeleton.go	1018
+anim	method	Skeleton	Attachment	engine/anim/skeleton.go	1037
+anim	method	Skeleton	DrawOrder	engine/anim/skeleton.go	1081
+anim	method	Skeleton	SetDrawOrder	engine/anim/skeleton.go	1095
+anim	method	Skeleton	IKNames	engine/anim/skeleton.go	1121
+anim	method	Skeleton	TransformNames	engine/anim/skeleton.go	1133
+anim	method	Skeleton	IK	engine/anim/skeleton.go	1145
+anim	func		NewPose	engine/anim/skeleton.go	1166
+anim	method	Pose	Skeleton	engine/anim/skeleton.go	1186
+anim	method	Pose	Reset	engine/anim/skeleton.go	1215
+anim	method	Pose	SetBoneLocal	engine/anim/skeleton.go	1228
+anim	method	Pose	BoneLocal	engine/anim/skeleton.go	1249
+anim	method	Pose	WorldTransform	engine/anim/skeleton.go	1266
+anim	method	Pose	WorldPos	engine/anim/skeleton.go	1283
+anim	method	Pose	ApplyIK	engine/anim/skeleton.go	1304
+anim	method	Pose	ApplyTransform	engine/anim/skeleton.go	1409
+anim	method	Pose	ApplyPhysics	engine/anim/skeleton.go	1480
+anim	method	Pose	BlendFrom	engine/anim/skeleton.go	1495
+anim	method	Pose	SkinVertices	engine/anim/skeleton.go	1553
+anim	type		State	engine/anim/statemachine.go	24
+anim	type		Machine	engine/anim/statemachine.go	35
+anim	func		NewMachine	engine/anim/statemachine.go	48
+anim	method	Machine	AddState	engine/anim/statemachine.go	67
+anim	method	Machine	Has	engine/anim/statemachine.go	92
+anim	method	Machine	StateCount	engine/anim/statemachine.go	101
+anim	method	Machine	States	engine/anim/statemachine.go	109
+anim	method	Machine	Start	engine/anim/statemachine.go	124
+anim	method	Machine	Current	engine/anim/statemachine.go	146
+anim	method	Machine	From	engine/anim/statemachine.go	155
+anim	method	Machine	To	engine/anim/statemachine.go	163
+anim	method	Machine	Blending	engine/anim/statemachine.go	174
+anim	method	Machine	Progress	engine/anim/statemachine.go	183
+anim	method	Machine	Weights	engine/anim/statemachine.go	206
+anim	method	Machine	BlendDur	engine/anim/statemachine.go	215
+anim	method	Machine	Elapsed	engine/anim/statemachine.go	223
+anim	method	Machine	Request	engine/anim/statemachine.go	237
+anim	method	Machine	Update	engine/anim/statemachine.go	309
+anim	type		LoopMode	engine/anim/timeline.go	20
+anim	const		LoopOnce	engine/anim/timeline.go	24
+anim	const		LoopLoop	engine/anim/timeline.go	26
+anim	const		LoopPingPong	engine/anim/timeline.go	28
+anim	method	LoopMode	String	engine/anim/timeline.go	32
+anim	type		Key	engine/anim/timeline.go	47
+anim	type		Event	engine/anim/timeline.go	55
+anim	type		Timeline	engine/anim/timeline.go	70
+anim	func		NewTimeline	engine/anim/timeline.go	89
+anim	method	Timeline	Duration	engine/anim/timeline.go	103
+anim	method	Timeline	Loop	engine/anim/timeline.go	111
+anim	method	Timeline	SetLoop	engine/anim/timeline.go	120
+anim	method	Timeline	AddKey	engine/anim/timeline.go	134
+anim	method	Timeline	AddEvent	engine/anim/timeline.go	162
+anim	method	Timeline	TrackNames	engine/anim/timeline.go	181
+anim	method	Timeline	KeyCount	engine/anim/timeline.go	194
+anim	method	Timeline	EventCount	engine/anim/timeline.go	202
+anim	method	Timeline	OnEvent	engine/anim/timeline.go	212
+anim	method	Timeline	Pos	engine/anim/timeline.go	220
+anim	method	Timeline	IsPlaying	engine/anim/timeline.go	229
+anim	method	Timeline	Pause	engine/anim/timeline.go	239
+anim	method	Timeline	Resume	engine/anim/timeline.go	247
+anim	method	Timeline	Seek	engine/anim/timeline.go	257
+anim	method	Timeline	Sample	engine/anim/timeline.go	293
+anim	method	Timeline	Update	engine/anim/timeline.go	334
+asset	const		MaxAssets	engine/asset/asset.go	28
+asset	const		MaxBytes	engine/asset/asset.go	30
+asset	const		MaxAssetBytes	engine/asset/asset.go	32
+asset	const		MaxDeps	engine/asset/asset.go	34
+asset	const		MaxIDLen	engine/asset/asset.go	36
+asset	var		CurrentVersion	engine/asset/asset.go	41
+asset	type		Kind	engine/asset/asset.go	44
+asset	const		KindUnknown	engine/asset/asset.go	48
+asset	const		KindRaw	engine/asset/asset.go	50
+asset	const		KindTextureKTX2	engine/asset/asset.go	52
+asset	method	Kind	String	engine/asset/asset.go	58
+asset	method	Kind	Valid	engine/asset/asset.go	66
+asset	func		ParseKind	engine/asset/asset.go	70
+asset	type		State	engine/asset/asset.go	85
+asset	const		StateEmpty	engine/asset/asset.go	89
+asset	const		StateLoading	engine/asset/asset.go	91
+asset	const		StateReady	engine/asset/asset.go	93
+asset	const		StateMissing	engine/asset/asset.go	95
+asset	const		StateFailed	engine/asset/asset.go	97
+asset	method	State	String	engine/asset/asset.go	103
+asset	type		Stats	engine/asset/asset.go	112
+asset	type		Asset	engine/asset/asset.go	122
+asset	method	Asset	ID	engine/asset/asset.go	135
+asset	method	Asset	Kind	engine/asset/asset.go	143
+asset	method	Asset	Version	engine/asset/asset.go	151
+asset	method	Asset	Hash	engine/asset/asset.go	159
+asset	method	Asset	Size	engine/asset/asset.go	167
+asset	method	Asset	Deps	engine/asset/asset.go	175
+asset	method	Asset	State	engine/asset/asset.go	183
+asset	method	Asset	Bytes	engine/asset/asset.go	191
+asset	method	Asset	UploadSize	engine/asset/asset.go	199
+asset	method	Asset	PixelSize	engine/asset/asset.go	207
+asset	method	Asset	Equal	engine/asset/asset.go	215
+asset	type		Manager	engine/asset/asset.go	255
+asset	func		NewManager	engine/asset/asset.go	267
+asset	func		HashBytes	engine/asset/asset.go	276
+asset	method	Manager	Load	engine/asset/asset.go	416
+asset	method	Manager	LoadFile	engine/asset/asset.go	475
+asset	method	Manager	Request	engine/asset/asset.go	502
+asset	method	Manager	RequestFile	engine/asset/asset.go	588
+asset	method	Manager	Poll	engine/asset/asset.go	693
+asset	method	Manager	Wait	engine/asset/asset.go	723
+asset	method	Manager	Ref	engine/asset/asset.go	768
+asset	method	Manager	Unload	engine/asset/asset.go	805
+asset	method	Manager	Evict	engine/asset/asset.go	830
+asset	method	Manager	Placeholder	engine/asset/asset.go	857
+asset	method	Manager	Dependencies	engine/asset/asset.go	870
+asset	method	Manager	Dependents	engine/asset/asset.go	884
+asset	method	Manager	VersionOf	engine/asset/asset.go	907
+asset	method	Manager	HashOf	engine/asset/asset.go	921
+asset	method	Manager	StateOf	engine/asset/asset.go	935
+asset	method	Manager	LiveCount	engine/asset/asset.go	948
+asset	method	Manager	Loaded	engine/asset/asset.go	956
+asset	method	Manager	Ready	engine/asset/asset.go	964
+asset	method	Manager	Stats	engine/asset/asset.go	967
+asset	method	Manager	Count	engine/asset/asset.go	989
+asset	method	Manager	TotalBytes	engine/asset/asset.go	997
+asset	const		MaxSprites	engine/asset/atlaspack.go	27
+asset	const		MaxAtlasSize	engine/asset/atlaspack.go	29
+asset	const		MaxAtlasNameLen	engine/asset/atlaspack.go	31
+asset	const		AtlasPad	engine/asset/atlaspack.go	33
+asset	const		MaxAtlasJSONBytes	engine/asset/atlaspack.go	35
+asset	var		CurrentAtlasVersion	engine/asset/atlaspack.go	39
+asset	type		Input	engine/asset/atlaspack.go	43
+asset	type		Entry	engine/asset/atlaspack.go	54
+asset	method	Entry	Name	engine/asset/atlaspack.go	64
+asset	method	Entry	X	engine/asset/atlaspack.go	67
+asset	method	Entry	Y	engine/asset/atlaspack.go	70
+asset	method	Entry	W	engine/asset/atlaspack.go	73
+asset	method	Entry	H	engine/asset/atlaspack.go	76
+asset	method	Entry	Pivot	engine/asset/atlaspack.go	79
+asset	method	Entry	PivotX	engine/asset/atlaspack.go	82
+asset	method	Entry	PivotY	engine/asset/atlaspack.go	85
+asset	method	Entry	Nine	engine/asset/atlaspack.go	88
+asset	type		Atlas	engine/asset/atlaspack.go	92
+asset	method	Atlas	Version	engine/asset/atlaspack.go	101
+asset	method	Atlas	Width	engine/asset/atlaspack.go	109
+asset	method	Atlas	Height	engine/asset/atlaspack.go	117
+asset	method	Atlas	Count	engine/asset/atlaspack.go	125
+asset	method	Atlas	Entry	engine/asset/atlaspack.go	133
+asset	method	Atlas	Find	engine/asset/atlaspack.go	141
+asset	method	Atlas	Pixels	engine/asset/atlaspack.go	154
+asset	method	Atlas	At	engine/asset/atlaspack.go	164
+asset	method	Atlas	Equal	engine/asset/atlaspack.go	178
+asset	func		Pack	engine/asset/atlaspack.go	234
+asset	method	Atlas	Encode	engine/asset/atlaspack.go	358
+asset	method	Atlas	Save	engine/asset/atlaspack.go	386
+asset	func		Parse	engine/asset/atlaspack.go	445
+asset	func		Load	engine/asset/atlaspack.go	548
+asset	const		MinAtlasGutter	engine/asset/atlaspack.go	564
+asset	const		MaxAtlasGutter	engine/asset/atlaspack.go	566
+asset	const		MinAtlasExtrude	engine/asset/atlaspack.go	568
+asset	const		MaxAtlasExtrude	engine/asset/atlaspack.go	570
+asset	const		DefaultAtlasGutter	engine/asset/atlaspack.go	572
+asset	const		DefaultAtlasExtrude	engine/asset/atlaspack.go	574
+asset	type		PackOptions	engine/asset/atlaspack.go	580
+asset	func		DefaultPackOptions	engine/asset/atlaspack.go	586
+asset	method	PackOptions	Normalized	engine/asset/atlaspack.go	591
+asset	method	PackOptions	Validate	engine/asset/atlaspack.go	602
+asset	func		PackWithOptions	engine/asset/atlaspack.go	620
+asset	func		SpriteToAtlasUV	engine/asset/atlaspack.go	767
+asset	func		AtlasToSpriteUV	engine/asset/atlaspack.go	783
+asset	func		SeamTransparentMaxDiff	engine/asset/atlaspack.go	800
+asset	func		IsSeamTransparent	engine/asset/atlaspack.go	834
+asset	const		ToolAtlasSizeSmall	engine/asset/atlastool.go	26
+asset	const		ToolAtlasSizeLarge	engine/asset/atlastool.go	28
+asset	func		ValidateToolAtlasSize	engine/asset/atlastool.go	37
+asset	func		PackToolAtlas	engine/asset/atlastool.go	49
+asset	func		ToolAtlasToSpriteUV	engine/asset/atlastool.go	60
+asset	type		EdgeBleed	engine/asset/atlastool.go	83
+asset	func		CheckStrokeBlackLine	engine/asset/atlastool.go	104
+asset	const		MaxLargeSets	engine/asset/budget.go	30
+asset	const		MaxLargeSetMembers	engine/asset/budget.go	32
+asset	const		MaxLargeNameLen	engine/asset/budget.go	34
+asset	const		MaxLargeEstimates	engine/asset/budget.go	36
+asset	const		MaxLargeEstimateCount	engine/asset/budget.go	38
+asset	const		MaxLargeTotalImages	engine/asset/budget.go	40
+asset	const		MaxLargeDimension	engine/asset/budget.go	42
+asset	const		MaxLargePixels	engine/asset/budget.go	44
+asset	const		MaxLargeBroken	engine/asset/budget.go	46
+asset	const		LargeScaleImages	engine/asset/budget.go	54
+asset	const		LargeScaleSets	engine/asset/budget.go	55
+asset	type		Tier	engine/asset/budget.go	60
+asset	const		TierPerformance	engine/asset/budget.go	64
+asset	const		TierBalanced	engine/asset/budget.go	66
+asset	const		TierQuality	engine/asset/budget.go	68
+asset	method	Tier	String	engine/asset/budget.go	74
+asset	func		ParseTier	engine/asset/budget.go	82
+asset	type		TierPolicy	engine/asset/budget.go	99
+asset	func		PolicyFor	engine/asset/budget.go	108
+asset	func		EstimateUpload	engine/asset/budget.go	123
+asset	func		EstimatePixels	engine/asset/budget.go	174
+asset	type		LargeScale	engine/asset/budget.go	196
+asset	type		LargeMember	engine/asset/budget.go	204
+asset	type		LargeSet	engine/asset/budget.go	219
+asset	type		LargeEstimate	engine/asset/budget.go	226
+asset	type		LargeManifest	engine/asset/budget.go	236
+asset	type		LargeLink	engine/asset/budget.go	245
+asset	type		LargeLinksFile	engine/asset/budget.go	253
+asset	func		LoadLargeManifest	engine/asset/budget.go	357
+asset	func		LoadLargeLinks	engine/asset/budget.go	437
+asset	type		BrokenSummary	engine/asset/budget.go	482
+asset	func		SummarizeBroken	engine/asset/budget.go	491
+asset	type		Budget	engine/asset/budget.go	518
+asset	func		NewBudget	engine/asset/budget.go	529
+asset	method	Budget	Manifest	engine/asset/budget.go	541
+asset	method	Budget	Manager	engine/asset/budget.go	549
+asset	method	Budget	Reloader	engine/asset/budget.go	557
+asset	method	Budget	Tier	engine/asset/budget.go	565
+asset	method	Budget	Policy	engine/asset/budget.go	575
+asset	method	Budget	SetTier	engine/asset/budget.go	585
+asset	method	Budget	RegisterAll	engine/asset/budget.go	600
+asset	method	Budget	EstimateSet	engine/asset/budget.go	631
+asset	method	Budget	EstimateTotal	engine/asset/budget.go	654
+asset	method	Budget	CheckBudget	engine/asset/budget.go	671
+asset	method	Budget	SuggestEvictions	engine/asset/budget.go	686
+asset	type		ReloadSetResult	engine/asset/budget.go	717
+asset	method	Budget	ReloadSet	engine/asset/budget.go	727
+asset	method	Budget	VerifyAll	engine/asset/budget.go	805
+asset	const		MaxWatches	engine/asset/hotreload.go	26
+asset	const		MaxWatchIDLen	engine/asset/hotreload.go	28
+asset	const		MaxWatchPathLen	engine/asset/hotreload.go	30
+asset	const		PollInterval	engine/asset/hotreload.go	33
+asset	type		HotState	engine/asset/hotreload.go	37
+asset	const		HotEmpty	engine/asset/hotreload.go	41
+asset	const		HotWatching	engine/asset/hotreload.go	43
+asset	const		HotDirty	engine/asset/hotreload.go	45
+asset	const		HotFailed	engine/asset/hotreload.go	48
+asset	method	HotState	String	engine/asset/hotreload.go	54
+asset	type		HotStats	engine/asset/hotreload.go	64
+asset	type		Watcher	engine/asset/hotreload.go	95
+asset	func		NewWatcher	engine/asset/hotreload.go	106
+asset	method	Watcher	Manager	engine/asset/hotreload.go	111
+asset	method	Watcher	Watch	engine/asset/hotreload.go	156
+asset	method	Watcher	Unwatch	engine/asset/hotreload.go	206
+asset	method	Watcher	Watched	engine/asset/hotreload.go	224
+asset	method	Watcher	WatchedIDs	engine/asset/hotreload.go	235
+asset	method	Watcher	StateOf	engine/asset/hotreload.go	250
+asset	method	Watcher	CauseOf	engine/asset/hotreload.go	264
+asset	method	Watcher	PathOf	engine/asset/hotreload.go	277
+asset	method	Watcher	Poll	engine/asset/hotreload.go	299
+asset	method	Watcher	Reload	engine/asset/hotreload.go	343
+asset	method	Watcher	ReloadDirty	engine/asset/hotreload.go	409
+asset	method	Watcher	Stats	engine/asset/hotreload.go	430
+asset	method	Watcher	Count	engine/asset/hotreload.go	440
+asset	const		MaxSets	engine/asset/reload.go	25
+asset	const		MaxSetNameLen	engine/asset/reload.go	27
+asset	const		MaxSetMembers	engine/asset/reload.go	29
+asset	const		MaxReloadLogs	engine/asset/reload.go	31
+asset	const		MaxBrokenReports	engine/asset/reload.go	33
+asset	type		SetMember	engine/asset/reload.go	37
+asset	type		ReloadLog	engine/asset/reload.go	45
+asset	type		BrokenLink	engine/asset/reload.go	56
+asset	method	BrokenLink	Error	engine/asset/reload.go	65
+asset	method	BrokenLink	Unwrap	engine/asset/reload.go	79
+asset	type		SetReloader	engine/asset/reload.go	83
+asset	func		NewSetReloader	engine/asset/reload.go	95
+asset	method	SetReloader	Manager	engine/asset/reload.go	104
+asset	method	SetReloader	SetLive	engine/asset/reload.go	112
+asset	method	SetReloader	Live	engine/asset/reload.go	122
+asset	method	SetReloader	RegisterSet	engine/asset/reload.go	174
+asset	method	SetReloader	Sets	engine/asset/reload.go	233
+asset	method	SetReloader	Members	engine/asset/reload.go	248
+asset	method	SetReloader	SetOf	engine/asset/reload.go	267
+asset	method	SetReloader	Logs	engine/asset/reload.go	278
+asset	method	SetReloader	Reports	engine/asset/reload.go	288
+asset	method	SetReloader	ReloadOne	engine/asset/reload.go	314
+asset	method	SetReloader	ReloadOneFile	engine/asset/reload.go	416
+asset	method	SetReloader	VerifyLinks	engine/asset/reload.go	519
+audio	type		Listener2D	engine/audio/listener.go	30
+audio	func		NewListener2D	engine/audio/listener.go	44
+audio	method	Listener2D	Pos	engine/audio/listener.go	56
+audio	method	Listener2D	SetPos	engine/audio/listener.go	61
+audio	method	Listener2D	FollowCamera	engine/audio/listener.go	80
+audio	method	Listener2D	MakeCurrent	engine/audio/listener.go	93
+audio	method	Listener2D	ClearCurrent	engine/audio/listener.go	110
+audio	method	Listener2D	IsCurrent	engine/audio/listener.go	123
+audio	func		CurrentListener	engine/audio/listener.go	131
+audio	method	Listener2D	MixSource	engine/audio/listener.go	141
+audio	func		MixCurrent	engine/audio/listener.go	147
+audio	method	Listener2D	MixStereo	engine/audio/listener.go	160
+audio	const		DefaultBusVolume	engine/audio/music.go	22
+audio	const		DefaultMaxVoices	engine/audio/music.go	24
+audio	const		MaxMixerVoices	engine/audio/music.go	26
+audio	const		DefaultDuckDepth	engine/audio/music.go	28
+audio	const		DefaultFade	engine/audio/music.go	30
+audio	const		MaxMusicStack	engine/audio/music.go	32
+audio	type		MusicPlayer	engine/audio/music.go	61
+audio	func		NewMusicPlayer	engine/audio/music.go	70
+audio	method	MusicPlayer	Depth	engine/audio/music.go	82
+audio	method	MusicPlayer	Top	engine/audio/music.go	90
+audio	method	MusicPlayer	From	engine/audio/music.go	98
+audio	method	MusicPlayer	IsFading	engine/audio/music.go	106
+audio	method	MusicPlayer	Progress	engine/audio/music.go	114
+audio	method	MusicPlayer	Blend	engine/audio/music.go	126
+audio	method	MusicPlayer	Play	engine/audio/music.go	142
+audio	method	MusicPlayer	Push	engine/audio/music.go	156
+audio	method	MusicPlayer	Pop	engine/audio/music.go	183
+audio	method	MusicPlayer	CrossfadeTo	engine/audio/music.go	203
+audio	method	MusicPlayer	Stop	engine/audio/music.go	230
+audio	method	MusicPlayer	Update	engine/audio/music.go	253
+audio	type		Bus	engine/audio/music.go	264
+audio	func		NewBus	engine/audio/music.go	272
+audio	method	Bus	Name	engine/audio/music.go	283
+audio	method	Bus	Volume	engine/audio/music.go	291
+audio	method	Bus	SetVolume	engine/audio/music.go	299
+audio	method	Bus	SetMute	engine/audio/music.go	311
+audio	method	Bus	Muted	engine/audio/music.go	320
+audio	method	Bus	Gain	engine/audio/music.go	328
+audio	type		MixResult	engine/audio/music.go	336
+audio	type		Mixer	engine/audio/music.go	344
+audio	func		NewMixer	engine/audio/music.go	349
+audio	method	Mixer	MaxVoices	engine/audio/music.go	357
+audio	method	Mixer	SetMaxVoices	engine/audio/music.go	365
+audio	method	Mixer	Mix	engine/audio/music.go	379
+audio	type		Ducker	engine/audio/music.go	415
+audio	func		NewDucker	engine/audio/music.go	425
+audio	method	Ducker	Depth	engine/audio/music.go	436
+audio	method	Ducker	Active	engine/audio/music.go	444
+audio	method	Ducker	Trigger	engine/audio/music.go	453
+audio	method	Ducker	Update	engine/audio/music.go	476
+audio	method	Ducker	Gain	engine/audio/music.go	488
+audio	func		CombineGains	engine/audio/music.go	507
+audio	const		DefaultAttenuation	engine/audio/positional.go	20
+audio	const		DefaultPanStrength	engine/audio/positional.go	23
+audio	type		PosSound	engine/audio/positional.go	69
+audio	func		NewPosSound	engine/audio/positional.go	81
+audio	type		Mix	engine/audio/positional.go	106
+audio	method	PosSound	Mix	engine/audio/positional.go	126
+audio	func		MixAll	engine/audio/positional.go	187
+audio	func		Stereo	engine/audio/positional.go	204
+audio	const		MaxVoiceRequests	engine/audio/voices.go	26
+audio	const		MaxVoiceChannels	engine/audio/voices.go	28
+audio	const		AudibleVoices	engine/audio/voices.go	30
+audio	const		MinBPM	engine/audio/voices.go	36
+audio	const		MaxBPM	engine/audio/voices.go	38
+audio	const		MinBeatsPerBar	engine/audio/voices.go	40
+audio	const		MaxBeatsPerBar	engine/audio/voices.go	42
+audio	type		VoiceRequest	engine/audio/voices.go	49
+audio	func		NewVoiceRequest	engine/audio/voices.go	57
+audio	type		VoicePick	engine/audio/voices.go	75
+audio	type		VoiceStats	engine/audio/voices.go	84
+audio	func		SelectVoices	engine/audio/voices.go	102
+audio	func		SelectAtListener	engine/audio/voices.go	193
+audio	func		FollowAndSelect	engine/audio/voices.go	201
+audio	func		ApplyExplosionDuck	engine/audio/voices.go	223
+audio	type		BeatClock	engine/audio/voices.go	244
+audio	func		NewBeatClock	engine/audio/voices.go	254
+audio	method	BeatClock	BPM	engine/audio/voices.go	266
+audio	method	BeatClock	BeatsPerBar	engine/audio/voices.go	274
+audio	method	BeatClock	Pos	engine/audio/voices.go	282
+audio	method	BeatClock	Beat	engine/audio/voices.go	290
+audio	method	BeatClock	Bar	engine/audio/voices.go	298
+audio	method	BeatClock	BeatInBar	engine/audio/voices.go	306
+audio	method	BeatClock	Interval	engine/audio/voices.go	314
+audio	method	BeatClock	Phase	engine/audio/voices.go	322
+audio	method	BeatClock	SetBPM	engine/audio/voices.go	349
+audio	method	BeatClock	SetBeatsPerBar	engine/audio/voices.go	363
+audio	method	BeatClock	Reset	engine/audio/voices.go	376
+audio	method	BeatClock	Seek	engine/audio/voices.go	386
+audio	method	BeatClock	Update	engine/audio/voices.go	413
+audio	method	BeatClock	TimeOfBeat	engine/audio/voices.go	432
+camera	const		BasisScale	engine/camera/basis25d.go	30
+camera	type		ViewMode	engine/camera/basis25d.go	34
+camera	const		View45	engine/camera/basis25d.go	37
+camera	const		ViewIsometric	engine/camera/basis25d.go	38
+camera	const		ViewTopDown	engine/camera/basis25d.go	39
+camera	const		ViewFrontSide	engine/camera/basis25d.go	40
+camera	const		ViewObliqueY	engine/camera/basis25d.go	41
+camera	const		ViewObliqueZ	engine/camera/basis25d.go	42
+camera	type		Basis25D	engine/camera/basis25d.go	48
+camera	func		NewBasis25D	engine/camera/basis25d.go	56
+camera	method	Basis25D	Mode	engine/camera/basis25d.go	107
+camera	method	Basis25D	Project	engine/camera/basis25d.go	111
+camera	method	Basis25D	ProjectPoints	engine/camera/basis25d.go	128
+camera	const		MinZoom	engine/camera/camera.go	21
+camera	type		Camera	engine/camera/camera.go	26
+camera	func		NewCamera	engine/camera/camera.go	58
+camera	method	Camera	Pos	engine/camera/camera.go	69
+camera	method	Camera	Zoom	engine/camera/camera.go	72
+camera	method	Camera	Rotation	engine/camera/camera.go	75
+camera	method	Camera	Shake	engine/camera/camera.go	78
+camera	method	Camera	Limit	engine/camera/camera.go	81
+camera	method	Camera	Smoothing	engine/camera/camera.go	84
+camera	method	Camera	Anchor	engine/camera/camera.go	87
+camera	method	Camera	Viewport	engine/camera/camera.go	90
+camera	method	Camera	SetViewport	engine/camera/camera.go	93
+camera	method	Camera	SetPos	engine/camera/camera.go	102
+camera	method	Camera	SetZoom	engine/camera/camera.go	111
+camera	method	Camera	SetRotation	engine/camera/camera.go	120
+camera	method	Camera	SetShake	engine/camera/camera.go	130
+camera	method	Camera	DecayShake	engine/camera/camera.go	140
+camera	method	Camera	SetLimit	engine/camera/camera.go	150
+camera	method	Camera	SetSmoothing	engine/camera/camera.go	161
+camera	method	Camera	SetAnchor	engine/camera/camera.go	172
+camera	method	Camera	Follow	engine/camera/camera.go	183
+camera	method	Camera	FollowDeadzone	engine/camera/camera.go	201
+camera	method	Camera	DualPicture	engine/camera/camera.go	224
+camera	method	Camera	DualTarget	engine/camera/camera.go	229
+camera	method	Camera	EffectivePos	engine/camera/camera.go	250
+camera	method	Camera	View	engine/camera/camera.go	260
+camera	method	Camera	WorldToScreen	engine/camera/camera.go	271
+camera	method	Camera	ScreenToWorld	engine/camera/camera.go	283
+camera	method	Camera	VisibleWorldRect	engine/camera/camera.go	301
+camera	type		Layer	engine/camera/parallax.go	26
+camera	func		NewLayer	engine/camera/parallax.go	43
+camera	method	Layer	Factor	engine/camera/parallax.go	60
+camera	method	Layer	Offset	engine/camera/parallax.go	63
+camera	method	Layer	Mirror	engine/camera/parallax.go	65
+camera	method	Layer	Shift	engine/camera/parallax.go	93
+camera	method	Layer	Screen	engine/camera/parallax.go	124
+camera	method	Layer	ScreenQuad	engine/camera/parallax.go	135
+camera	type		Projector	engine/camera/project.go	24
+camera	func		NewProjector	engine/camera/project.go	37
+camera	method	Projector	Focal	engine/camera/project.go	48
+camera	method	Projector	Center	engine/camera/project.go	51
+camera	method	Projector	Camera	engine/camera/project.go	54
+camera	method	Projector	DepthToScale	engine/camera/project.go	59
+camera	method	Projector	Project	engine/camera/project.go	78
+camera	method	Projector	ProjectQuad	engine/camera/project.go	100
+camera	method	Projector	ProjectSpriteQuad	engine/camera/project.go	120
+camera	method	Projector	Unproject	engine/camera/project.go	141
+camera	func		LandShadow	engine/camera/shadow25d.go	33
+camera	func		ShadowVisible	engine/camera/shadow25d.go	45
+camera	const		MaxYSort25D	engine/camera/ysort25d.go	42
+camera	const		YSortZBase	engine/camera/ysort25d.go	46
+camera	const		YSortZStep	engine/camera/ysort25d.go	47
+camera	const		YSortZRange	engine/camera/ysort25d.go	53
+camera	type		YSortKeyFn	engine/camera/ysort25d.go	60
+camera	type		YSortItem	engine/camera/ysort25d.go	66
+camera	func		YSortKeyY	engine/camera/ysort25d.go	76
+camera	func		YSortKeySlightXZ	engine/camera/ysort25d.go	82
+camera	func		ClampZIndex	engine/camera/ysort25d.go	116
+camera	func		YSortLessWithKey	engine/camera/ysort25d.go	125
+camera	func		YSortLess	engine/camera/ysort25d.go	140
+camera	type		YSortNode	engine/camera/ysort25d.go	148
+camera	func		YSortEffectiveZ	engine/camera/ysort25d.go	158
+camera	func		YSortTreeWithKey	engine/camera/ysort25d.go	209
+camera	func		YSortTree	engine/camera/ysort25d.go	214
+camera	func		YSortWithKey	engine/camera/ysort25d.go	280
+camera	func		YSort	engine/camera/ysort25d.go	285
+camera	func		YSortZ	engine/camera/ysort25d.go	315
+core	type		AssetID	engine/core/asset.go	23
+core	method	AssetID	Empty	engine/core/asset.go	26
+core	method	AssetID	String	engine/core/asset.go	29
+core	method	AssetID	Validate	engine/core/asset.go	32
+core	type		Handle	engine/core/asset.go	43
+core	method	Handle	ID	engine/core/asset.go	51
+core	method	Handle	Refs	engine/core/asset.go	54
+core	method	Handle	Ref	engine/core/asset.go	62
+core	method	Handle	Release	engine/core/asset.go	73
+core	type		Manager	engine/core/asset.go	90
+core	func		NewManager	engine/core/asset.go	96
+core	method	Manager	Acquire	engine/core/asset.go	100
+core	method	Manager	Loaded	engine/core/asset.go	128
+core	method	Manager	LiveCount	engine/core/asset.go	131
+core	type		Version	engine/core/asset.go	135
+core	func		ParseVersion	engine/core/asset.go	141
+core	method	Version	String	engine/core/asset.go	162
+core	method	Version	CompatibleWith	engine/core/asset.go	166
+core	method	Version	CheckCompatibility	engine/core/asset.go	172
+core	type		Color	engine/core/color.go	21
+core	func		RGB	engine/core/color.go	26
+core	func		RGBA	engine/core/color.go	29
+core	var		Black	engine/core/color.go	33
+core	var		White	engine/core/color.go	34
+core	var		Red	engine/core/color.go	35
+core	var		Green	engine/core/color.go	36
+core	var		Blue	engine/core/color.go	37
+core	var		Yellow	engine/core/color.go	38
+core	var		Cyan	engine/core/color.go	39
+core	var		Magenta	engine/core/color.go	40
+core	var		Transparent	engine/core/color.go	41
+core	method	Color	Clamped	engine/core/color.go	55
+core	method	Color	ToBytes	engine/core/color.go	62
+core	func		ColorFromBytes	engine/core/color.go	71
+core	method	Color	Lerp	engine/core/color.go	81
+core	method	Color	Premultiplied	engine/core/color.go	91
+core	method	Color	Unpremultiplied	engine/core/color.go	96
+core	method	Color	ApproxEqual	engine/core/color.go	104
+core	func		ParseHex	engine/core/color.go	123
+core	type		Rand	engine/core/rand.go	16
+core	func		NewRand	engine/core/rand.go	21
+core	method	Rand	Seed	engine/core/rand.go	28
+core	method	Rand	Uint64	engine/core/rand.go	31
+core	method	Rand	Int63	engine/core/rand.go	40
+core	method	Rand	Int63n	engine/core/rand.go	45
+core	method	Rand	Float64	engine/core/rand.go	53
+core	method	Rand	RangeFloat	engine/core/rand.go	56
+core	method	Rand	RangeInt	engine/core/rand.go	64
+core	method	Rand	Shuffle	engine/core/rand.go	72
+core	type		Code	engine/core/result.go	21
+core	const		CodeUnknown	engine/core/result.go	24
+core	const		CodeNotFound	engine/core/result.go	25
+core	const		CodeBadData	engine/core/result.go	26
+core	const		CodeOutOfMemory	engine/core/result.go	27
+core	const		CodeUnsupported	engine/core/result.go	28
+core	const		CodeInvalidArg	engine/core/result.go	29
+core	const		CodeVersionMismatch	engine/core/result.go	30
+core	method	Code	String	engine/core/result.go	34
+core	type		Error	engine/core/result.go	55
+core	method	Error	Error	engine/core/result.go	63
+core	method	Error	Unwrap	engine/core/result.go	84
+core	func		New	engine/core/result.go	98
+core	func		NotFound	engine/core/result.go	101
+core	func		BadData	engine/core/result.go	106
+core	func		OutOfMemory	engine/core/result.go	111
+core	func		Unsupported	engine/core/result.go	117
+core	func		InvalidArg	engine/core/result.go	122
+core	func		VersionMismatch	engine/core/result.go	127
+core	func		CodeOf	engine/core/result.go	133
+core	type		Duration	engine/core/time.go	18
+core	const		Millisecond	engine/core/time.go	21
+core	const		Second	engine/core/time.go	22
+core	const		Minute	engine/core/time.go	23
+core	const		Hour	engine/core/time.go	24
+core	func		Milliseconds	engine/core/time.go	28
+core	func		SecondsFloat	engine/core/time.go	31
+core	method	Duration	Milliseconds	engine/core/time.go	34
+core	method	Duration	Seconds	engine/core/time.go	37
+core	method	Duration	Add	engine/core/time.go	40
+core	method	Duration	Sub	engine/core/time.go	43
+core	method	Duration	Scale	engine/core/time.go	46
+core	method	Duration	Clamp	engine/core/time.go	49
+core	type		Step	engine/core/time.go	62
+core	func		FirstStep	engine/core/time.go	68
+core	method	Step	Next	engine/core/time.go	72
+core	method	Step	Total	engine/core/time.go	75
+core	type		Vec2	engine/core/vec.go	20
+core	func		V2	engine/core/vec.go	25
+core	method	Vec2	Add	engine/core/vec.go	28
+core	method	Vec2	Sub	engine/core/vec.go	31
+core	method	Vec2	Mul	engine/core/vec.go	34
+core	method	Vec2	Div	engine/core/vec.go	37
+core	method	Vec2	Neg	engine/core/vec.go	40
+core	method	Vec2	Dot	engine/core/vec.go	43
+core	method	Vec2	Cross	engine/core/vec.go	46
+core	method	Vec2	Length	engine/core/vec.go	49
+core	method	Vec2	LengthSq	engine/core/vec.go	52
+core	method	Vec2	Normalize	engine/core/vec.go	55
+core	method	Vec2	Lerp	engine/core/vec.go	64
+core	method	Vec2	Rotate	engine/core/vec.go	69
+core	method	Vec2	Perp	engine/core/vec.go	75
+core	method	Vec2	Atan2	engine/core/vec.go	78
+core	method	Vec2	Angle	engine/core/vec.go	81
+core	method	Vec2	IsZero	engine/core/vec.go	84
+core	method	Vec2	ApproxEqual	engine/core/vec.go	87
+core	type		Rect	engine/core/vec.go	92
+core	func		NewRect	engine/core/vec.go	97
+core	method	Rect	IsEmpty	engine/core/vec.go	100
+core	method	Rect	Area	engine/core/vec.go	103
+core	method	Rect	Center	engine/core/vec.go	111
+core	method	Rect	Contains	engine/core/vec.go	115
+core	method	Rect	ContainsRect	engine/core/vec.go	123
+core	method	Rect	Intersects	engine/core/vec.go	131
+core	method	Rect	Intersection	engine/core/vec.go	137
+core	method	Rect	Union	engine/core/vec.go	149
+core	method	Rect	Offset	engine/core/vec.go	164
+core	method	Rect	Inset	engine/core/vec.go	167
+core	type		Mat2D	engine/core/vec.go	179
+core	func		Identity2D	engine/core/vec.go	185
+core	func		Translate2D	engine/core/vec.go	188
+core	func		Scale2D	engine/core/vec.go	191
+core	func		Rotate2D	engine/core/vec.go	194
+core	method	Mat2D	Mul	engine/core/vec.go	200
+core	method	Mat2D	TransformPoint	engine/core/vec.go	212
+core	method	Mat2D	Invert	engine/core/vec.go	222
+core	method	Mat2D	IsIdentity	engine/core/vec.go	239
+core	method	Mat2D	ApproxEqual	engine/core/vec.go	245
+core	type		Vec3	engine/core/vec3.go	16
+core	func		V3	engine/core/vec3.go	21
+core	method	Vec3	Add	engine/core/vec3.go	24
+core	method	Vec3	Sub	engine/core/vec3.go	27
+core	method	Vec3	IsZero	engine/core/vec3.go	30
+core	var		SchemaVersion	engine/core/version.go	16
+debug	var		CurrentVersion	engine/debug/stats.go	26
+debug	const		MaxFrames	engine/debug/stats.go	33
+debug	const		MaxSpansPerFrame	engine/debug/stats.go	35
+debug	const		MaxShaders	engine/debug/stats.go	37
+debug	const		MaxNameLen	engine/debug/stats.go	39
+debug	const		MaxBytes	engine/debug/stats.go	41
+debug	const		MaxMemoryBytes	engine/debug/stats.go	43
+debug	const		MaxFrameDt	engine/debug/stats.go	49
+debug	const		SlowFrameDt	engine/debug/stats.go	53
+debug	type		Span	engine/debug/stats.go	61
+debug	func		NewSpan	engine/debug/stats.go	68
+debug	method	Span	Name	engine/debug/stats.go	79
+debug	method	Span	Took	engine/debug/stats.go	82
+debug	type		Frame	engine/debug/stats.go	87
+debug	func		NewFrame	engine/debug/stats.go	99
+debug	method	Frame	Dt	engine/debug/stats.go	131
+debug	method	Frame	Draws	engine/debug/stats.go	134
+debug	method	Frame	Overdraw	engine/debug/stats.go	137
+debug	method	Frame	MemBytes	engine/debug/stats.go	140
+debug	method	Frame	Spans	engine/debug/stats.go	144
+debug	type		SpanStat	engine/debug/stats.go	182
+debug	type		ShaderStat	engine/debug/stats.go	192
+debug	type		Stats	engine/debug/stats.go	210
+debug	func		NewStats	engine/debug/stats.go	222
+debug	method	Stats	Reset	engine/debug/stats.go	225
+debug	method	Stats	Count	engine/debug/stats.go	238
+debug	method	Stats	TotalFrames	engine/debug/stats.go	246
+debug	method	Stats	Gaps	engine/debug/stats.go	254
+debug	method	Stats	OOMs	engine/debug/stats.go	262
+debug	method	Stats	RecordFrame	engine/debug/stats.go	273
+debug	method	Stats	RecordShader	engine/debug/stats.go	308
+debug	method	Stats	NoteMemory	engine/debug/stats.go	341
+debug	method	Stats	AvgFrame	engine/debug/stats.go	368
+debug	method	Stats	FPS	engine/debug/stats.go	380
+debug	method	Stats	P95Frame	engine/debug/stats.go	393
+debug	method	Stats	SlowFrames	engine/debug/stats.go	414
+debug	method	Stats	TotalDraws	engine/debug/stats.go	428
+debug	method	Stats	AvgDraws	engine/debug/stats.go	440
+debug	method	Stats	CurMemory	engine/debug/stats.go	448
+debug	method	Stats	PeakMemory	engine/debug/stats.go	456
+debug	method	Stats	AvgOverdraw	engine/debug/stats.go	464
+debug	method	Stats	Breakdown	engine/debug/stats.go	478
+debug	method	Stats	TopSpans	engine/debug/stats.go	528
+debug	method	Stats	Shaders	engine/debug/stats.go	537
+debug	method	Stats	ShaderTotal	engine/debug/stats.go	555
+debug	type		Report	engine/debug/stats.go	568
+debug	method	Stats	Report	engine/debug/stats.go	590
+debug	method	Report	Equal	engine/debug/stats.go	628
+debug	method	Report	Encode	engine/debug/stats.go	655
+debug	func		ParseReport	engine/debug/stats.go	672
+debug	func		StoreReport	engine/debug/stats.go	706
+debug	func		LoadReport	engine/debug/stats.go	729
+debug	method	Report	Text	engine/debug/stats.go	745
+debug	type		CrashLog	engine/debug/stats.go	791
+debug	method	Stats	Snapshot	engine/debug/stats.go	800
+debug	method	CrashLog	Equal	engine/debug/stats.go	810
+debug	method	CrashLog	Encode	engine/debug/stats.go	817
+debug	func		ParseCrash	engine/debug/stats.go	832
+debug	func		StoreCrash	engine/debug/stats.go	865
+debug	func		LoadCrash	engine/debug/stats.go	887
+dirty	const		MaxDirtyRects	engine/dirty/dirty.go	23
+dirty	type		DirtyStats	engine/dirty/dirty.go	29
+dirty	type		DirtyTracker	engine/dirty/dirty.go	40
+dirty	func		NewDirtyTracker	engine/dirty/dirty.go	57
+dirty	func		NewSpriteDirtyTracker	engine/dirty/dirty.go	70
+dirty	method	DirtyTracker	Bounds	engine/dirty/dirty.go	80
+dirty	method	DirtyTracker	IsSprite	engine/dirty/dirty.go	88
+dirty	method	DirtyTracker	NeedsFull	engine/dirty/dirty.go	91
+dirty	method	DirtyTracker	DirtyCount	engine/dirty/dirty.go	94
+dirty	method	DirtyTracker	DirtyRects	engine/dirty/dirty.go	103
+dirty	method	DirtyTracker	DirtyArea	engine/dirty/dirty.go	113
+dirty	method	DirtyTracker	Coverage	engine/dirty/dirty.go	126
+dirty	method	DirtyTracker	Stats	engine/dirty/dirty.go	138
+dirty	method	DirtyTracker	MarkFull	engine/dirty/dirty.go	146
+dirty	method	DirtyTracker	Clear	engine/dirty/dirty.go	156
+dirty	method	DirtyTracker	MarkDirty	engine/dirty/dirty.go	176
+dirty	func		DirtyForMove	engine/dirty/dirty.go	201
+dirty	method	DirtyTracker	MarkMoved	engine/dirty/dirty.go	222
+fx	const		MaxImagePixels	engine/fx/bloom.go	21
+fx	const		MaxBloomSigma	engine/fx/bloom.go	25
+fx	const		MaxBloomIntensity	engine/fx/bloom.go	29
+fx	type		Image	engine/fx/bloom.go	34
+fx	func		NewImage	engine/fx/bloom.go	41
+fx	func		NewImageFromColors	engine/fx/bloom.go	55
+fx	method	Image	At	engine/fx/bloom.go	94
+fx	method	Image	Set	engine/fx/bloom.go	103
+fx	method	Image	Clone	engine/fx/bloom.go	115
+fx	method	Image	ApproxEqual	engine/fx/bloom.go	126
+fx	type		Bloom	engine/fx/bloom.go	174
+fx	func		NewBloom	engine/fx/bloom.go	183
+fx	method	Bloom	Validate	engine/fx/bloom.go	192
+fx	method	Bloom	IsIdentity	engine/fx/bloom.go	209
+fx	method	Bloom	Apply	engine/fx/bloom.go	222
+fx	const		MaxCustomNameLen	engine/fx/custom.go	23
+fx	const		MaxCustomParams	engine/fx/custom.go	25
+fx	const		MaxCustomOutlineWidth	engine/fx/custom.go	27
+fx	const		MaxCustomSeed	engine/fx/custom.go	29
+fx	const		MaxCustomSlots	engine/fx/custom.go	31
+fx	const		CustomIdentity	engine/fx/custom.go	36
+fx	const		CustomOutline	engine/fx/custom.go	37
+fx	const		CustomDissolve	engine/fx/custom.go	38
+fx	type		Custom	engine/fx/custom.go	44
+fx	func		NewCustom	engine/fx/custom.go	51
+fx	func		NewIdentity	engine/fx/custom.go	62
+fx	func		NewOutline	engine/fx/custom.go	68
+fx	func		NewDissolve	engine/fx/custom.go	76
+fx	method	Custom	Validate	engine/fx/custom.go	97
+fx	method	Custom	IsIdentity	engine/fx/custom.go	162
+fx	method	Custom	Degraded	engine/fx/custom.go	167
+fx	method	Custom	Param	engine/fx/custom.go	170
+fx	method	Custom	SetParam	engine/fx/custom.go	180
+fx	method	Custom	Apply	engine/fx/custom.go	214
+fx	type		Registry	engine/fx/custom.go	316
+fx	func		NewRegistry	engine/fx/custom.go	323
+fx	method	Registry	Len	engine/fx/custom.go	328
+fx	method	Registry	Attach	engine/fx/custom.go	339
+fx	method	Registry	Detach	engine/fx/custom.go	360
+fx	method	Registry	Get	engine/fx/custom.go	378
+fx	method	Registry	Apply	engine/fx/custom.go	395
+fx	const		MinLUTSize	engine/fx/lut.go	23
+fx	const		MaxLUTSize	engine/fx/lut.go	24
+fx	const		MaxExposure	engine/fx/lut.go	28
+fx	type		LUT	engine/fx/lut.go	34
+fx	func		NewLUT	engine/fx/lut.go	44
+fx	func		NewIdentityLUT	engine/fx/lut.go	67
+fx	method	LUT	Validate	engine/fx/lut.go	87
+fx	method	LUT	Sample	engine/fx/lut.go	121
+fx	method	LUT	Apply	engine/fx/lut.go	137
+fx	type		Tonemap	engine/fx/lut.go	154
+fx	const		TonemapNone	engine/fx/lut.go	158
+fx	const		TonemapReinhard	engine/fx/lut.go	160
+fx	const		TonemapACES	engine/fx/lut.go	163
+fx	const		TonemapFilmic	engine/fx/lut.go	166
+fx	const		DefaultTonemap	engine/fx/lut.go	171
+fx	method	Tonemap	String	engine/fx/lut.go	174
+fx	func		ParseTonemap	engine/fx/lut.go	189
+fx	method	Tonemap	Map	engine/fx/lut.go	208
+fx	func		ApplyTonemap	engine/fx/lut.go	259
+fx	type		Grade	engine/fx/lut.go	294
+fx	func		NewGrade	engine/fx/lut.go	305
+fx	method	Grade	Stages	engine/fx/lut.go	336
+fx	method	Grade	Degraded	engine/fx/lut.go	343
+fx	method	Grade	ExposureValue	engine/fx/lut.go	347
+fx	method	Grade	Apply	engine/fx/lut.go	357
+fx	const		MaxVignetteRadius	engine/fx/vignette.go	21
+fx	type		Vignette	engine/fx/vignette.go	29
+fx	func		NewVignette	engine/fx/vignette.go	39
+fx	method	Vignette	Validate	engine/fx/vignette.go	50
+fx	method	Vignette	FactorAt	engine/fx/vignette.go	69
+fx	method	Vignette	Apply	engine/fx/vignette.go	91
+fx	const		MaxWarpDimension	engine/fx/warp.go	24
+fx	const		MaxWarpPixels	engine/fx/warp.go	26
+fx	type		Noise	engine/fx/warp.go	32
+fx	func		DefaultNoise	engine/fx/warp.go	40
+fx	type		Warp	engine/fx/warp.go	48
+fx	func		NewWarp	engine/fx/warp.go	63
+fx	method	Warp	SetStrength	engine/fx/warp.go	76
+fx	method	Warp	SetNoise	engine/fx/warp.go	90
+fx	method	Warp	OffsetAt	engine/fx/warp.go	145
+fx	method	Warp	WarpPoint	engine/fx/warp.go	164
+fx	func		SampleClamped	engine/fx/warp.go	189
+fx	func		WarpRGBA	engine/fx/warp.go	216
+input	type		Source	engine/input/action.go	21
+input	const		SourceKey	engine/input/action.go	25
+input	const		SourcePadButton	engine/input/action.go	27
+input	const		SourcePadAxis	engine/input/action.go	29
+input	const		SourcePinch	engine/input/action.go	31
+input	const		DeviceAny	engine/input/action.go	35
+input	func		Valid	engine/input/action.go	40
+input	method	Source	String	engine/input/action.go	43
+input	func		ParseSource	engine/input/action.go	52
+input	func		AllSources	engine/input/action.go	62
+input	type		Binding	engine/input/action.go	74
+input	func		NewKeyBinding	engine/input/action.go	149
+input	func		NewPadButtonBinding	engine/input/action.go	155
+input	func		NewPadAxisBinding	engine/input/action.go	162
+input	func		NewPinchBinding	engine/input/action.go	168
+input	type		Map	engine/input/action.go	199
+input	func		NewMap	engine/input/action.go	225
+input	method	Map	AddAction	engine/input/action.go	238
+input	method	Map	Has	engine/input/action.go	257
+input	method	Map	RemoveAction	engine/input/action.go	267
+input	method	Map	Actions	engine/input/action.go	277
+input	method	Map	ActionCount	engine/input/action.go	290
+input	method	Map	SetDeadzone	engine/input/action.go	299
+input	method	Map	Deadzone	engine/input/action.go	313
+input	method	Map	Bind	engine/input/action.go	326
+input	method	Map	Unbind	engine/input/action.go	345
+input	method	Map	Rebind	engine/input/action.go	366
+input	method	Map	ClearBindings	engine/input/action.go	389
+input	method	Map	Bindings	engine/input/action.go	400
+input	method	Map	SetKey	engine/input/action.go	411
+input	method	Map	SetPadButton	engine/input/action.go	427
+input	method	Map	SetPadAxis	engine/input/action.go	446
+input	method	Map	AddPinchDelta	engine/input/action.go	465
+input	method	Map	Pinch	engine/input/action.go	478
+input	method	Map	ClearPinch	engine/input/action.go	486
+input	method	Map	ResetInputs	engine/input/action.go	495
+input	method	Map	Strength	engine/input/action.go	570
+input	method	Map	Pressed	engine/input/action.go	585
+input	method	Map	Vector	engine/input/action.go	597
+input	method	Map	StartRumble	engine/input/action.go	626
+input	method	Map	StopRumble	engine/input/action.go	648
+input	method	Map	UpdateRumbles	engine/input/action.go	661
+input	method	Map	RumbleLevels	engine/input/action.go	675
+input	method	Map	RumbleActive	engine/input/action.go	687
+input	const		MaxBuffered	engine/input/buffer.go	23
+input	const		MaxTouches	engine/input/buffer.go	25
+input	const		DefaultBufferWindow	engine/input/buffer.go	27
+input	type		BufferedPress	engine/input/buffer.go	31
+input	type		Buffer	engine/input/buffer.go	39
+input	func		NewBuffer	engine/input/buffer.go	46
+input	method	Buffer	Window	engine/input/buffer.go	54
+input	method	Buffer	SetWindow	engine/input/buffer.go	63
+input	method	Buffer	Push	engine/input/buffer.go	77
+input	method	Buffer	Prune	engine/input/buffer.go	112
+input	method	Buffer	Consume	engine/input/buffer.go	130
+input	method	Buffer	Peek	engine/input/buffer.go	152
+input	method	Buffer	Len	engine/input/buffer.go	172
+input	method	Buffer	LiveCount	engine/input/buffer.go	181
+input	method	Buffer	Clear	engine/input/buffer.go	195
+input	method	Buffer	Presses	engine/input/buffer.go	204
+input	type		Touch	engine/input/buffer.go	214
+input	type		TouchTracker	engine/input/buffer.go	227
+input	func		NewTouchTracker	engine/input/buffer.go	232
+input	method	TouchTracker	Begin	engine/input/buffer.go	246
+input	method	TouchTracker	Move	engine/input/buffer.go	271
+input	method	TouchTracker	End	engine/input/buffer.go	293
+input	method	TouchTracker	Position	engine/input/buffer.go	312
+input	method	TouchTracker	ActiveCount	engine/input/buffer.go	324
+input	method	TouchTracker	ActiveIDs	engine/input/buffer.go	333
+input	method	TouchTracker	Touches	engine/input/buffer.go	347
+input	method	TouchTracker	Clear	engine/input/buffer.go	360
+light	const		MaxLightRange	engine/light/light.go	22
+light	const		MaxIntensity	engine/light/light.go	23
+light	const		MaxLights	engine/light/light.go	24
+light	const		MaxCookieDimension	engine/light/light.go	25
+light	const		MaxImagePixels	engine/light/light.go	26
+light	type		Layer	engine/light/light.go	31
+light	const		LayerWorld	engine/light/light.go	34
+light	const		LayerFX	engine/light/light.go	35
+light	const		LayerUI	engine/light/light.go	36
+light	func		LayersFor	engine/light/light.go	40
+light	func		HitsLayer	engine/light/light.go	51
+light	type		Kind	engine/light/light.go	59
+light	const		KindPoint	engine/light/light.go	62
+light	const		KindDirectional	engine/light/light.go	63
+light	method	Kind	String	engine/light/light.go	67
+light	func		ParseKind	engine/light/light.go	78
+light	type		Cookie	engine/light/light.go	123
+light	func		NewCookie	engine/light/light.go	131
+light	method	Cookie	Validate	engine/light/light.go	154
+light	method	Cookie	At	engine/light/light.go	174
+light	method	Cookie	Sample	engine/light/light.go	187
+light	type		Light	engine/light/light.go	220
+light	func		NewPointLight	engine/light/light.go	234
+light	func		NewDirectionalLight	engine/light/light.go	253
+light	method	Light	Validate	engine/light/light.go	266
+light	method	Light	HitsLayer	engine/light/light.go	299
+light	method	Light	FactorAt	engine/light/light.go	358
+light	method	Light	FactorGPU	engine/light/light.go	364
+light	func		LitCPU	engine/light/light.go	402
+light	func		LitGPU	engine/light/light.go	408
+light	type		Image	engine/light/light.go	416
+light	func		NewImage	engine/light/light.go	427
+light	func		NewImageFromColors	engine/light/light.go	450
+light	method	Image	PosAt	engine/light/light.go	496
+light	method	Image	At	engine/light/light.go	507
+light	method	Image	Set	engine/light/light.go	516
+light	method	Image	Clone	engine/light/light.go	529
+light	method	Image	ApproxEqual	engine/light/light.go	542
+light	type		Scene	engine/light/light.go	571
+light	func		NewScene	engine/light/light.go	578
+light	method	Scene	Validate	engine/light/light.go	608
+light	method	Scene	Lit	engine/light/light.go	625
+light	method	Scene	LitGPU	engine/light/light.go	630
+light	method	Scene	Apply	engine/light/light.go	655
+light	method	Scene	ApplyCPU	engine/light/light.go	663
+light	method	Scene	ApplyGPU	engine/light/light.go	668
+light	type		Normal	engine/light/normal.go	22
+light	func		N	engine/light/normal.go	27
+light	func		FlatNormal	engine/light/normal.go	31
+light	method	Normal	Normalize	engine/light/normal.go	37
+light	func		NdotL	engine/light/normal.go	51
+light	func		LightDir	engine/light/normal.go	62
+light	type		NormalMap	engine/light/normal.go	88
+light	func		NewNormalMap	engine/light/normal.go	96
+light	func		NewNormalMapFromColors	engine/light/normal.go	120
+light	method	NormalMap	Validate	engine/light/normal.go	145
+light	method	NormalMap	At	engine/light/normal.go	166
+light	func		NormalFactor	engine/light/normal.go	193
+light	func		NormalFactorGPU	engine/light/normal.go	199
+light	func		LitNormalCPU	engine/light/normal.go	239
+light	func		LitNormalGPU	engine/light/normal.go	245
+light	type		NormalScene	engine/light/normal.go	252
+light	func		NewNormalScene	engine/light/normal.go	261
+light	method	NormalScene	Validate	engine/light/normal.go	294
+light	method	NormalScene	Lit	engine/light/normal.go	314
+light	method	NormalScene	LitGPU	engine/light/normal.go	319
+light	method	NormalScene	Apply	engine/light/normal.go	356
+light	method	NormalScene	ApplyCPU	engine/light/normal.go	364
+light	method	NormalScene	ApplyGPU	engine/light/normal.go	369
+light	const		RoughWeightTol	engine/light/rough.go	21
+light	func		FlatRough	engine/light/rough.go	25
+light	type		RoughMap	engine/light/rough.go	39
+light	func		NewRoughMap	engine/light/rough.go	47
+light	method	RoughMap	Validate	engine/light/rough.go	70
+light	method	RoughMap	At	engine/light/rough.go	91
+light	type		RoughWeights	engine/light/rough.go	104
+light	func		NewRoughWeights	engine/light/rough.go	111
+light	method	RoughWeights	Validate	engine/light/rough.go	122
+light	func		DefaultRoughWeights	engine/light/rough.go	138
+light	func		RoughSpec	engine/light/rough.go	146
+light	func		RoughFactor	engine/light/rough.go	196
+light	func		RoughFactorGPU	engine/light/rough.go	202
+light	func		LitRoughCPU	engine/light/rough.go	243
+light	func		LitRoughGPU	engine/light/rough.go	249
+light	type		RoughScene	engine/light/rough.go	258
+light	func		NewRoughScene	engine/light/rough.go	268
+light	method	RoughScene	Validate	engine/light/rough.go	304
+light	method	RoughScene	Lit	engine/light/rough.go	327
+light	method	RoughScene	LitGPU	engine/light/rough.go	332
+light	method	RoughScene	Apply	engine/light/rough.go	384
+light	method	RoughScene	ApplyCPU	engine/light/rough.go	392
+light	method	RoughScene	ApplyGPU	engine/light/rough.go	397
+light	const		MaxOccluderVerts	engine/light/shadow.go	21
+light	const		MaxOccluders	engine/light/shadow.go	22
+light	const		MaxShadowLength	engine/light/shadow.go	23
+light	type		Occluder	engine/light/shadow.go	33
+light	func		NewOccluder	engine/light/shadow.go	40
+light	method	Occluder	Validate	engine/light/shadow.go	60
+light	type		Shadow	engine/light/shadow.go	82
+light	func		NewShadow	engine/light/shadow.go	92
+light	method	Shadow	Validate	engine/light/shadow.go	122
+light	method	Shadow	Blocked	engine/light/shadow.go	249
+light	method	Shadow	BlockedGPU	engine/light/shadow.go	253
+light	method	Shadow	FactorFor	engine/light/shadow.go	265
+light	method	Shadow	FactorForGPU	engine/light/shadow.go	268
+light	method	Shadow	Lit	engine/light/shadow.go	309
+light	method	Shadow	LitGPU	engine/light/shadow.go	314
+light	method	Shadow	Apply	engine/light/shadow.go	341
+light	method	Shadow	ApplyCPU	engine/light/shadow.go	349
+light	method	Shadow	ApplyGPU	engine/light/shadow.go	354
+light	const		MaxShadowLights	engine/light/softshadow.go	27
+light	const		MaxPCF13Lights	engine/light/softshadow.go	29
+light	const		LargeLightPixelsWarn	engine/light/softshadow.go	31
+light	const		MinNightChannel	engine/light/softshadow.go	33
+light	const		MinLitPixels	engine/light/softshadow.go	35
+light	const		MinLitGain	engine/light/softshadow.go	37
+light	const		DefaultSoftRadius	engine/light/softshadow.go	39
+light	type		SoftMode	engine/light/softshadow.go	43
+light	const		SoftNone	engine/light/softshadow.go	47
+light	const		SoftPCF5	engine/light/softshadow.go	49
+light	const		SoftPCF13	engine/light/softshadow.go	51
+light	const		DefaultSoftMode	engine/light/softshadow.go	55
+light	method	SoftMode	String	engine/light/softshadow.go	58
+light	func		ParseSoftMode	engine/light/softshadow.go	72
+light	method	SoftMode	Validate	engine/light/softshadow.go	86
+light	method	SoftMode	Taps	engine/light/softshadow.go	96
+light	type		SoftShadow	engine/light/softshadow.go	134
+light	func		NewSoftShadow	engine/light/softshadow.go	143
+light	method	SoftShadow	Validate	engine/light/softshadow.go	161
+light	method	SoftShadow	Taps	engine/light/softshadow.go	177
+light	method	SoftShadow	SoftFactor	engine/light/softshadow.go	219
+light	method	SoftShadow	SoftFactorGPU	engine/light/softshadow.go	224
+light	func		ClampNightFloor	engine/light/softshadow.go	230
+light	func		CheckNightFloor	engine/light/softshadow.go	249
+light	func		NightOnlyPixel	engine/light/softshadow.go	261
+light	method	SoftShadow	SoftLit	engine/light/softshadow.go	306
+light	method	SoftShadow	SoftLitGPU	engine/light/softshadow.go	311
+light	type		FrameBill	engine/light/softshadow.go	317
+light	func		CoverPixels	engine/light/softshadow.go	326
+light	method	SoftShadow	Bill	engine/light/softshadow.go	344
+light	method	FrameBill	WarnLarge	engine/light/softshadow.go	359
+light	func		OverShadowLightCount	engine/light/softshadow.go	369
+light	method	SoftShadow	OverPCF13Count	engine/light/softshadow.go	372
+light	method	SoftShadow	DowngradeOOM	engine/light/softshadow.go	377
+light	method	SoftShadow	AutoDowngradeForLights	engine/light/softshadow.go	402
+light	method	SoftShadow	DowngradeOnAllocFail	engine/light/softshadow.go	417
+light	method	SoftShadow	Apply	engine/light/softshadow.go	449
+light	method	SoftShadow	ApplyCPU	engine/light/softshadow.go	461
+light	method	SoftShadow	ApplyGPU	engine/light/softshadow.go	466
+light	func		LitStats	engine/light/softshadow.go	473
+loop	const		MaxPendingPackets	engine/loop/loop.go	20
+loop	type		System	engine/loop/loop.go	25
+loop	method	System	Name	engine/loop/loop.go	31
+loop	type		Loop	engine/loop/loop.go	38
+loop	func		New	engine/loop/loop.go	48
+loop	method	Loop	AddSystem	engine/loop/loop.go	59
+loop	method	Loop	Systems	engine/loop/loop.go	78
+loop	method	Loop	SystemCount	engine/loop/loop.go	90
+loop	method	Loop	SetPacketHook	engine/loop/loop.go	101
+loop	method	Loop	InjectPacket	engine/loop/loop.go	111
+loop	method	Loop	PendingPackets	engine/loop/loop.go	127
+loop	method	Loop	SetSubmit	engine/loop/loop.go	137
+loop	method	Loop	Frame	engine/loop/loop.go	149
+loop	method	Loop	Dt	engine/loop/loop.go	172
+loop	method	Loop	Steps	engine/loop/loop.go	180
+loop	method	Loop	Elapsed	engine/loop/loop.go	188
+loop	method	Loop	Alpha	engine/loop/loop.go	196
+nav	const		DefaultSpeed	engine/nav/agent.go	23
+nav	const		ArriveTol	engine/nav/agent.go	24
+nav	type		Cell	engine/nav/agent.go	34
+nav	type		Status	engine/nav/agent.go	40
+nav	const		StatusInvalid	engine/nav/agent.go	45
+nav	const		StatusFound	engine/nav/agent.go	47
+nav	const		StatusNoPath	engine/nav/agent.go	50
+nav	const		StatusStartBlocked	engine/nav/agent.go	52
+nav	const		StatusGoalBlocked	engine/nav/agent.go	54
+nav	method	Status	String	engine/nav/agent.go	58
+nav	func		ParseStatus	engine/nav/agent.go	74
+nav	func		FindPath	engine/nav/agent.go	169
+nav	func		CellToWorld	engine/nav/agent.go	252
+nav	func		WorldToCell	engine/nav/agent.go	258
+nav	func		CellsToWorld	engine/nav/agent.go	272
+nav	type		Agent	engine/nav/agent.go	288
+nav	func		NewAgent	engine/nav/agent.go	299
+nav	method	Agent	Pos	engine/nav/agent.go	311
+nav	method	Agent	Speed	engine/nav/agent.go	319
+nav	method	Agent	Done	engine/nav/agent.go	328
+nav	method	Agent	Remaining	engine/nav/agent.go	336
+nav	method	Agent	Waypoints	engine/nav/agent.go	344
+nav	method	Agent	SetWaypoints	engine/nav/agent.go	354
+nav	method	Agent	SetCells	engine/nav/agent.go	372
+nav	method	Agent	Step	engine/nav/agent.go	396
+nav	const		MaxGridW	engine/nav/bake.go	20
+nav	const		MaxGridH	engine/nav/bake.go	21
+nav	const		MaxGridCells	engine/nav/bake.go	22
+nav	type		Grid	engine/nav/bake.go	27
+nav	func		NewGrid	engine/nav/bake.go	36
+nav	func		Bake	engine/nav/bake.go	50
+nav	method	Grid	Valid	engine/nav/bake.go	70
+nav	method	Grid	W	engine/nav/bake.go	75
+nav	method	Grid	H	engine/nav/bake.go	83
+nav	method	Grid	InBounds	engine/nav/bake.go	91
+nav	method	Grid	SolidAt	engine/nav/bake.go	97
+nav	method	Grid	SetSolid	engine/nav/bake.go	106
+nav	method	Grid	SolidCount	engine/nav/bake.go	119
+nav	method	Grid	Encode	engine/nav/bake.go	135
+nav	func		Decode	engine/nav/bake.go	151
+nav	method	Grid	Equal	engine/nav/bake.go	171
+nav	const		DefaultPerFrame	engine/nav/queue.go	24
+nav	const		MaxPerFrame	engine/nav/queue.go	26
+nav	type		Request	engine/nav/queue.go	30
+nav	type		Result	engine/nav/queue.go	36
+nav	type		Queue	engine/nav/queue.go	44
+nav	func		NewQueue	engine/nav/queue.go	54
+nav	method	Queue	PerFrame	engine/nav/queue.go	59
+nav	method	Queue	SetPerFrame	engine/nav/queue.go	68
+nav	method	Queue	Enqueue	engine/nav/queue.go	83
+nav	method	Queue	Pending	engine/nav/queue.go	94
+nav	method	Queue	Done	engine/nav/queue.go	102
+nav	method	Queue	Updates	engine/nav/queue.go	110
+nav	method	Queue	Results	engine/nav/queue.go	118
+nav	method	Queue	Clear	engine/nav/queue.go	132
+nav	method	Queue	Update	engine/nav/queue.go	144
+nav	func		DrainFrames	engine/nav/queue.go	173
+nav	type		Tuning	engine/nav/queue.go	181
+nav	func		LoadTuning	engine/nav/queue.go	187
+particle	type		Particle	engine/particle/cpu.go	22
+particle	method	Particle	AgeFrac	engine/particle/cpu.go	32
+particle	method	Particle	Alive	engine/particle/cpu.go	47
+particle	method	Particle	ColorAt	engine/particle/cpu.go	53
+particle	const		MaxParticlesCap	engine/particle/emitter.go	22
+particle	const		MaxSubPerDeath	engine/particle/emitter.go	24
+particle	const		MaxRate	engine/particle/emitter.go	26
+particle	const		MaxSpeed	engine/particle/emitter.go	28
+particle	type		ShapeKind	engine/particle/emitter.go	32
+particle	const		ShapePoint	engine/particle/emitter.go	36
+particle	const		ShapeCone	engine/particle/emitter.go	38
+particle	const		ShapeBox	engine/particle/emitter.go	40
+particle	const		ShapeRing	engine/particle/emitter.go	42
+particle	method	ShapeKind	String	engine/particle/emitter.go	46
+particle	func		ParseShape	engine/particle/emitter.go	63
+particle	type		Shape	engine/particle/emitter.go	90
+particle	func		PointShape	engine/particle/emitter.go	101
+particle	func		ConeShape	engine/particle/emitter.go	110
+particle	func		BoxShape	engine/particle/emitter.go	122
+particle	func		RingShape	engine/particle/emitter.go	134
+particle	method	Shape	Validate	engine/particle/emitter.go	142
+particle	type		Turbulence	engine/particle/emitter.go	216
+particle	func		NoTurbulence	engine/particle/emitter.go	222
+particle	func		NewTurbulence	engine/particle/emitter.go	226
+particle	method	Turbulence	Vec	engine/particle/emitter.go	238
+particle	type		Sub	engine/particle/emitter.go	253
+particle	func		NoSub	engine/particle/emitter.go	262
+particle	func		NewSub	engine/particle/emitter.go	267
+particle	type		EmitterConfig	engine/particle/emitter.go	288
+particle	method	EmitterConfig	Validate	engine/particle/emitter.go	306
+particle	type		Emitter	engine/particle/emitter.go	354
+particle	func		NewEmitter	engine/particle/emitter.go	366
+particle	method	Emitter	Config	engine/particle/emitter.go	374
+particle	method	Emitter	Alive	engine/particle/emitter.go	382
+particle	method	Emitter	Spawned	engine/particle/emitter.go	390
+particle	method	Emitter	Died	engine/particle/emitter.go	398
+particle	method	Emitter	ChildSpawned	engine/particle/emitter.go	406
+particle	method	Emitter	AppendParticles	engine/particle/emitter.go	418
+particle	method	Emitter	Particles	engine/particle/emitter.go	427
+particle	method	Emitter	Clear	engine/particle/emitter.go	436
+particle	method	Emitter	Spawn	engine/particle/emitter.go	496
+particle	method	Emitter	Update	engine/particle/emitter.go	526
+particle	method	Emitter	ColorOf	engine/particle/emitter.go	611
+particle	method	Emitter	AppendToBatch	engine/particle/emitter.go	623
+particle	const		MaxPoolTrailsCap	engine/particle/gpu.go	21
+particle	type		GPUPool	engine/particle/gpu.go	32
+particle	func		NewGPUPool	engine/particle/gpu.go	42
+particle	method	GPUPool	Config	engine/particle/gpu.go	54
+particle	method	GPUPool	TrailConfig	engine/particle/gpu.go	62
+particle	method	GPUPool	Alive	engine/particle/gpu.go	70
+particle	method	GPUPool	Spawned	engine/particle/gpu.go	78
+particle	method	GPUPool	Died	engine/particle/gpu.go	86
+particle	method	GPUPool	ChildSpawned	engine/particle/gpu.go	94
+particle	method	GPUPool	Trails	engine/particle/gpu.go	103
+particle	method	GPUPool	TotalPoints	engine/particle/gpu.go	111
+particle	method	GPUPool	AppendParticles	engine/particle/gpu.go	121
+particle	method	GPUPool	Particles	engine/particle/gpu.go	130
+particle	method	GPUPool	ColorOf	engine/particle/gpu.go	138
+particle	method	GPUPool	TrailOf	engine/particle/gpu.go	147
+particle	method	GPUPool	Clear	engine/particle/gpu.go	164
+particle	method	GPUPool	Spawn	engine/particle/gpu.go	177
+particle	method	GPUPool	Update	engine/particle/gpu.go	193
+particle	method	GPUPool	AppendToBatch	engine/particle/gpu.go	245
+particle	type		JointKind	engine/particle/trail.go	22
+particle	const		JointMiter	engine/particle/trail.go	27
+particle	const		JointBevel	engine/particle/trail.go	29
+particle	const		JointRound	engine/particle/trail.go	31
+particle	const		MiterLimit	engine/particle/trail.go	36
+particle	const		RoundArcSteps	engine/particle/trail.go	40
+particle	const		MaxTrailPointsCap	engine/particle/trail.go	44
+particle	method	JointKind	String	engine/particle/trail.go	47
+particle	func		ParseJoint	engine/particle/trail.go	62
+particle	type		TrailConfig	engine/particle/trail.go	79
+particle	func		NewTrailConfig	engine/particle/trail.go	91
+particle	method	TrailConfig	Validate	engine/particle/trail.go	111
+particle	type		Trail	engine/particle/trail.go	122
+particle	func		NewTrail	engine/particle/trail.go	129
+particle	method	Trail	Config	engine/particle/trail.go	137
+particle	method	Trail	Len	engine/particle/trail.go	145
+particle	method	Trail	AppendPoints	engine/particle/trail.go	157
+particle	method	Trail	Points	engine/particle/trail.go	166
+particle	method	Trail	Clear	engine/particle/trail.go	174
+particle	method	Trail	Push	engine/particle/trail.go	183
+particle	method	Trail	WidthAt	engine/particle/trail.go	211
+particle	method	Trail	ColorAt	engine/particle/trail.go	225
+particle	type		TrailVert	engine/particle/trail.go	239
+particle	method	Trail	Verts	engine/particle/trail.go	281
+particle	type		TrailSegment	engine/particle/trail.go	377
+particle	method	Trail	Segments	engine/particle/trail.go	389
+particle	method	Trail	AppendToBatch	engine/particle/trail.go	417
+physics	type		Shape	engine/physics/body.go	20
+physics	const		ShapeBox	engine/physics/body.go	24
+physics	const		ShapeCircle	engine/physics/body.go	26
+physics	type		Body	engine/physics/body.go	33
+physics	func		NewBox	engine/physics/body.go	58
+physics	func		NewCircle	engine/physics/body.go	71
+physics	method	Body	Valid	engine/physics/body.go	84
+physics	func		Bounds	engine/physics/body.go	101
+physics	func		CanCollide	engine/physics/body.go	114
+physics	func		Overlaps	engine/physics/body.go	120
+physics	type		Contact	engine/physics/body.go	175
+physics	func		Query	engine/physics/body.go	187
+physics	type		Ray	engine/physics/body.go	213
+physics	func		NewRay	engine/physics/body.go	222
+physics	method	Ray	Valid	engine/physics/body.go	237
+physics	type		Hit	engine/physics/body.go	245
+physics	func		CastRay	engine/physics/body.go	374
+physics	func		IsStandingOn	engine/physics/body.go	430
+physics	func		CarryRider	engine/physics/body.go	456
+physics	const		DefaultBroadphaseCell	engine/physics/broadphase.go	57
+physics	const		MaxBroadphaseBodies	engine/physics/broadphase.go	60
+physics	const		DefaultMaxCandidates	engine/physics/broadphase.go	63
+physics	const		DefaultSleepEps	engine/physics/broadphase.go	66
+physics	const		DefaultSleepFrames	engine/physics/broadphase.go	68
+physics	type		Spring	engine/physics/broadphase.go	75
+physics	func		NewSpring	engine/physics/broadphase.go	82
+physics	method	Spring	Valid	engine/physics/broadphase.go	94
+physics	method	Spring	Bounce	engine/physics/broadphase.go	102
+physics	type		Broadphase	engine/physics/broadphase.go	136
+physics	func		NewBroadphase	engine/physics/broadphase.go	171
+physics	method	Broadphase	Cell	engine/physics/broadphase.go	185
+physics	method	Broadphase	SetAutoWake	engine/physics/broadphase.go	195
+physics	method	Broadphase	AutoWake	engine/physics/broadphase.go	203
+physics	method	Broadphase	SetAutoSleep	engine/physics/broadphase.go	212
+physics	method	Broadphase	SetSleep	engine/physics/broadphase.go	222
+physics	method	Broadphase	SetMaxCandidates	engine/physics/broadphase.go	237
+physics	method	Broadphase	MaxCandidates	engine/physics/broadphase.go	250
+physics	method	Broadphase	Track	engine/physics/broadphase.go	261
+physics	method	Broadphase	Move	engine/physics/broadphase.go	301
+physics	method	Broadphase	Remove	engine/physics/broadphase.go	323
+physics	method	Broadphase	SetStatic	engine/physics/broadphase.go	340
+physics	method	Broadphase	Sleep	engine/physics/broadphase.go	361
+physics	method	Broadphase	Wake	engine/physics/broadphase.go	379
+physics	method	Broadphase	IsActive	engine/physics/broadphase.go	396
+physics	method	Broadphase	Count	engine/physics/broadphase.go	405
+physics	method	Broadphase	SleepingCount	engine/physics/broadphase.go	419
+physics	method	Broadphase	Update	engine/physics/broadphase.go	435
+physics	method	Broadphase	Query	engine/physics/broadphase.go	593
+physics	method	Broadphase	Woke	engine/physics/broadphase.go	669
+physics	method	Broadphase	Evaluations	engine/physics/broadphase.go	677
+physics	method	Broadphase	Trimmed	engine/physics/broadphase.go	685
+physics	method	Broadphase	Queries	engine/physics/broadphase.go	693
+physics	method	Broadphase	LastQueryUs	engine/physics/broadphase.go	702
+physics	method	Broadphase	QueryRegion	engine/physics/broadphase.go	713
+physics	method	Broadphase	Ray	engine/physics/broadphase.go	797
+physics	method	Broadphase	Reset	engine/physics/broadphase.go	901
+physics	type		Slope	engine/physics/platform.go	31
+physics	func		NewSlope	engine/physics/platform.go	39
+physics	func		NewOneWay	engine/physics/platform.go	52
+physics	method	Slope	Name	engine/physics/platform.go	63
+physics	method	Slope	A	engine/physics/platform.go	66
+physics	method	Slope	B	engine/physics/platform.go	69
+physics	method	Slope	OneWay	engine/physics/platform.go	72
+physics	method	Slope	Valid	engine/physics/platform.go	75
+physics	method	Slope	GroundYAt	engine/physics/platform.go	82
+physics	method	Slope	Angle	engine/physics/platform.go	106
+physics	method	Slope	Walkable	engine/physics/platform.go	122
+physics	method	Slope	SlideDir	engine/physics/platform.go	136
+physics	func		FeetOf	engine/physics/platform.go	167
+physics	func		WithFeet	engine/physics/platform.go	192
+physics	func		Grounded	engine/physics/platform.go	215
+physics	func		Step	engine/physics/platform.go	251
+physics	type		MotionMode	engine/physics/snap_mode.go	47
+physics	const		MotionModeGrounded	engine/physics/snap_mode.go	51
+physics	const		MotionModeFloating	engine/physics/snap_mode.go	53
+physics	method	MotionMode	Valid	engine/physics/snap_mode.go	57
+physics	method	MotionMode	String	engine/physics/snap_mode.go	62
+physics	const		DefaultSnapLength	engine/physics/snap_mode.go	78
+physics	const		DefaultFloorMaxAngle	engine/physics/snap_mode.go	80
+physics	const		DefaultSafeMargin	engine/physics/snap_mode.go	82
+physics	func		UpDirection	engine/physics/snap_mode.go	87
+physics	type		SnapConfig	engine/physics/snap_mode.go	91
+physics	func		DefaultSnapConfig	engine/physics/snap_mode.go	99
+physics	method	SnapConfig	Valid	engine/physics/snap_mode.go	110
+physics	func		FloorNormal	engine/physics/snap_mode.go	121
+physics	func		SnapGrounded	engine/physics/snap_mode.go	151
+physics	func		IsOnFloor	engine/physics/snap_mode.go	184
+physics	func		StepWithSnap	engine/physics/snap_mode.go	200
+pool	const		MaxLen	engine/pool/pool.go	24
+pool	const		MaxRetained	engine/pool/pool.go	26
+pool	const		VecBytes	engine/pool/pool.go	28
+pool	const		ColorBytes	engine/pool/pool.go	30
+pool	const		FloatBytes	engine/pool/pool.go	32
+pool	type		Stats	engine/pool/pool.go	39
+pool	type		Pool	engine/pool/pool.go	56
+pool	func		NewPool	engine/pool/pool.go	99
+pool	method	Pool	GetVec	engine/pool/pool.go	156
+pool	method	Pool	PutVec	engine/pool/pool.go	162
+pool	method	Pool	GetColor	engine/pool/pool.go	168
+pool	method	Pool	PutColor	engine/pool/pool.go	173
+pool	method	Pool	GetFloat	engine/pool/pool.go	179
+pool	method	Pool	PutFloat	engine/pool/pool.go	184
+pool	method	Pool	Stats	engine/pool/pool.go	189
+pool	method	Pool	RetainedBytes	engine/pool/pool.go	208
+pool	method	Pool	HitRate	engine/pool/pool.go	218
+pool	method	Pool	ResetStats	engine/pool/pool.go	231
+preview	const		MaxNameLen	engine/preview/preview.go	34
+preview	const		MaxPixels	engine/preview/preview.go	37
+preview	type		Node	engine/preview/preview.go	40
+preview	func		NewNode	engine/preview/preview.go	48
+preview	type		Frame	engine/preview/preview.go	63
+preview	func		NewFrame	engine/preview/preview.go	73
+preview	func		Record	engine/preview/preview.go	112
+preview	type		Row	engine/preview/preview.go	153
+preview	func		Breakdown	engine/preview/preview.go	165
+preview	func		Text	engine/preview/preview.go	207
+quality	var		QualityVersion	engine/quality/quality.go	25
+quality	const		MaxQualityBytes	engine/quality/quality.go	29
+quality	type		Level	engine/quality/quality.go	32
+quality	const		LevelHigh	engine/quality/quality.go	37
+quality	const		LevelMedium	engine/quality/quality.go	38
+quality	const		LevelLow	engine/quality/quality.go	39
+quality	method	Level	String	engine/quality/quality.go	43
+quality	method	Level	Valid	engine/quality/quality.go	46
+quality	func		ParseLevel	engine/quality/quality.go	52
+quality	type		Spec	engine/quality/quality.go	63
+quality	func		SpecFor	engine/quality/quality.go	82
+quality	type		Quality	engine/quality/quality.go	94
+quality	func		NewQuality	engine/quality/quality.go	100
+quality	method	Quality	Level	engine/quality/quality.go	108
+quality	method	Quality	Spec	engine/quality/quality.go	112
+quality	method	Quality	Equal	engine/quality/quality.go	120
+quality	method	Quality	Switch	engine/quality/quality.go	127
+quality	method	Quality	Encode	engine/quality/quality.go	147
+quality	func		ParseQuality	engine/quality/quality.go	166
+quality	func		StoreQuality	engine/quality/quality.go	198
+quality	func		LoadQuality	engine/quality/quality.go	221
+renderconv	func		Vec2ToRenderPoint	engine/renderconv/conv.go	19
+renderconv	func		Vec2FromRenderPoint	engine/renderconv/conv.go	22
+renderconv	func		ColorToRender	engine/renderconv/conv.go	25
+renderconv	func		ColorFromRender	engine/renderconv/conv.go	30
+renderconv	func		Mat2DToRenderMatrix	engine/renderconv/conv.go	35
+renderconv	func		Mat2DFromRenderMatrix	engine/renderconv/conv.go	40
+renderconv	var		ErrFilterMixedAxes	engine/renderconv/filter.go	42
+renderconv	var		ErrFilterUnknownKind	engine/renderconv/filter.go	45
+renderconv	var		ErrFilterAnisoUnsupported	engine/renderconv/filter.go	48
+renderconv	func		FilterToRender	engine/renderconv/filter.go	58
+save	var		CurrentVersion	engine/save/save.go	23
+save	const		MaxSlots	engine/save/save.go	30
+save	const		MaxInventory	engine/save/save.go	32
+save	const		MaxItemCount	engine/save/save.go	34
+save	const		MaxStars	engine/save/save.go	36
+save	const		MaxStarsPerLevel	engine/save/save.go	38
+save	const		MaxNameLen	engine/save/save.go	40
+save	const		MaxBytes	engine/save/save.go	42
+save	type		Item	engine/save/save.go	47
+save	func		NewItem	engine/save/save.go	54
+save	method	Item	ID	engine/save/save.go	65
+save	method	Item	Count	engine/save/save.go	68
+save	type		Progress	engine/save/save.go	73
+save	func		NewProgress	engine/save/save.go	81
+save	method	Progress	Level	engine/save/save.go	92
+save	method	Progress	Checkpoint	engine/save/save.go	95
+save	method	Progress	Play	engine/save/save.go	98
+save	method	Progress	PlayMs	engine/save/save.go	101
+save	type		Save	engine/save/save.go	106
+save	func		New	engine/save/save.go	152
+save	method	Save	Slot	engine/save/save.go	165
+save	method	Save	Version	engine/save/save.go	168
+save	method	Save	Progress	engine/save/save.go	171
+save	method	Save	Inventory	engine/save/save.go	175
+save	method	Save	Stars	engine/save/save.go	179
+save	method	Save	StarsOf	engine/save/save.go	182
+save	method	Save	SetProgress	engine/save/save.go	192
+save	method	Save	AddItem	engine/save/save.go	209
+save	method	Save	SetStars	engine/save/save.go	241
+save	method	Save	Equal	engine/save/save.go	292
+save	method	Save	Encode	engine/save/save.go	433
+save	method	Save	Store	engine/save/save.go	473
+save	func		Parse	engine/save/save.go	499
+save	func		Load	engine/save/save.go	564
+save	func		Migrate	engine/save/save.go	581
+sprite	const		FilterUnset	engine/sprite/atlas.go	30
+sprite	func		FilterName	engine/sprite/atlas.go	52
+sprite	func		ParseFilter	engine/sprite/atlas.go	70
+sprite	func		MipmapName	engine/sprite/atlas.go	86
+sprite	func		ParseMipmap	engine/sprite/atlas.go	102
+sprite	type		AtlasSprite	engine/sprite/atlas.go	128
+sprite	func		NewAtlasSprite	engine/sprite/atlas.go	166
+sprite	method	AtlasSprite	Validate	engine/sprite/atlas.go	198
+sprite	method	AtlasSprite	Skippable	engine/sprite/atlas.go	245
+sprite	method	AtlasSprite	HasTint	engine/sprite/atlas.go	252
+sprite	method	AtlasSprite	PivotPoint	engine/sprite/atlas.go	257
+sprite	func		FeetPivot	engine/sprite/atlas.go	264
+sprite	method	AtlasSprite	ToRender	engine/sprite/atlas.go	269
+sprite	func		AtlasToRender	engine/sprite/atlas.go	300
+sprite	type		Sprite	engine/sprite/batch.go	22
+sprite	func		Skippable	engine/sprite/batch.go	38
+sprite	func		EffectiveOpacity	engine/sprite/batch.go	44
+sprite	func		NewSprite	engine/sprite/batch.go	57
+sprite	type		Batch	engine/sprite/batch.go	78
+sprite	func		NewBatch	engine/sprite/batch.go	84
+sprite	method	Batch	Add	engine/sprite/batch.go	90
+sprite	method	Batch	Len	engine/sprite/batch.go	116
+sprite	method	Batch	Skipped	engine/sprite/batch.go	124
+sprite	method	Batch	Clear	engine/sprite/batch.go	134
+sprite	method	Batch	FlushCount	engine/sprite/batch.go	148
+sprite	method	Batch	Flush	engine/sprite/batch.go	182
+sprite	type		DeepItem	engine/sprite/depth.go	25
+sprite	func		NewDeepItem	engine/sprite/depth.go	34
+sprite	func		SetDepth	engine/sprite/depth.go	46
+sprite	func		DepthSort	engine/sprite/depth.go	97
+sprite	func		IsDepthSorted	engine/sprite/depth.go	123
+sprite	type		LoopMode	engine/sprite/flipbook.go	18
+sprite	const		LoopOnce	engine/sprite/flipbook.go	22
+sprite	const		LoopLoop	engine/sprite/flipbook.go	24
+sprite	const		LoopPingPong	engine/sprite/flipbook.go	26
+sprite	method	LoopMode	String	engine/sprite/flipbook.go	30
+sprite	type		Clip	engine/sprite/flipbook.go	47
+sprite	type		EventKind	engine/sprite/flipbook.go	56
+sprite	const		EventNone	engine/sprite/flipbook.go	60
+sprite	const		EventFrame	engine/sprite/flipbook.go	62
+sprite	const		EventLoop	engine/sprite/flipbook.go	64
+sprite	const		EventFinished	engine/sprite/flipbook.go	66
+sprite	method	EventKind	String	engine/sprite/flipbook.go	70
+sprite	type		Event	engine/sprite/flipbook.go	85
+sprite	type		Flipbook	engine/sprite/flipbook.go	95
+sprite	func		NewFlipbook	engine/sprite/flipbook.go	112
+sprite	method	Flipbook	AddClip	engine/sprite/flipbook.go	121
+sprite	method	Flipbook	Has	engine/sprite/flipbook.go	152
+sprite	method	Flipbook	Count	engine/sprite/flipbook.go	161
+sprite	method	Flipbook	OnEvent	engine/sprite/flipbook.go	171
+sprite	method	Flipbook	Play	engine/sprite/flipbook.go	181
+sprite	method	Flipbook	Current	engine/sprite/flipbook.go	202
+sprite	method	Flipbook	IsPlaying	engine/sprite/flipbook.go	215
+sprite	method	Flipbook	Update	engine/sprite/flipbook.go	232
+sprite	type		Layer	engine/sprite/ysort.go	23
+sprite	const		LayerWorld	engine/sprite/ysort.go	27
+sprite	const		LayerFX	engine/sprite/ysort.go	29
+sprite	const		LayerUI	engine/sprite/ysort.go	31
+sprite	func		ZIndexForLayer	engine/sprite/ysort.go	42
+sprite	type		Item	engine/sprite/ysort.go	48
+sprite	func		NewItem	engine/sprite/ysort.go	57
+sprite	func		Sort	engine/sprite/ysort.go	97
+sprite	func		IsSorted	engine/sprite/ysort.go	119
+step	const		MaxFrame	engine/step/fixed.go	20
+step	type		Fixed	engine/step/fixed.go	28
+step	func		NewFixed	engine/step/fixed.go	37
+step	method	Fixed	Dt	engine/step/fixed.go	45
+step	method	Fixed	Steps	engine/step/fixed.go	53
+step	method	Fixed	Elapsed	engine/step/fixed.go	61
+step	method	Fixed	Accum	engine/step/fixed.go	69
+step	method	Fixed	Alpha	engine/step/fixed.go	79
+step	method	Fixed	Advance	engine/step/fixed.go	89
+step	method	Fixed	Reset	engine/step/fixed.go	103
+step	func		Interp	engine/step/fixed.go	126
+step	func		InterpFloat	engine/step/fixed.go	139
+step	func		InterpVec	engine/step/fixed.go	145
+step	const		MaxScale	engine/step/time.go	22
+step	type		Clock	engine/step/time.go	27
+step	func		NewClock	engine/step/time.go	35
+step	method	Clock	SetTimeScale	engine/step/time.go	54
+step	method	Clock	TimeScale	engine/step/time.go	62
+step	method	Clock	SetPaused	engine/step/time.go	70
+step	method	Clock	Paused	engine/step/time.go	78
+step	method	Clock	Pause	engine/step/time.go	86
+step	method	Clock	Resume	engine/step/time.go	94
+step	func		Split	engine/step/time.go	106
+step	method	Clock	Advance	engine/step/time.go	117
+step	method	Clock	WorldElapsed	engine/step/time.go	128
+step	method	Clock	UIElapsed	engine/step/time.go	136
+step	method	Clock	Reset	engine/step/time.go	144
+tex	const		MaxDimension	engine/tex/compressed.go	41
+tex	const		MaxPixels	engine/tex/compressed.go	42
+tex	const		LargeTranscodePixels	engine/tex/compressed.go	46
+tex	const		SchemeNone	engine/tex/compressed.go	53
+tex	const		SchemeBasisLZ	engine/tex/compressed.go	55
+tex	const		SchemeZstd	engine/tex/compressed.go	57
+tex	const		SchemeZlib	engine/tex/compressed.go	59
+tex	type		Format	engine/tex/compressed.go	64
+tex	const		FormatUnknown	engine/tex/compressed.go	68
+tex	const		FormatBC1RGBAUnorm	engine/tex/compressed.go	70
+tex	const		FormatASTCRGBA4x4	engine/tex/compressed.go	73
+tex	method	Format	String	engine/tex/compressed.go	77
+tex	method	Format	BlockBytes	engine/tex/compressed.go	90
+tex	method	Format	BlockExtent	engine/tex/compressed.go	101
+tex	method	Format	VkFormat	engine/tex/compressed.go	111
+tex	type		Image	engine/tex/compressed.go	146
+tex	method	Image	Format	engine/tex/compressed.go	155
+tex	method	Image	Width	engine/tex/compressed.go	163
+tex	method	Image	Height	engine/tex/compressed.go	171
+tex	method	Image	BlockCount	engine/tex/compressed.go	180
+tex	method	Image	UploadSize	engine/tex/compressed.go	191
+tex	method	Image	PixelSize	engine/tex/compressed.go	199
+tex	method	Image	Ratio	engine/tex/compressed.go	207
+tex	method	Image	Blocks	engine/tex/compressed.go	216
+tex	method	Image	Pixels	engine/tex/compressed.go	224
+tex	method	Image	At	engine/tex/compressed.go	233
+tex	method	Image	Equal	engine/tex/compressed.go	243
+tex	func		ParseKTX2	engine/tex/compressed.go	255
+tex	func		LoadKTX2	engine/tex/compressed.go	357
+tex	func		ParseBasis	engine/tex/compressed.go	371
+tex	func		LoadBasis	engine/tex/compressed.go	381
+tex	func		IsPink	engine/tex/compressed.go	429
+tex	type		Usage	engine/tex/compressed.go	446
+tex	const		UsageColor	engine/tex/compressed.go	450
+tex	const		UsageNormal	engine/tex/compressed.go	452
+tex	method	Usage	String	engine/tex/compressed.go	456
+tex	func		CheckUsage	engine/tex/compressed.go	466
+tex	type		GPUCaps	engine/tex/compressed.go	487
+tex	var		CapsDesktopBC1	engine/tex/compressed.go	500
+tex	var		CapsMobileASTC	engine/tex/compressed.go	502
+tex	var		CapsUniversal	engine/tex/compressed.go	504
+tex	var		CapsNone	engine/tex/compressed.go	506
+tex	type		TranscodeTarget	engine/tex/compressed.go	510
+tex	const		TargetNative	engine/tex/compressed.go	514
+tex	const		TargetBC1	engine/tex/compressed.go	516
+tex	const		TargetPink	engine/tex/compressed.go	518
+tex	method	TranscodeTarget	String	engine/tex/compressed.go	522
+tex	func		TranscodeTargetFor	engine/tex/compressed.go	536
+tex	type		Transcoder	engine/tex/compressed.go	560
+tex	func		Transcode	engine/tex/compressed.go	566
+tex	type		TranscodeResult	engine/tex/compressed.go	599
+tex	func		NeedsAsync	engine/tex/compressed.go	607
+tex	func		TranscodeAsync	engine/tex/compressed.go	617
+tex	type		Kind	engine/tex/mipmap.go	23
+tex	const		KindUnknown	engine/tex/mipmap.go	28
+tex	const		KindNearest	engine/tex/mipmap.go	30
+tex	const		KindLinear	engine/tex/mipmap.go	32
+tex	method	Kind	String	engine/tex/mipmap.go	36
+tex	func		ParseKind	engine/tex/mipmap.go	48
+tex	type		MipMode	engine/tex/mipmap.go	68
+tex	const		MipUnknown	engine/tex/mipmap.go	73
+tex	const		MipNearest	engine/tex/mipmap.go	75
+tex	const		MipLinear	engine/tex/mipmap.go	77
+tex	func		ParseMipMode	engine/tex/mipmap.go	81
+tex	const		AnisoMin	engine/tex/mipmap.go	94
+tex	const		AnisoMax	engine/tex/mipmap.go	95
+tex	const		DefaultAniso	engine/tex/mipmap.go	97
+tex	type		Filter	engine/tex/mipmap.go	104
+tex	func		DefaultFilter	engine/tex/mipmap.go	113
+tex	func		NearestFilter	engine/tex/mipmap.go	120
+tex	method	Filter	Normalized	engine/tex/mipmap.go	144
+tex	method	Filter	SetFilter	engine/tex/mipmap.go	164
+tex	method	Filter	SetMipmap	engine/tex/mipmap.go	187
+tex	method	Filter	SamplerParams	engine/tex/mipmap.go	204
+tex	func		NumLevels	engine/tex/mipmap.go	215
+tex	func		LevelForScale	engine/tex/mipmap.go	230
+tex	func		LevelSize	engine/tex/mipmap.go	251
+tex	type		Table	engine/tex/mipmap.go	268
+tex	func		NewTable	engine/tex/mipmap.go	274
+tex	method	Table	Set	engine/tex/mipmap.go	292
+tex	method	Table	Get	engine/tex/mipmap.go	310
+tex	method	Table	Remove	engine/tex/mipmap.go	321
+tex	method	Table	Len	engine/tex/mipmap.go	335
+tex	method	Table	Clear	engine/tex/mipmap.go	345
+tex	const		RealisticAniso	engine/tex/mipmap.go	355
+tex	func		RealisticFilter	engine/tex/mipmap.go	359
+tex	func		PixelArtFilter	engine/tex/mipmap.go	365
+tex	func		SnapPixel	engine/tex/mipmap.go	370
+tex	func		SnapPixelInt	engine/tex/mipmap.go	373
+tex	func		IsPixelAligned	engine/tex/mipmap.go	376
+tex	method	Filter	AnisoWarning	engine/tex/mipmap.go	381
+tex	method	Filter	IsAnisoValid	engine/tex/mipmap.go	396
+tex	method	Filter	LogAnisoWarning	engine/tex/mipmap.go	400
+tex	const		MaxStreams	engine/tex/stream.go	25
+tex	const		MaxStreamBytes	engine/tex/stream.go	27
+tex	const		MaxStreamAssetBytes	engine/tex/stream.go	29
+tex	const		MaxStreamIDLen	engine/tex/stream.go	31
+tex	func		PlaceholderImage	engine/tex/stream.go	61
+tex	type		State	engine/tex/stream.go	64
+tex	const		StateEmpty	engine/tex/stream.go	68
+tex	const		StateLoading	engine/tex/stream.go	70
+tex	const		StateReady	engine/tex/stream.go	72
+tex	const		StateMissing	engine/tex/stream.go	74
+tex	const		StateFailed	engine/tex/stream.go	76
+tex	method	State	String	engine/tex/stream.go	82
+tex	type		Stats	engine/tex/stream.go	91
+tex	type		Stream	engine/tex/stream.go	110
+tex	func		NewStream	engine/tex/stream.go	123
+tex	method	Stream	Request	engine/tex/stream.go	191
+tex	method	Stream	RequestFile	engine/tex/stream.go	256
+tex	method	Stream	Poll	engine/tex/stream.go	339
+tex	method	Stream	Wait	engine/tex/stream.go	370
+tex	method	Stream	Get	engine/tex/stream.go	417
+tex	method	Stream	Placeholder	engine/tex/stream.go	432
+tex	method	Stream	Ready	engine/tex/stream.go	442
+tex	method	Stream	StateOf	engine/tex/stream.go	450
+tex	method	Stream	Ref	engine/tex/stream.go	464
+tex	method	Stream	Unload	engine/tex/stream.go	504
+tex	method	Stream	Evict	engine/tex/stream.go	529
+tex	method	Stream	LiveCount	engine/tex/stream.go	556
+tex	method	Stream	Stats	engine/tex/stream.go	564
+tex	method	Stream	Count	engine/tex/stream.go	587
+tex	method	Stream	TotalBytes	engine/tex/stream.go	595
+tilemap	const		MaxChunks	engine/tilemap/chunk.go	23
+tilemap	type		ChunkID	engine/tilemap/chunk.go	27
+tilemap	type		Chunk	engine/tilemap/chunk.go	37
+tilemap	func		NewChunker	engine/tilemap/chunk.go	59
+tilemap	method	Chunk	Orient	engine/tilemap/chunk.go	86
+tilemap	method	Chunk	W	engine/tilemap/chunk.go	89
+tilemap	method	Chunk	H	engine/tilemap/chunk.go	92
+tilemap	method	Chunk	TileW	engine/tilemap/chunk.go	95
+tilemap	method	Chunk	TileH	engine/tilemap/chunk.go	98
+tilemap	method	Chunk	ChunkW	engine/tilemap/chunk.go	101
+tilemap	method	Chunk	ChunkH	engine/tilemap/chunk.go	104
+tilemap	method	Chunk	ChunkCols	engine/tilemap/chunk.go	107
+tilemap	method	Chunk	ChunkRows	engine/tilemap/chunk.go	110
+tilemap	method	Chunk	LoadedCount	engine/tilemap/chunk.go	113
+tilemap	method	Chunk	ChunkOf	engine/tilemap/chunk.go	142
+tilemap	method	Chunk	ChunkBounds	engine/tilemap/chunk.go	196
+tilemap	method	Chunk	Needed	engine/tilemap/chunk.go	203
+tilemap	method	Chunk	Load	engine/tilemap/chunk.go	221
+tilemap	method	Chunk	Unload	engine/tilemap/chunk.go	247
+tilemap	method	Chunk	Update	engine/tilemap/chunk.go	278
+tilemap	method	Chunk	Visible	engine/tilemap/chunk.go	315
+tilemap	method	Chunk	Loaded	engine/tilemap/chunk.go	336
+tilemap	method	Chunk	IsLoaded	engine/tilemap/chunk.go	355
+tilemap	method	Chunk	Reset	engine/tilemap/chunk.go	369
+tilemap	type		Iso	engine/tilemap/iso.go	22
+tilemap	func		NewIso	engine/tilemap/iso.go	28
+tilemap	method	Iso	TileW	engine/tilemap/iso.go	36
+tilemap	method	Iso	TileH	engine/tilemap/iso.go	39
+tilemap	method	Iso	TileToWorld	engine/tilemap/iso.go	44
+tilemap	method	Iso	TileCenter	engine/tilemap/iso.go	54
+tilemap	method	Iso	TileBounds	engine/tilemap/iso.go	67
+tilemap	method	Iso	DiamondContains	engine/tilemap/iso.go	77
+tilemap	method	Iso	WorldToTile	engine/tilemap/iso.go	96
+tilemap	const		LargeChunkW	engine/tilemap/large.go	42
+tilemap	const		LargeChunkH	engine/tilemap/large.go	43
+tilemap	const		MaxLargeTiles	engine/tilemap/large.go	48
+tilemap	const		DefaultMergePerFrame	engine/tilemap/large.go	52
+tilemap	type		Large	engine/tilemap/large.go	56
+tilemap	func		NewLarge	engine/tilemap/large.go	71
+tilemap	func		NewLargeSized	engine/tilemap/large.go	78
+tilemap	method	Large	W	engine/tilemap/large.go	103
+tilemap	method	Large	H	engine/tilemap/large.go	111
+tilemap	method	Large	ChunkW	engine/tilemap/large.go	119
+tilemap	method	Large	ChunkH	engine/tilemap/large.go	127
+tilemap	method	Large	Cols	engine/tilemap/large.go	135
+tilemap	method	Large	Rows	engine/tilemap/large.go	143
+tilemap	method	Large	ChunkCount	engine/tilemap/large.go	151
+tilemap	method	Large	LoadedCount	engine/tilemap/large.go	159
+tilemap	method	Large	PendingCount	engine/tilemap/large.go	169
+tilemap	method	Large	Requests	engine/tilemap/large.go	179
+tilemap	method	Large	Merges	engine/tilemap/large.go	189
+tilemap	method	Large	ChunkOf	engine/tilemap/large.go	199
+tilemap	method	Large	ChunkBounds	engine/tilemap/large.go	208
+tilemap	method	Large	Needed	engine/tilemap/large.go	217
+tilemap	method	Large	IsLoaded	engine/tilemap/large.go	225
+tilemap	method	Large	IsMissing	engine/tilemap/large.go	237
+tilemap	method	Large	Loaded	engine/tilemap/large.go	248
+tilemap	method	Large	Pending	engine/tilemap/large.go	267
+tilemap	method	Large	Visible	engine/tilemap/large.go	283
+tilemap	method	Large	Request	engine/tilemap/large.go	308
+tilemap	method	Large	MergeBudget	engine/tilemap/large.go	342
+tilemap	method	Large	Update	engine/tilemap/large.go	407
+tilemap	method	Large	Reset	engine/tilemap/large.go	456
+tilemap	type		Level	engine/tilemap/lod.go	22
+tilemap	const		LevelNear	engine/tilemap/lod.go	26
+tilemap	const		LevelFar	engine/tilemap/lod.go	28
+tilemap	method	Level	String	engine/tilemap/lod.go	32
+tilemap	type		LOD	engine/tilemap/lod.go	49
+tilemap	func		NewLOD	engine/tilemap/lod.go	56
+tilemap	method	LOD	Near	engine/tilemap/lod.go	65
+tilemap	method	LOD	Far	engine/tilemap/lod.go	68
+tilemap	method	LOD	Band	engine/tilemap/lod.go	71
+tilemap	method	LOD	Select	engine/tilemap/lod.go	79
+tilemap	func		ChunkDist	engine/tilemap/lod.go	103
+tilemap	method	LOD	ChunkLevel	engine/tilemap/lod.go	131
+tilemap	type		Orientation	engine/tilemap/tilemap.go	23
+tilemap	const		OrientOrthogonal	engine/tilemap/tilemap.go	27
+tilemap	const		OrientIsometric	engine/tilemap/tilemap.go	29
+tilemap	type		LayerKind	engine/tilemap/tilemap.go	33
+tilemap	const		KindGround	engine/tilemap/tilemap.go	37
+tilemap	const		KindDecoration	engine/tilemap/tilemap.go	39
+tilemap	const		KindCollision	engine/tilemap/tilemap.go	41
+tilemap	const		KindNavigation	engine/tilemap/tilemap.go	43
+tilemap	const		KindOcclusion	engine/tilemap/tilemap.go	45
+tilemap	type		Tileset	engine/tilemap/tilemap.go	49
+tilemap	type		Layer	engine/tilemap/tilemap.go	57
+tilemap	type		Object	engine/tilemap/tilemap.go	66
+tilemap	type		Tilemap	engine/tilemap/tilemap.go	74
+tilemap	func		NewTilemap	engine/tilemap/tilemap.go	92
+tilemap	func		NewTileset	engine/tilemap/tilemap.go	106
+tilemap	func		NewLayer	engine/tilemap/tilemap.go	115
+tilemap	func		NewObject	engine/tilemap/tilemap.go	138
+tilemap	method	Tilemap	Orient	engine/tilemap/tilemap.go	149
+tilemap	method	Tilemap	W	engine/tilemap/tilemap.go	152
+tilemap	method	Tilemap	H	engine/tilemap/tilemap.go	155
+tilemap	method	Tilemap	TileW	engine/tilemap/tilemap.go	158
+tilemap	method	Tilemap	TileH	engine/tilemap/tilemap.go	161
+tilemap	method	Tilemap	Layers	engine/tilemap/tilemap.go	164
+tilemap	method	Tilemap	Objects	engine/tilemap/tilemap.go	171
+tilemap	method	Tilemap	Tilesets	engine/tilemap/tilemap.go	178
+tilemap	method	Tileset	FirstGID	engine/tilemap/tilemap.go	185
+tilemap	method	Tileset	Name	engine/tilemap/tilemap.go	188
+tilemap	method	Tileset	TileCount	engine/tilemap/tilemap.go	191
+tilemap	method	Tileset	Columns	engine/tilemap/tilemap.go	194
+tilemap	method	Layer	Name	engine/tilemap/tilemap.go	197
+tilemap	method	Layer	Kind	engine/tilemap/tilemap.go	200
+tilemap	method	Layer	GIDs	engine/tilemap/tilemap.go	203
+tilemap	method	Object	ID	engine/tilemap/tilemap.go	210
+tilemap	method	Object	Name	engine/tilemap/tilemap.go	213
+tilemap	method	Object	Type	engine/tilemap/tilemap.go	216
+tilemap	method	Object	Bounds	engine/tilemap/tilemap.go	219
+tilemap	method	Tilemap	AddTileset	engine/tilemap/tilemap.go	222
+tilemap	method	Tilemap	AddLayer	engine/tilemap/tilemap.go	231
+tilemap	method	Tilemap	AddObject	engine/tilemap/tilemap.go	248
+tilemap	method	Tilemap	LayerIndex	engine/tilemap/tilemap.go	262
+tilemap	method	Tilemap	At	engine/tilemap/tilemap.go	302
+tilemap	method	Tilemap	CellToWorld	engine/tilemap/tilemap.go	311
+tilemap	method	Tilemap	WorldToCell	engine/tilemap/tilemap.go	327
+tilemap	method	Tilemap	CellBounds	engine/tilemap/tilemap.go	347
+tilemap	method	Tilemap	ObjectsIn	engine/tilemap/tilemap.go	358
+tilemap	method	Tilemap	IsSolidAt	engine/tilemap/tilemap.go	382
+tilemap	method	Tilemap	NavCostAt	engine/tilemap/tilemap.go	389
+tilemap	method	Tilemap	OccludedAt	engine/tilemap/tilemap.go	395
+tilemap	method	Tilemap	AutoMaskAt	engine/tilemap/tilemap.go	403
+tilemap	func		AutoVariant4	engine/tilemap/tilemap.go	432
+tilemap	func		ParseTMX	engine/tilemap/tilemap.go	543
+world	const		MaxCullEntities	engine/world/cull.go	56
+world	type		ActiveSnap	engine/world/cull.go	89
+world	type		Cull	engine/world/cull.go	102
+world	func		NewCull	engine/world/cull.go	131
+world	method	Cull	SetView	engine/world/cull.go	141
+world	method	Cull	View	engine/world/cull.go	154
+world	method	Cull	SetAutoSleep	engine/world/cull.go	165
+world	method	Cull	AutoSleep	engine/world/cull.go	173
+world	method	Cull	SetMaxActive	engine/world/cull.go	183
+world	method	Cull	MaxActive	engine/world/cull.go	196
+world	method	Cull	Track	engine/world/cull.go	218
+world	method	Cull	Update	engine/world/cull.go	248
+world	method	Cull	Untrack	engine/world/cull.go	269
+world	method	Cull	Awake	engine/world/cull.go	294
+world	method	Cull	Release	engine/world/cull.go	308
+world	method	Cull	IsAwake	engine/world/cull.go	322
+world	method	Cull	Refresh	engine/world/cull.go	371
+world	method	Cull	Snapshot	engine/world/cull.go	495
+world	method	Cull	Active	engine/world/cull.go	557
+world	method	Cull	ActiveCount	engine/world/cull.go	565
+world	method	Cull	Entered	engine/world/cull.go	574
+world	method	Cull	Exited	engine/world/cull.go	583
+world	method	Cull	IsActive	engine/world/cull.go	592
+world	method	Cull	InView	engine/world/cull.go	606
+world	method	Cull	Count	engine/world/cull.go	626
+world	method	Cull	Dropped	engine/world/cull.go	634
+world	method	Cull	Trimmed	engine/world/cull.go	642
+world	method	Cull	Refreshes	engine/world/cull.go	651
+world	method	Cull	LastRefreshUs	engine/world/cull.go	661
+world	method	Cull	Reset	engine/world/cull.go	671
+world	type		ID	engine/world/entity.go	21
+world	const		NoEntity	engine/world/entity.go	24
+world	type		Transform	engine/world/entity.go	38
+world	func		IdentityTransform	engine/world/entity.go	47
+world	func		LocalMatrix	engine/world/entity.go	51
+world	type		Comp	engine/world/entity.go	60
+world	type		World	engine/world/entity.go	75
+world	func		NewWorld	engine/world/entity.go	82
+world	method	World	Spawn	engine/world/entity.go	118
+world	method	World	Despawn	engine/world/entity.go	148
+world	method	World	Alive	engine/world/entity.go	169
+world	method	World	Count	engine/world/entity.go	177
+world	method	World	Spawned	engine/world/entity.go	186
+world	method	World	SetParent	engine/world/entity.go	212
+world	method	World	Parent	engine/world/entity.go	245
+world	method	World	Children	engine/world/entity.go	255
+world	method	World	SetTransform	engine/world/entity.go	265
+world	method	World	Local	engine/world/entity.go	278
+world	method	World	WorldOf	engine/world/entity.go	320
+world	method	World	WorldMatrix	engine/world/entity.go	336
+world	method	World	AddComp	engine/world/entity.go	350
+world	method	World	RemoveComp	engine/world/entity.go	364
+world	method	World	HasComp	engine/world/entity.go	383
+world	method	World	Comps	engine/world/entity.go	398
+world	method	World	Clear	engine/world/entity.go	408
+world	var		PrefabVersion	engine/world/prefab.go	38
+world	const		MaxPrefabNameLen	engine/world/prefab.go	45
+world	const		MaxPrefabComps	engine/world/prefab.go	47
+world	const		MaxPrefabBytes	engine/world/prefab.go	49
+world	type		Prefab	engine/world/prefab.go	57
+world	func		NewPrefab	engine/world/prefab.go	67
+world	method	Prefab	Name	engine/world/prefab.go	78
+world	method	Prefab	Version	engine/world/prefab.go	86
+world	method	Prefab	Local	engine/world/prefab.go	94
+world	method	Prefab	SetLocal	engine/world/prefab.go	104
+world	method	Prefab	AddComp	engine/world/prefab.go	118
+world	method	Prefab	Comps	engine/world/prefab.go	134
+world	method	Prefab	Equal	engine/world/prefab.go	143
+world	method	Prefab	Instantiate	engine/world/prefab.go	165
+world	method	Prefab	Encode	engine/world/prefab.go	279
+world	func		ParsePrefab	engine/world/prefab.go	311
+world	func		LoadPrefab	engine/world/prefab.go	356
+world	method	Prefab	SavePrefab	engine/world/prefab.go	371
+world	type		LifeState	engine/world/scene.go	39
+world	const		LifeActive	engine/world/scene.go	43
+world	const		LifeSleeping	engine/world/scene.go	45
+world	method	LifeState	String	engine/world/scene.go	49
+world	type		Scene	engine/world/scene.go	57
+world	func		NewScene	engine/world/scene.go	63
+world	method	Scene	Spawn	engine/world/scene.go	76
+world	method	Scene	Sleep	engine/world/scene.go	90
+world	method	Scene	Wake	engine/world/scene.go	102
+world	method	Scene	State	engine/world/scene.go	114
+world	method	Scene	IsActive	engine/world/scene.go	126
+world	method	Scene	IsSleeping	engine/world/scene.go	132
+world	method	Scene	Alive	engine/world/scene.go	138
+world	method	Scene	Dispose	engine/world/scene.go	148
+world	method	Scene	Count	engine/world/scene.go	160
+world	method	Scene	ActiveCount	engine/world/scene.go	168
+world	method	Scene	SleepingCount	engine/world/scene.go	182
+world	method	Scene	Spawned	engine/world/scene.go	197
+world	method	Scene	Clear	engine/world/scene.go	206
+world	method	Scene	World	engine/world/scene.go	217
+world	var		SceneFileVersion	engine/world/scene.go	234
+world	const		MaxSceneNameLen	engine/world/scene.go	241
+world	const		MaxSceneEntities	engine/world/scene.go	243
+world	const		MaxSceneComps	engine/world/scene.go	245
+world	const		MaxSceneBytes	engine/world/scene.go	247
+world	type		SceneNode	engine/world/scene.go	254
+world	type		SceneFile	engine/world/scene.go	264
+world	func		NewSceneFile	engine/world/scene.go	272
+world	method	SceneFile	Name	engine/world/scene.go	280
+world	method	SceneFile	Version	engine/world/scene.go	288
+world	method	SceneFile	Count	engine/world/scene.go	296
+world	method	SceneFile	Entities	engine/world/scene.go	306
+world	method	SceneFile	AddEntity	engine/world/scene.go	327
+world	method	SceneFile	Equal	engine/world/scene.go	378
+world	method	SceneFile	Encode	engine/world/scene.go	462
+world	func		ParseScene	engine/world/scene.go	494
+world	func		LoadScene	engine/world/scene.go	562
+world	method	SceneFile	SaveScene	engine/world/scene.go	577
+world	method	SceneFile	Open	engine/world/scene.go	603

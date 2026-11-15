@@ -1,0 +1,1338 @@
+gpu	const		LifecycleNormal	render/gpu/lifecycle_policy.go	40
+gpu	const		LifecyclePurge	render/gpu/lifecycle_policy.go	42
+gpu	const		LifecycleRecreate	render/gpu/lifecycle_policy.go	44
+gpu	func		AbandonDevice	render/gpu/gpu.go	103
+gpu	func		NoteTextureOOM	render/gpu/lifecycle_policy.go	66
+gpu	func		PurgeSurfaceResources	render/gpu/gpu.go	109
+gpu	func		ResetTextureOOMCount	render/gpu/lifecycle_policy.go	74
+gpu	func		ResolveSurfaceLifecycle	render/gpu/lifecycle_policy.go	78
+gpu	func		SetDeviceProvider	render/gpu/gpu.go	95
+gpu	func		TextureOOMCount	render/gpu/lifecycle_policy.go	71
+gpu	type		SurfaceLifecycle	render/gpu/lifecycle_policy.go	36
+hdr	const		MaxEncodeExposure	render/hdr/float_target.go	150
+hdr	const		MaxFloatPixels	render/hdr/float_target.go	34
+hdr	method	FloatTarget	ClearFloat	render/hdr/float_target.go	112
+hdr	type		FloatTarget	render/hdr/float_target.go	42
+recording	const		CmdApplyBlur	render/recording/command.go	111
+recording	const		CmdApplyColorMatrix	render/recording/command.go	112
+recording	const		CmdApplyDropShadow	render/recording/command.go	113
+recording	const		CmdApplyGrayscale	render/recording/command.go	114
+recording	const		CmdApplyMask	render/recording/command.go	121
+recording	const		CmdClearClip	render/recording/command.go	58
+recording	const		CmdClearMask	render/recording/command.go	119
+recording	const		CmdClipPathOp	render/recording/command.go	97
+recording	const		CmdClipRect	render/recording/command.go	82
+recording	const		CmdClipRectOp	render/recording/command.go	96
+recording	const		CmdClipRoundRect	render/recording/command.go	59
+recording	const		CmdConcat	render/recording/command.go	55
+recording	const		CmdDrawAtlas	render/recording/command.go	88
+recording	const		CmdDrawDepthSprites	render/recording/command.go	89
+recording	const		CmdDrawGlyphs	render/recording/command.go	91
+recording	const		CmdDrawGPUTexture	render/recording/command.go	92
+recording	const		CmdDrawImage	render/recording/command.go	66
+recording	const		CmdDrawImageCircular	render/recording/command.go	87
+recording	const		CmdDrawImageNine	render/recording/command.go	84
+recording	const		CmdDrawImageQuad	render/recording/command.go	85
+recording	const		CmdDrawImageRounded	render/recording/command.go	86
+recording	const		CmdDrawMesh	render/recording/command.go	100
+recording	const		CmdDrawMeshGradient	render/recording/command.go	102
+recording	const		CmdDrawMeshPatch	render/recording/command.go	101
+recording	const		CmdDrawPicture	render/recording/command.go	132
+recording	const		CmdDrawShadow	render/recording/command.go	103
+recording	const		CmdDrawText	render/recording/command.go	67
+recording	const		CmdDrawTextureRef	render/recording/command.go	104
+recording	const		CmdDrawVertices	render/recording/command.go	90
+recording	const		CmdFillPath	render/recording/command.go	62
+recording	const		CmdFillRect	render/recording/command.go	64
+recording	const		CmdInvertMask	render/recording/command.go	120
+recording	const		CmdPopLayer	render/recording/command.go	110
+recording	const		CmdProjection	render/recording/command.go	56
+recording	const		CmdPushBackdropLayer	render/recording/command.go	109
+recording	const		CmdPushLayer	render/recording/command.go	107
+recording	const		CmdPushLayerIsolated	render/recording/command.go	108
+recording	const		CmdPushMaskLayer	render/recording/command.go	122
+recording	const		CmdRestore	render/recording/command.go	54
+recording	const		CmdSave	render/recording/command.go	53
+recording	const		CmdSceneReplay	render/recording/command.go	127
+recording	const		CmdSetAntiAlias	render/recording/command.go	79
+recording	const		CmdSetClip	render/recording/command.go	57
+recording	const		CmdSetDash	render/recording/command.go	77
+recording	const		CmdSetFillRule	render/recording/command.go	78
+recording	const		CmdSetFillStyle	render/recording/command.go	71
+recording	const		CmdSetLCDLayout	render/recording/command.go	99
+recording	const		CmdSetLineCap	render/recording/command.go	74
+recording	const		CmdSetLineJoin	render/recording/command.go	75
+recording	const		CmdSetLineWidth	render/recording/command.go	73
+recording	const		CmdSetMask	render/recording/command.go	118
+recording	const		CmdSetMiterLimit	render/recording/command.go	76
+recording	const		CmdSetStrokeStyle	render/recording/command.go	72
+recording	const		CmdSetTextDecoration	render/recording/command.go	83
+recording	const		CmdSetTextMode	render/recording/command.go	98
+recording	const		CmdStrokePath	render/recording/command.go	63
+recording	const		CmdStrokeRect	render/recording/command.go	65
+recording	const		CmdStrokeText	render/recording/command.go	68
+recording	const		InvalidRef	render/recording/command.go	235
+recording	func		ApplyBrush	render/recording/backend_canvas.go	602
+recording	func		ApplyStroke	render/recording/backend_canvas.go	622
+recording	func		FromRenderBrush	render/recording/brush.go	336
+recording	func		FromRenderPattern	render/recording/brush.go	313
+recording	func		MustBackend	render/recording/registry.go	98
+recording	func		NewCustomPatternBrush	render/recording/brush.go	263
+recording	func		NewPatternBrush	render/recording/brush.go	195
+recording	func		NewRectFromPoints	render/recording/matrix.go	70
+recording	func		NewResourcePool	render/recording/pool.go	49
+recording	func		ToRenderBrush	render/recording/brush.go	360
+recording	func		ToRenderPattern	render/recording/brush.go	291
+recording	ifacemethod	ScenePayload	RenderSceneInto	render/recording/scene_replay.go	38
+recording	method	ResourcePool	AddBrush	render/recording/pool.go	90
+recording	method	ResourcePool	AddFont	render/recording/pool.go	143
+recording	method	ResourcePool	AddImageBuf	render/recording/pool.go	114
+recording	method	ResourcePool	AddPath	render/recording/pool.go	60
+recording	method	Recorder	DrawRRect	render/recording/recorder_path_draw.go	228
+recording	method	CanvasBackend	DrawTextureRefDevice	render/recording/backend_canvas.go	391
+recording	method	CanvasBackend	DrawTextureRefDeviceCmd	render/recording/backend_canvas.go	405
+recording	method	Recorder	DrawTextureRefDeviceCmd	render/recording/recorder_canvas_ops.go	333
+recording	method	Recorder	DrawTo	render/recording/draw_picture.go	49
+recording	method	Recorder	FillBrush	render/recording/recorder_style.go	89
+recording	method	Recorder	FillStroke	render/recording/recorder_path_draw.go	174
+recording	method	ResourcePool	GetImage	render/recording/pool.go	122
+recording	method	ResourcePool	GetPath	render/recording/pool.go	76
+recording	method	ResourcePool	Images	render/recording/pool.go	137
+recording	method	Recorder	InvertY	render/recording/recorder_state.go	210
+recording	method	Recorder	NewSubPath	render/recording/recorder_path_draw.go	67
+recording	method	Recorder	SetDashOffset	render/recording/recorder_style.go	162
+recording	method	Recorder	SetFillRGB	render/recording/recorder_style.go	100
+recording	method	Recorder	SetHexColor	render/recording/recorder_style.go	43
+recording	method	PatternBrush	SetInverse	render/recording/brush.go	213
+recording	method	Recorder	SetPath	render/recording/recorder_canvas_ops.go	42
+recording	method	PatternBrush	SetSourceRegion	render/recording/brush.go	204
+recording	method	Recorder	SetStrokeBrush	render/recording/recorder_style.go	95
+recording	method	Recorder	SetStrokeRGB	render/recording/recorder_style.go	110
+recording	method	Recorder	StrokeBrush	render/recording/recorder_style.go	92
+recording	type		ApplyBlurCommand	render/recording/command_ops.go	336
+recording	type		ApplyColorMatrixCommand	render/recording/command_ops.go	344
+recording	type		ApplyDropShadowCommand	render/recording/command_ops.go	352
+recording	type		ApplyGrayscaleCommand	render/recording/command_ops.go	362
+recording	type		ApplyMaskCommand	render/recording/mask.go	51
+recording	type		BackendFactory	render/recording/registry.go	21
+recording	type		BrushRef	render/recording/command.go	227
+recording	type		CanvasBackend	render/recording/backend_canvas.go	44
+recording	type		ClearClipCommand	render/recording/command.go	308
+recording	type		ClearMaskCommand	render/recording/mask.go	39
+recording	type		ClipPathOpCommand	render/recording/command_ops.go	197
+recording	type		ClipRectCommand	render/recording/command_ops.go	31
+recording	type		ClipRectOpCommand	render/recording/command_ops.go	186
+recording	type		ClipRoundRectCommand	render/recording/command.go	315
+recording	type		CommandType	render/recording/command.go	49
+recording	type		ConcatCommand	render/recording/command.go	277
+recording	type		CustomPatternBrush	render/recording/brush.go	256
+recording	type		DrawAtlasCommand	render/recording/command_ops.go	92
+recording	type		DrawDepthSpritesCommand	render/recording/command_ops.go	103
+recording	type		DrawGlyphsCommand	render/recording/command_ops.go	131
+recording	type		DrawGPUTextureCommand	render/recording/command_ops.go	149
+recording	type		DrawImageCircularCommand	render/recording/command_ops.go	79
+recording	type		DrawImageCommand	render/recording/command.go	409
+recording	type		DrawImageNineCommand	render/recording/command_ops.go	49
+recording	type		DrawImageQuadCommand	render/recording/command_ops.go	59
+recording	type		DrawImageRoundedCommand	render/recording/command_ops.go	69
+recording	type		DrawMeshCommand	render/recording/command_ops.go	237
+recording	type		DrawMeshGradientCommand	render/recording/command_ops.go	264
+recording	type		DrawMeshPatchCommand	render/recording/command_ops.go	253
+recording	type		DrawPictureCommand	render/recording/draw_picture.go	26
+recording	type		DrawShadowCommand	render/recording/command_ops.go	276
+recording	type		DrawTextureRefCommand	render/recording/command_ops.go	163
+recording	type		DrawVerticesCommand	render/recording/command_ops.go	115
+recording	type		FillPathCommand	render/recording/command.go	332
+recording	type		FillRectCommand	render/recording/command.go	375
+recording	type		GPUTextureBackend	render/recording/backend.go	249
+recording	type		GradientStop	render/recording/brush.go	268
+recording	type		ImageRef	render/recording/command.go	231
+recording	type		InvertMaskCommand	render/recording/mask.go	45
+recording	type		MaskBackend	render/recording/backend.go	274
+recording	type		PathRef	render/recording/command.go	223
+recording	type		PatternBrush	render/recording/brush.go	180
+recording	type		PixmapBackend	render/recording/backend.go	306
+recording	type		PopLayerCommand	render/recording/command_ops.go	326
+recording	type		ProjectionCommand	render/recording/command.go	288
+recording	type		PushBackdropLayerCommand	render/recording/command_ops.go	317
+recording	type		PushLayerCommand	render/recording/command_ops.go	297
+recording	type		PushLayerIsolatedCommand	render/recording/command_ops.go	308
+recording	type		PushMaskLayerCommand	render/recording/mask.go	59
+recording	type		ResourcePool	render/recording/pool.go	41
+recording	type		RestoreCommand	render/recording/command.go	264
+recording	type		SaveCommand	render/recording/command.go	258
+recording	type		SceneReplayCommand	render/recording/scene_replay.go	48
+recording	type		SetAntiAliasCommand	render/recording/command.go	546
+recording	type		SetClipCommand	render/recording/command.go	297
+recording	type		SetDashCommand	render/recording/command.go	525
+recording	type		SetFillRuleCommand	render/recording/command.go	537
+recording	type		SetFillStyleCommand	render/recording/command.go	471
+recording	type		SetLCDLayoutCommand	render/recording/command_ops.go	222
+recording	type		SetLineCapCommand	render/recording/command.go	498
+recording	type		SetLineJoinCommand	render/recording/command.go	507
+recording	type		SetLineWidthCommand	render/recording/command.go	489
+recording	type		SetMaskCommand	render/recording/mask.go	31
+recording	type		SetMiterLimitCommand	render/recording/command.go	516
+recording	type		SetStrokeStyleCommand	render/recording/command.go	480
+recording	type		SetTextDecorationCommand	render/recording/command_ops.go	40
+recording	type		SetTextModeCommand	render/recording/command_ops.go	214
+recording	type		StrokePathCommand	render/recording/command.go	353
+recording	type		StrokeRectCommand	render/recording/command.go	390
+recording	type		TextureRefBackend	render/recording/backend.go	258
+recording	type		WriterBackend	render/recording/backend.go	284
+recording	var		ErrNoCanvas	render/recording/backend_canvas.go	23
+recording	var		ErrUnsupportedPictureTarget	render/recording/scene_replay.go	29
+recording	var		ErrUnsupportedSceneTarget	render/recording/scene_replay.go	23
+render	const		AccelCircleSDF	render/accelerator.go	51
+render	const		AccelFill	render/accelerator.go	33
+render	const		AccelGradient	render/accelerator.go	48
+render	const		AccelImage	render/accelerator.go	45
+render	const		AccelRRectSDF	render/accelerator.go	54
+render	const		AccelScene	render/accelerator.go	39
+render	const		AccelStroke	render/accelerator.go	36
+render	const		AccelText	render/accelerator.go	42
+render	const		AtlasCPUFallbackReason	render/vertices.go	130
+render	const		BackendGo	render/backend.go	32
+render	const		BlendColor	render/context_image.go	111
+render	const		BlendColorBurn	render/context_image.go	144
+render	const		BlendColorDodge	render/context_image.go	143
+render	const		BlendDarken	render/context_image.go	141
+render	const		BlendExclusion	render/context_image.go	148
+render	const		BlendHardLight	render/context_image.go	145
+render	const		BlendHue	render/context_image.go	107
+render	const		BlendLighten	render/context_image.go	142
+render	const		BlendLuminosity	render/context_image.go	113
+render	const		BlendOverlay	render/context_image.go	104
+render	const		BlendSaturation	render/context_image.go	109
+render	const		BlendSoftLight	render/context_image.go	146
+render	const		BudgetBlendDualTex	render/budget.go	54
+render	const		BudgetClipMask	render/budget.go	51
+render	const		BudgetFilterGraph	render/budget.go	61
+render	const		BudgetGlyphColor	render/budget.go	64
+render	const		BudgetGlyphMask	render/budget.go	67
+render	const		BudgetImageCache	render/budget.go	32
+render	const		BudgetLayerOffscreen	render/budget.go	57
+render	const		BudgetPictureCache	render/budget.go	38
+render	const		BudgetProcessGlobal	render/budget.go	27
+render	const		BudgetStencilScratch	render/budget.go	48
+render	const		BudgetSurfacePool	render/budget.go	45
+render	const		BudgetVideoStage	render/budget.go	71
+render	const		DamageFullCoverageThreshold	render/frame.go	62
+render	const		DamageMultiWasteRatio	render/frame.go	66
+render	const		DepthCPUFallbackReason	render/depth_r5.go	37
+render	const		FormatBGRA8	render/context_image.go	80
+render	const		FormatBGRAPremul	render/context_image.go	83
+render	const		FormatGray16	render/context_image.go	65
+render	const		FormatGray8	render/context_image.go	62
+render	const		FormatRGB8	render/context_image.go	68
+render	const		FrameBlendSrc	render/context_image_decode.go	87
+render	const		FrameBlendSrcOver	render/context_image_decode.go	88
+render	const		FrameDisposalKeep	render/context_image_decode.go	90
+render	const		FrameDisposalRestoreBGColor	render/context_image_decode.go	91
+render	const		FrameDisposalRestorePrevious	render/context_image_decode.go	92
+render	const		ImageEncodingAVIF	render/context_image_decode.go	34
+render	const		ImageEncodingGIF	render/context_image_decode.go	30
+render	const		ImageEncodingHEIF	render/context_image_decode.go	35
+render	const		ImageEncodingJPEG	render/context_image_decode.go	29
+render	const		ImageEncodingPNG	render/context_image_decode.go	28
+render	const		ImageEncodingUnknown	render/context_image_decode.go	27
+render	const		ImageEncodingWebP	render/context_image_decode.go	31
+render	const		ImageFilterAlphaThreshold	render/filter_ops_gpu.go	483
+render	const		ImageFilterBloom	render/filter_ops_gpu.go	493
+render	const		ImageFilterBlur	render/filter_ops_gpu.go	465
+render	const		ImageFilterColorMatrix	render/filter_ops_gpu.go	471
+render	const		ImageFilterDilate	render/filter_ops_gpu.go	479
+render	const		ImageFilterDisplacement	render/filter_ops_gpu.go	498
+render	const		ImageFilterDropShadow	render/filter_ops_gpu.go	469
+render	const		ImageFilterErode	render/filter_ops_gpu.go	477
+render	const		ImageFilterLighting	render/filter_ops_gpu.go	486
+render	const		ImageFilterTile	render/filter_ops_gpu.go	489
+render	const		MaxShaderImagePairs	render/shader_effect.go	169
+render	const		MaxTrackedDamageRects	render/frame.go	58
+render	const		MeshGradientAbsolute	render/mesh_gradient.go	37
+render	const		MeshGradientNormalized	render/mesh_gradient.go	40
+render	const		NoRequiredFrame	render/context_image_decode.go	95
+render	const		OrientationBottomLeft	render/context_image_decode.go	49
+render	const		OrientationBottomRight	render/context_image_decode.go	48
+render	const		OrientationLeftBottom	render/context_image_decode.go	53
+render	const		OrientationLeftTop	render/context_image_decode.go	50
+render	const		OrientationRightBottom	render/context_image_decode.go	52
+render	const		OrientationRightTop	render/context_image_decode.go	51
+render	const		OrientationTopLeft	render/context_image_decode.go	46
+render	const		OrientationTopRight	render/context_image_decode.go	47
+render	const		OrientationUnspecified	render/context_image_decode.go	45
+render	const		PipelineModeAuto	render/pipeline_mode.go	19
+render	const		PipelineModeCompute	render/pipeline_mode.go	27
+render	const		PipelineModeRenderPass	render/pipeline_mode.go	23
+render	const		PolicyAuto	render/adapter_policy.go	48
+render	const		PolicyDefault	render/adapter_policy.go	36
+render	const		PolicyHigh	render/adapter_policy.go	38
+render	const		PolicyHighPerformance	render/adapter_policy.go	46
+render	const		PolicyLow	render/adapter_policy.go	40
+render	const		PolicyLowPower	render/adapter_policy.go	47
+render	const		PolicyNone	render/adapter_policy.go	45
+render	const		PresentModeDamageUnion	render/frame.go	33
+render	const		PresentModeFull	render/frame.go	35
+render	const		ProjectionPop	render/context_projection.go	36
+render	const		ProjectionPush	render/context_projection.go	33
+render	const		QuadBowTie	render/m4_extensions.go	35
+render	const		QuadDegenerate	render/m4_extensions.go	33
+render	const		QuadNonFinite	render/m4_extensions.go	37
+render	const		QuadOK	render/m4_extensions.go	31
+render	const		RasterizerAnalytic	render/rasterizer_mode.go	38
+render	const		RasterizerAuto	render/rasterizer_mode.go	33
+render	const		RasterizerSDF	render/rasterizer_mode.go	57
+render	const		RasterizerSparseStrips	render/rasterizer_mode.go	45
+render	const		RasterizerTileCompute	render/rasterizer_mode.go	52
+render	const		SDFCoverageLUTDomain	render/sdf_coverage_lut.go	36
+render	const		ShaderUniformBudget	render/shader_effect.go	154
+render	const		ShapeArc	render/shape_detect.go	38
+render	const		ShapeEllipse	render/shape_detect.go	28
+render	const		ShapeRect	render/shape_detect.go	31
+render	const		ShapeRRect	render/shape_detect.go	34
+render	const		ShapeUnknown	render/shape_detect.go	22
+render	const		SVGEdgeModeDuplicate	render/svg_turbulence.go	29
+render	const		SVGEdgeModeNone	render/svg_turbulence.go	28
+render	const		SVGEdgeModeWrap	render/svg_turbulence.go	30
+render	const		TextDecorationOverline	render/text_decoration.go	20
+render	func		AbandonAcceleratorDevice	render/accelerator.go	424
+render	func		AcquireSharedPresentDevice	render/present_construct.go	251
+render	func		BeginAcceleratorFrame	render/accelerator.go	522
+render	func		BooleanPath	render/path_boolean.go	60
+render	func		BrushFieldSeed	render/brush_device_space.go	50
+render	func		BrushWithAlpha	render/brush.go	130
+render	func		ClassifyQuad	render/m4_quadclass.go	148
+render	func		CoalesceDamageRects	render/frame.go	234
+render	func		CPUOnlyMode	render/accelerator.go	511
+render	func		CropImageToInk	render/color_glyph_render.go	699
+render	func		DefaultBudget	render/budget.go	129
+render	func		DetectShape	render/shape_detect.go	70
+render	func		DeviceDescriptor	render/adapter_policy.go	189
+render	func		DeviceDescriptorForAdapter	render/adapter_policy.go	236
+render	func		DeviceDescriptorLowVRAM	render/adapter_policy.go	207
+render	func		FairSplit	render/budget.go	178
+render	func		FilterPoolStats	render/filter_ops_cpu.go	18
+render	func		FromColor	render/color.go	51
+render	func		FromImage	render/pixmap.go	306
+render	func		GetCoverageFiller	render/coverage_filler.go	54
+render	func		GPUContextCount	render/context_gpu_registry.go	62
+render	func		HorizontalGradient	render/brush_custom.go	85
+render	func		HSL	render/color.go	212
+render	func		ImageOrientationOfBytes	render/context_image_buf.go	132
+render	func		IsAdvancedBlendMode	render/context_image_draw.go	23
+render	func		IsGPUOutOfMemory	render/oom_purge.go	87
+render	func		LinearGradient	render/brush_custom.go	122
+render	func		LiveTextureSources	render/texture_source.go	109
+render	func		LoadAnimatedImageFromBytes	render/context_image_decode.go	104
+render	func		Logger	render/logger.go	81
+render	func		LookupShadowCache	render/shadow_cache.go	165
+render	func		MaskFilterRadius	render/context_mask.go	262
+render	func		NewContextForImage	render/context_construct.go	103
+render	func		NewContextForPixmap	render/context_construct.go	21
+render	func		NewContextWithScale	render/context_construct.go	168
+render	func		NewLine	render/curve_line.go	16
+render	func		NewLuminanceMask	render/mask.go	185
+render	func		NewMaskFromAlpha	render/mask.go	37
+render	func		NewMaskFromData	render/mask.go	209
+render	func		NewPathMeasure	render/path_measure.go	37
+render	func		NewPixmapFromBuffer	render/pixmap.go	74
+render	func		NewPresentTarget	render/present_construct.go	327
+render	func		NewSoftwareRenderer	render/software_construct.go	20
+render	func		NewVideoPlanePool	render/video_planepool.go	132
+render	func		NewVideoTexturePool	render/video_texpool.go	32
+render	func		OpenStandaloneDevice	render/device_open.go	89
+render	func		PainterFromPaint	render/painter.go	49
+render	func		PlanFramePresent	render/frame.go	144
+render	func		PointToVec2	render/vec.go	137
+render	func		PurgeAcceleratorSurfaceResources	render/accelerator.go	414
+render	func		PurgeEvictables	render/oom_purge.go	67
+render	func		QueryVideoBackend	render/video_backend.go	23
+render	func		RadialGradient	render/brush_custom.go	158
+render	func		RecoverSharedDevice	render/shared_recovery.go	47
+render	func		RegisterCoverageFiller	render/coverage_filler.go	47
+render	func		RegisteredGPUFilterGraphHooks	render/filter_ops.go	101
+render	func		RegisterFilterOps	render/filter_ops_cpu.go	31
+render	func		RegisterGPUFilterGraph	render/filter_ops_gpu.go	390
+render	func		RegisterGPUFilterGraphFromView	render/filter_ops_gpu.go	404
+render	func		RegisterGPUFilterGraphTexture	render/filter_ops_gpu.go	398
+render	func		RegisterGPUPoolStatsCollector	render/gpu_pool_stats.go	65
+render	func		RegisterImageCacheStatsCollector	render/image_stats.go	60
+render	func		RegisterShaderEffectEvictor	render/shader_effect.go	629
+render	func		RegisterTextureSource	render/texture_source.go	66
+render	func		RequestAdapterWithPolicy	render/adapter_policy.go	112
+render	func		ResetFilterPoolStats	render/filter_ops_cpu.go	24
+render	func		ResolveAdapterPolicy	render/adapter_policy.go	73
+render	func		ResolveBackend	render/backend.go	54
+render	func		ResolveTextureRef	render/texture_ref.go	82
+render	func		SDFCircleCoverage	render/sdf.go	348
+render	func		SDFCoverageLUT1024	render/sdf_coverage_lut.go	50
+render	func		SDFFilledCircleCoverage	render/sdf.go	38
+render	func		SDFFilledEllipseCoverage	render/sdf.go	377
+render	func		SDFFilledRRectCoverage	render/sdf.go	367
+render	func		SDFRRectCoverage	render/sdf.go	392
+render	func		SelectBackend	render/backend.go	86
+render	func		SelectPipeline	render/pipeline_mode.go	64
+render	func		SetAcceleratorDeviceProvider	render/accelerator.go	378
+render	func		SetMaskFilter	render/context_mask.go	255
+render	func		SharedDeviceGeneration	render/shared_budget.go	47
+render	func		SolidHex	render/brush.go	92
+render	func		SolidRGB	render/brush.go	71
+render	func		SolidRGBA	render/brush.go	80
+render	func		SolveCubic	render/solver.go	112
+render	func		SolveCubicInUnitInterval	render/solver.go	179
+render	func		SolveQuadratic	render/solver.go	26
+render	func		SolveQuadraticInUnitInterval	render/solver.go	172
+render	func		SplitColorGlyphs	render/text_gpu.go	21
+render	func		Stripes	render/brush_custom.go	210
+render	func		SwapGPUFilterGraph	render/filter_ops_gpu.go	434
+render	func		SweepGradient	render/brush_custom.go	245
+render	func		UnregisterGPUFilterGraphs	render/filter_ops_gpu.go	416
+render	func		UnregisterGPUPoolStatsCollector	render/gpu_pool_stats.go	76
+render	func		UnregisterShaderEffectEvictor	render/shader_effect.go	636
+render	func		UnregisterTextureSource	render/texture_source.go	85
+render	func		VerticalGradient	render/brush_custom.go	102
+render	func		VideoFallbackTotal	render/video_backend.go	69
+render	func		VideoUploadTotal	render/video_backend.go	121
+render	func		WithPipelineMode	render/options.go	92
+render	func		WithPixmap	render/options.go	68
+render	func		WithRenderer	render/options.go	55
+render	ifacemethod	GPUAccelerator	CanAccelerate	render/accelerator.go	123
+render	ifacemethod	ComputePipelineAware	CanCompute	render/accelerator.go	538
+render	ifacemethod	DirectRenderCapable	CanRenderDirect	render/accelerator.go	474
+render	ifacemethod	PathClipAware	ClearClipPath	render/accelerator.go	620
+render	ifacemethod	ClipAware	ClearClipRect	render/accelerator.go	574
+render	ifacemethod	RRectClipAware	ClearClipRRect	render/accelerator.go	598
+render	ifacemethod	MaskAware	ClearMaskTexture	render/accelerator.go	653
+render	ifacemethod	ForceableFiller	ComputeFiller	render/coverage_filler.go	70
+render	ifacemethod	GPUGlyphMaskAccelerator	DrawGlyphMaskText	render/accelerator.go	248
+render	ifacemethod	GPUAliasedTextAccelerator	DrawGlyphMaskTextAliased	render/accelerator.go	259
+render	ifacemethod	GPUTransformMaskTextAccelerator	DrawGlyphMaskTransformText	render/accelerator.go	302
+render	ifacemethod	Canvas	DrawRRect	render/canvas.go	161
+render	ifacemethod	GPUShapedTextAccelerator	DrawShapedGlyphMaskText	render/accelerator.go	269
+render	ifacemethod	Picture	DrawTo	render/canvas.go	232
+render	ifacemethod	Canvas	FillBrush	render/canvas.go	99
+render	ifacemethod	CoverageFiller	FillCoverage	render/coverage_filler.go	30
+render	ifacemethod	GPUAccelerator	FillShape	render/accelerator.go	136
+render	ifacemethod	AdapterAware	IsSoftwareAdapter	render/accelerator.go	481
+render	ifacemethod	GPURenderContextProvider	NewGPURenderContext	render/accelerator.go	174
+render	ifacemethod	Canvas	NewSubPath	render/canvas.go	84
+render	ifacemethod	Painter	PaintSpan	render/painter.go	18
+render	ifacemethod	SceneStatsTracker	SceneStats	render/accelerator.go	661
+render	ifacemethod	PathClipAware	SetClipPath	render/accelerator.go	616
+render	ifacemethod	ClipAware	SetClipRect	render/accelerator.go	570
+render	ifacemethod	RRectClipAware	SetClipRRect	render/accelerator.go	594
+render	ifacemethod	Canvas	SetDashOffset	render/canvas.go	110
+render	ifacemethod	DeviceProviderAware	SetDeviceProvider	render/accelerator.go	159
+render	ifacemethod	ForceSDFAware	SetForceSDF	render/accelerator.go	555
+render	ifacemethod	MaskAware	SetMaskTexture	render/accelerator.go	650
+render	ifacemethod	Canvas	SetPath	render/canvas.go	85
+render	ifacemethod	PipelineModeAware	SetPipelineMode	render/accelerator.go	547
+render	ifacemethod	Canvas	SetStrokeBrush	render/canvas.go	94
+render	ifacemethod	ForceableFiller	SparseFiller	render/coverage_filler.go	68
+render	ifacemethod	Canvas	StrokeBrush	render/canvas.go	100
+render	ifacemethod	GPUAccelerator	StrokeShape	render/accelerator.go	140
+render	method	VideoPlanePool	AcquireForFrame	render/video_planepool.go	279
+render	method	VideoTexturePool	AcquireForFrame	render/video_texpool.go	259
+render	method	Pixmap	AddGenIDWatcher	render/pixmap.go	114
+render	method	Path	Append	render/path_build.go	106
+render	method	Context	ApplyColorFilter	render/colorfilter.go	34
+render	method	Context	ApplyCompositeArithmetic	render/svg_lighting.go	55
+render	method	Context	ApplyDilateXY	render/filter_ops_cpu.go	375
+render	method	Context	ApplyErodeXY	render/filter_ops_cpu.go	353
+render	method	Context	ApplySVGConvolveMatrix	render/svg_turbulence.go	72
+render	method	Context	ApplySVGLighting	render/svg_lighting.go	37
+render	method	Context	ApplySVGTurbulence	render/svg_turbulence.go	55
+render	method	Vec2	Approx	render/vec.go	125
+render	method	Context	AsMask	render/context_mask.go	220
+render	method	Context	BeginGPUFrame	render/context_gpu.go	60
+render	method	ConicBez	BoundingBox	render/curve_conic.go	251
+render	method	CubicBez	BoundingBox	render/curve_cubicbez.go	137
+render	method	Line	BoundingBox	render/curve_line.go	56
+render	method	Path	BoundingBox	render/pathops_bbox.go	17
+render	method	QuadBez	BoundingBox	render/curve_quadbez.go	122
+render	method	SDFAccelerator	CanAccelerate	render/sdf_accelerator.go	60
+render	method	ShaderEffect	ComposedFillWGSL	render/shader_effect.go	245
+render	method	ShaderEffect	ComposedQuadWGSL	render/shader_effect.go	268
+render	method	ShaderEffect	ComposedQuadWGSLFor	render/shader_effect.go	261
+render	method	MeshGradient	ControlBounds	render/mesh_gradient.go	264
+render	method	Context	CreateSharedEncoder	render/context_layer_pass.go	171
+render	method	Path	CurrentPoint	render/path_query.go	60
+render	method	CubicBez	Deriv	render/curve_cubicbez.go	186
+render	method	Context	DiscardPendingGPU	render/context_gpu.go	438
+render	method	VideoBridge	DrawCurrent	render/video_bridge.go	256
+render	method	Context	DrawGPUTextureBase	render/context_image_gpu.go	588
+render	method	Context	DrawGPUTextureWithOpacity	render/context_image_gpu.go	291
+render	method	Context	DrawGPUTextureWithOpacityUV	render/context_image_gpu.go	524
+render	method	Context	DrawRoundedRectangleXY	render/context_path.go	328
+render	method	Context	DrawRRect	render/context_path.go	377
+render	method	Context	DrawTextureRefDevice	render/context_texture_ref.go	29
+render	method	Context	DrawVideoFrame	render/video_bridge.go	32
+render	method	Context	DrawVideoPlanes	render/context_image_gpu.go	343
+render	method	Context	DrawVideoSlot	render/context_image_gpu.go	445
+render	method	Context	DropGPURenderContext	render/context_construct.go	252
+render	method	Paint	EffectiveDash	render/paint.go	323
+render	method	Paint	EffectiveLineCap	render/paint.go	296
+render	method	Paint	EffectiveLineJoin	render/paint.go	305
+render	method	Paint	EffectiveLineWidth	render/paint.go	287
+render	method	Paint	EffectiveMiterLimit	render/paint.go	314
+render	method	Paint	EffectivePathEffect	render/paint.go	337
+render	method	Context	EncodeJPEG	render/context_output.go	78
+render	method	Pixmap	EncodeJPEG	render/pixmap.go	520
+render	method	Context	EncodePNG	render/context_output.go	72
+render	method	Pixmap	EncodePNG	render/pixmap.go	515
+render	method	ConicBez	Extrema	render/curve_conic.go	178
+render	method	CubicBez	Extrema	render/curve_cubicbez.go	107
+render	method	QuadBez	Extrema	render/curve_quadbez.go	89
+render	method	Context	FillBrush	render/context_style.go	224
+render	method	Context	FillRectCPU	render/context_path.go	63
+render	method	SDFAccelerator	FillShape	render/sdf_accelerator.go	84
+render	method	Pixmap	FillSpan	render/pixmap.go	367
+render	method	Pixmap	FillSpanBlend	render/pixmap.go	441
+render	method	Path	FlattenCallback	render/pathops_bbox.go	120
+render	method	Context	FlushGPUWithViewDamage	render/context_gpu.go	320
+render	method	Context	FlushGPUWithViewDamageRects	render/context_damage.go	220
+render	method	Context	FrameDamage	render/context_damage.go	25
+render	method	ShaderEffect	Gen	render/shader_effect.go	561
+render	method	Pixmap	GenerationID	render/pixmap.go	105
+render	method	Context	GetStroke	render/context_style.go	304
+render	method	Paint	GetStroke	render/paint.go	259
+render	method	Path	HasCurrentPoint	render/path_query.go	68
+render	method	ShaderEffect	ImageAt	render/shader_effect.go	599
+render	method	Pixmap	ImageView	render/pixmap.go	297
+render	method	CubicBez	Inflections	render/curve_cubicbez.go	156
+render	method	Context	InvertY	render/context_transform.go	163
+render	method	RRect	IsComplex	render/rrect.go	289
+render	method	RRect	IsNinePatch	render/rrect.go	286
+render	method	RRect	IsOval	render/rrect.go	273
+render	method	RRect	IsRect	render/rrect.go	270
+render	method	Matrix	IsScaleOnly	render/matrix.go	162
+render	method	RRect	IsSimple	render/rrect.go	277
+render	method	RRect	IsSimpleCircular	render/rrect.go	280
+render	method	Paint	IsSolid	render/paint.go	252
+render	method	Matrix	IsTranslation	render/matrix.go	126
+render	method	Matrix	IsTranslationOnly	render/matrix.go	152
+render	method	Context	LayerPoolStats	render/context_layer_stack.go	27
+render	method	Point	LengthSquared	render/point.go	61
+render	method	PresentTarget	LogicalSize	render/present_swapchain.go	246
+render	method	Context	MaskPlaneStats	render/m4_mask_plane_stats.go	6
+render	method	Matrix	MaxScaleFactor	render/matrix.go	204
+render	method	Context	MemDigCmdBufs	render/context_gpu.go	77
+render	method	Line	Midpoint	render/curve_line.go	68
+render	method	Context	NewSubPath	render/context_path.go	257
+render	method	Dash	NormalizedOffset	render/dash.go	134
+render	method	SolidBrush	Opaque	render/brush.go	115
+render	method	FuncPainter	PaintSpan	render/painter.go	39
+render	method	SolidPainter	PaintSpan	render/painter.go	27
+render	method	Context	PendingGPUCount	render/context_gpu.go	421
+render	method	Context	PipelineMode	render/context_style.go	30
+render	method	Context	PixelHeight	render/context_output.go	54
+render	method	Context	PixelWidth	render/context_output.go	44
+render	method	Context	PixmapForTest	render/context_diag.go	62
+render	method	Context	PlanPresent	render/frame.go	135
+render	method	RGBA	Premultiply	render/color.go	143
+render	method	Context	PresentFrame	render/present.go	99
+render	method	Context	PresentFrameAuto	render/frame.go	286
+render	method	Context	PresentFrameDamage	render/present.go	110
+render	method	Context	PresentFrameDamageRects	render/present.go	122
+render	method	Context	PresentFrameFull	render/frame.go	273
+render	method	Context	PresentFramePlan	render/frame.go	300
+render	method	QuadBez	Raise	render/curve_quadbez.go	139
+render	method	Context	RasterizerMode	render/context_style.go	52
+render	method	Context	RecordCPUFallbackForTest	render/context_diag.go	73
+render	method	Context	RecordVideoFallback	render/video_backend.go	77
+render	method	Context	ResetLayerPoolStats	render/context_layer_stack.go	36
+render	method	Context	ResizeTarget	render/context_output.go	161
+render	method	Line	Reversed	render/curve_line.go	74
+render	method	Path	Reversed	render/pathops_subpath.go	41
+render	method	PathBuilder	RoundRect	render/path_builder.go	77
+render	method	Context	SetDashOffset	render/context_style.go	351
+render	method	Context	SetEffectSurface	render/context_style.go	101
+render	method	SDFAccelerator	SetForceSDF	render/sdf_accelerator.go	77
+render	method	Context	SetHexColor	render/context_style.go	173
+render	method	Context	SetPath	render/context_path.go	162
+render	method	Context	SetPipelineMode	render/context_style.go	17
+render	method	Context	SetPixel	render/context_draw.go	91
+render	method	Pixmap	SetPixel	render/pixmap.go	160
+render	method	Pixmap	SetPixelPremul	render/pixmap.go	177
+render	method	Context	SetRasterizerMode	render/context_style.go	46
+render	method	RRect	SetRect	render/rrect.go	119
+render	method	RRect	SetRectRadii	render/rrect.go	195
+render	method	RRect	SetRectXY	render/rrect.go	154
+render	method	PresentTarget	SetResizeStormWindow	render/present_swapchain.go	270
+render	method	Context	SetSharedEncoder	render/context_layer_pass.go	140
+render	method	Context	SetStrokeBrush	render/context_style.go	218
+render	method	Context	Shader	render/shader_effect.go	697
+render	method	ShaderEffect	ShaderBinding	render/shader_effect.go	134
+render	method	VideoBridge	ShowSeq	render/video_bridge.go	126
+render	method	Matrix	SimilarityScale	render/matrix.go	173
+render	method	PathBuilder	Star	render/path_builder.go	137
+render	method	Context	StrokeBrush	render/context_style.go	232
+render	method	SDFAccelerator	StrokeShape	render/sdf_accelerator.go	106
+render	method	Paragraph	StyleCount	render/paragraph.go	200
+render	method	Paragraph	StyleForRun	render/paragraph.go	187
+render	method	CubicBez	Subdivide	render/curve_cubicbez.go	51
+render	method	Line	Subdivide	render/curve_line.go	40
+render	method	QuadBez	Subdivide	render/curve_quadbez.go	46
+render	method	Context	SubmitSharedEncoder	render/context_layer_pass.go	201
+render	method	ConicBez	Tangent	render/curve_conic.go	159
+render	method	CubicBez	Tangent	render/curve_cubicbez.go	196
+render	method	Pixmap	ToImage	render/pixmap.go	288
+render	method	Vec2	ToPoint	render/vec.go	131
+render	method	ConicBez	ToQuads	render/curve_conic.go	265
+render	method	Matrix	TransformVector	render/matrix.go	93
+render	method	ShaderEffect	Uniforms	render/shader_effect.go	609
+render	method	RGBA	Unpremultiply	render/color.go	153
+render	method	ShaderEffect	WGSL	render/shader_effect.go	495
+render	method	SolidBrush	WithAlpha	render/brush.go	103
+render	method	Stroke	WithDashOffset	render/stroke.go	105
+render	method	Stroke	WithMiterLimit	render/stroke.go	76
+render	method	CustomBrush	WithName	render/brush_custom.go	72
+render	method	Dash	WithOffset	render/dash.go	71
+render	method	Context	WritePixels	render/context_draw.go	119
+render	type		AcceleratedOp	render/accelerator.go	29
+render	type		AdapterAware	render/accelerator.go	480
+render	type		AdapterPolicy	render/adapter_policy.go	32
+render	type		BudgetDomain	render/budget.go	21
+render	type		ClipAware	render/accelerator.go	566
+render	type		ColorFilter	render/colorfilter.go	16
+render	type		ColorFilterFunc	render/colorfilter.go	24
+render	type		ColorFunc	render/brush_custom.go	17
+render	type		ColorStop	render/gradient.go	31
+render	type		ComputePipelineAware	render/accelerator.go	536
+render	type		ContextOption	render/options.go	23
+render	type		CoverageFiller	render/coverage_filler.go	27
+render	type		CubicBez	render/curve_quadbez.go	158
+render	type		DepthDrawResult	render/depth_r5.go	50
+render	type		DetectedShape	render/shape_detect.go	43
+render	type		DeviceProviderAware	render/accelerator.go	158
+render	type		DirectRenderCapable	render/accelerator.go	473
+render	type		FilterOpImpls	render/filter_ops.go	59
+render	type		ForceableFiller	render/coverage_filler.go	65
+render	type		ForceSDFAware	render/accelerator.go	554
+render	type		FrameAware	render/accelerator.go	185
+render	type		FrameBlend	render/context_image_decode.go	81
+render	type		FrameDisposal	render/context_image_decode.go	84
+render	type		FramePresentPlan	render/frame.go	70
+render	type		FuncPainter	render/painter.go	34
+render	type		GPUAccelerator	render/accelerator.go	111
+render	type		GPUAliasedTextAccelerator	render/accelerator.go	258
+render	type		GPUColorGlyphAccelerator	render/accelerator.go	281
+render	type		GPUFilterGraphHooks	render/filter_ops.go	96
+render	type		GPUGlyphMaskAccelerator	render/accelerator.go	236
+render	type		GPUPoolStatsFunc	render/gpu_pool_stats.go	51
+render	type		GPURenderContextProvider	render/accelerator.go	170
+render	type		GPURenderTarget	render/accelerator.go	71
+render	type		GPUShapedTextAccelerator	render/accelerator.go	268
+render	type		GPUTextAccelerator	render/accelerator.go	206
+render	type		GPUTransformMaskTextAccelerator	render/accelerator.go	296
+render	type		ImageCacheStats	render/image_stats.go	30
+render	type		ImageEncoding	render/context_image_decode.go	24
+render	type		ImageFilterKind	render/filter_ops_gpu.go	461
+render	type		ImageFormat	render/context_image.go	57
+render	type		ImageOrientation	render/context_image_decode.go	42
+render	type		ImagePattern	render/context_image_pattern.go	154
+render	type		ImagePatternSource	render/context_image_pattern.go	48
+render	type		LCDLayoutAware	render/accelerator.go	631
+render	type		MaskAware	render/accelerator.go	645
+render	type		MeshGradientSpace	render/mesh_gradient.go	33
+render	type		MeshPatchStyle	render/mesh_patch.go	25
+render	type		MSAAAware	render/accelerator.go	192
+render	type		Paragraph	render/paragraph.go	175
+render	type		Path1DStyle	render/path_effect.go	269
+render	type		PathBooleanOp	render/path_boolean.go	20
+render	type		PathBuilder	render/path_builder.go	19
+render	type		PathClipAware	render/accelerator.go	610
+render	type		PathMeasure	render/path_measure.go	28
+render	type		PipelineMode	render/pipeline_mode.go	14
+render	type		PipelineModeAware	render/accelerator.go	545
+render	type		QuadBez	render/curve_line.go	82
+render	type		QuadKind	render/m4_extensions.go	27
+render	type		RasterizerMode	render/rasterizer_mode.go	27
+render	type		RRectClipAware	render/accelerator.go	590
+render	type		RRectCorner	render/rrect.go	59
+render	type		SceneStats	render/pipeline_mode.go	46
+render	type		SceneStatsTracker	render/accelerator.go	659
+render	type		ShaderInterface	render/shader_effect.go	122
+render	type		ShadowTile	render/shadow_cache.go	44
+render	type		SoftwareRenderer	render/software.go	24
+render	type		SolidPainter	render/painter.go	22
+render	type		StandaloneDevice	render/device_open.go	56
+render	type		SVGConvolveMatrixParams	render/svg_turbulence.go	37
+render	type		SVGLightingParams	render/svg_lighting.go	15
+render	type		SVGTurbulenceParams	render/svg_turbulence.go	16
+render	type		TextureSource	render/texture_source.go	25
+render	type		VideoBackendCaps	render/video_direct.go	41
+render	type		VideoDrawOptions	render/video_texpool.go	281
+render	type		VideoPlanePool	render/video_planepool.go	117
+render	type		VideoPlaneSlot	render/video_planepool.go	62
+render	type		VideoPoolStats	render/video_backend.go	98
+render	type		VideoSlot	render/video_backend.go	88
+render	type		VideoTexturePool	render/video_backend.go	107
+render	var		ErrAtlasNonFinite	render/vertices.go	117
+render	var		ErrAtlasQuadBadWeights	render/vertices.go	125
+render	var		ErrAtlasQuadBowTie	render/vertices.go	123
+render	var		ErrAtlasQuadDegenerate	render/vertices.go	121
+render	var		ErrAtlasUnsupportedFilter	render/vertices.go	119
+render	var		ErrDepthNonFinite	render/depth_r5.go	33
+render	var		ErrEmptyData	render/context_image_decode.go	69
+render	var		ErrFallbackToCPU	render/accelerator.go	26
+render	var		ErrMeshGradientShape	render/mesh_gradient.go	70
+render	var		ErrMeshPatchShape	render/mesh_patch.go	68
+render	var		ErrNilSurfaceView	render/present.go	23
+render	var		ErrPictureCycle	render/context_picture.go	21
+render	var		ErrPictureDepth	render/context_picture.go	23
+render	var		ErrQuadBadTint	render/m4_quadclass.go	84
+render	var		ErrQuadBowTie	render/m4_quadclass.go	72
+render	var		ErrQuadDegenerate	render/m4_quadclass.go	70
+render	var		ErrQuadMaterialUnsupported	render/m4_quadclass.go	91
+render	var		ErrQuadNonFinite	render/m4_quadclass.go	74
+render	var		ErrQuadUnsupportedInterp	render/m4_quadclass.go	78
+render	var		ErrShaderBackendCompile	render/shader_effect.go	44
+render	var		ErrUnsupportedFormat	render/context_image_decode.go	66
+scene	const		BlendColor	render/scene/encoding.go	42
+scene	const		BlendColorBurn	render/scene/encoding.go	35
+scene	const		BlendColorDodge	render/scene/encoding.go	34
+scene	const		BlendDarken	render/scene/encoding.go	32
+scene	const		BlendDestination	render/scene/encoding.go	47
+scene	const		BlendExclusion	render/scene/encoding.go	39
+scene	const		BlendHardLight	render/scene/encoding.go	36
+scene	const		BlendHue	render/scene/encoding.go	40
+scene	const		BlendLighten	render/scene/encoding.go	33
+scene	const		BlendLuminosity	render/scene/encoding.go	43
+scene	const		BlendOverlay	render/scene/encoding.go	31
+scene	const		BlendSaturation	render/scene/encoding.go	41
+scene	const		BlendSoftLight	render/scene/encoding.go	37
+scene	const		BlendSourceOver	render/scene/encoding.go	48
+scene	const		BrushImage	render/scene/encoding.go	198
+scene	const		BrushLinearGradient	render/scene/encoding.go	196
+scene	const		BrushRadialGradient	render/scene/encoding.go	197
+scene	const		BrushSolid	render/scene/encoding.go	195
+scene	const		DefaultMaxSizeMB	render/scene/cache.go	25
+scene	const		FillEvenOdd	render/scene/encoding.go	152
+scene	const		FilterBlur	render/scene/filter.go	48
+scene	const		FilterColorMatrix	render/scene/filter.go	54
+scene	const		FilterDropShadow	render/scene/filter.go	51
+scene	const		FilterNone	render/scene/filter.go	45
+scene	const		LayerClip	render/scene/layer.go	27
+scene	const		LayerFiltered	render/scene/layer.go	23
+scene	const		LayerRegular	render/scene/layer.go	19
+scene	const		TextFlagCJK	render/scene/encoding.go	385
+scene	const		TextFlagHinting	render/scene/encoding.go	384
+scene	func		AdvancedModes	render/scene/blend_integration.go	160
+scene	func		AffineFromMatrix	render/scene/encoding.go	369
+scene	func		AllBlendModes	render/scene/blend_integration.go	103
+scene	func		CanUseGPU	render/scene/gpu_renderer.go	449
+scene	func		DefaultLayerCache	render/scene/cache.go	92
+scene	func		DefaultStrokeStyle	render/scene/encoding.go	182
+scene	func		DefaultTextRendererConfig	render/scene/text.go	60
+scene	func		EmptyRect	render/scene/encoding.go	223
+scene	func		GetEncoding	render/scene/pool.go	73
+scene	func		HSLModes	render/scene/blend_integration.go	178
+scene	func		NewAffine	render/scene/encoding.go	324
+scene	func		NewArcShape	render/scene/shape.go	589
+scene	func		NewClipLayer	render/scene/layer.go	101
+scene	func		NewCompositeShape	render/scene/shape.go	729
+scene	func		NewEllipseShape	render/scene/shape.go	156
+scene	func		NewEncoding	render/scene/encoding.go	490
+scene	func		NewEncodingPool	render/scene/pool.go	29
+scene	func		NewFilterChain	render/scene/filter.go	85
+scene	func		NewFilteredLayer	render/scene/layer.go	114
+scene	func		NewGGPathShape	render/scene/shape.go	347
+scene	func		NewLayerStack	render/scene/layer.go	176
+scene	func		NewLayerState	render/scene/layer.go	89
+scene	func		NewLineShape	render/scene/shape.go	301
+scene	func		NewPathPool	render/scene/path.go	638
+scene	func		NewPathShape	render/scene/shape.go	340
+scene	func		NewPieShape	render/scene/shape.go	624
+scene	func		NewPolygonShape	render/scene/shape.go	390
+scene	func		NewRegularPolygonShape	render/scene/shape.go	474
+scene	func		NewRoundRectShape	render/scene/shape.go	202
+scene	func		NewRoundRectShapeUniform	render/scene/shape.go	216
+scene	func		NewSceneBuilderFrom	render/scene/builder.go	45
+scene	func		NewScenePool	render/scene/scene.go	1036
+scene	func		NewStarShape	render/scene/shape.go	527
+scene	func		NewTextRenderer	render/scene/text.go	69
+scene	func		NewTextRendererPool	render/scene/text.go	425
+scene	func		NewTextRendererWithConfig	render/scene/text.go	74
+scene	func		NewTextShape	render/scene/text.go	549
+scene	func		NewTransformShape	render/scene/shape.go	682
+scene	func		PorterDuffModes	render/scene/blend_integration.go	141
+scene	func		PutEncoding	render/scene/pool.go	78
+scene	func		ScaleAffine	render/scene/encoding.go	334
+scene	func		TextAdvance	render/scene/text.go	409
+scene	func		TextBounds	render/scene/text.go	393
+scene	func		WithCache	render/scene/renderer.go	339
+scene	func		WithTileSize	render/scene/renderer.go	331
+scene	ifacemethod	PathBuilder	BuildPathInto	render/scene/shape.go	34
+scene	ifacemethod	Filter	ExpandBounds	render/scene/filter.go	36
+scene	ifacemethod	Shape	ToPath	render/scene/shape.go	23
+scene	method	LayerStack	AcquireLayer	render/scene/layer.go	252
+scene	method	CompositeShape	AddShape	render/scene/shape.go	734
+scene	method	LayerStack	All	render/scene/layer.go	247
+scene	method	Encoding	Append	render/scene/encoding.go	1033
+scene	method	Scene	Append	render/scene/scene.go	706
+scene	method	Encoding	AppendWithImages	render/scene/encoding.go	1042
+scene	method	CircleShape	BuildPathInto	render/scene/shape.go	127
+scene	method	EllipseShape	BuildPathInto	render/scene/shape.go	166
+scene	method	LineShape	BuildPathInto	render/scene/shape.go	311
+scene	method	PolygonShape	BuildPathInto	render/scene/shape.go	419
+scene	method	RectShape	BuildPathInto	render/scene/shape.go	54
+scene	method	RoundedRectShape	BuildPathInto	render/scene/shape.go	95
+scene	method	Renderer	Cache	render/scene/renderer.go	1779
+scene	method	Encoding	Capacity	render/scene/encoding.go	1503
+scene	method	Scene	ClipDepth	render/scene/scene.go	762
+scene	method	Decoder	CollectPath	render/scene/decoder.go	526
+scene	method	Encoding	CommandBounds	render/scene/encoding.go	914
+scene	method	DamageTracker	ComputeDamage	render/scene/damage.go	56
+scene	method	SceneBuilder	CurrentTransform	render/scene/builder.go	312
+scene	method	Tag	DataSize	render/scene/tag.go	223
+scene	method	Renderer	DirtyTileCount	render/scene/renderer.go	1756
+scene	method	Encoding	DrawData	render/scene/encoding.go	1462
+scene	method	Path	ElementsWithCursor	render/scene/path.go	578
+scene	method	Encoding	EncodeAntiAlias	render/scene/encoding.go	531
+scene	method	Encoding	EncodeBeginClip	render/scene/encoding.go	783
+scene	method	Encoding	EncodeBrush	render/scene/encoding.go	793
+scene	method	Encoding	EncodeDrawTransform	render/scene/encoding.go	630
+scene	method	Encoding	EncodeEndClip	render/scene/encoding.go	788
+scene	method	Encoding	EncodeFill	render/scene/encoding.go	723
+scene	method	Encoding	EncodeFillRoundRect	render/scene/encoding.go	736
+scene	method	Encoding	EncodeImage	render/scene/encoding.go	810
+scene	method	Encoding	EncodeImageQuad	render/scene/encoding.go	821
+scene	method	Encoding	EncodeMaterial	render/scene/encoding.go	587
+scene	method	Encoding	EncodePath	render/scene/encoding.go	647
+scene	method	Encoding	EncodePopLayer	render/scene/encoding.go	778
+scene	method	Encoding	EncodeProjection	render/scene/encoding.go	562
+scene	method	Encoding	EncodePushLayer	render/scene/encoding.go	771
+scene	method	Encoding	EncodeStroke	render/scene/encoding.go	750
+scene	method	Encoding	EncodeText	render/scene/encoding.go	839
+scene	method	Encoding	EncodeTransform	render/scene/encoding.go	542
+scene	method	Encoding	EncodeTransformFromMatrix	render/scene/encoding.go	642
+scene	method	LayerCache	EntryCount	render/scene/cache.go	291
+scene	method	FilterChain	ExpandBounds	render/scene/filter.go	159
+scene	method	FilterType	ExpandsOutput	render/scene/filter.go	74
+scene	method	SceneBuilder	FillWith	render/scene/builder.go	82
+scene	method	Scene	FontRegistry	render/scene/scene.go	913
+scene	method	BlendMode	GetBlendFunc	render/scene/blend_integration.go	97
+scene	method	LayerCache	GetVersion	render/scene/cache.go	308
+scene	method	SceneBuilder	Group	render/scene/builder.go	239
+scene	method	LayerState	HasClip	render/scene/layer.go	153
+scene	method	Decoder	HasMore	render/scene/decoder.go	113
+scene	method	Rect	ImageRect	render/scene/encoding.go	238
+scene	method	Scene	Images	render/scene/scene.go	932
+scene	method	LayerCache	InvalidateAll	render/scene/cache.go	185
+scene	method	BlendMode	IsAdvanced	render/scene/encoding.go	135
+scene	method	Tag	IsClipCommand	render/scene/tag.go	217
+scene	method	LayerKind	IsClipOnly	render/scene/layer.go	50
+scene	method	Tag	IsDrawCommand	render/scene/tag.go	207
+scene	method	DamageTracker	IsFirstRender	render/scene/damage.go	90
+scene	method	BlendMode	IsHSL	render/scene/encoding.go	141
+scene	method	Tag	IsLayerCommand	render/scene/tag.go	212
+scene	method	Tag	IsPathCommand	render/scene/tag.go	202
+scene	method	BlendMode	IsPorterDuff	render/scene/encoding.go	130
+scene	method	LayerStack	IsRoot	render/scene/layer.go	228
+scene	method	Scene	LayerDepth	render/scene/scene.go	757
+scene	method	DamageTracker	MarkRendered	render/scene/damage.go	95
+scene	method	LayerCache	MaxSize	render/scene/cache.go	268
+scene	method	LayerKind	NeedsOffscreen	render/scene/layer.go	45
+scene	method	Encoding	NewIterator	render/scene/encoding.go	1524
+scene	method	Encoding	PathData	render/scene/encoding.go	1457
+scene	method	Path	PointCount	render/scene/path.go	319
+scene	method	PathVerb	PointCount	render/scene/path.go	57
+scene	method	PolygonShape	PointCount	render/scene/shape.go	452
+scene	method	Scene	PushClip	render/scene/scene.go	537
+scene	method	Iterator	ReadDrawData	render/scene/encoding.go	1551
+scene	method	Iterator	ReadPathData	render/scene/encoding.go	1541
+scene	method	Iterator	ReadTransform	render/scene/encoding.go	1561
+scene	method	Encoding	RecordCommandBounds	render/scene/encoding.go	907
+scene	method	Scene	RegisterFont	render/scene/scene.go	906
+scene	method	LayerStack	ReleaseLayer	render/scene/layer.go	257
+scene	method	Renderer	RenderDirtyWithContext	render/scene/renderer.go	565
+scene	method	TextRenderer	RenderGlyph	render/scene/text.go	140
+scene	method	TextRenderer	RenderGlyphs	render/scene/text.go	198
+scene	method	TextRenderer	RenderRun	render/scene/text.go	263
+scene	method	Scene	RenderSceneInto	render/scene/scene_record.go	35
+scene	method	Renderer	RenderWithContext	render/scene/renderer.go	414
+scene	method	Renderer	ResetMaterialSkips	render/scene/renderer.go	209
+scene	method	Renderer	ResetProjectionDegrades	render/scene/renderer.go	222
+scene	method	SceneBuilder	ResetTransform	render/scene/builder.go	157
+scene	method	TextRenderer	SetConfig	render/scene/text.go	90
+scene	method	CompositeShape	ShapeCount	render/scene/shape.go	772
+scene	method	Encoding	ShapeCount	render/scene/encoding.go	1482
+scene	method	Decoder	SkipPath	render/scene/decoder.go	506
+scene	method	SceneBuilder	StrokeWith	render/scene/builder.go	100
+scene	method	Scene	TaggedBounds	render/scene/scene.go	684
+scene	method	Encoding	TextData	render/scene/encoding.go	887
+scene	method	TextRenderer	ToCompositePath	render/scene/text.go	344
+scene	method	BlendMode	ToPaintBlendMode	render/scene/blend_integration.go	24
+scene	method	ArcShape	ToPath	render/scene/shape.go	598
+scene	method	CircleShape	ToPath	render/scene/shape.go	122
+scene	method	CompositeShape	ToPath	render/scene/shape.go	739
+scene	method	EllipseShape	ToPath	render/scene/shape.go	161
+scene	method	LineShape	ToPath	render/scene/shape.go	306
+scene	method	PathShape	ToPath	render/scene/shape.go	371
+scene	method	PieShape	ToPath	render/scene/shape.go	633
+scene	method	PolygonShape	ToPath	render/scene/shape.go	403
+scene	method	RectShape	ToPath	render/scene/shape.go	49
+scene	method	RegularPolygonShape	ToPath	render/scene/shape.go	484
+scene	method	RoundedRectShape	ToPath	render/scene/shape.go	90
+scene	method	RoundRectShape	ToPath	render/scene/shape.go	221
+scene	method	StarShape	ToPath	render/scene/shape.go	539
+scene	method	TextShape	ToPath	render/scene/text.go	574
+scene	method	TransformShape	ToPath	render/scene/shape.go	687
+scene	method	Scene	TransformDepth	render/scene/scene.go	767
+scene	method	Encoding	Transforms	render/scene/encoding.go	1467
+scene	method	Rect	UnionPoint	render/scene/encoding.go	261
+scene	method	Encoding	UpdateBounds	render/scene/encoding.go	900
+scene	method	LayerState	UpdateBounds	render/scene/layer.go	140
+scene	method	Path	VerbCount	render/scene/path.go	314
+scene	method	Renderer	Workers	render/scene/renderer.go	1784
+scene	type		ArcShape	render/scene/shape.go	580
+scene	type		BrushKind	render/scene/encoding.go	192
+scene	type		CacheEntry	render/scene/cache.go	51
+scene	type		CircleShape	render/scene/shape.go	111
+scene	type		CompositeShape	render/scene/shape.go	724
+scene	type		DamageTracker	render/scene/damage.go	28
+scene	type		EllipseShape	render/scene/shape.go	150
+scene	type		EncodingPool	render/scene/pool.go	24
+scene	type		FillStyle	render/scene/encoding.go	146
+scene	type		FilterChain	render/scene/filter.go	80
+scene	type		FilterType	render/scene/filter.go	40
+scene	type		GlyphEntry	render/scene/encoding.go	405
+scene	type		GlyphRunData	render/scene/encoding.go	390
+scene	type		Iterator	render/scene/encoding.go	1514
+scene	type		LayerStack	render/scene/layer.go	170
+scene	type		LayerState	render/scene/layer.go	56
+scene	type		LineShape	render/scene/shape.go	295
+scene	type		PathBuilder	render/scene/shape.go	32
+scene	type		PathElement	render/scene/path.go	495
+scene	type		PathPool	render/scene/path.go	633
+scene	type		PathShape	render/scene/shape.go	335
+scene	type		PieShape	render/scene/shape.go	615
+scene	type		PolygonShape	render/scene/shape.go	384
+scene	type		RectShape	render/scene/shape.go	38
+scene	type		RegularPolygonShape	render/scene/shape.go	466
+scene	type		RenderedGlyph	render/scene/text.go	114
+scene	type		RendererOption	render/scene/renderer.go	309
+scene	type		RenderStats	render/scene/renderer.go	267
+scene	type		RoundedRectShape	render/scene/shape.go	76
+scene	type		RoundRectShape	render/scene/shape.go	195
+scene	type		ScenePool	render/scene/scene.go	1031
+scene	type		StarShape	render/scene/shape.go	518
+scene	type		StrokeStyle	render/scene/encoding.go	156
+scene	type		TaggedBounds	render/scene/damage.go	44
+scene	type		TextFlags	render/scene/encoding.go	381
+scene	type		TextRenderer	render/scene/text.go	26
+scene	type		TextRendererConfig	render/scene/text.go	43
+scene	type		TextRendererPool	render/scene/text.go	420
+scene	type		TextShape	render/scene/text.go	543
+scene	type		TransformShape	render/scene/shape.go	676
+scene	var		DefaultPool	render/scene/pool.go	70
+scene	var		ErrSceneReplayUnsupported	render/scene/scene_record.go	25
+svg	const		LengthAxisY	render/svg/length.go	70
+svg	const		LengthUnitCm	render/svg/length.go	28
+svg	const		LengthUnitEm	render/svg/length.go	31
+svg	const		LengthUnitEx	render/svg/length.go	32
+svg	const		LengthUnitIn	render/svg/length.go	27
+svg	const		LengthUnitMm	render/svg/length.go	29
+svg	const		LengthUnitPc	render/svg/length.go	26
+svg	const		LengthUnitPercent	render/svg/length.go	33
+svg	const		LengthUnitPt	render/svg/length.go	25
+svg	const		LengthUnitPx	render/svg/length.go	24
+svg	const		LengthUnitQ	render/svg/length.go	30
+svg	const		RefKindNone	render/svg/document.go	328
+svg	func		EffectiveStops	render/svg/document.go	642
+svg	method	Document	RenderTableGlyph	render/svg/color_table.go	46
+svg	method	Document	RenderTo	render/svg/svg.go	65
+svg	method	Document	RenderToWithColor	render/svg/svg.go	71
+svg	type		CSSDecl	render/svg/inheritance.go	22
+svg	type		EllipseElement	render/svg/document.go	236
+svg	type		FilterPrimitive	render/svg/filter.go	48
+svg	type		FontResolverFunc	render/svg/text.go	27
+svg	type		GradientStopElement	render/svg/document.go	562
+svg	type		LengthAxis	render/svg/length.go	66
+svg	type		LengthUnit	render/svg/length.go	21
+svg	type		LightSource	render/svg/filter.go	115
+svg	type		LineElement	render/svg/document.go	245
+svg	type		ParseWarning	render/svg/document.go	85
+svg	type		PathElement	render/svg/document.go	210
+svg	type		PolygonElement	render/svg/document.go	253
+svg	type		PreserveAspectRatio	render/svg/preserve.go	36
+svg	type		SpreadMode	render/svg/document.go	531
+svg	type		StyleBlock	render/svg/css.go	494
+svg	type		StyleElement	render/svg/document.go	504
+svg	type		TableGlyphOptions	render/svg/color_table.go	29
+svg	type		TextPathElement	render/svg/document.go	479
+svg	type		TransferFunc	render/svg/filter.go	127
+svg	type		TspanElement	render/svg/document.go	462
+svg	type		ViewBox	render/svg/document.go	113
+text	const		AFCJK_TOP_BLUE_FU	render/text/light_engine.go	99
+text	const		BreakAllowed	render/text/wrap.go	129
+text	const		BreakMandatory	render/text/wrap.go	131
+text	const		BreakNo	render/text/wrap.go	127
+text	const		DefaultTabWidth	render/text/tab.go	18
+text	const		DirectionBTT	render/text/types.go	30
+text	const		FontRoleLatin	render/text/system_font.go	45
+text	const		GlyphFlagClusterStart	render/text/glyph_type.go	69
+text	const		GlyphFlagLigature	render/text/glyph_type.go	57
+text	const		GlyphFlagMark	render/text/glyph_type.go	61
+text	const		GlyphFlagSafeToBreak	render/text/glyph_type.go	65
+text	const		GlyphMaskFlagAliased	render/text/glyph_mask_atlas.go	65
+text	const		GlyphMaskFlagBold	render/text/glyph_mask_atlas.go	78
+text	const		GlyphMaskFlagHintingMask	render/text/glyph_mask_atlas.go	87
+text	const		GlyphMaskFlagHintingShift	render/text/glyph_mask_atlas.go	86
+text	const		GlyphMaskFlagLCD	render/text/glyph_mask_atlas.go	70
+text	const		GlyphMaskFlagLCDBGR	render/text/glyph_mask_atlas.go	73
+text	const		GlyphTypeOutline	render/text/glyph_type.go	19
+text	const		HintingNone	render/text/types.go	64
+text	const		ModeLightCJK	render/text/light_engine.go	33
+text	const		ModeLightLatin	render/text/light_engine.go	36
+text	const		OutlineOpCubicTo	render/text/glyph_outline.go	53
+text	const		OutlineOpLineTo	render/text/glyph_outline.go	47
+text	const		OutlineOpMoveTo	render/text/glyph_outline.go	44
+text	const		OutlineOpQuadTo	render/text/glyph_outline.go	50
+text	const		OverflowClip	render/text/layout.go	96
+text	const		OverflowVisible	render/text/layout.go	100
+text	const		ScriptArabic	render/text/script.go	31
+text	const		ScriptArmenian	render/text/script.go	49
+text	const		ScriptBengali	render/text/script.go	51
+text	const		ScriptCommon	render/text/script.go	21
+text	const		ScriptCyrillic	render/text/script.go	27
+text	const		ScriptDevanagari	render/text/script.go	43
+text	const		ScriptEthiopic	render/text/script.go	77
+text	const		ScriptGeorgian	render/text/script.go	47
+text	const		ScriptGreek	render/text/script.go	29
+text	const		ScriptGujarati	render/text/script.go	61
+text	const		ScriptGurmukhi	render/text/script.go	65
+text	const		ScriptHan	render/text/script.go	35
+text	const		ScriptHangul	render/text/script.go	41
+text	const		ScriptHebrew	render/text/script.go	33
+text	const		ScriptHiragana	render/text/script.go	37
+text	const		ScriptInherited	render/text/script.go	23
+text	const		ScriptKannada	render/text/script.go	57
+text	const		ScriptKatakana	render/text/script.go	39
+text	const		ScriptKhmer	render/text/script.go	69
+text	const		ScriptLao	render/text/script.go	71
+text	const		ScriptLatin	render/text/script.go	25
+text	const		ScriptMalayalam	render/text/script.go	59
+text	const		ScriptMyanmar	render/text/script.go	73
+text	const		ScriptOriya	render/text/script.go	63
+text	const		ScriptSinhala	render/text/script.go	67
+text	const		ScriptTamil	render/text/script.go	53
+text	const		ScriptTelugu	render/text/script.go	55
+text	const		ScriptThai	render/text/script.go	45
+text	const		ScriptTibetan	render/text/script.go	75
+text	const		ScriptUnknown	render/text/script.go	79
+text	const		Subpixel10	render/text/subpixel.go	35
+text	const		Subpixel4	render/text/subpixel.go	31
+text	const		SubpixelNone	render/text/subpixel.go	27
+text	const		WeightBlack	render/text/options.go	123
+text	const		WeightExtraBold	render/text/options.go	122
+text	const		WeightExtraLight	render/text/options.go	116
+text	const		WeightLight	render/text/options.go	117
+text	const		WeightThin	render/text/options.go	115
+text	const		WrapChar	render/text/wrap.go	38
+text	func		AdvanceCacheSnapshot	render/text/advance_cache.go	83
+text	func		ApplySpacingDir	render/text/spacing.go	105
+text	func		CaretXForCluster	render/text/shaped.go	138
+text	func		ClearAdvanceCache	render/text/advance_cache.go	93
+text	func		ClearAutoHintCache	render/text/autohint.go	813
+text	func		ClearFontScanFallbackCache	render/text/fontscan_fallback.go	185
+text	func		ClearMultiFaceRunsCache	render/text/multi.go	554
+text	func		ClearShapeResultCache	render/text/shape_result_cache.go	104
+text	func		ClearSystemFontPaths	render/text/system_font.go	89
+text	func		DefaultFontResolver	render/text/system_font.go	157
+text	func		DefaultGlyphCacheConfig	render/text/glyph_cache.go	34
+text	func		DefaultGlyphMaskAtlasConfig	render/text/glyph_mask_atlas.go	215
+text	func		DefaultLayoutOptions	render/text/layout.go	104
+text	func		DefaultLCDFilter	render/text/lcd_filter.go	66
+text	func		DefaultRenderParams	render/text/glyph_renderer.go	34
+text	func		DefaultSubpixelConfig	render/text/subpixel.go	80
+text	func		DetectGlyphType	render/text/color_font.go	130
+text	func		DetectScript	render/text/script.go	151
+text	func		DrawAliased	render/text/draw_aliased.go	28
+text	func		DrawWithEmoji	render/text/draw_emoji.go	32
+text	func		EmboldenOutline	render/text/embolden.go	27
+text	func		FixedSize	render/text/glyph_cache.go	69
+text	func		FontSourceID	render/text/shape_result_cache.go	270
+text	func		GetGlobalGlyphCache	render/text/glyph_cache.go	517
+text	func		GetGlobalSubpixelCache	render/text/subpixel.go	431
+text	func		GetGlobalTextRenderer	render/text/glyph_renderer.go	487
+text	func		GetShaper	render/text/shaper.go	55
+text	func		HashFontFeatures	render/text/shape_result_cache.go	289
+text	func		HashFontVariations	render/text/shape_result_cache.go	311
+text	func		HighQualitySubpixelConfig	render/text/subpixel.go	99
+text	func		HintedAdvanceWidth	render/text/tt_integrate.go	179
+text	func		HitTestCluster	render/text/shaped.go	94
+text	func		HitTestClusterEdge	render/text/shaped.go	103
+text	func		IsCJKRune	render/text/wrap.go	112
+text	func		IsHighChurnLabel	render/text/shape_result_cache.go	365
+text	func		IsPunctuation	render/text/segment.go	236
+text	func		IsWhitespace	render/text/segment.go	232
+text	func		LayoutGlyphs	render/text/shape_result_cache.go	389
+text	func		LayoutTextSimple	render/text/layout.go	420
+text	func		LayoutTextWithContext	render/text/layout.go	172
+text	func		MakeGlyphMaskKeyAliased	render/text/glyph_mask_atlas.go	131
+text	func		MakeGlyphMaskKeyBucketed	render/text/glyph_mask_atlas.go	147
+text	func		MakeSubpixelKey	render/text/subpixel.go	418
+text	func		MeasureText	render/text/wrap.go	614
+text	func		NewBitmapGlyphCache	render/text/draw_emoji.go	209
+text	func		NewBuiltinSegmenter	render/text/segment.go	45
+text	func		NewBuiltinSegmenterWithDirection	render/text/segment.go	49
+text	func		NewCache	render/text/cache.go	38
+text	func		NewFontFamily	render/text/family.go	50
+text	func		NewFontFeature	render/text/options.go	31
+text	func		NewGlyphCache	render/text/glyph_cache.go	166
+text	func		NewGlyphCachePool	render/text/glyph_cache.go	490
+text	func		NewGlyphCacheWithConfig	render/text/glyph_cache.go	171
+text	func		NewGlyphMaskAtlas	render/text/glyph_mask_atlas.go	530
+text	func		NewGlyphMaskAtlasDefault	render/text/glyph_mask_atlas.go	543
+text	func		NewGlyphMaskRasterizer	render/text/glyph_mask_rasterizer.go	46
+text	func		NewGlyphRenderer	render/text/glyph_renderer.go	73
+text	func		NewGlyphRendererWithCache	render/text/glyph_renderer.go	81
+text	func		NewGlyphRunBuilder	render/text/glyph_run.go	66
+text	func		NewGlyphRunBuilderPool	render/text/glyph_run.go	314
+text	func		NewHbShaper	render/text/shaper_hb.go	67
+text	func		NewOutlineExtractor	render/text/glyph_outline.go	304
+text	func		NewOwnShaper	render/text/shaper_own.go	73
+text	func		NewRuneToBoolMap	render/text/runetobool.go	36
+text	func		NewSubpixelCache	render/text/subpixel.go	256
+text	func		NewSubpixelCacheWithConfig	render/text/subpixel.go	264
+text	func		NewTextRenderer	render/text/glyph_renderer.go	400
+text	func		NoSubpixelConfig	render/text/subpixel.go	89
+text	func		ParseGlyfContours	render/text/glyf_parser.go	100
+text	func		ParseGlyfContoursFromSource	render/text/glyf_parser.go	567
+text	func		ParseGlyfContoursFromTables	render/text/glyf_parser.go	111
+text	func		PurgeFontSourceCache	render/text/source_cache.go	113
+text	func		Quantize	render/text/subpixel.go	150
+text	func		QuantizePoint	render/text/subpixel.go	185
+text	func		RasterizeFT26	render/text/ftgrays.go	624
+text	func		RegisterParser	render/text/parser.go	127
+text	func		ResetAdvanceCacheStats	render/text/advance_cache.go	88
+text	func		ResetFontSourceCacheStats	render/text/source_cache.go	100
+text	func		ResetShapeResultCacheStats	render/text/shape_result_cache.go	99
+text	func		RotateTransform	render/text/glyph_renderer.go	311
+text	func		RunAdvance	render/text/shaped.go	188
+text	func		ScaleTransform	render/text/glyph_outline.go	274
+text	func		ScaleTransformXY	render/text/glyph_renderer.go	322
+text	func		SegmentTextRTL	render/text/segment.go	228
+text	func		SetCOLRv1Renderer	render/text/color_glyph_hook.go	84
+text	func		SetDefaultFontPath	render/text/system_font.go	65
+text	func		SetGlobalGlyphCache	render/text/glyph_cache.go	523
+text	func		SetGlobalSubpixelCache	render/text/subpixel.go	437
+text	func		SetShaper	render/text/shaper.go	45
+text	func		SetSVGTableRenderer	render/text/color_glyph_hook.go	47
+text	func		SetSystemFontPaths	render/text/system_font.go	76
+text	func		SetTabWidth	render/text/tab.go	25
+text	func		ShapeForDraw	render/text/shaper.go	103
+text	func		ShapeForDrawFallbacks	render/text/shaper.go	95
+text	func		ShapeResultCacheStats	render/text/shape_result_cache.go	94
+text	func		ShapeUncached	render/text/shaper.go	84
+text	func		SpacingExtra	render/text/spacing.go	224
+text	func		SubpixelOffset	render/text/subpixel.go	204
+text	func		SubpixelOffsets	render/text/subpixel.go	212
+text	func		SystemFontForFamily	render/text/fontscan_fallback.go	206
+text	func		SystemFontsByFamily	render/text/fontscan_fallback.go	233
+text	func		TabWidth	render/text/tab.go	33
+text	func		TranslateTransform	render/text/glyph_outline.go	279
+text	func		VariationHash	render/text/glyph_cache.go	84
+text	func		VariationKey	render/text/color_raster.go	53
+text	func		WithCacheLimit	render/text/options.go	173
+text	func		WithCollectionIndex	render/text/options.go	183
+text	func		WithFeatures	render/text/options.go	259
+text	func		WithLanguage	render/text/options.go	242
+text	func		WithWeight	render/text/options.go	305
+text	ifacemethod	Face	AppendGlyphs	render/text/face.go	40
+text	ifacemethod	ColorFont	BitmapGlyph	render/text/color_font.go	34
+text	ifacemethod	Face	Embolden	render/text/face.go	76
+text	ifacemethod	Face	Features	render/text/face.go	53
+text	ifacemethod	ParsedFont	GlyphAdvance	render/text/parser.go	46
+text	ifacemethod	VariableAdvanceProvider	GlyphAdvanceVar	render/text/parser.go	67
+text	ifacemethod	ColorFont	HasColorTables	render/text/color_font.go	25
+text	ifacemethod	ParsedFont	NumGlyphs	render/text/parser.go	35
+text	ifacemethod	ColorFont	Palette	render/text/color_font.go	47
+text	ifacemethod	RawFontDataProvider	RawFontData	render/text/autohint.go	130
+text	ifacemethod	ParsedFont	UnitsPerEm	render/text/parser.go	38
+text	ifacemethod	WeightClassProvider	WeightClass	render/text/parser.go	77
+text	method	GlyphRunBuilder	AddGlyph	render/text/glyph_run.go	77
+text	method	GlyphRunBuilder	AddShapedGlyph	render/text/glyph_run.go	87
+text	method	GlyphRunBuilder	AddShapedGlyphs	render/text/glyph_run.go	131
+text	method	GlyphRunBuilder	AddShapedRun	render/text/glyph_run.go	101
+text	method	FilteredFace	AppendGlyphs	render/text/filtered.go	117
+text	method	MultiFace	AppendGlyphs	render/text/multi.go	141
+text	method	GlyphRunBuilder	BuildTransformed	render/text/glyph_run.go	207
+text	method	GlyphRenderer	Cache	render/text/glyph_renderer.go	92
+text	method	GlyphRunBuilder	Cache	render/text/glyph_run.go	283
+text	method	SubpixelConfig	CacheMultiplier	render/text/subpixel.go	115
+text	method	FontResolver	Candidates	render/text/system_font.go	203
+text	method	HbShaper	ClearCache	render/text/shaper_hb.go	137
+text	method	OwnShaper	ClearCache	render/text/shaper_own.go	195
+text	method	GlyfContours	ContourPoints	render/text/glyf_parser.go	62
+text	method	GlyphCache	CurrentFrame	render/text/glyph_cache.go	407
+text	method	GlyphMaskAtlas	DirtyPages	render/text/glyph_mask_atlas.go	878
+text	method	GlyphMaskAtlas	DirtyUploads	render/text/glyph_mask_atlas.go	940
+text	method	SubpixelMode	Divisions	render/text/subpixel.go	59
+text	method	FilteredFace	Embolden	render/text/filtered.go	173
+text	method	MultiFace	Embolden	render/text/multi.go	421
+text	method	GlyphMaskAtlas	EntryCount	render/text/glyph_mask_atlas.go	1031
+text	method	OutlineExtractor	ExtractOutline	render/text/glyph_outline.go	311
+text	method	OutlineExtractor	ExtractOutlineHinted	render/text/glyph_outline.go	326
+text	method	OutlineExtractor	ExtractOutlineHintedVar	render/text/glyph_outline.go	403
+text	method	FilteredFace	Features	render/text/filtered.go	150
+text	method	MultiFace	Features	render/text/multi.go	395
+text	method	GlyphCache	GetOrCreate	render/text/glyph_cache.go	263
+text	method	SubpixelCache	GetOrCreate	render/text/subpixel.go	319
+text	method	GlyphMaskAtlas	GetOrRasterize	render/text/glyph_mask_atlas.go	699
+text	method	TextRenderer	GlyphRenderer	render/text/glyph_renderer.go	479
+text	method	ColorFontInfo	HasAnyColorTable	render/text/color_font.go	90
+text	method	Engine	Hint	render/text/light_engine.go	53
+text	method	GlyphRunBuilder	Instances	render/text/glyph_run.go	297
+text	method	SubpixelConfig	IsEnabled	render/text/subpixel.go	108
+text	method	SubpixelMode	IsEnabled	render/text/subpixel.go	53
+text	method	Direction	IsHorizontal	render/text/types.go	50
+text	method	Direction	IsVertical	render/text/types.go	55
+text	method	GlyphCache	Maintain	render/text/glyph_cache.go	334
+text	method	SubpixelCache	Maintain	render/text/subpixel.go	362
+text	method	GlyphMaskAtlas	MarkClean	render/text/glyph_mask_atlas.go	916
+text	method	GlyphMaskAtlas	MemoryUsage	render/text/glyph_mask_atlas.go	1038
+text	method	GlyfContours	NumContours	render/text/glyf_parser.go	56
+text	method	GlyphMaskAtlas	PageBytes	render/text/glyph_mask_atlas.go	906
+text	method	GlyphMaskAtlas	PageCount	render/text/glyph_mask_atlas.go	1024
+text	method	GlyphMaskAtlas	PageR8Data	render/text/glyph_mask_atlas.go	893
+text	method	ColorFontInfo	PreferredColorFormat	render/text/color_font.go	73
+text	method	GlyphMaskAtlas	PutLCD	render/text/glyph_mask_atlas.go	614
+text	method	GlyphMaskRasterizer	Rasterize	render/text/glyph_mask_rasterizer.go	153
+text	method	GlyphMaskRasterizer	RasterizeAliased	render/text/glyph_mask_rasterizer.go	253
+text	method	GlyphMaskRasterizer	RasterizeAliasedBold	render/text/glyph_mask_rasterizer.go	265
+text	method	GlyphMaskRasterizer	RasterizeHinted	render/text/glyph_mask_rasterizer.go	177
+text	method	GlyphMaskRasterizer	RasterizeHintedBold	render/text/glyph_mask_rasterizer.go	190
+text	method	GlyphMaskRasterizer	RasterizeHintedFT26	render/text/glyph_mask_rasterizer.go	90
+text	method	GlyphMaskRasterizer	RasterizeLCD	render/text/glyph_mask_rasterizer.go	464
+text	method	GlyphMaskRasterizer	RasterizeLCDBold	render/text/glyph_mask_rasterizer.go	478
+text	method	GlyphMaskRasterizer	RasterizeLCDOutline	render/text/glyph_mask_rasterizer.go	506
+text	method	GlyphMaskRasterizer	RasterizeOutline	render/text/glyph_mask_rasterizer.go	215
+text	method	GlyphMaskRasterizer	RasterizeOutlineAliased	render/text/glyph_mask_rasterizer.go	292
+text	method	FontFamily	Regular	render/text/family.go	155
+text	method	HbShaper	RemoveSource	render/text/shaper_hb.go	144
+text	method	OwnShaper	RemoveSource	render/text/shaper_own.go	202
+text	method	GlyphRenderer	RenderGlyph	render/text/glyph_renderer.go	118
+text	method	GlyphRenderer	RenderGlyphs	render/text/glyph_renderer.go	160
+text	method	GlyphRenderer	RenderLayout	render/text/glyph_renderer.go	194
+text	method	GlyphRenderer	RenderRun	render/text/glyph_renderer.go	179
+text	method	Script	RequiresComplexShaping	render/text/script.go	132
+text	method	GlyphOutline	SegmentCount	render/text/glyph_outline.go	100
+text	method	GlyphRenderer	SetCache	render/text/glyph_renderer.go	99
+text	method	GlyphRunBuilder	SetCache	render/text/glyph_run.go	289
+text	method	SubpixelCache	SetConfig	render/text/subpixel.go	288
+text	method	TextRenderer	SetDefaultColor	render/text/glyph_renderer.go	421
+text	method	TextRenderer	SetDefaultFace	render/text/glyph_renderer.go	409
+text	method	TextRenderer	SetDefaultSize	render/text/glyph_renderer.go	414
+text	method	FontResolver	SetFontFile	render/text/system_font.go	184
+text	method	FontResolver	SetPaths	render/text/system_font.go	164
+text	method	TextRenderer	ShapeAndRender	render/text/glyph_renderer.go	426
+text	method	TextRenderer	ShapeAndRenderAt	render/text/glyph_renderer.go	452
+text	method	GlyphMaskAtlas	TouchPage	render/text/glyph_mask_atlas.go	582
+text	method	GlyphMaskAtlas	UnderPressure	render/text/glyph_mask_atlas.go	1002
+text	method	FontSource	WeightClass	render/text/source.go	224
+text	method	RenderParams	WithColor	render/text/glyph_renderer.go	43
+text	method	RenderParams	WithOpacity	render/text/glyph_renderer.go	49
+text	method	MultiFace	WithWeight	render/text/multi.go	364
+text	type		AdvanceCacheStats	render/text/advance_cache.go	42
+text	type		AffineTransform	render/text/glyph_outline.go	263
+text	type		BitmapGlyphCache	render/text/draw_emoji.go	186
+text	type		BreakClass	render/text/wrap.go	58
+text	type		BreakOpportunity	render/text/wrap.go	123
+text	type		BuiltinSegmenter	render/text/segment.go	41
+text	type		BuiltinShaper	render/text/shaper_builtin.go	21
+text	type		Cache	render/text/cache.go	23
+text	type		CachedBitmap	render/text/draw_emoji.go	199
+text	type		ColorFontInfo	render/text/color_font.go	51
+text	type		ColorRasterCache	render/text/color_raster.go	80
+text	type		COLRv1Renderer	render/text/color_glyph_hook.go	76
+text	type		ContourPoint	render/text/glyf_parser.go	34
+text	type		DirectionMismatchError	render/text/errors.go	25
+text	type		DrawCommand	render/text/glyph_run.go	42
+text	type		DrawOptions	render/text/draw.go	496
+text	type		FaceRun	render/text/multi.go	528
+text	type		FilteredFace	render/text/filtered.go	60
+text	type		FontError	render/text/glyph_outline.go	1022
+text	type		FontFeature	render/text/options.go	18
+text	type		FontMetrics	render/text/parser.go	81
+text	type		FontParser	render/text/parser.go	18
+text	type		FontSourceCacheStats	render/text/source_cache.go	76
+text	type		GlyfContours	render/text/glyf_parser.go	43
+text	type		GlyphCache	render/text/glyph_cache.go	120
+text	type		GlyphCacheConfig	render/text/glyph_cache.go	22
+text	type		GlyphCachePool	render/text/glyph_cache.go	485
+text	type		GlyphCacheStats	render/text/glyph_cache.go	158
+text	type		GlyphFlags	render/text/glyph_type.go	52
+text	type		GlyphInstance	render/text/glyph_run.go	21
+text	type		GlyphKey	render/text/cache.go	182
+text	type		GlyphMaskAtlas	render/text/glyph_mask_atlas.go	498
+text	type		GlyphMaskAtlasConfig	render/text/glyph_mask_atlas.go	195
+text	type		GlyphMaskDirtyUpload	render/text/glyph_mask_atlas.go	926
+text	type		GlyphMaskRasterizer	render/text/glyph_mask_rasterizer.go	37
+text	type		GlyphMaskRegion	render/text/glyph_mask_atlas.go	159
+text	type		GlyphMaskResult	render/text/glyph_mask_rasterizer.go	55
+text	type		GlyphOutline	render/text/glyph_outline.go	74
+text	type		GlyphRenderer	render/text/glyph_renderer.go	65
+text	type		GlyphRunBuilder	render/text/glyph_run.go	59
+text	type		GlyphRunBuilderPool	render/text/glyph_run.go	307
+text	type		HbShaper	render/text/shaper_hb.go	55
+text	type		LCDFilter	render/text/lcd_filter.go	57
+text	type		LCDMaskResult	render/text/lcd_filter.go	115
+text	type		OutlineCacheKey	render/text/glyph_cache.go	42
+text	type		OutlineExtractor	render/text/glyph_outline.go	301
+text	type		OutlineOp	render/text/glyph_outline.go	40
+text	type		OutlinePoint	render/text/glyph_outline.go	22
+text	type		OutlineSegment	render/text/glyph_outline.go	27
+text	type		OwnShaper	render/text/shaper_own.go	48
+text	type		RawFontDataProvider	render/text/autohint.go	127
+text	type		RenderParams	render/text/glyph_renderer.go	20
+text	type		RuneToBoolMap	render/text/runetobool.go	24
+text	type		Script	render/text/script.go	15
+text	type		Segmenter	render/text/segment.go	37
+text	type		ShapedRun	render/text/shaped_run.go	15
+text	type		Shaper	render/text/shaper.go	23
+text	type		ShapeResultStats	render/text/shape_result_cache.go	45
+text	type		ShapingKey	render/text/cache.go	175
+text	type		SourceOption	render/text/options.go	154
+text	type		SubpixelCache	render/text/subpixel.go	227
+text	type		SubpixelCacheStats	render/text/subpixel.go	241
+text	type		SubpixelConfig	render/text/subpixel.go	67
+text	type		SubpixelKey	render/text/subpixel.go	131
+text	type		SubpixelMode	render/text/subpixel.go	22
+text	type		SVGTableRenderer	render/text/color_glyph_hook.go	37
+text	type		TextRenderer	render/text/glyph_renderer.go	392
+text	type		UnicodeRange	render/text/filtered.go	16
+text	type		VariableAdvanceProvider	render/text/parser.go	64
+text	type		WeightClassProvider	render/text/parser.go	74
+text	var		AxisItalic	render/text/options.go	142
+text	var		AxisOpticalSize	render/text/options.go	150
+text	var		AxisSlant	render/text/options.go	146
+text	var		AxisWeight	render/text/options.go	134
+text	var		AxisWidth	render/text/options.go	138
+text	var		DefaultMultiFontRoleChain	render/text/system_font.go	49
+text	var		ErrCFF2Unsupported	render/text/cff_outline.go	45
+text	var		ErrEmptyFaces	render/text/errors.go	21
+text	var		ErrEmptyFontData	render/text/errors.go	18
+text	var		ErrNotColorGlyph	render/text/color_raster.go	29
+text	var		ErrUnsupportedFont	render/text/light_engine.go	40
+text	var		ErrUnsupportedFontType	render/text/glyph_outline.go	1019
+text	var		Kerning	render/text/options.go	66
+text	var		NoDLigatures	render/text/options.go	61
+text	var		NoKerning	render/text/options.go	69
+text	var		NoLigatures	render/text/options.go	54
+text	var		OldstyleNums	render/text/options.go	78
+text	var		ProportionalNums	render/text/options.go	51
+text	var		RangeArabic	render/text/filtered.go	41
+text	var		RangeCJKUnified	render/text/filtered.go	45
+text	var		RangeCyrillic	render/text/filtered.go	35
+text	var		RangeEmojiFlags	render/text/filtered.go	54
+text	var		RangeGreek	render/text/filtered.go	38
+text	var		RangeHangul	render/text/filtered.go	48
+text	var		RangeHebrew	render/text/filtered.go	42
+text	var		RangeHiragana	render/text/filtered.go	46
+text	var		RangeKatakana	render/text/filtered.go	47
+text	var		RangeLatin1Sup	render/text/filtered.go	30
+text	var		SmallCaps	render/text/options.go	73
+text	var		TabularNums	render/text/options.go	46
