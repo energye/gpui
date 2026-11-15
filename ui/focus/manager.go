@@ -194,6 +194,28 @@ func (m *FocusManager) focusables() []*FocusNode {
 	return list
 }
 
+// traversalRoot returns the scope traversal may not leave when moving
+// from n: the nearest trapped ancestor (including n's own scope), or nil
+// for flat/unt-trapped nodes (manager-wide traversal, unchanged legacy).
+func (m *FocusManager) traversalRoot(n *FocusNode) *FocusScope {
+	return trapRoot(scopeOf(n))
+}
+
+// inScopeSubtree reports whether n's scope chain passes through root
+// (nil root = everything passes; flat nodes count as root-passing only
+// when root itself is nil).
+func inScopeSubtree(n *FocusNode, root *FocusScope) bool {
+	if root == nil {
+		return true
+	}
+	for s := scopeOf(n); s != nil; s = s.Parent {
+		if s == root {
+			return true
+		}
+	}
+	return false
+}
+
 // FocusNext moves primary to the next focusable (wraps).
 func (m *FocusManager) FocusNext() *FocusNode {
 	return m.move(+1)
@@ -211,6 +233,22 @@ func (m *FocusManager) move(dir int) *FocusNode {
 	list := m.focusables()
 	if len(list) == 0 {
 		return nil
+	}
+	// Scope confinement (件 4, FocusScopeNode semantics): when the current
+	// primary sits inside a trapped scope, Tab cycles within that subtree
+	// and never reaches nodes outside it. Flat and untrapped nodes keep
+	// the manager-wide traversal (legacy behavior, byte-for-byte).
+	root := m.traversalRoot(m.primary)
+	if root != nil {
+		var scoped []*FocusNode
+		for _, n := range list {
+			if inScopeSubtree(n, root) {
+				scoped = append(scoped, n)
+			}
+		}
+		if len(scoped) > 0 {
+			list = scoped
+		}
 	}
 	idx := -1
 	for i, n := range list {

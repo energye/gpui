@@ -45,6 +45,9 @@ type FocusNode struct {
 
 	mgr    *FocusManager
 	regSeq int // registration sequence for stable order
+	// scope is the FocusScope this node is registered in (nil = flat mode:
+	// manager-wide traversal, the pre-scope behavior, unchanged).
+	scope *FocusScope
 }
 
 // NewFocusNode creates an enabled focus node.
