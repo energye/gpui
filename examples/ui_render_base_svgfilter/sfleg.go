@@ -42,10 +42,9 @@ func flushSF(dc *render.Context, view render.TextureView, leg *sfLeg, tag string
 		leg.probe(tag+".flush", false, err.Error())
 		return false
 	}
-	// present→apply 语义边界：present 后必须先 Image() 消费一次视图同步，
-	// 再 Apply* 滤镜——否则 CPU 滤镜改动在下次 Image() 被视图同步盖掉
-	// （fillrectcpu-sync 同族新变体，findings 记录）。
-	_ = dc.Image()
+	// present→apply 时序约束已由引擎修复收口（O13 发现第五件：
+	// applyFilterInPlace 入口同步+清标记 / no-op present 种子视图），
+	// 调用方不再需要手动 Image() 消费——窗内保留直调原样作回归证据。
 	return true
 }
 

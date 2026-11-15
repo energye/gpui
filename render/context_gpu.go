@@ -246,10 +246,23 @@ func (c *Context) flushGPUWithViewCoreImpl(view gpucontext.TextureView, width, h
 	if len(damage) > 0 {
 		t.DamageRects = damage
 	}
+	// 无 pending 且 pixmap 是唯一真相（CPU 滤镜/CPU 直写后）：no-op present
+	// 会把陈旧视图留在面上，后续视图同步用旧内容盖回 pixmap（O13 发现第五件
+	// 的另一半）。置种子标记，pending==0 早退分支据此把 pixmap 真相上传视图
+	// （uploadPixmapToView），视图与 pixmap 重新一致。
+	if c.PendingGPUCount() == 0 && c.pixmapBaseContent {
+		t.SeedFromData = true
+	}
 	var err error
 	if rc := c.gpuCtxOps(); rc != nil {
 		if offscreen {
-			err = gpuFlushOffscreenTarget(rc, t)
+			// 离屏无 pending 时走带种子的 base flush（种子语义与上面标记配套，
+			// effect-publish 主链同款）。
+			if t.SeedFromData {
+				err = gpuFlushOffscreenBaseTarget(rc, t)
+			} else {
+				err = gpuFlushOffscreenTarget(rc, t)
+			}
 		} else {
 			err = rc.Flush(t)
 		}

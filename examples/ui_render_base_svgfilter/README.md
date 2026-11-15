@@ -9,9 +9,9 @@ SVG 滤镜族直驱真窗（O12 批 1d，RENDER_FEATURE_COVERAGE §12 NONE→EX�
 - **卡 C ApplySVGLighting**：`SVGLightingParams` diffuse distant（azimuth/elevation）——输出不透明（a=255）、高度图=alpha 语义；specular point 档 alpha=max(RGB)。
 - **卡 D ApplyDilateXY/ApplyErodeXY/ApplyCompositeArithmetic/ApplyColorFilter**：dilate rx≠ry 各向异性（水平 6px 垂直 3px）、erode 缩边、composite k2=1 保留 in1 公式语义、ColorFilterFunc 直域反转（1-x 逐点精确）。
 
-## 引擎发现（语义边界，同 fillrectcpu-sync 族）
+## 引擎发现 → 已修复（O13 发现第五件）
 
-- **present→apply 无消费 → CPU 滤镜被视图同步盖掉**：`PresentFrame` 之后不经 `Image()` 消费直接 `Apply*`，滤镜的 CPU 全画布改动在下一次 `Image()` 读回时被视图同步覆盖（连续两轮 present+invert 的读回恒等原图）。**口径：present → Image()（消费同步）→ Apply* → Image()**，全链生效。窗内 flushSF 已内置消费步。与批 1b 的 FillRectCPU 视图同步盖掉同族，但触发面更宽（任何 present 后的 CPU 滤镜）。
+- **present→apply 无消费 → CPU 滤镜被视图同步盖掉（已修）**：原现象是 `PresentFrame` 后不经 `Image()` 消费直接 `Apply*`，滤镜改动被视图同步盖回。**修复**（render/filter_ops_cpu.go applyFilterInPlace 入口同步+清标记 / render/context_gpu.go 无 pending 且 pixmap 为真相时置种子 / gpu_render_context.go pending==0 早退分支种子上传视图）后调用方无需手动消费——本窗 flushSF 的手动消费步已摘除作回归证据，全部探针金图绿。永久钉子：`render/filter_after_present_test.go` 双条。
 - `render/filters` 包空导入是 Apply* 生效前置（CPU apply 回调注册），缺失时七口静默 no-op。
 
 ## 限界

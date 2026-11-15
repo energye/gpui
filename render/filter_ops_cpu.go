@@ -54,6 +54,11 @@ func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
 		return
 	}
 	_ = c.FlushGPU()
+	// Present 之后视图内容领先 pixmap（markViewFlush 置位）：先把视图物化进
+	// pixmap 再跑滤镜，否则滤镜作用在陈旧像素上，且下次 Image() 的视图同步
+	// 会把滤镜结果盖回（O13 发现第五件，svgfilter 窗实测连续 present+invert
+	// 读回恒等原图）。GPU 滤镜图路径在同款位置已有同步（filter_ops_gpu.go）。
+	_ = c.syncViewFlushIntoPixmap()
 	// Silent CPU forbidden: if GPU path was available but we are here, count it.
 	if c.gpuPathAvailable() && GPUFilterGraphRegistered() {
 		c.recordCPUFallbackReason("filter:cpu-fallback")
@@ -67,6 +72,9 @@ func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
 	filterPixmapPool.Put(dst)
 	// The full surface now lives in the pixmap.
 	c.pixmapBaseContent = true
+	// 滤镜后 pixmap 是唯一真相：清掉未消费视图标记，阻止下次 Image()/后续
+	// 滤镜用滤镜前的视图内容盖回（同上，发现第五件的另一半）。
+	c.clearViewFlushTracking()
 	// Skia crops a saveLayer filter's output to the layer bounds: keep a
 	// bounded backdrop layer's outside-bounds pixels equal to the parent's
 	// before the RT follows the pixmap (see cropFilterOutputToLayerBounds).

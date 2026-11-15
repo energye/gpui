@@ -3115,7 +3115,11 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		// the CPU rasterizer, so the window present uploads the pixmap instead
 		// of the GPU session — the swapchain no longer depends on the GPU
 		// raster pipelines (they may fail on CPU-only setups — black window).
-		if !target.View.IsNil() && (rc.shared.strategy == strategyRasterAtlas || render.CPUOnlyMode()) {
+		// SeedFromData (O13 发现第五件): the caller marked pixmap as the sole
+		// surface truth (CPU filter / CPU direct-write after a present). The
+		// no-op present would otherwise leave a STALE view that later view-sync
+		// readbacks use to overwrite the filtered pixmap — upload the truth.
+		if !target.View.IsNil() && (rc.shared.strategy == strategyRasterAtlas || render.CPUOnlyMode() || target.SeedFromData) {
 			return rc.uploadPixmapToView(target)
 		}
 		return rc.flushVello(target)
