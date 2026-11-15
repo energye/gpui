@@ -16,6 +16,7 @@ import (
 	"sync"
 
 	"github.com/energye/gpui/ui/focus"
+	"github.com/energye/gpui/ui/gestures"
 	"github.com/energye/gpui/ui/input"
 	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/platform"
@@ -46,6 +47,14 @@ type HitTestFunc func(x, y float64) (overlay.Band, rendering.RenderObject, *over
 type InputRouter struct {
 	hit   HitTestFunc
 	focus *focus.FocusManager
+	// arena owns the unified gesture-arena manager: pointer downs on the
+	// hit path auto-join recognizers (gestures.PointerTarget) into one
+	// arena per pointer id, then move/up route through it — the
+	// GestureBinding.dispatchEvent chain, with per-window managers gone.
+	arena *gestures.GestureArenaManager
+	// hoverPath remembers the previous move's PointerHandler set for
+	// exit synthesis: handlers dropped from the path get PointerLeave.
+	hoverPath map[input.PointerHandler]bool
 
 	// OnPointer receives every pointer/touch/scroll sample plus the
 	// hit-tested target (nil when nothing hit). Handy for gesture arenas.
@@ -107,7 +116,7 @@ type InputRouter struct {
 // PipelineApp.HitTestPointer) and optionally the focus manager to auto-route
 // Tab/Enter/activation keys.
 func NewInputRouter(hit HitTestFunc, f *focus.FocusManager) *InputRouter {
-	return &InputRouter{hit: hit, focus: f}
+	return &InputRouter{hit: hit, focus: f, arena: gestures.NewManager()}
 }
 
 // SetHitTest overrides the hit-test function (e.g. after the app is bound).
@@ -572,11 +581,43 @@ func (r *InputRouter) routePointer(ev input.Event) {
 	// pointer events along the whole hit path). Without the ancestor walk a
 	// container-wrapped field (handler on the box, click landing on its text
 	// child) never sees the click — observed as click-to-caret doing nothing.
+	// The same walk feeds the gesture arena: on Down, every PointerTarget
+	// on the path joins the pointer's arena (deepest first), then the down
+	// routes to members and the arena closes — Dispatcher.HandleDown order,
+	// which mirrors GestureBinding.dispatchEvent → handleEvent → arena.add.
+	// Move/Up route through the arena so the winner receives them.
+	seen := make(map[input.PointerHandler]bool)
 	for n := target; n != nil; {
 		if ph, ok := n.(input.PointerHandler); ok {
 			ph.OnPointer(ev.Pointer)
+			seen[ph] = true
+		}
+		if ev.Pointer.Kind == input.PointerDown {
+			if pt, ok := n.(gestures.PointerTarget); ok && r.arena != nil {
+				pt.JoinPointer(r.arena, ev.Pointer.ID, gestures.PointerEvent(ev.Pointer))
+			}
 		}
 		n = n.Parent()
+	}
+	// Hover-exit synthesis (Flutter MouseTracker semantics): a handler that
+	// was on the previous hit path but is not on this one gets a synthetic
+	// PointerLeave, so hover clears even though nothing hit it this frame.
+	// Tracked only on moves; enter/leave kinds already carry the edge.
+	if ev.Pointer.Kind == input.PointerMove && r.hoverPath != nil {
+		for ph := range r.hoverPath {
+			if !seen[ph] {
+				leave := ev.Pointer
+				leave.Kind = input.PointerLeave
+				ph.OnPointer(leave)
+			}
+		}
+	}
+	r.hoverPath = seen
+	if ev.Pointer.Kind == input.PointerDown && r.arena != nil {
+		r.arena.Route(gestures.PointerEvent(ev.Pointer))
+		r.arena.CloseArena(ev.Pointer.ID)
+	} else if r.arena != nil {
+		r.arena.Route(gestures.PointerEvent(ev.Pointer))
 	}
 	// 拖选时鼠标移出框外，hit 已不在框上，但仍需让获焦的文本框收到 Move/Up 以实现自动滚动选区（Flutter RenderEditable 行为）
 	if ev.Pointer.Kind == input.PointerMove || ev.Pointer.Kind == input.PointerUp {

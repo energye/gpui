@@ -29,6 +29,9 @@ type (
 	BehaviorInteractiveConfig = behavior.InteractiveConfig
 	// BehaviorInteractive owns the five-state machine.
 	BehaviorInteractive = behavior.Interactive
+	// BehaviorInteractiveRegion is the Listener-style hit target: arena
+	// participation plus the five-state machine on one render node.
+	BehaviorInteractiveRegion = behavior.InteractiveRegion
 	// BehaviorFieldConfig describes one form value.
 	BehaviorFieldConfig = behavior.FieldConfig
 	// BehaviorField owns the committed value plus IME composition.
@@ -48,6 +51,14 @@ type (
 // NewBehaviorInteractive builds the five-state machine.
 func NewBehaviorInteractive(cfg BehaviorInteractiveConfig) *BehaviorInteractive {
 	return behavior.NewInteractive(cfg)
+}
+
+// NewBehaviorInteractiveRegion wraps a visual subtree with arena
+// participation (Listener semantics): the input router joins it into the
+// gesture arena automatically; hover/pressed/tap drive the composed
+// five-state machine. Pass nil child to fill the visual later.
+func NewBehaviorInteractiveRegion(cfg BehaviorInteractiveConfig, child rendering.RenderObject) *BehaviorInteractiveRegion {
+	return behavior.NewInteractiveRegion(cfg, child)
 }
 
 // NewBehaviorField builds the form controller.

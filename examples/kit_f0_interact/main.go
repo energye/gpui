@@ -24,6 +24,7 @@ import (
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/focus"
+	"github.com/energye/gpui/ui/input"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/platform"
@@ -74,13 +75,18 @@ func main() {
 	mgr := focus.NewManager()
 	ov := overlay.New()
 
-	click := kit.NewBehaviorInteractive(kit.BehaviorInteractiveConfig{Focusable: true, Label: "Submit"})
+	// 件 3 标准链：机器组合进 InteractiveRegion（节点持手势与状态），窗侧
+	// 零手写命中。region 由 router 自动 join 竞技场、自驱 hover/pressed/tap。
+	clickRegion := kit.NewBehaviorInteractiveRegion(kit.BehaviorInteractiveConfig{Focusable: true, Label: "Submit"}, nil)
+	click := clickRegion.Ctl()
 	click.Mount(mgr)
 	defer click.Unmount()
-	disabled := kit.NewBehaviorInteractive(kit.BehaviorInteractiveConfig{Disabled: true, Focusable: true, Label: "Disabled"})
+	disabledRegion := kit.NewBehaviorInteractiveRegion(kit.BehaviorInteractiveConfig{Disabled: true, Focusable: true, Label: "Disabled"}, nil)
+	disabled := disabledRegion.Ctl()
 	disabled.Mount(mgr)
 	defer disabled.Unmount()
-	loading := kit.NewBehaviorInteractive(kit.BehaviorInteractiveConfig{Loading: true, Focusable: true, Label: "Loading"})
+	loadingRegion := kit.NewBehaviorInteractiveRegion(kit.BehaviorInteractiveConfig{Loading: true, Focusable: true, Label: "Loading"}, nil)
+	loading := loadingRegion.Ctl()
 	loading.Mount(mgr)
 	defer loading.Unmount()
 
@@ -126,19 +132,22 @@ func main() {
 	clickBox := rendering.NewRenderColorBox(220, 64, colPrimary[0], colPrimary[1], colPrimary[2], 1)
 	clickBox.SetRepaintBoundary(true)
 	clickBox.SetDebugName("f0-click")
-	shell.Body.Place(clickBox, 16, 40)
+	clickRegion.ReplaceChild(clickBox)
+	shell.Body.Place(clickRegion, 16, 40)
 	shell.Body.Box.Place(wrkit.Label("click hover/press", 11, 0.62, 0.72, 0.85), 16, 20)
 
 	disBox := rendering.NewRenderColorBox(220, 64, colDisabled[0], colDisabled[1], colDisabled[2], 1)
 	disBox.SetRepaintBoundary(true)
 	disBox.SetDebugName("f0-disabled")
-	shell.Body.Place(disBox, 252, 40)
+	disabledRegion.ReplaceChild(disBox)
+	shell.Body.Place(disabledRegion, 252, 40)
 	shell.Body.Box.Place(wrkit.Label("disabled taps=0", 11, 0.62, 0.72, 0.85), 252, 20)
 
 	loadBox := rendering.NewRenderColorBox(220, 64, colLoading[0], colLoading[1], colLoading[2], 1)
 	loadBox.SetRepaintBoundary(true)
 	loadBox.SetDebugName("f0-loading")
-	shell.Body.Place(loadBox, 488, 40)
+	loadingRegion.ReplaceChild(loadBox)
+	shell.Body.Place(loadingRegion, 488, 40)
 	shell.Body.Box.Place(wrkit.Label("loading double=0", 11, 0.62, 0.72, 0.85), 488, 20)
 
 	anchorBox := rendering.NewRenderColorBox(160, 48, colAnchor[0], colAnchor[1], colAnchor[2], 1)
@@ -231,10 +240,26 @@ func main() {
 	resizeDone, resizeBack := false, false
 	phPress, phTap, phField, phOverlay, phEsc, phFocus, phFinal := false, false, false, false, false, false, false
 	var app *embedder.PipelineApp
+	var router *embedder.InputRouter
 	app = embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: clearBG[0], ClearG: clearBG[1], ClearB: clearBG[2], ClearA: 1,
 		RunFor: time.Duration(secs) * time.Second,
 		WarmUp: true,
+		// 件 3 标准链：pointer/keyboard 走统一路由（hit-path 自动竞技场 +
+		// routeKey 自动 Tab/Enter/activation），窗侧不再手写命中或喂键。
+		Input: func() *embedder.InputRouter {
+			router = embedder.NewInputRouter(nil, mgr)
+			router.OnKey = func(ev input.KeyEvent) {
+				if ev.Pressed && ev.Key == input.KeyEscape {
+					if trigger.HandleKey(focus.KeyEvent{KeyCode: 0xFF1B, Pressed: true}) {
+						overlayBox.MoveTo(-500, -500)
+						fmt.Fprintln(os.Stderr, "kit_f0_interact: key esc closed overlay")
+					}
+				}
+			}
+			return router
+		}(),
+		Overlay: ov,
 		SnapshotPath: func() string {
 			if secsSet {
 				return filepath.Join(snapDir, "showcase_interact.png")
@@ -251,47 +276,10 @@ func main() {
 					shell.Resize(float64(ev.Width), float64(ev.Height))
 					geoValid = false
 				}
-			case platform.EventPointer:
-				bodyX, bodyY := shell.Body.Box.Offset().X, shell.Body.Box.Offset().Y
-				lx, ly := ev.X-bodyX, ev.Y-bodyY
-				switch ev.Pointer {
-				case platform.PointerMove:
-					click.SetHover(kit.BehaviorContains(16, 40, 220, 64, lx, ly))
-					fmt.Fprintf(os.Stderr, "kit_f0_interact: pointer move %.0f,%.0f hover=%v\n", ev.X, ev.Y, click.States().Has(kit.ScopeStateHover))
-				case platform.PointerDown:
-					if kit.BehaviorContains(16, 40, 220, 64, lx, ly) {
-						click.SetPressed(true)
-						setBox(clickBox, colActive)
-					}
-					fmt.Fprintf(os.Stderr, "kit_f0_interact: pointer down %.0f,%.0f\n", ev.X, ev.Y)
-				case platform.PointerUp:
-					if click.States().Has(kit.ScopeStatePressed) {
-						click.SetPressed(false)
-						if kit.BehaviorContains(16, 40, 220, 64, lx, ly) {
-							click.DirectTap()
-							setBox(clickBox, colHover)
-						} else {
-							setBox(clickBox, colPrimary)
-						}
-					}
-					fmt.Fprintf(os.Stderr, "kit_f0_interact: pointer up clicks=%d\n", click.Clicks())
-				}
-				app.ScheduleFrame()
-			case platform.EventKey:
-				if ev.Pressed && ev.KeyCode == 0xFF1B {
-					if trigger.HandleKey(focus.KeyEvent{KeyCode: 0xFF1B, Pressed: true}) {
-						overlayBox.MoveTo(-500, -500)
-						fmt.Fprintln(os.Stderr, "kit_f0_interact: key esc closed overlay")
-					}
-				} else if ev.Pressed && (ev.KeyCode == 0xFF09 || ev.KeyCode == 9) {
-					mgr.HandleKey(focus.KeyEvent{KeyCode: focus.KeyTab, Pressed: true})
-					fmt.Fprintln(os.Stderr, "kit_f0_interact: key tab")
-				} else if ev.Pressed && (ev.KeyCode == 0x0020 || ev.KeyCode == 0xFF0D) {
-					click.HandleKey(focus.KeyEvent{KeyCode: focus.KeyEnter, Pressed: true})
-					fmt.Fprintf(os.Stderr, "kit_f0_interact: key activate clicks=%d\n", click.Clicks())
-				}
-				app.ScheduleFrame()
 			}
+			// Pointer/key events flow through PipelineOptions.Input (件 3
+			// standard chain); OnEvent never sees them, so no window-side
+			// hit-testing or manual key feeding lives here anymore.
 		},
 	})
 	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
@@ -391,8 +379,24 @@ func main() {
 				!kit.BehaviorContains(16, 40, 220, 64, 500, 500) &&
 				kit.BehaviorContains(252, 40, 220, 64, 300, 50) &&
 				kit.BehaviorContains(overlayHomeBX, overlayHomeBY, 200, 120, overlayHomeBX+10, overlayHomeBY+10)
+			// 件 3：hit_match 改断言真树命中——HitTest 沿渲染树解析，命中路径
+			// 上应找到对应 region；窗侧 BehaviorContains 矩形补丁不再作为证据。
+			bodyX, bodyY := shell.Body.Box.Offset().X, shell.Body.Box.Offset().Y
+			hitClick := shell.Root.HitTest(rendering.Point{X: bodyX + 36, Y: bodyY + 50})
+			hitDisabled := shell.Root.HitTest(rendering.Point{X: bodyX + 272, Y: bodyY + 50})
+			inHit := func(n rendering.RenderObject) *kit.BehaviorInteractiveRegion {
+				for ; n != nil; n = n.Parent() {
+					if r, ok := n.(*kit.BehaviorInteractiveRegion); ok {
+						return r
+					}
+				}
+				return nil
+			}
+			rc, rd := inHit(hitClick), inHit(hitDisabled)
+			treeHitOK := rc == clickRegion && rd == disabledRegion
+			_ = hitOK
 			scripted["focus_ring_ok"] = !tapFocused && !ringAfterTap && ringAfterKeys && !ringDisabled
-			scripted["hit_match"] = hitOK
+			scripted["hit_match"] = treeHitOK
 			mgr.FocusNext()
 			scripted["tab_ok"] = true
 		}
