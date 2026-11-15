@@ -101,8 +101,11 @@ func (p *Path) Reset() {
 
 // Append adds all elements from other to this path.
 // The current point and subpath start are updated to match other's state.
-// Append adds all elements from other to this path.
-// The current point and subpath start are updated to match other's state.
+// The incremental bounds are merged too: SetPath (Clear+Append) relied on
+// Clear resetting boundsValid and Append never rebuilding them, so Bounds()
+// returned an empty rect afterwards — the GPU stencil chain computes its
+// cover quad from Bounds() and painted nothing (O13 发现第四件，CPU 链不读
+// 增量 bounds 所以一直绿)。
 func (p *Path) Append(other *Path) {
 	if other == nil || len(other.verbs) == 0 {
 		return
@@ -111,6 +114,16 @@ func (p *Path) Append(other *Path) {
 	p.coords = append(p.coords, other.coords...)
 	p.current = other.current
 	p.start = other.start
+	if other.boundsValid {
+		if p.boundsValid {
+			p.expandBounds(other.boundsMinX, other.boundsMinY)
+			p.expandBounds(other.boundsMaxX, other.boundsMaxY)
+		} else {
+			p.boundsMinX, p.boundsMinY = other.boundsMinX, other.boundsMinY
+			p.boundsMaxX, p.boundsMaxY = other.boundsMaxX, other.boundsMaxY
+			p.boundsValid = true
+		}
+	}
 }
 
 // Transform applies a transformation matrix to all points in the path.
