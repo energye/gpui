@@ -303,7 +303,9 @@ func main() {
 		px("D.v1_base", dX+160*sx, dY+100*sy, v1Base, 6),
 		px("D.v1_bar", dX+160*sx, dY+26*sy, v1Bar, 6),
 		px("D.single_L_kept", dX+102+76*sx, dY+80*sy, v1Base, 6),
-		px("D.single_TR", dX+102+240*sx, dY+150*sy, qTR, 6),
+		// O13 第一件修复后损伤外 blit 被剪刀裁掉（FINDINGS #1 正确语义）：
+		// TR 点保留 v1 基色而非 blit 落点色。
+		px("D.single_TR", dX+102+240*sx, dY+150*sy, v1Base, 6),
 		px("D.multi_R", dX+204+248*sx, dY+136*sy, qBR, 6),
 		// 注：multi 缩略图未触点 (40,170) 的变暗是已上报发现（multi-untouched），
 		// 该点像素由黄金图逐位钉死，不再设期望探针。

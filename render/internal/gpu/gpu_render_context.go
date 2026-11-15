@@ -2976,6 +2976,12 @@ func (rc *GPURenderContext) FlushOffscreen(target render.GPURenderTarget) error 
 	}
 	if rc.session != nil {
 		rc.session.SetOffscreenBlitTarget(true)
+		// Offscreen views hold cross-frame content: register them as
+		// persistent so BeginFrame keeps their rendered/color-content marks
+		// (O13 发现第一件：offscreen 损伤呈现被 fresh-view 保护误判).
+		if !target.View.IsNil() {
+			rc.session.MarkPersistentContent(extractTextureView(target.View))
+		}
 		defer rc.session.SetOffscreenBlitTarget(false)
 	}
 	prevOffscreen := rc.offscreenFlush
@@ -3121,6 +3127,13 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		// readbacks use to overwrite the filtered pixmap — upload the truth.
 		if !target.View.IsNil() && (rc.shared.strategy == strategyRasterAtlas || render.CPUOnlyMode() || target.SeedFromData) {
 			return rc.uploadPixmapToView(target)
+		}
+		// O13 第三件补充：viewRendered=false 的 no-op present 会全量重画
+		// 旧 base（不含最新 damage flush 内容），覆盖掉刚种上的像素。视图
+		// 已持有真实内容（上一 damage flush 刚画完）时 no-op present 应为
+		// 纯 no-op —— 不重画不种子，保持视图现状。
+		if !target.View.IsNil() && rc.session != nil && rc.session.viewRendered(extractTextureView(target.View)) {
+			return nil
 		}
 		return rc.flushVello(target)
 	}

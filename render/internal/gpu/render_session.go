@@ -714,6 +714,14 @@ type GPURenderSession struct {
 	// vanished under the nested backdrop).
 	renderedViews []hal.TextureView
 
+	// persistentContentViews tracks OFFSCREEN views whose content survives
+	// frame boundaries (offscreen textures are not swapchain-rotated; their
+	// pixels stay valid until explicitly destroyed). BeginFrame keeps these
+	// in renderedViews/colorContentViews so damage-scissor LoadOpLoad loads
+	// the real previous content instead of undefined fresh-view garbage
+	// (O13 发现第一件：offscreen 损伤呈现被 fresh-view 保护误判为全量).
+	persistentContentViews []hal.TextureView
+
 	// scissorRect holds the current scissor rect in device pixels.
 	// When non-nil, all draw commands are clipped to this rectangle.
 	// nil means full framebuffer (default, no clipping).
@@ -1172,6 +1180,13 @@ func (s *GPURenderSession) BeginFrame() {
 	s.lastView = nil
 	s.colorContentViews = s.colorContentViews[:0]
 	s.renderedViews = s.renderedViews[:0]
+	// Offscreen views keep cross-frame content: re-register them as
+	// rendered+color-content so the fresh-view protection does not force a
+	// full composite over a live damage scissor (O13 发现第一/三件).
+	for _, v := range s.persistentContentViews {
+		s.renderedViews = append(s.renderedViews, v)
+		s.colorContentViews = append(s.colorContentViews, v)
+	}
 
 	// R6-2: converge grow-only staging/vertex/uniform buffers back down
 	// after sustained low use (safe point: previous frame completed above).
@@ -1363,6 +1378,37 @@ func (s *GPURenderSession) markViewRendered(view hal.TextureView) {
 		return
 	}
 	s.renderedViews = append(s.renderedViews, view)
+	// Offscreen sessions (no surface target) hold views whose content
+	// survives frame boundaries — register them as persistent so BeginFrame
+	// keeps their rendered/color marks (O13 发现第一件). Surface sessions
+	// must NOT: swapchain FIFO rotation makes "previous content" undefined
+	// (O13 发现第三件 stays structural).
+	if s.surfaceView == nil {
+		s.MarkPersistentContent(view)
+	}
+}
+
+// markPersistentContent registers an OFFSCREEN view whose content survives
+// frame boundaries (offscreen textures are not swapchain-rotated). Persistent
+// views re-enter renderedViews/colorContentViews at every BeginFrame, so
+// damage-scissor LoadOpLoad loads real previous content instead of treating
+// them as fresh (O13 发现第一件). Swapchain surface views must NOT be
+// registered here — their FIFO-rotated buffers make "previous content"
+// undefined (O13 发现第三件 stays structural).
+func (s *GPURenderSession) MarkPersistentContent(view hal.TextureView) {
+	if s == nil || view == nil {
+		return
+	}
+	for i := range s.persistentContentViews {
+		if s.persistentContentViews[i] == view {
+			return
+		}
+	}
+	s.persistentContentViews = append(s.persistentContentViews, view)
+	s.markViewRendered(view)
+	if !s.hasColorContent(view) {
+		s.colorContentViews = append(s.colorContentViews, view)
+	}
 }
 
 func (s *GPURenderSession) viewRendered(view hal.TextureView) bool {
@@ -7196,7 +7242,8 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 
 	// Render each group with its scissor rect applied.
 	for i := range grpRes {
-		if s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects) {
+		okG := s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects)
+		if okG {
 			s.recordGroupDraws(rp, &grpRes[i], &s.passLedger)
 		}
 	}

@@ -104,10 +104,12 @@ func runOffscreenLeg() *offLeg {
 		return leg
 	}
 	leg.imgSingle = dc.Image()
+	// O13 第一件修复后损伤外 blit 被剪刀裁掉（FINDINGS #1 正确语义）：
+	// TR 点（damage L 外）保留 v1 而非 blit 落点色。
 	leg.checkReadback("PresentFrameDamage", leg.imgSingle, map[string]checkPt{
 		"L保留":  {76, 80, v1Base},
 		"角保留":  {5, 5, v1Base},
-		"TR落点": {240, 150, qTR},
+		"TR保留": {240, 150, v1Base},
 	})
 
 	// multi-damage: two quadrant blits INSIDE their rects (independent of the
@@ -206,10 +208,17 @@ func runOffscreenLeg() *offLeg {
 		leg.probe("auto(vector damage)", errV == nil && !outV.Idle,
 			fmt.Sprintf("damage=%d → mode=%v err=%v", len(fdAuto), outV.Mode, errV))
 		img := dc.Image()
-		// MSAA path clears the whole target: the untouched mid must be black.
+		// O13 第一件修复后 offscreen 持久 view 跨帧保留内容：MSAA 全清的
+		// fresh-view 误判不再触发，未触点保留上一帧内容（损伤外保留=
+		// 正确损伤语义，与 FINDINGS #1 一致）。原断言"清屏=黑"过时。
+		// 修复后未触点不再被清屏：只断言"非黑"（具体色随上帧内容）。
+		msaaImg := img
+		gotMid := sampleAt(msaaImg, 160, 100)
+		if gotMid[0] < 5 && gotMid[1] < 5 && gotMid[2] < 5 {
+			leg.findings = append(leg.findings, "vector_msaa_clear: 未触点仍被清屏（黑）——持久内容修复未覆盖此路径")
+		}
 		leg.checkReadback("vector_msaa_clear", img, map[string]checkPt{
 			"L落点": {76, 80, qTL},
-			"清屏":  {160, 100, [3]float64{0, 0, 0}},
 		})
 	}
 	return leg
