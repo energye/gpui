@@ -234,6 +234,7 @@ func (c *Context) flushLayerViewGPU(view gpucontext.TextureView, width, height u
 func (c *Context) flushGPUWithViewCoreImpl(view gpucontext.TextureView, width, height uint32, damage []image.Rectangle, opName string, requireAccel, forceOffscreen bool) error {
 	c.recordFrameFlush()
 	t := c.gpuRenderTarget()
+	hadPending := c.PendingGPUCount() > 0
 	// Flushing into the currently active isolated layer's own RT is an
 	// offscreen flush (layer self-flush / effect RT), not a surface present:
 	// the compositor must clear it transparent (see gpuFlushOffscreenTarget).
@@ -250,7 +251,11 @@ func (c *Context) flushGPUWithViewCoreImpl(view gpucontext.TextureView, width, h
 	// 会把陈旧视图留在面上，后续视图同步用旧内容盖回 pixmap（O13 发现第五件
 	// 的另一半）。置种子标记，pending==0 早退分支据此把 pixmap 真相上传视图
 	// （uploadPixmapToView），视图与 pixmap 重新一致。
-	if c.PendingGPUCount() == 0 && c.pixmapBaseContent {
+	// 视图内容领先 pixmap 时（上一 damage/全量 flush 刚落地） pixmap 不是真
+	// 相——置种子会用陈旧 pixmap 整幅覆盖刚 flush 的 view（O13 深挖批：
+	// gpuframe B.双矩形损伤 flush 的 rect2 被盖回陈旧底色，rectNew 碰巧与
+	// 陈 pixmap 一致而假绿）。
+	if c.PendingGPUCount() == 0 && c.pixmapBaseContent && !c.viewContentAheadOfPixmap {
 		t.SeedFromData = true
 	}
 	var err error
@@ -273,6 +278,15 @@ func (c *Context) flushGPUWithViewCoreImpl(view gpucontext.TextureView, width, h
 		err = ErrFallbackToCPU
 	}
 	if err == nil {
+		// pending 实际落地到 view：视图内容现在领先 pixmap（fillRect 等走 GPU
+		// pending 的绘制不落 pixmap）。登记视图领先，让后续 no-op present 不
+		// 用陈旧 pixmap SeedFromData 覆盖（上面同因），Image() 经
+		// syncViewFlushIntoPixmap 读回正确内容（O13 深挖批）。层自 flush
+		// （offscreen 分支）的 view 是隔离层 RT，不是呈现面——登记它会把层
+		// 内容读进 pixmap 盖掉 CPU 混合腿需要的 base（D140 misc_draw 红根因）。
+		if !view.IsNil() && hadPending && !offscreen {
+			c.markViewFlush(view, int(width), int(height))
+		}
 		c.drainLayerGPUReleases()
 	}
 	return err

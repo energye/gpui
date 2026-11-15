@@ -54,7 +54,7 @@ func fillRect(dc *render.Context, x, y, w, h float64, c [3]float64, a float64) {
 
 func paintChrome() func(dc *render.Context) {
 	lines := []string{
-		"A BeginGPUFrame: 清帧态再画 v2",
+		"A BeginGPUFrame: 重置帧态再画 v2",
 		"B 损伤 flush 直调: Damage(Rects)",
 		"C PendingGPU: 计数→排水→干净",
 		"D Drop 会话: MemDig/层池统计",
@@ -82,10 +82,10 @@ func paintCardA(dc *render.Context, imgs map[string]image.Image) {
 			X: x + 16 + ix, Y: y + 40, DstWidth: 120, DstHeight: 75})
 		wrkit.DirectDrawText(dc, label, x+16+ix, y+132, faceSmall, wrkit.DColTextDim)
 	}
-	thumb("reset", 0, "BeginGPUFrame→清帧态")
+	thumb("reset", 0, "BeginGPUFrame→重置帧态")
 	thumb("noreset", 132, "不重置→LoadOpLoad 保留")
 	thumb("fresh", 264, "v2 新内容基准")
-	wrkit.DirectDrawText(dc, "Persistent dc 同视图跨帧：重置后旧帧让位，不重置保留", x+16, y+168, faceSmall, wrkit.DColTextDim)
+	wrkit.DirectDrawText(dc, "Persistent dc 同视图跨帧：重置后 patch 落地，patch 外持久保留", x+16, y+168, faceSmall, wrkit.DColTextDim)
 }
 
 // paintCardB — direct damage flush entries: view content readbacks.

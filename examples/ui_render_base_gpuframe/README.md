@@ -22,7 +22,7 @@ LayerPoolStats / ResetLayerPoolStats`。
 ## 证据链（三证据）
 
 - 逻辑探针：窗面 2 条 + 离屏腿 15 条（stderr `gfleg:` 前缀；卡 D 只画判定不画值——黄金图稳定）。
-- 像素探针：快照 10 点（缩略图落点/保留点/清帧点）。
+- 像素探针：快照 10 点（缩略图落点/保留点；A.reset 陈帧点 2026-11-15 起按持久保留语义断言）。
 - Golden：顶栏+图例+四卡逐位 0.0000%（状态带在金区外）。
 - 抓屏对照：终帧 vs 快照同区 ≤1%（0.31%）。
 
@@ -30,9 +30,10 @@ LayerPoolStats / ResetLayerPoolStats`。
 
 1. 层池计数只反映 pixmap 池（GPU 会话的层 RT 不经池，计数不动——`PushLayer(BlendNormal)`
    还走 F1 opacity-group 快路径跳过池；探针用 `PushLayerIsolated` + Drop 后 CPU 层路径）。
-2. 读回透明区的呈现随会话状态摆动（A.reset 透出卡底 / C.drained 黑底两轮不同）——
-   与 W1 的 `damage-present-findings-2026-11-15` 同族（wgpu 会话状态机），
-   该点由黄金图逐位钉死，探针只钉确定性色。
+2. ~~读回透明区的呈现随会话状态摆动~~——O13 第一件修复（offscreen view 内容跨帧持久）
+   + 深挖批（SeedFromData no-op present 抢跑拦截 + 池复用 ForgetPersistentContent）后
+   语义收敛：BeginGPUFrame 重置帧态但持久 view 的 patch 外内容保留（`A.reset_stale_kept`
+   断言 gfBase），损伤 flush 双矩形各自落地，C 腿弃排区不再继承上一池消费者的内容。
 3. CPU 层探针与 GPU 会话重建交错的读回异常（重建读回全黑除首 op）——按纪律不在门禁内
    交错（重排为先重建后层池），异常现象记入台账子项待查。
 

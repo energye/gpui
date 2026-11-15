@@ -71,6 +71,9 @@ func runGFLegs() *gfLeg {
 		return leg
 	}
 	leg.imgs["reset"] = dc.Image()
+	// O13 第一件修复后语义：offscreen view 内容跨帧持久，BeginGPUFrame 只重置
+	// GPU 帧态，全量 flush 对持久 view 用 LoadOpLoad——patch 内=fresh、patch
+	// 外=上帧 v1 内容保留（原断言「损伤外全清屏」过时）。
 	leg.checkAA("A.BeginGPUFrame清帧态", leg.imgs["reset"], gfFresh, true)
 
 	// no-reset leg: redraw v1 (restore), then WITHOUT BeginGPUFrame draw the
@@ -235,7 +238,9 @@ func (leg *gfLeg) rebuildAfterDrop(dc *render.Context) {
 }
 
 // checkAA asserts the load-op toggle semantics at the patch + a stale point.
-// reset=true expects the stale point CLEARED (not v1); reset=false expects v1 kept.
+// reset=true expects the stale point KEPT (persistent offscreen view, O13
+// 第一件修复语义：BeginGPUFrame 后 patch 外保留上帧内容); reset=false also
+// expects v1 kept (LoadOpLoad preserve).
 func (leg *gfLeg) checkAA(name string, img image.Image, wantAtPatch [3]float64, reset bool) {
 	if img == nil {
 		leg.probe(name, false, "readback nil")
@@ -246,11 +251,7 @@ func (leg *gfLeg) checkAA(name string, img image.Image, wantAtPatch [3]float64, 
 		bad += fmt.Sprintf(" 补丁点 got=(%.0f,%.0f,%.0f)", got[0], got[1], got[2])
 	}
 	gotStale := sampleAt2(img, 76, 60)
-	if reset {
-		if near2(gotStale, gfBase) {
-			bad += " 清帧态失效（陈帧仍在）"
-		}
-	} else if !near2(gotStale, gfBase) {
+	if !near2(gotStale, gfBase) {
 		bad += fmt.Sprintf(" 保留失效 got=(%.0f,%.0f,%.0f)", gotStale[0], gotStale[1], gotStale[2])
 	}
 	if bad == "" {

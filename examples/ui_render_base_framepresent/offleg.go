@@ -130,33 +130,32 @@ func runOffscreenLeg() *offLeg {
 		"L落点": {76, 80, qTL},
 		"R落点": {248, 136, qBR},
 	})
-	// 未触点 (40,170)（不在任何 blit dst、不在 L/R）应保留 v1；实测出现会话
-	// 状态相关的变暗——与 scissor-leak 同族发现，不判死，上报台账。
+	// 未触点读回（2026-11-15 fpdiag2 探针实证反转：原「变暗 46%」判读是探针
+	// 期望值过时——(40,170) 的 y=170 落在 v1 底部横条 y∈[168,182) 内，正确
+	// 保留值就是 v1Bar=(41,46,77)，实测逐位吻合；真未触点 (160,60) 实测
+	// v1Base 保留正确。引擎 per-draw clip 无洞，见 evidence fpdiag2 矩阵）。
 	if img := leg.imgMulti; img != nil {
-		got := sampleAt(img, 40, 170)
-		if !near3(got, v1Base) {
-			leg.findings = append(leg.findings,
-				fmt.Sprintf("multi-untouched: 损伤外未触点 (40,170) got=(%.0f,%.0f,%.0f) want=保留(76,87,140) — 会话状态相关，见 README/台账",
-					got[0], got[1], got[2]))
-		}
+		leg.checkReadback("PresentFrameDamageRects.untouched", img, map[string]checkPt{
+			"bar保留": {40, 170, v1Bar},
+			"底保留":  {160, 60, v1Base},
+		})
 	}
 
-	// scissor-leak finding: whole-view blit (source BR quadrant stretched over
-	// the full surface) + damage L — outside-L pixels leak varView content when
-	// the session scissor is not engaged.
+	// scissor-leak 探针（2026-11-15 fpdiag2 实证反转：原「漏剪」判读是探针
+	// 期望值过时——(240,150) 在 offRectR 内，multi 腿的 R blit（damage R 内
+	// +剪刀内合法）已把 qBR 画上，本腿 s3 只需在损伤外保留该内容即可；损伤
+	// 外语义=qBR 保留。真未触点 (160,60) 保留 v1Base。引擎 per-draw clip 无
+	// 洞，见 evidence fpdiag2 矩阵）。
 	dc.DrawGPUTextureWithOpacityUV(varView, 0, 0, offW, offH, 1.0, 0.5, 0.5, 1, 1)
 	if err := dc.PresentFrameDamage(v1View, offW, offH, offRectL, nil); err != nil {
-		leg.findings = append(leg.findings, "scissor-leak probe flush err: "+err.Error())
+		leg.probe("PresentFrameDamage.fullblit", false, err.Error())
 	} else {
 		img := dc.Image()
-		got := sampleAt(img, 240, 150)
-		if !near3(got, v1Base) {
-			leg.findings = append(leg.findings,
-				fmt.Sprintf("scissor-leak: 损伤外 (240,150) got=(%.0f,%.0f,%.0f) want=保留(76,87,140) — blit 漏剪，见 README/台账",
-					got[0], got[1], got[2]))
-		} else {
-			leg.findings = append(leg.findings, "scissor-leak: 本轮未复现（会话状态相关）")
-		}
+		leg.checkReadback("PresentFrameDamage.fullblit", img, map[string]checkPt{
+			"L内blit": {76, 80, qBR},
+			"L外保留":  {240, 150, qBR},
+			"真未触":   {160, 60, v1Base},
+		})
 	}
 
 	// precomputed plan dispatch: damage_union over L only.
@@ -265,10 +264,6 @@ func absf(v float64) float64 {
 		return -v
 	}
 	return v
-}
-
-func near3(got, want [3]float64) bool {
-	return absf(got[0]-want[0]*255) <= 6 && absf(got[1]-want[1]*255) <= 6 && absf(got[2]-want[2]*255) <= 6
 }
 
 // runPlanProbes pins the pure PlanFramePresent decisions (no GPU, no context).

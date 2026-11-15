@@ -4331,6 +4331,12 @@ func (rc *GPURenderContext) CreateOffscreenTextureFormat(w, h int, format types.
 	var once sync.Once
 	release := func() {
 		once.Do(func() {
+			// Pooled views may be handed to a different consumer on the next
+			// Acquire: drop this session's cross-frame tracking so the next
+			// owner does not inherit our rendered/persistent marks (O13 深挖批).
+			if rc.session != nil {
+				rc.session.ForgetPersistentContent(rt.view)
+			}
 			if retire {
 				cache.ReleaseRetire(ref)
 			} else {

@@ -183,7 +183,9 @@ func main() {
 	probes := []wrkit.PixelProbe{
 		// card A thumbs (origin x+16+ix, y+40)
 		px("A.reset_patch", ax+16+240*s, ay+40+140*s, gfFresh, 8),
-		px("A.reset_stale_cleared", ax+16+76*s, ay+40+60*s, wrkit.DColCardBG, 8),
+		// O13 第一件修复后 offscreen view 内容跨帧持久：BeginGPUFrame 后 patch
+		// 外保留上帧 v1（原「清屏=卡底色」断言过时）。
+		px("A.reset_stale_kept", ax+16+76*s, ay+40+60*s, gfBase, 8),
 		px("A.noreset_kept", ax+16+132+76*s, ay+40+60*s, gfBase, 8),
 		px("A.fresh_patch", ax+16+264+240*s, ay+40+140*s, gfFresh, 8),
 		// card B thumbs

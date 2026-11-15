@@ -31,8 +31,14 @@ PresentFrameDamageRects / PresentFramePlan / PlanPresent / FrameDamage` +
 1. **wgpu-native 表面路径损伤呈现=清屏+只画损伤内内容**（#6）：既有「wgpu-native 仍全量
    （平台限界）」的精确定位；GL 后端保留完美生效（gap/legend kept=true 实测）。
    当前生产流（FullPaint / packet 全内容合成帧）不触此路径。
-2. **wgpu 会话状态相关的损伤裁剪不一致**（#3 UV 漏剪 / #4 未触点变暗）：新发现，
-   归位台账子项，修复面=render/internal/gpu 会话状态机，另批处理。
+2. **~~wgpu 会话状态相关的损伤裁剪不一致~~（#3 UV 漏剪 / #4 未触点变暗）——2026-11-15
+   fpdiag2 探针实证反转：探针期望值过时，引擎无洞**。(40,170) 的 y 落在 v1 底部
+   横条 y∈[168,182) 内，实测 (41,46,76)=v1Bar 逐位保留（原判「变暗 46%」错拿
+   v1Base 当期望）；(240,150) 在 offRectR 内，multi 腿 R blit（damage 内+剪刀内
+   合法）已画上 qBR 并被后续腿正确保留（原判「漏剪」比较的是陈旧基线）。真未触
+   点 (160,60) 实测 v1Base 保留正确。窗内 finding 探针已改为正确语义断言
+   （`PresentFrameDamageRects.untouched` bar保留/底保留 + `PresentFrameDamage.fullblit`
+   L内blit/L外保留/真未触），修复面无需 render/internal/gpu 状态机改动。
 3. 矢量帧损伤=MSAA 全清（文档明载限界，已钉成行为探针 vector_msaa_clear）。
 4. OS 计数：wgpu-native 恒 0（无 OS damage 协议，诚实上报）；GL full 计数递增实测 ✓；
    GL partial 计数受 buffer-age 升格影响（语义归 P1 指标链），只记录不判死。

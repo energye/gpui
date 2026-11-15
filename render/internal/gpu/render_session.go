@@ -1411,6 +1411,33 @@ func (s *GPURenderSession) MarkPersistentContent(view hal.TextureView) {
 	}
 }
 
+// ForgetPersistentContent drops an OFFSCREEN view from every cross-frame
+// tracking list (persistent/rendered/color-content). Called when a pooled
+// offscreen RT is released back to the pool: the next Acquire may hand the
+// same view to an unrelated consumer, which must not inherit the previous
+// owner's "content survives frames" marks (O13 深挖批：gpuframe C 腿复用
+// viewC 池纹理，弃排区读回上一消费者的 bar 内容).
+func (s *GPURenderSession) ForgetPersistentContent(view hal.TextureView) {
+	if s == nil || view == nil {
+		return
+	}
+	drop := func(list []hal.TextureView) []hal.TextureView {
+		out := list[:0]
+		for _, v := range list {
+			if v != view {
+				out = append(out, v)
+			}
+		}
+		return out
+	}
+	s.persistentContentViews = drop(s.persistentContentViews)
+	s.renderedViews = drop(s.renderedViews)
+	s.colorContentViews = drop(s.colorContentViews)
+	if s.lastView == view {
+		s.lastView = nil
+	}
+}
+
 func (s *GPURenderSession) viewRendered(view hal.TextureView) bool {
 	if s == nil || view == nil {
 		return false

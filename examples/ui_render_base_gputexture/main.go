@@ -185,9 +185,10 @@ func main() {
 		px("A.opacity_TL", ax+16+128+40*s, ay+40+30*s, blendTL, 10),
 		px("A.uv_allTL", ax+16+256+40*s, ay+40+30*s, colSrcTL, 10),
 		px("A.uv_allBR", ax+16+256+120*s, ay+40+90*s, colSrcTL, 10),
-		// card B: base(0) / ref(128)——base 腿是 blit-only 帧，dst 外为清屏黑
+		// card B: base(0) / ref(128)——base 腿是 blit-only 帧，dst 外按 O13 第一件
+		// 修复后的持久 view 语义保留上帧内容（A.UV 腿的 colSrcTL 拉伸全屏）。
 		px("B.base_BR", bx+16+100*s, by+40+60*s, colSrcBR, 10),
-		px("B.base_edge_cleared", bx+16+5*s, by+40+5*s, [3]float64{0, 0, 0}, 10),
+		px("B.base_edge_kept", bx+16+5*s, by+40+5*s, colSrcTL, 10),
 		px("B.ref_BR", bx+16+128+100*s, by+40+60*s, colSrcBR, 10),
 		// card C: source(0)
 		px("C.source_BR", cxx+16+100*s, cyy+40+60*s, colSrcBR, 10),
