@@ -832,3 +832,81 @@ host (Flex row；无操作时可为内容本身)
 ---
 
 **本章用法**：实现 `ui/kit` Typography 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围定义（无裁剪）。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+
+---
+
+## 7. 工程实现规格（新模型，WIDGET_MODEL §7 模板重写）
+
+> 地位：本节是 `ui/kit` 五段实现的动手规格，替代 §6 里旧工程部分（旧 DoD/用例号仍作产品验收参考，开工以本节契约 + 件 1 绑定契约为准）。产品真值以 §1–§3 + §6.8 P0/P1 范围为准。
+
+### 7.1 Props 表（对标 Widget，不可变；flat kit：`ui/kit/typography_*.go`）
+
+四形态共用一套 Props（antd 的 Text/Title/Paragraph/Link 是同一 Base 的四个出口，`Kind` 就是形态位）；文件名 `typography_props.go`。
+
+| Props 字段 | 类型 | 默认 | 走哪 | 对标 antd |
+| --- | --- | --- | --- | --- |
+| Kind | TypographyKind（Text/Title/Paragraph/Link） | Text | Theme 段换算字号/色 | Text/Title/Paragraph/Link 四组件 |
+| Value | string | "" | Render 段 NewLabel | children |
+| Level | int 1..5 | 1 | Theme 段 fontSizeHeading 阶梯 | level |
+| Type | TypographyType（Default/Secondary/Success/Warning/Danger） | Default | Theme 段语义色 | type |
+| Copyable | TypographyCopyable{On,Text,OnCopy} | off | State 段触发 + 宿主剪贴板 | copyable |
+| Editable | TypographyEditable{On,Editing(受控),MaxLength,OnChange,OnStart,OnEnd,OnCancel} | off | State 段状态机 | editable |
+| Ellipsis | TypographyEllipsis{On,Rows,Expandable,Collapsible,Expanded(受控,Set 才生效),DefaultExpanded,Suffix,Middle,OnExpand,OnEllipsis} | off | Render 段量测 | ellipsis |
+| Strong/Italic/Underline/Delete/Code/Mark/Keyboard | bool | false | Theme 段修饰映射 | 同名 |
+| Disabled | bool | false | scope.DisabledOr（或 Ctx 整树） | disabled |
+| ActionsPlacement | Start/End | End | Render 段拼装序 | actions.placement |
+| OnClick | func() | nil | Interactive 腿（Link/可点击形态） | onClick |
+| ClassNames/Styles | map[string]string | nil | Theme 段三级合并同级逃生口 | classNames/styles |
+| AriaLabel | string | 按形态给名 | 语义段 | aria-label |
+
+规矩：上表是 §6.8 P0 面；P1（format/tooltips/tabIndex/autoSize/enterIcon/triggerType 深度、tooltip 深度）单测 Skip 写平台原因，不许静默少参数。
+
+### 7.2 State 表（对标 State；A 类只读为主，操作腿加状态）
+
+| 状态 | 谁 | 驱动 | 走 DirtyTable 哪类 |
+| --- | --- | --- | --- |
+| editing | Editable.On | 图标/文本触发进；Enter 提交（OnChange+OnEnd）；Esc 取消（OnCancel）；受控 Editing 外部优先 | Paint（值文本替换） |
+| copied | Copyable.On | 点击复制→宿主剪贴板+OnCopy 1 次；成功反馈短时态（≈3s Ticker，reduced-motion 直跳终态） | Paint |
+| expanded | Ellipsis | expandable 点击/受控 Expanded 外部优先；OnExpand(最终值) | Layout（行数变化） |
+| hover/pressed/focused/disabled | Interactive 腿（Link 与 copyable/editable 操作符） | 件 3 标准链（InteractiveRegion 自动竞技场） | Paint |
+
+A 类铁律（WIDGET_MODEL §7 清单 A）：无状态机单测强求，但 hover/复制/编辑/展开四腿行为必须单测；纯文本形态（无 Link/无操作符）不抢焦点。
+
+### 7.3 拼装图（对标 RenderObject；只调 L1 prim + L2 behavior）
+
+```text
+BuildTypography(ctx, p) → WidgetNode(scope.Attach 焊绑定)
+  host = prim.Box（无操作符时直接内容本身，不加壳）
+  ├─ content：prim.NewLabel(Value, Style=ResolveTypography(...))；editing 时换文本输入（L2 Field）
+  │    └─ code/mark/keyboard 修饰 → prim.DecoratedBox 外壳（圆角 3 / gold 底，值走 Theme 段）
+  ├─ actions placement=start：expand · edit · copy（图标 14、间距 4=marginXXS）
+  └─ actions placement=end（默认）：同上三操作符（Link 形态无操作符行）
+省略腿：Render 段持 RenderText 量测——rows 内放得下全放；放不下走二分 cut（§6.4 TYP-S4 算法：
+  隐藏全量量高判溢出→预留 rows-1 高+操作符行高→[0,len] 二分取 mid 高度与上限比→收敛 slice+"…"+suffix/展开符）；
+  中间省略=首尾双截固定（Middle 不走二分）。
+```
+
+L1/L2 接线清单：`prim.NewLabel/DecoratedBox/Box` + `behavior.InteractiveRegion`（Link/操作符点击）+ `behavior.Field`（编辑值）+ 宿主剪贴板口（copyable，P0 映射宿主）；禁直调 render/gpu，禁自写命中。
+
+### 7.4 Token 表（Theme 段 `ResolveTypography`；三级合并 Props > Ctx 组件主题 > 种子）
+
+| Token | 值/来源 | 用途 |
+| --- | --- | --- |
+| fontSizeHeading1..5 | 38/30/24/20/16（§6.2.1；theme.Tokens 需补五字段，种子对数进 ui/theme） | Title 字号阶梯 |
+| fontSize | 种子 fontSize=14 | 正文/操作图标 |
+| marginXXS=4 | 种子间距 | 操作符间距 |
+| borderRadius=3（code/kbd） | 组件常量（antd style 硬编码，抄进 Theme 段） | code/keyboard 圆角 |
+| markBg | gold[2]≈#ffe58f（组件常量） | mark 底 |
+| colorText/Secondary/Tertiary/Disabled | 种子文本四级 | type 换算 + disabled |
+| colorSuccess/Warning/Error | 种子语义色 | type 语义色 |
+| colorLink+hover/active | 种子链接色 | Link 形态 + hover 派生 |
+| underline/delete 装饰线 | 文本面自带（render 层装饰线，不在 kit 画） | 修饰 |
+
+绑定契约（件 1，硬规矩）：`TypographyInstance` 实现 `scope.Instance` 五方法，Build 尾 `scope.Attach(inst, AspectTheme, AspectLocale, AspectDisabled)` 焊 WidgetNode；SetState 变更位交 relay（expanded→DirtyLayout，copied/editing/hover→DirtyPaint）；Update 改节点属性不重建树。订阅 aspects：theme/locale（展开·收起文案）/disabled。
+
+### 7.5 验收（三证据 + 真窗）
+
+- 单测：TYP-01..13（§6.9 L1/L2）映射到新模型断言（Title 阶梯±0.5px、语义色走 Token、省略二分行数=rows、受控 expanded 外部优先、disabled 吞操作、code/mark/kbd chrome 区分）；省略算法钉 `TestTypography_Ellipsis_*`（rows=1/2、suffix 预留、middle 双截）。
+- 真窗：`examples/kit/typography/`（官方 §2.4 非 debug 10 例一窗摆完：基本/标题组件/文本与超链接/可编辑/可复制/省略号/受控省略/省略中间/后缀/表格；P0 8 例必摆，P1 后缀/表格同窗后补）；`-auto-only` 按 §6.9 步骤逐项探针；三证据齐（逻辑+像素+Golden）。
+- L3/L4：showcase 进 testdata；官网并排验收记录落 README（建基线时必验）。
+- 门禁：F0_GATE_CHECK 五查全跑（Props 覆盖/State Resolve/接线/Token/绑定契约）。

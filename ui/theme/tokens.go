@@ -81,6 +81,13 @@ type Tokens struct {
 	FontSizeSM float64
 	FontSizeLG float64
 
+	// Title ladder (antd genFontSizes(14): 38/30/24/20/16, H1..H5).
+	FontSizeHeading1 float64
+	FontSizeHeading2 float64
+	FontSizeHeading3 float64
+	FontSizeHeading4 float64
+	FontSizeHeading5 float64
+
 	// Spacing unit (logical px); Space(n) = n * Spacing.
 	// Equals Ant sizeXS (8).
 	Spacing float64
@@ -250,8 +257,15 @@ func DefaultTokens() Tokens {
 		FontSize:   14,
 		FontSizeSM: 12,
 		FontSizeLG: 16,
-		Spacing:    8,
-		Radius:     6,
+		// antd genFontSizes(14) ladder positions 6/5/4/3/2 (E-curve, even
+		// floor): 38/30/24/20/16 — verified against genFontSizes.ts.
+		FontSizeHeading1: 38,
+		FontSizeHeading2: 30,
+		FontSizeHeading3: 24,
+		FontSizeHeading4: 20,
+		FontSizeHeading5: 16,
+		Spacing:          8,
+		Radius:           6,
 
 		ColorPrimary: primary,
 		ColorSuccess: Hex("#52c41a"),

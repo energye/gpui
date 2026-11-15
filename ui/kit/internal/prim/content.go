@@ -21,6 +21,7 @@ package prim
 import (
 	"unicode/utf8"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/kit/internal/scope"
 	"github.com/energye/gpui/ui/rendering"
@@ -95,7 +96,25 @@ type LabelProps struct {
 	Face      text.Face
 	Seed      theme.Tokens
 	ScopeSpan TextStyle
+	// Decoration passes render-level underline/line-through through the
+	// L1 facade (typography underline/delete); zero = none.
+	Decoration render.TextDecoration
 }
+
+// TextDecorationAlias re-exports the render decoration type so product
+// components never import render directly.
+type TextDecorationAlias = render.TextDecoration
+
+// Decoration enum re-exports (L1 facade vocabulary): product components
+// pick underline/line-through without importing render.
+const (
+	// DecorationNone draws no lines.
+	DecorationNone = render.TextDecorationNone
+	// DecorationUnderline draws the underline.
+	DecorationUnderline = render.TextDecorationUnderline
+	// DecorationLineThrough draws the strikethrough.
+	DecorationLineThrough = render.TextDecorationLineThrough
+)
 
 // ResolveLabel merges style as props > scope span > seed.
 func ResolveLabel(p LabelProps) TextStyle {
@@ -139,6 +158,9 @@ func NewLabel(p LabelProps) *rendering.RenderText {
 	}
 	if p.ApproxW > 0 {
 		t.ApproxCharW = p.ApproxW
+	}
+	if p.Decoration != 0 {
+		t.SetDecoration(p.Decoration)
 	}
 	return t
 }
