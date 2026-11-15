@@ -905,7 +905,7 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 
 ---
 
-### 23.3 O12/O13 批 1a-1d/批 2/批 3 直驱真窗（手动帧控族，`ui_render_base_*` 直驱）
+### 23.3 O12/O13 批 1a-1d/批 2/批 3/批 4 直驱真窗（手动帧控族，`ui_render_base_*` 直驱）
 
 帧循环不经 embedder.PipelineApp：`wrkit.OpenDirect`（platform.Open → embedder.OpenPresentTarget → 手动 WaitEvents 循环）+ `raster.RunGLSync` GL 枢纽纪律（建链/每次 present/快照/Close 全上 GL 线程，同 PipelineApp C7）。
 
@@ -930,11 +930,13 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 | `ui_render_base_scene_sceneshapes/…sceneenc/…scenelayer/…scenetext`（scene 四扇） | 14 形状构造+Renderer 实画 / Encode×13+Iterator+三池 / 层型+损伤追踪 / scene 文本+实画 | 四扇 Golden 逐位 0.0000%（logic 19/16/23/15）；Arc=3 verb、Iterator 按 verb 展开、LayerStack 根层不可弹、首帧零 rect+标志双轨语义入 README |
 | `ui_render_base_recording_recordstyle` | Recorder 补全口双实现逐位 / PatternBrush 链 / Brush 换算 / ResourcePool | Golden 逐位 0.0000%（logic 19）；AddPath 克隆不可变、ToRenderPattern solid ok=false |
 | `ui_render_base_svg_svgadv` | RenderTo/WithColor 覆盖对照 + href 链 + 值类型/元素面 | Golden 逐位 0.0000%（logic 17） |
+| `ui_render_base_blendmodes/…animimg/…projection`（批 4 三扇） | 12 混合模式公式探针+scene 面 / 动图容器+Disposal 三档+Encoding/Orientation / 投影 LIFO+生效面+fail-closed+枚举补卡 | 三扇 Golden 逐位 0.0000%（logic 27/22/13）；HSL u8 量化链差定性登记；Image()=画布引用语义；动画帧不烙单帧 golden |
 
 ## §24 修订
 
 | 版本 | 说明 |
 |------|------|
+| **1.74（2026-11-15）** | **O13 批 4：三扇（blendmodes/animimg/projection）+ O13 全部收口**：① 三扇与证据见 §23.3 追加一行（logic 27/22/13，Golden 逐位 0.0000% 三绿）。② 语义实证：可分离九混合模式 ±2 公式闭合；HSL 四模式与 W3C 0-1 域复算存在 u8 量化链差（定性登记）；AnimatedImage.Image()=画布引用（publish 原地 copy，帧推进须快照差分）；GIF 容器 disposal 按帧序映射；Projection LIFO 恒等归一化+NaN fail-closed；Matrix4FromElements 列主序。③ 枚举补卡：ProjectionPush/Pop、Policy 三值+四弃用别名、DepthCPUFallbackReason（Accel* 已由批 2 覆盖）。④ **O13 全部批次收口**：批 1a/1b/1c/1d+2+3+4 共 27 扇 NONE→EX（logic 合计约 590），机制常量（Budget*/SDF LUT/Lifecycle*）维持登记不建窗。真源同步：`RENDER_FEATURE_COVERAGE.md` 修订行、`ENGINE_UI_WIDGET_RENDER.md` §10、台账 O13、三窗 README。**公开 API 无变更；性质=原子验证，不算生产接线** |
 | **1.73（2026-11-15）** | **O13 批 3：四包 12 扇（text 6+scene 4+recording 1+svg 1）**：① 十二扇与证据见 §23.3 追加四行（全部 Golden 逐位 0.0000%，logic 合计 220）。② 关键语义实证（详见十二窗 README）：GlyphMaskRasterizer 11 变体（FT26 仅 CFF 字体/LCD 3×/Aliased 二值）；HbShaper/OwnShaper 同文本同 face GID/X 序列一致（生产对齐面）；GlyphCache Stats 的 GetOrCreate 口径 miss 不计；Atlas 惰性页；ScriptHan.RequiresComplexShaping=false（复杂整形列表只含印度系/泰/缅等）；LayerStack 初始含根层且根不可弹；DamageTracker IsFirstRender=rendered 标志（与 ComputeDamage 首帧零 rect 双轨）；ResourcePool.AddPath 克隆不可变；ToRenderPattern solid ok=false；scene Arc=3 verb；EncodePath 按 verb 展开 Iterator tag。③ 与既有 scene/recording 窗重叠面只补卡未重测（LayerStack/FilterChain/scene 文本/brush 换算/Recorder 补全口）。真源同步：`RENDER_FEATURE_COVERAGE.md` 修订行、`ENGINE_UI_WIDGET_RENDER.md` §10、台账 O13、十二窗 README。**公开 API 无变更；性质=原子验证，不算生产接线** |
 | **1.72（2026-11-15）** | **O13 批 2：三扇契约直驱真窗（加速器/Canvas/字体）**：① 三扇与证据见 §23.3 追加三行（accelcontract 25 口/canvascontract 契约面/fontcontract 36 口，Golden 逐位 0.0000% 三绿）。② **引擎发现第六件（语义边界）**：ClipAware/RRectClipAware/MaskAware 三口在 CPU readback 模式（View=nil 自备 Data）FillShape err=nil 但 Data 不落地——剪裁/掩码是 GPU 直渲 pass 语义，readback 目标不承载，画面由 GPU 直渲窗族覆盖。③ **引擎发现第七件（洞候选）**：Context.StrokeString 描边字形（textOutlinePath→doStroke）GPU 会话与干净上下文都空画面、Recorder 回放正常——live 描边字形链路待修，B 组描字专项登记。④ 钉子复现：canvascontract live GPU SetPath(≥2 子路)→Fill 空白而回放正常（同 render/internal/gpu FillPath 链）。⑤ 语义记录：Metrics.Descent 正值约定（asc+desc=行高）；FontResolver Candidates=设置项前置+系统扫描追加（非替换）；CoverageFiller 注入迷你 filler 属契约验证。真源同步：`RENDER_FEATURE_COVERAGE.md` 修订行、`ENGINE_UI_WIDGET_RENDER.md` §10、台账 O13、三窗 README。**公开 API 无变更；性质=原子验证，不算生产接线** |
 | **1.71（2026-11-15）** | **O13 批 1c/1d：六扇直驱真窗（曲线几何/路径诊断/画刷构造/值类型/SVG 滤镜/ShaderEffect 内省）+ BooleanPath 补卡**：① 六扇与证据见 §23.3 追加六行（curvegeom 26 口/pathdiag 17 口/brushctor 24 口/valtypes 40 口/svgfilter 七口首直调/shadereffect 35 口，Golden 逐位 0.0000% 六绿）。② **引擎发现第五件（语义边界，不判死）**：PresentFrame 后不经 Image() 消费直接 Apply*，CPU 滤镜改动在下一次 Image() 被视图同步盖掉（连续两轮 present+invert 读回恒等原图）——正确口径 present→Image(消费)→Apply*→Image 全链生效；`render/filters` 空导入是 Apply* 生效前置（缺失七口静默 no-op）。③ pathdiag 复现先红钉子同族更强形态：Path.Append(≥2 子路)→Fill GPU 空白（普通双三角形也空白），窗内画面用 dc.MoveTo 直画已证可用形态，修复面同 render/internal/gpu FillPath 链。④ 语义记录：shader 内容只落 GPU 视图（腿读回后拷贝独立缓冲）；RGBA 字段 0-1 float64；HSL h 度数语义；Dash 奇元素模式按 Cairo/Skia 翻倍；Matrix 字段 [A B C; D E F]（C/F 平移），IsTranslation 与 IsTranslationOnly 源码口径同真；f64 拒绝只触发于类型表声明；包级渐变口 t=clamp01→Lerp（t=1 浮点尾差需容差）。真源同步：`RENDER_FEATURE_COVERAGE.md` 修订行、`ENGINE_UI_WIDGET_RENDER.md` §10、台账 O13、六窗 README。**公开 API 无变更；性质=原子验证，不算生产接线** |
