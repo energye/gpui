@@ -62,7 +62,16 @@ func GrabClientArea(title, outPath string) (int, int, error) {
 	raw, err := info.Output()
 	if err != nil {
 		// Native Wayland: the window is a Wayland surface, not an X11 window.
-		return 0, 0, ErrScreenUnsupported
+		// Wrap the cause so evidence logs can tell "no X11 window" apart from
+		// a broken xwininfo (missing binary, bad display, transient exit).
+		cause := ""
+		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+			cause = strings.TrimSpace(string(ee.Stderr))
+		}
+		if cause == "" {
+			cause = err.Error()
+		}
+		return 0, 0, fmt.Errorf("%w: %v", ErrScreenUnsupported, cause)
 	}
 
 	var x, y, w, h int
