@@ -109,6 +109,13 @@ func (s *OwnShaper) Shape(text string, face Face) []ShapedGlyph {
 		return nil
 	}
 
+	// MultiFace has no single FontSource — fall through to the builtin
+	// per-rune walk (same rune→component resolution DrawString uses).
+	if mf, isMulti := face.(*MultiFace); isMulti {
+		bs := &BuiltinShaper{}
+		return bs.Shape(text, mf)
+	}
+
 	source := face.Source()
 	if source == nil {
 		return nil

@@ -104,13 +104,15 @@ func (c *Context) TextPath(s string, x, y float64) *Path {
 
 // textOutlinePath builds a user-space Path containing glyph outlines for text s
 // at user-space position (x, y). Uses glyph cache for efficiency.
-// Returns nil if the font has no FontSource (e.g. MultiFace) or the text
-// produces no outlines.
-// textOutlinePath builds a user-space Path containing glyph outlines for text s
-// at user-space position (x, y). Uses glyph cache for efficiency.
-// Returns nil if the font has no FontSource (e.g. MultiFace) or the text
-// produces no outlines.
+// Returns nil if the text produces no outlines. MultiFace faces (no single
+// FontSource) are outlined per-component via their covering faces — the same
+// rune→face resolution DrawString uses.
 func (c *Context) textOutlinePath(s string, x, y float64) *Path {
+	if mf, isMulti := c.face.(*text.MultiFace); isMulti {
+		// MultiFace 组件 face 的 outline 无跨调用缓存（cache 键含单源
+		// FontID，MultiFace 无单一源）——per-call 提取。
+		return textOutlinePathMulti(mf, s, x, y, c.ensureOutlineExtractor())
+	}
 	source := c.face.Source()
 	if source == nil {
 		return nil
@@ -122,11 +124,11 @@ func (c *Context) textOutlinePath(s string, x, y float64) *Path {
 
 // TextOutlinePath builds a user-space Path containing glyph outlines for text
 // s at user-space position (x, baseline). Pure function: it needs only the
-// face (single FontSource — MultiFace has none) and a per-call outline
-// extractor, owns no GPU or window state, and is safe on any thread. This is
-// what makes TextPath-style content RECORDABLE: a display-list walk computes
-// the path on the UI thread and records FillPath/StrokePath commands; the
-// Context method above is its cache-backed twin.
+// face and a per-call outline extractor, owns no GPU or window state, and is
+// safe on any thread. This is what makes TextPath-style content RECORDABLE: a
+// display-list walk computes the path on the UI thread and records
+// FillPath/StrokePath commands; the Context method above is its cache-backed
+// twin. MultiFace faces are outlined per-component (no single FontSource).
 //
 // Shaping uses text.Shape (GSUB/GPOS — ligatures and kerning apply), matching
 // the GPU mask path since A1.
@@ -134,11 +136,82 @@ func TextOutlinePath(face text.Face, s string, x, y float64) *Path {
 	if face == nil || s == "" {
 		return nil
 	}
+	if mf, isMulti := face.(*text.MultiFace); isMulti {
+		return textOutlinePathMulti(mf, s, x, y, text.NewOutlineExtractor())
+	}
 	source := face.Source()
 	if source == nil {
 		return nil
 	}
 	return textOutlinePathFrom(source, face, s, x, y, text.NewOutlineExtractor(), nil)
+}
+
+// textOutlinePathMulti outlines text on a MultiFace: shaping goes through
+// text.Shape (the MultiFace shaper resolves the covering component face per
+// rune — the same resolution DrawString uses), and each shaped glyph's
+// outline is extracted from its own component's Parsed font. Per-call
+// extraction, no cross-call cache (the cache key assumes one FontSource).
+func textOutlinePathMulti(mf *text.MultiFace, s string, x, y float64, extractor *text.OutlineExtractor) *Path {
+	if mf == nil {
+		return nil
+	}
+	fontSize := mf.Size()
+	path := NewPath()
+	hasContour := false
+
+	shaped := text.Shape(s, mf)
+	for _, sg := range shaped {
+		// Resolve the covering component face for this glyph's rune cluster:
+		// shaped glyphs carry the rune cluster index; walk the source string
+		// rune to find the face MultiFace chose (HasGlyph per component).
+		r := []rune(s)
+		cluster := sg.Cluster
+		if cluster < 0 || cluster >= len(r) {
+			continue
+		}
+		face := mf.ComponentForRune(r[cluster])
+		if face == nil {
+			continue
+		}
+		source := face.Source()
+		if source == nil {
+			continue
+		}
+		o, err := extractor.ExtractOutlineHintedVar(source.Parsed(), text.GlyphID(sg.GID), fontSize, text.HintingNone, face.Variations())
+		if err != nil || o == nil || o.IsEmpty() {
+			continue
+		}
+
+		gx := x + sg.X
+		for _, seg := range o.Segments {
+			switch seg.Op {
+			case text.OutlineOpMoveTo:
+				if hasContour {
+					path.Close()
+				}
+				path.MoveTo(gx+float64(seg.Points[0].X), y+float64(seg.Points[0].Y))
+				hasContour = true
+			case text.OutlineOpLineTo:
+				path.LineTo(gx+float64(seg.Points[0].X), y+float64(seg.Points[0].Y))
+			case text.OutlineOpQuadTo:
+				path.QuadraticTo(
+					gx+float64(seg.Points[0].X), y+float64(seg.Points[0].Y),
+					gx+float64(seg.Points[1].X), y+float64(seg.Points[1].Y))
+			case text.OutlineOpCubicTo:
+				path.CubicTo(
+					gx+float64(seg.Points[0].X), y+float64(seg.Points[0].Y),
+					gx+float64(seg.Points[1].X), y+float64(seg.Points[1].Y),
+					gx+float64(seg.Points[2].X), y+float64(seg.Points[2].Y))
+			}
+		}
+	}
+	if hasContour {
+		path.Close()
+	}
+	if path.isEmpty() {
+		return nil
+	}
+	return path
 }
 
 // textOutlinePathFrom is the shared outline-path builder. cache may be nil

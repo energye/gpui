@@ -477,6 +477,17 @@ func cjkRelated(r rune) bool {
 	return false
 }
 
+// ComponentForRune returns the component face that covers the rune (the
+// same resolution DrawString uses via faceForRune). Public for outline
+// extraction on MultiFace faces: text_outline.go needs each glyph's own
+// component FontSource because MultiFace has none of its own.
+func (m *MultiFace) ComponentForRune(r rune) Face {
+	if m == nil {
+		return nil
+	}
+	return m.faceForRune(r)
+}
+
 // faceForRune returns the face for the rune: first match, except a
 // CJK-covering face is skipped for non-CJK runes when a later non-CJK
 // face covers them (script preference, see MultiFace). If no face has

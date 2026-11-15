@@ -36,6 +36,35 @@ func (s *BuiltinShaper) Shape(text string, face Face) []ShapedGlyph {
 		return nil
 	}
 
+	// MultiFace has no single FontSource — shape via the face's own rune→
+	// component resolution (face.Glyphs iterates per-rune covering faces,
+	// the same walk DrawString uses). Positions accumulate per glyph
+	// advance; the glyph GIDs come from each component's parsed font.
+	if mf, isMulti := face.(*MultiFace); isMulti {
+		runes := []rune(text)
+		result := make([]ShapedGlyph, 0, len(runes))
+		var x float64
+		for cluster, r := range runes {
+			if r < 0x20 && r != '\t' {
+				continue
+			}
+			for g := range mf.Glyphs(string(r)) {
+				result = append(result, ShapedGlyph{
+					GID:      g.GID,
+					Cluster:  cluster,
+					X:        x,
+					Y:        0,
+					XAdvance: g.Advance,
+					YAdvance: 0,
+					IsCJK:    cjkRelated(r),
+				})
+				x += g.Advance
+				break
+			}
+		}
+		return result
+	}
+
 	source := face.Source()
 	if source == nil {
 		return nil

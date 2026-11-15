@@ -73,6 +73,14 @@ func (s *HbShaper) Shape(text string, face Face) []ShapedGlyph {
 	if text == "" || face == nil {
 		return nil
 	}
+	// MultiFace has no single FontSource for HarfBuzz hbFont — fall through
+	// to the builtin per-rune walk (the same rune→component resolution
+	// DrawString uses). Hb shaping of the covering component faces is a
+	// registered follow-up (complex-script runs on MultiFace).
+	if mf, isMulti := face.(*MultiFace); isMulti {
+		bs := &BuiltinShaper{}
+		return bs.Shape(text, mf)
+	}
 	source := face.Source()
 	if source == nil {
 		return nil
