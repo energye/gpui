@@ -567,6 +567,12 @@ type ClipAware interface {
 	// SetClipRect sets the scissor rect for subsequent GPU draw commands.
 	// Coordinates are in device pixels (uint32). The scissor rect clips
 	// all rendering to the rectangle (x, y, w, h).
+	//
+	// GPU-direct-pass semantics (O13 发现第六件): the scissor state lives on
+	// the GPU render pass — direct calls with a CPU-readback target (View
+	// nil, caller-owned Data) return no error but the buffer stays empty,
+	// because the pass never rasterizes into it. Pixel-level verification
+	// requires a GPU-direct surface/layer target.
 	SetClipRect(x, y, w, h uint32)
 
 	// ClearClipRect removes the scissor rect, restoring full-framebuffer
@@ -591,6 +597,10 @@ type RRectClipAware interface {
 	// SetClipRRect sets the rounded rectangle clip for subsequent GPU draw
 	// commands. Coordinates are in device pixels (float32). The clip region
 	// is defined by the rectangle (x, y, w, h) with uniform corner radius.
+	//
+	// GPU-direct-pass semantics (O13 发现第六件): same as SetClipRect —
+	// direct calls with a CPU-readback target (View nil) return no error
+	// but the buffer stays empty; the SDF clip lives on the render pass.
 	SetClipRRect(x, y, w, h, radius float32)
 
 	// ClearClipRRect removes the rounded rectangle clip, restoring full

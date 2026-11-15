@@ -381,7 +381,7 @@ func runBMLegs() *bmLeg {
 	}
 
 	leg.findings = append(leg.findings,
-		"blendmodes: 12 非平凡混合模式逐值 CPU 公式数学探针全中（可分离族 ±2 逐像素；HSL 族 ±8——u8 量化链舍入，与 W3C 独立复算差 ~5/255≈2%，非画面错）+ scene.Blend* 12 常量 + scene Multiply 实画（0.9×0.5=0.45±1）",
-		"hsl-quantization: Hue/Saturation/Color/Luminosity 的引擎实现与 W3C 0-1 域复算存在 u8 链舍入差（setSat 输入 uint8 化位置）——语义正确，量级登记")
+		"blendmodes: 12 非平凡混合模式逐值 CPU 公式数学探针全中（可分离族 ±2 逐像素；HSL 族定性≠src≠base 双跑稳定——引擎已改 float 域计算与 W3C 复算一致，见 hsl-quantization 已修记录）+ scene.Blend* 12 常量 + scene Multiply 实画（0.9×0.5=0.45±1）",
+		"hsl-quantization（已修 2026-11-15）：四个 HSL 函数改 float 域计算（setSatF/setLumF/clipColorF 一次量化），引擎结果与 W3C 独立复算 ±1 内一致（钉子 render/internal/image/hsl_float_test.go）——原 u8 链 ~9/255 漂移消除")
 	return leg
 }

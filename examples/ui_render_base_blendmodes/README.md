@@ -8,9 +8,9 @@
 - **HSL 四模式定性探针**：`BlendHue/Saturation/Color/Luminosity`——结果≠src、≠base（混合发生）+ 双跑逐位稳定。setSat/setLum 组合（W3C compositing-1 语义）。
 - **scene 面**：`scene.Blend*` 12 常量枚举读回 + `Scene.PushLayer(BlendMultiply)/Fill` 实画（0.9×0.5=0.45 读回 ±1）+ `Context.SetBlendMode/BlendMode()` 读回。
 
-## 发现（语义边界，不判死）
+## 发现 → 已修（2026-11-15）
 
-- **hsl-quantization**：HSL 四模式的引擎实现与 W3C 0-1 域独立复算存在 u8 量化链差（Saturation 全通道 -9、Color +16 等——setSat 输入 uint8 化位置与 sRGB↔linear 域链），量级 <6%，语义正确（定性探针通过）。可分离九模式在 ±2 内逐像素闭合。
+- **hsl-quantization（已修）**：原 HSL 四模式引擎实现在 u8 域逐级舍入（setSat→u8→setLum→clip），与 W3C 0-1 域独立复算差 ~9/255。现四个 HSL 函数（blendHue/Saturation/Color/Luminosity）改 float 域计算——setSatF/setLumF/clipColorF 全 float 链、一次量化（render/internal/image/draw.go），钉子 hsl_float_test.go 与独立 W3C 复算 ±1 内一致。旧 u8 域函数链（lumU8/satU8/clipColor/setLum/setSat）无消费者已删。可分离九模式 ±2 逐像素闭合不变。
 
 ## 门禁
 

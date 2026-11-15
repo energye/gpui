@@ -532,57 +532,6 @@ func overlayChannel(src, dst uint8) uint8 {
 
 // --- Non-separable HSL-style blends (CSS Compositing / PDF) ---
 
-func lumU8(r, g, b uint8) float64 {
-	return 0.3*float64(r) + 0.59*float64(g) + 0.11*float64(b)
-}
-
-func satU8(r, g, b uint8) float64 {
-	maxv := float64(r)
-	if float64(g) > maxv {
-		maxv = float64(g)
-	}
-	if float64(b) > maxv {
-		maxv = float64(b)
-	}
-	minv := float64(r)
-	if float64(g) < minv {
-		minv = float64(g)
-	}
-	if float64(b) < minv {
-		minv = float64(b)
-	}
-	return maxv - minv
-}
-
-func clipColor(r, g, b float64) (uint8, uint8, uint8) {
-	l := 0.3*r + 0.59*g + 0.11*b
-	n := r
-	if g < n {
-		n = g
-	}
-	if b < n {
-		n = b
-	}
-	x := r
-	if g > x {
-		x = g
-	}
-	if b > x {
-		x = b
-	}
-	if n < 0 {
-		r = l + (r-l)*l/(l-n)
-		g = l + (g-l)*l/(l-n)
-		b = l + (b-l)*l/(l-n)
-	}
-	if x > 255 {
-		r = l + (r-l)*(255-l)/(x-l)
-		g = l + (g-l)*(255-l)/(x-l)
-		b = l + (b-l)*(255-l)/(x-l)
-	}
-	return clampU8(r), clampU8(g), clampU8(b)
-}
-
 func clampU8(v float64) uint8 {
 	if v < 0 {
 		return 0
@@ -593,19 +542,83 @@ func clampU8(v float64) uint8 {
 	return uint8(v + 0.5)
 }
 
-func setLum(r, g, b, l float64) (uint8, uint8, uint8) {
-	d := l - (0.3*r + 0.59*g + 0.11*b)
-	return clipColor(r+d, g+d, b+d)
+// blendHue: hue of source, sat/lum of destination.
+//
+// Float-domain computation (O13 发现第八件): the whole W3C chain — lum/sat,
+// setSat rescale, setLum shift and clip — runs in float on the [0,255] span,
+// quantizing to u8 once at the end. The previous per-stage u8 rounding
+// (setSat → u8 → setLum → clip) accumulated ~9/255 of channel drift against
+// the W3C reference. blendColor/blendLuminosity/blendSaturation share it.
+func blendHue(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	s, d := float64(sr), float64(dr)
+	sg64, dg64 := float64(sg), float64(dg)
+	sb64, db64 := float64(sb), float64(db)
+	r, g, b := setSatF(s, sg64, sb64, satF(d, dg64, db64))
+	return setLumF(r, g, b, lumF(d, dg64, db64))
 }
 
-func setSat(r, g, b, s float64) (float64, float64, float64) {
-	// Sort channels
+// blendSaturation: sat of source, hue/lum of destination.
+func blendSaturation(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	s, d := float64(sr), float64(dr)
+	sg64, dg64 := float64(sg), float64(dg)
+	sb64, db64 := float64(sb), float64(db)
+	r, g, b := setSatF(d, dg64, db64, satF(s, sg64, sb64))
+	return setLumF(r, g, b, lumF(d, dg64, db64))
+}
+
+// blendColor: hue+sat of source, lum of destination.
+func blendColor(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return setLumF(float64(sr), float64(sg), float64(sb),
+		lumF(float64(dr), float64(dg), float64(db)))
+}
+
+// blendLuminosity: lum of source, hue+sat of destination.
+func blendLuminosity(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return setLumF(float64(dr), float64(dg), float64(db),
+		lumF(float64(sr), float64(sg), float64(sb)))
+}
+
+// --- Float-domain HSL helpers (W3C compositing-1, [0,255] span) ---
+
+func lumF(r, g, b float64) float64 { return 0.3*r + 0.59*g + 0.11*b }
+
+func satF(r, g, b float64) float64 {
+	maxv := math.Max(r, math.Max(g, b))
+	minv := math.Min(r, math.Min(g, b))
+	return maxv - minv
+}
+
+// clipColorF scales the color back into gamut when the lum shift pushed it
+// outside [0, max] — the W3C clipColor, float in / float out.
+func clipColorF(r, g, b float64) (float64, float64, float64) {
+	l := 0.3*r + 0.59*g + 0.11*b
+	n := math.Min(r, math.Min(g, b))
+	x := math.Max(r, math.Max(g, b))
+	if n < 0 {
+		r = l + (r-l)*l/(l-n)
+		g = l + (g-l)*l/(l-n)
+		b = l + (b-l)*l/(l-n)
+	}
+	if x > 255 {
+		r = l + (r-l)*(255-l)/(x-l)
+		g = l + (g-l)*(255-l)/(x-l)
+		b = l + (b-l)*(255-l)/(x-l)
+	}
+	return r, g, b
+}
+
+func setLumF(r, g, b, l float64) (uint8, uint8, uint8) {
+	d := l - lumF(r, g, b)
+	r, g, b = clipColorF(r+d, g+d, b+d)
+	return clampU8(r), clampU8(g), clampU8(b)
+}
+
+func setSatF(r, g, b, s float64) (float64, float64, float64) {
 	type ch struct {
 		v float64
 		i int
 	}
 	cs := [3]ch{{r, 0}, {g, 1}, {b, 2}}
-	// bubble sort by value
 	if cs[0].v > cs[1].v {
 		cs[0], cs[1] = cs[1], cs[0]
 	}
@@ -629,28 +642,6 @@ func setSat(r, g, b, s float64) (float64, float64, float64) {
 	out[midc.i] = midc.v
 	out[maxc.i] = maxc.v
 	return out[0], out[1], out[2]
-}
-
-// blendHue: hue of source, sat/lum of destination.
-func blendHue(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
-	r, g, b := setSat(float64(sr), float64(sg), float64(sb), satU8(dr, dg, db))
-	return setLum(r, g, b, lumU8(dr, dg, db))
-}
-
-// blendSaturation: sat of source, hue/lum of destination.
-func blendSaturation(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
-	r, g, b := setSat(float64(dr), float64(dg), float64(db), satU8(sr, sg, sb))
-	return setLum(r, g, b, lumU8(dr, dg, db))
-}
-
-// blendColor: hue+sat of source, lum of destination.
-func blendColor(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
-	return setLum(float64(sr), float64(sg), float64(sb), lumU8(dr, dg, db))
-}
-
-// blendLuminosity: lum of source, hue+sat of destination.
-func blendLuminosity(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
-	return setLum(float64(dr), float64(dg), float64(db), lumU8(sr, sg, sb))
 }
 
 // --- Separable advanced helpers (straight 0-255 channels) ---
