@@ -275,6 +275,45 @@ func runLogicProbes() (probes, failed []string) {
 				boolInside(res, 1, 2), boolInside(res, 9, 2), boolInside(res, 1, 8), boolInside(res, 9, 8)))
 	}
 
+	// 11. BooleanPath package-level entry is the same engine as Path.Op: the
+	// four operators produce identical geometry through either call form
+	// (O12 batch 1c 补卡: BooleanPath / PathBooleanOp 显式点名).
+	{
+		a := boolRect(0, 0, 100, 100)
+		b := boolRect(40, 0, 100, 100)
+		ops := []render.PathBooleanOp{render.PathOpUnion, render.PathOpIntersect, render.PathOpDifference, render.PathOpXor}
+		names := []string{"union", "intersect", "difference", "xor"}
+		allEq := true
+		for i, op := range ops {
+			viaOp := a.Op(b, op)
+			viaFn := render.BooleanPath(a, b, op)
+			if viaOp.NumVerbs() != viaFn.NumVerbs() {
+				allEq = false
+				add("pathbool_booleanpath_"+names[i], false,
+					fmt.Sprintf("verbs Op=%d vs BooleanPath=%d", viaOp.NumVerbs(), viaFn.NumVerbs()))
+				continue
+			}
+			mismatch := 0
+			for x := 5.0; x < 140; x += 3.0 {
+				for y := 5.0; y < 100; y += 3.0 {
+					if (viaOp.Winding(render.Pt(x, y)) != 0) != (viaFn.Winding(render.Pt(x, y)) != 0) {
+						mismatch++
+					}
+				}
+			}
+			if mismatch > 0 {
+				allEq = false
+			}
+			add("pathbool_booleanpath_"+names[i], mismatch == 0,
+				fmt.Sprintf("verbs=%d 点内布尔一致 mismatch=%d", viaOp.NumVerbs(), mismatch))
+		}
+		add("pathbool_booleanpath_全算子", allEq, "四算子 Op/BooleanPath 同几何")
+		// PathBooleanOp 常量序（SkPath::Op 语义面）。
+		add("pathbool_op常量序", render.PathOpUnion == 0 && render.PathOpIntersect == 1 &&
+			render.PathOpDifference == 2 && render.PathOpXor == 3,
+			"Union=0 Intersect=1 Difference=2 Xor=3")
+	}
+
 	return probes, failed
 }
 

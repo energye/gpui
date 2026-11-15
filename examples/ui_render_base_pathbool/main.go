@@ -279,7 +279,7 @@ func main() {
 			// but not gated here; the perf phase gates them.
 			"fps_gate":                  "off_correctness",
 			"slope_gate":                "off",
-			"apis":                      "Path.Op(Union/Intersect/Difference/Xor) / BooleanPath",
+			"apis":                      "Path.Op(Union/Intersect/Difference/Xor), BooleanPath, PathBooleanOp",
 			"pathbool_gpu_ops":          snap.GPUOps,
 			"pathbool_cpu_fallback_ops": snap.CPUFallbackOps,
 			"pathbool_scope":            "polygonal output; curves flattened at 0.1px (no curve preservation); output winding valid for NonZero and EvenOdd; coordinates exact beyond 2048 (RENDER_FEATURE_COVERAGE §6)",
