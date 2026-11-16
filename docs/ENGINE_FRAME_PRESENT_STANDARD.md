@@ -95,6 +95,7 @@ func HostFrameNotifier(h Host) FrameNotifier
 - **局部提交顺序**：先 `eglSetDamageRegionKHR` 声明区域 → 剪刀 blit（只搬损伤区）→ `eglSwapBuffersWithDamageKHR`；`eglSetDamageRegionKHR` 失败时本帧不画后缓冲，直接回全量。
 - **多矩形限界**：GL 后端当前把一帧损伤并成一个 EGL rect（便于历史/年龄合并）；多个远离脏区会合并成包围盒，覆盖 ≥85% 时提升全量。per-rect 提交留后续优化；wgpu-native / Windows WGL 本来全量，不受此限。
 - **平台覆盖**：wgpu-native 的 `EndFrameWithDamage` 有意忽略矩形（平台限界），行为仍是全量；Windows WGL 同样全量（`gpu/gwgpu/gles/queue.go` 有意忽略，无等价增量提交）；macOS 走 metal，不在本链。
+- **合成侧延伸（2026-11-16 立项，合同不变）**：本节只约束“损伤如何上屏”，不约束“层树是否全量合成”。当前 retained 路径每帧仍全量合成（icon 稳态 raster p50 2.25ms、≈89 blit/帧），脏区合成/持久合成面另立 P6 卡 [`ENGINE_PHASE_P6_DAMAGE_COMPOSITE.md`](./ENGINE_PHASE_P6_DAMAGE_COMPOSITE.md)；上屏仍按本节三件门与 buffer-age 语义，不得为合成优化放宽或绕过。
 - **真机能力核对（2026-11-16，桌面 Xorg :0 + NVIDIA 940MX/580）**：EGL X11 报 `EGL_KHR_swap_buffers_with_damage` + `EGL_KHR_partial_update` + `EGL_EXT_buffer_age` 全 YES、三个符号全有，严格门无需放宽即生效——`spin_min` 15s `os_present_partial=891 / full=5`，`kit/icon` 稳态 `partial=1121 / full=71`（94%）。Mesa X11/Wayland 报 `swap_with_damage` + `buffer_age` 但**无 `partial_update`**，且 `eglSurfaceAttrib(EGL_SWAP_BEHAVIOR, EGL_BUFFER_PRESERVED)` 返回 `0x3009 EGL_BAD_MATCH`（swap_behavior=DESTROYED）——按合同保持全量；真 Wayland 的 `wl_surface.damage_buffer` 是另一条标准路径，GL-on-Wayland 仍受本门约束。
 
 **证据**：`gpu/gwgpu/gles/present_damage_x11_test.go:TestPresentDamageX11`（真机 X11 128×128 窗：全量帧逐帧更新 / 局部帧内部 6 色轮换 / 外部基色不变 / `presentPartialCount=6`）；`surface_damage_linux_test.go` 覆盖并集、历史、85% 门与「一次全量永久放大」回归。性质=原子验证（真机窗测试），不是组件/2.5D/视频生产接线。
