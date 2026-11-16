@@ -41,7 +41,7 @@
 | 波 | 组件 | 源码前缀 | 真窗目录 | 状态 | 验证 commit | 备注 |
 | --- | --- | --- | --- | --- | --- |
 | F1 | Icon | `icon_` | `examples/kit/icon/` | ✅已签字 | 本次提交 | 五段齐+官方848全量1:1（icons-svg4.6.0 o447/f251/t150）+单测7文件逐文件绿+真窗可滚目录149行全tour+4探针+Golden结构零差异+resize回1200x800+retained/damage0.0003+8s自检两后端绿（native fps60/p95-18，go fps59.7/p95-17.8）+双色悬停选中走绿+卡片绿底绿边+列表跟窗（list_follows_window）+图标标题14px；用户2026-10-05人工确认通过 |
-| F1 | Typography | `typography_` | `examples/kit/typography/` | ⬜未开 | — | 剪贴板宿主后补 |
+| F1 | Typography | `typography_` | `examples/kit/typography/` | 🟩已绿 | 本次提交 | 五段+件1绑定契约（scope.Instance+Attach，SetState 走 relay expanded→Layout/copied·editing→Paint）+Token 阶梯 38/30/24/20/16 对数钉死（genFontSizes(14) 公式复算一致）+prim 装饰线门面；单测 13 绿（PRD 映射+省略二分 TYP-S4/S5+绑定负向）+真窗 11/11 探针绿（copy/edit 状态机+title 阶梯+六卡墨量）+Golden 两跑逐位 0.0000%（593024px）+resize 回基线；官方 10 例一窗（P0 8+P1 后缀/表格）；剪贴板宿主写入后补（状态机已验，PROGRESS 原备注保持） |
 | F1 | Divider | `divider_` | `examples/kit/divider/` | ⬜未开 | — | — |
 | F1 | Tag | `tag_` | `examples/kit/tag/` | ⬜未开 | — | — |
 | F1 | Badge | `badge_` | `examples/kit/badge/` | ⬜未开 | — | — |
