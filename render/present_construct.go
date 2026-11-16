@@ -195,9 +195,10 @@ type PresentTarget struct {
 	// PresentWith / PresentWithAuto for metrics. Union is useful for a
 	// single dirty region; the rect sum is the honest retained cost when
 	// dirty regions are far apart (union bbox would count the untouched gap).
-	lastOutcome       PresentOutcome
-	lastDamageArea    int64 // physical px² of last FrameDamage union (0 if idle/empty)
-	lastDamageRectSum int64 // physical px² sum of the coalesced damage rects
+	lastOutcome             PresentOutcome
+	lastDamageArea          int64  // physical px² of last FrameDamage union (0 if idle/empty)
+	lastDamageRectSum       int64  // physical px² sum of the coalesced damage rects
+	lastCompositeFullReason string // P0: "" = damage-scissored; force/coverage/fresh_target/msaa/no_damage
 
 	// osPresentPartial / osPresentFull accumulate the swapchain's OS-present
 	// counters (hal.Swapchain.PresentStats) across swapchain reconfigures:

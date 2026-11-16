@@ -253,6 +253,14 @@ func (s *Surface) sameExtentConfigured(config *hal.SurfaceConfiguration) bool {
 		s.fboWidth == config.Width && s.fboHeight == config.Height
 }
 
+// PersistentBackBuffer reports the GLES swapchain keeps its full previous
+// frame in the persistent FBO (allocateSwapchainFBO). User passes render into
+// that offscreen texture, not the EGL back buffer, so its content survives
+// presents until a reconfigure/recreate.
+func (s *Surface) PersistentBackBuffer() bool {
+	return s != nil
+}
+
 // hasLiveSwapchain reports whether a usable swapchain FBO is backing the
 // current size. A previous failed alloc leaves FBO 0 and must retry.
 func (s *Surface) hasLiveSwapchain() bool {

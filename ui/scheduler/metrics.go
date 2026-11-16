@@ -113,6 +113,16 @@ type FrameMetrics struct {
 	CompositeLayerCount int64 `json:"composite_layer_count"`
 	FilterLayerCount    int64 `json:"filter_layer_count"` // color/image filter layers applied last composite
 
+	// Retained composite observability (P6 P0). LayersVisited counts the
+	// phase-2 layer walk; LayersCulled stays 0 until damage culling lands;
+	// BlitsIssued counts cached texture blits; FullReason explains the last
+	// surface composite ("" = damage-scissored, force/coverage/fresh_target/
+	// msaa/no_damage). All are last-frame observations, not cumulative.
+	CompositeLayersVisited int64  `json:"composite_layers_visited"`
+	CompositeLayersCulled  int64  `json:"composite_layers_culled"`
+	CompositeBlitsIssued   int64  `json:"composite_blits_issued"`
+	CompositeFullReason    string `json:"composite_full_reason"`
+
 	// Present locality (序13 dirty-rect path; 0/empty when unavailable).
 	// DamageAreaPx is physical-pixel area of the last present's FrameDamage union.
 	DamageAreaPx int64  `json:"damage_area_px,omitempty"`
@@ -644,6 +654,20 @@ func (s *MetricsStore) SetRasterLayerCount(n int64) {
 	}
 	s.mu.Lock()
 	s.m.RasterLayerCount = n
+	s.mu.Unlock()
+}
+
+// SetCompositeStats records the last retained composite observation
+// (P6 P0). Zero/empty values are honest (idle or no GPU path), not missing.
+func (s *MetricsStore) SetCompositeStats(visited, culled, blits int64, fullReason string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.CompositeLayersVisited = visited
+	s.m.CompositeLayersCulled = culled
+	s.m.CompositeBlitsIssued = blits
+	s.m.CompositeFullReason = fullReason
 	s.mu.Unlock()
 }
 

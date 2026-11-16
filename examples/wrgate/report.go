@@ -107,6 +107,13 @@ type Report struct {
 	// W1 boundary cache (from MetricsStore; also mirrored in ability_extra).
 	BoundaryRerecord int64 `json:"boundary_rerecord"`
 	BoundarySkip     int64 `json:"boundary_skip"`
+	// P6 P0 retained-composite observation: phase-2 layers walked / culled /
+	// texture blits issued, plus why the last surface composite was full
+	// ("" = damage-scissored). Always emitted; zero is meaningful evidence.
+	CompositeLayersVisited int64  `json:"composite_layers_visited"`
+	CompositeLayersCulled  int64  `json:"composite_layers_culled"`
+	CompositeBlitsIssued   int64  `json:"composite_blits_issued"`
+	CompositeFullReason    string `json:"composite_full_reason"`
 	// Dirty-region P1: OS-present counters (④ evidence; partial stays 0 on
 	// backends/displays without an OS damage-present protocol) and the
 	// cumulative re-record texture bytes (② upload-cost proxy).
@@ -302,6 +309,10 @@ func BuildReport(in BuildInput) Report {
 		ElapsedSec:             el,
 		BoundaryRerecord:       in.Snap.BoundaryRerecord,
 		BoundarySkip:           in.Snap.BoundarySkip,
+		CompositeLayersVisited: in.Snap.CompositeLayersVisited,
+		CompositeLayersCulled:  in.Snap.CompositeLayersCulled,
+		CompositeBlitsIssued:   in.Snap.CompositeBlitsIssued,
+		CompositeFullReason:    in.Snap.CompositeFullReason,
 		OSPresentPartial:       in.Snap.OSPresentPartial,
 		OSPresentFull:          in.Snap.OSPresentFull,
 		TextureRecordBytes:     in.Snap.TextureRecordBytes,
@@ -366,6 +377,10 @@ var RequiredSchemaKeys = []string{
 	// 对齐线 (matrix §4): keys must exist in every report; nil ruler marshals
 	// them as JSON null ("没跑如实 null"), never as missing evidence.
 	"ruler_name", "ruler_cpu_pct", "ruler_rss_mb", "ruler_ratio_cpu", "ruler_ratio_rss",
+	// P6 P0 retained-composite observation: always emitted so a zero cull count
+	// is evidence, not a missing field.
+	"composite_layers_visited", "composite_layers_culled",
+	"composite_blits_issued", "composite_full_reason",
 	// P2.4d reuse probe: the pool section must be in every report (empty array
 	// = no pools, which the MinPoolHits gate turns into a FAIL, not silence).
 	"pool",

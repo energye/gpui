@@ -104,8 +104,8 @@ Flutter 的 partial repaint 不是“只把 damage 交给合成器”，而是**
 
 | 计划任务 | 源码现有实现 | 判定 | 处理 |
 |---|---|---|---|
-| P0 计数 `layers_visited/culled/blits_issued/full_reason` | `ui/scene.TexturedStats`（`textured.go:1429-1452`）已有 raster/skip/filter/texture/damage 计数；`ui/scheduler.MetricsStore` 有 `raster_layer_count`/`boundary_rerecord`/`boundary_skip`（`metrics.go:112/202-203`）；`wrgate.Report` 有 boundary 两字段（`report.go:108-109`） | 部分已有，cull/blits/full-reason 缺口 | 扩现有三处结构；不新建 telemetry |
-| P0 hal 持久面能力 | `hal.Surface` 可选能力模式已有 `PixelPresenter`/`PixelWriter`/`PixelReader`（`hal/resource.go:181-211`）；`SurfaceCapabilities` 只有 Formats/PresentModes/AlphaModes（`descriptor.go:133-145`） | 缺口 | 照可选接口加持久能力，不动核心接口 |
+| P0 计数 `layers_visited/culled/blits_issued/full_reason` | `ui/scene.TexturedStats`（`textured.go:1429-1452`）已有 raster/skip/filter/texture/damage 计数；`ui/scheduler.MetricsStore` 有 `raster_layer_count`/`boundary_rerecord`/`boundary_skip`（`metrics.go:112/202-203`）；`wrgate.Report` 有 boundary 两字段（`report.go:108-109`） | 部分已有；**P0 已补** cull/blits/full-reason | 已落地：扩 `TexturedStats`/`MetricsStore`/`wrgate`，不新建 telemetry；cull 裁剪本身仍属 P2 |
+| P0 hal 持久面能力 | `hal.Surface` 可选能力模式已有 `PixelPresenter`/`PixelWriter`/`PixelReader`（`hal/resource.go:181-211`）；`SurfaceCapabilities` 只有 Formats/PresentModes/AlphaModes（`descriptor.go:133-145`） | 缺口；**P0 已补** | 已落地：`PersistentBackBuffer` + `SurfacePersistentBackBuffer`；GLES=true / wgpu=false，核心接口不动 |
 | P1-1 GL surface 持久登记 | FBO/同纹理已有（`gles/surface.go:51-100`、`resource_linux.go:370-390`）；离屏持久登记已有（`render_session.go:717-723/1398`），但 surface 被排除（`1381-1388`）且 `renderedViews` 每帧清（`1181-1189`） | 机制已有，surface 未接 | 扩 `MarkPersistentContent`/新增 surface 标志；不新建 FBO |
 | P1-2 damage 剪刀合成 | `encodeBlitOnlyPass:7114-7125` 已有 damage 剪刀；grouped/blit encoder 各路径均接 `applyGroupScissorWithDamageRects`（7147/7272/7361/7437）；`GPURenderTarget.DamageRects` 已有（`accelerator.go:71-84`） | 已有 | P1 只让 `viewRendered(surface)` 在稳态为真 |
 | P1-3 失效处理 | GL `reconfigureSwapchainFBOWith`/`borrowOldFrameOrErr`（`gles/surface.go:283-320`）；present 失败 `resetPresentDamageHistory`（`queue_linux.go:244-247`）；离屏 `ForgetPersistentContent`（`render_session.go:1420`）；`forceFull`/`postResizeFull=3` | 部分已有 | 把新 surface 标志接到这些失效点，不新造失效机制 |
@@ -162,11 +162,14 @@ Flutter 的 partial repaint 不是“只把 damage 交给合成器”，而是**
 
 ## 5. 分期与验收
 
-**P0 仪 table + 能力探测（不改行为）**
+**P0 仪 table + 能力探测（✅ 2026-11-16 落地，不改行为）**
 
 - 开工前先按 §3.4 表逐项签字：已有项只复用不改，缺口项才动；任何新增实现必须写明“为什么不能复用”。
 - 加每帧计数：`layers_visited` / `layers_culled` / `blits_issued` / `composite_full_reason`；加 hal 可选能力探测（GL=持久、wgpu=非持久），先用测试锁住。
-- 验收：画面/golden/pixel 零变化；现有窗 JSON 计数自洽（visited = culled + drawn）；基线 A/B 三跑中位落表。数字没钉死前不准改行为。
+- 验收：画面/golden/pixel 零变化；现有窗 JSON 计数自洽（`visited = culled + live-walked`，容器也计入 live；纹理 blit 单独看 `blits_issued`）；基线 A/B 三跑中位落表。数字没钉死前不准改行为。
+- **落地证据**：`scene.TexturedStats` + `PipelineApp.LastCompositeStats` + `FrameMetrics`/wrgate 四字段；`hal.PersistentBackBuffer` + `SurfacePersistentBackBuffer`（GLES=true / wgpu=false）；真窗计数 spin `8/0/2/fresh_target`、icon `297/0/120/fresh_target`（icon golden 0.0000%、pixel 4/4）；targeted tests + `go run ./scripts/apidoc` 绿。全包唯一红 `TestS69_HeavyBudget_TierGates` 属项目存量红名单（S69 过期基线），非本批新增。
+- **A/B（2026-11-16，用户授权当前桌面单窗；一窗一轮、示例自退、逐轮查 Xorg，无超时/无 SIGTERM）**：icon 3 轮中位基线 **24.98%** 单核 vs P0 **24.06%** 单核（P0 −0.9pt，噪声内）；spin 3 轮中位 17.64% vs 15.25%，但 `present_wait` 在 FIFO/非阻塞间混跑（base 2/3 FIFO，P0 1/3 FIFO），同模式看无一致回归（FIFO base ≈17.7 vs P0 15.9；非阻塞 base 13.36 vs P0 ≈14.85）。计数稳定：spin `8/0/2`、icon `293/0/118`、`fresh_target`；OS partial ≈1193/5、1185/6。结论：P0 计数未造成可见回归；绝对数受 pacing 影响，性能结论以 A/B 相对值为准。
+- **遗留**：全量 render/embedder GPU 回归未在当前桌面重跑（全包曾卡死；S69 为存量过期基线红）；如需全量，走隔离环境。
 
 **P1 GL 持久面登记（只改“敢不敢用 damage 剪刀”）**
 
@@ -235,4 +238,5 @@ DISPLAY=:0 GPUI_BACKEND=go RUN_SECONDS=15 /tmp/gpui_icon        # 巡览版 37.6
 | 日期 | 内容 |
 |---|---|
 | 2026-11-16 | 立项：把“脏区合成 + 持久合成面”立为 P6 细 damage 第一卡。依据=2026-11-16 真 Xorg/NVIDIA 复核（partial present 已生效但 icon 稳态仍 22.60% 单核、raster p50 2.25ms、≈89 blit/帧）+ Flutter `compositor_context.cc` 的 `Preroll(clip_rect)`/`canvas.ClipRect` 标准。结论：GL 已有持久 FBO 但 render 层不认；wgpu 无持久面；场景层无 damage 裁剪。本卡只改合成侧，不改上屏合同。产品代码零改动。 |
+| 2026-11-16 | **P0 落地（观测，渲染行为零改动）**：`scene.TexturedStats` + `PipelineApp.LastCompositeStats`；`FrameMetrics`/示例 JSON/wrgate `Report` 四字段（`composite_layers_visited`/`culled`/`blits_issued`/`full_reason`，进 RequiredSchemaKeys）；`hal.PersistentBackBuffer` 可选接口 + `SurfacePersistentBackBuffer` 助手（GLES 持久 FBO=true、wgpu-native=false）；`PresentTarget.LastCompositeFullReason` 归类 `force`/`coverage`/`fresh_target`/`msaa`/`no_damage`/`""`。真窗：spin `8/0/2/fresh_target`、icon `297/0/120/fresh_target`（golden 0.0000%、pixel 4/4）；targeted tests + apidoc 绿；全包 S69 红为存量过期基线。P1 待开。 |
 | 2026-11-16 | **已有实现审计（用户要求“先确定是否已有实现不要重复”）**：确认上屏 damage（`PlanFramePresent`/`TrackDamageRect`/group scissor/gles partial present）、GL 持久 FBO（`gles/surface.go:51`）、层纹理缓存（`PictureTextureCache`/`BoundaryCache`）、filter bounds（`filterSubtreeBounds`）均已有；真缺口=合成目标持久性未告知 render、phase 2 未消费 damage、wgpu 无持久面、无 cull 计数。据此把 P2 从“新增 bounds 预走”改为“扩已有 phase 1 汇总 damage”，把 P1 从“新建持久面”改为“GL 能力上报/view 登记”；不新增 damage 类型、不新增第三次树走、不新建 GL FBO。详见 §3.4/§3.5。 |

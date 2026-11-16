@@ -33,6 +33,10 @@ func TestBuildReport_AndSchema(t *testing.T) {
 		RSSSlopeValid:          true,
 		RSSWarmupSec:           15,
 		GPUOps:                 100,
+		CompositeLayersVisited: 52,
+		CompositeLayersCulled:  0,
+		CompositeBlitsIssued:   88,
+		CompositeFullReason:    "fresh_target",
 	}
 	r := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R0",
@@ -61,6 +65,20 @@ func TestBuildReport_AndSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, key := range []string{`"rss_slope_steady_kb_per_min":8`, `"rss_slope_valid":true`, `"rss_warmup_sec":15`} {
+		if !strings.Contains(string(b), key) {
+			t.Fatalf("JSON missing %s: %s", key, b)
+		}
+	}
+	if r.CompositeLayersVisited != 52 || r.CompositeLayersCulled != 0 ||
+		r.CompositeBlitsIssued != 88 || r.CompositeFullReason != "fresh_target" {
+		t.Fatalf("composite fields = %+v", r)
+	}
+	for _, key := range []string{
+		`"composite_layers_visited":52`,
+		`"composite_layers_culled":0`,
+		`"composite_blits_issued":88`,
+		`"composite_full_reason":"fresh_target"`,
+	} {
 		if !strings.Contains(string(b), key) {
 			t.Fatalf("JSON missing %s: %s", key, b)
 		}

@@ -94,6 +94,15 @@ type texturePaintSnap struct {
 
 var lastTexturePaint atomic.Value // stores texturePaintSnap
 
+// compositeSnap is the per-app last-frame retained-composite observation
+// (P6 P0). Set on the raster thread after present; read by metrics.
+type compositeSnap struct {
+	LayersVisited int64
+	LayersCulled  int64
+	BlitsIssued   int64
+	FullReason    string
+}
+
 // resizeCalmWindow: after this long without a resize event the swapchain
 // switches back from Mailbox/Immediate to Fifo (vsync).
 const resizeCalmWindow = 200 * time.Millisecond
@@ -124,6 +133,8 @@ type PipelineApp struct {
 	// on raster, read on UI via LastRasterStats — guarded, never bare).
 	lastStatsMu sync.Mutex
 	lastStats   scene.RasterStats
+	// lastComposite holds the last retained-composite observation (P6 P0).
+	lastComposite atomic.Value // stores compositeSnap
 	// layoutFrames counts flushes that actually laid out.
 	layoutFrames atomic.Int64
 	// forceFullPresent is set on warm-up/resize so the next present full-clears.
@@ -342,6 +353,20 @@ func (a *PipelineApp) drainSnapshots() {
 // retained composite (painted = sources that drew pixels, missed = ids that
 // resolved to nothing). Both are 0 when the last frame carried no texture
 // layer. Safe from any thread: published through an atomic by the raster job.
+// LastCompositeStats returns the most recent retained-composite observation
+// (P6 P0). Zero/empty before the first retained present.
+func (a *PipelineApp) LastCompositeStats() (visited, culled, blits int64, fullReason string) {
+	if a == nil {
+		return 0, 0, 0, ""
+	}
+	v := a.lastComposite.Load()
+	if v == nil {
+		return 0, 0, 0, ""
+	}
+	s := v.(compositeSnap)
+	return s.LayersVisited, s.LayersCulled, s.BlitsIssued, s.FullReason
+}
+
 func (a *PipelineApp) TexturePaintStats() (painted, missed int64) {
 	v := lastTexturePaint.Load()
 	if v == nil {
@@ -2152,6 +2177,7 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 	// pictureTex (only serialized FrameJobs write it), so RetainedSnapshot can
 	// replay the exact content that reached the screen without a lock.
 	a.lastTexturedPkt = pkt
+	var st scene.TexturedStats
 	draw := func(d *render.Context) {
 		// Force frames (first frame, resize, recovery) own the whole surface:
 		// clear then composite every layer. Steady retained frames do not clear
@@ -2162,7 +2188,7 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 			_ = d.Fill()
 			d.MarkFullRedraw()
 		}
-		st := scene.CompositeFramePacketTextured(pkt, d, tex)
+		st = scene.CompositeFramePacketTextured(pkt, d, tex)
 		lastFiltersApplied.Store(int64(st.FiltersApplied))
 		lastTexturePaint.Store(texturePaintSnap{
 			Painted: int64(st.TexturesPainted),
@@ -2188,11 +2214,27 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 		// paint flags when it built this packet (see Run). Touching them
 		// from this raster job would race UI event handling.
 	}
+	var out render.PresentOutcome
+	var err error
 	if force {
-		err := target.PresentWith(draw)
-		return target.LastPresentOutcome(), err
+		err = target.PresentWith(draw)
+		out = target.LastPresentOutcome()
+	} else {
+		out, err = target.PresentWithAuto(draw)
 	}
-	return target.PresentWithAuto(draw)
+	snap := compositeSnap{
+		LayersVisited: int64(st.LayersVisited),
+		LayersCulled:  int64(st.LayersCulled),
+		BlitsIssued:   int64(st.BlitsIssued),
+		FullReason:    target.LastCompositeFullReason(),
+	}
+	a.lastComposite.Store(snap)
+	if a.sched != nil {
+		if m := a.sched.Metrics(); m != nil {
+			m.SetCompositeStats(snap.LayersVisited, snap.LayersCulled, snap.BlitsIssued, snap.FullReason)
+		}
+	}
+	return out, err
 }
 
 func SurfaceAreaLogical(dc *render.Context) int64 {

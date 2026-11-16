@@ -491,6 +491,30 @@ func (c *Context) gpuCtxOps() gpuContextOps {
 // gpuRenderTarget returns the current context's pixel buffer as a GPU render target.
 // When the top PushLayer has a GPU offscreen RT (P0-1), View is set so queued
 // fills/strokes resolve into the layer texture instead of the CPU pixmap.
+// compositeReasonReporter is the optional GPU-context hook for the P0
+// composite observation. CPU-only contexts do not implement it and report "".
+type compositeReasonReporter interface {
+	LastCompositeFullReason() string
+}
+
+// lastCompositeFullReason returns why the last GPU surface composite was
+// full ("" = damage-scissored). P0 observation only; never changes behavior.
+func (c *Context) lastCompositeFullReason() string {
+	if c == nil {
+		return ""
+	}
+	// Observation only: use the already-created GPU context. Do NOT call
+	// gpuCtxOps() here — it may lazily create a context after present.
+	g := c.gpuCtx
+	if g == nil {
+		g = c.baseGpuCtx
+	}
+	if r, ok := g.(compositeReasonReporter); ok {
+		return r.LastCompositeFullReason()
+	}
+	return ""
+}
+
 func (c *Context) gpuRenderTarget() GPURenderTarget {
 	t := GPURenderTarget{
 		Data:   c.pixmap.Data(),

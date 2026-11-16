@@ -689,6 +689,13 @@ type GPURenderSession struct {
 	// Porter-Duff "over" during readback, so LoadOpClear is always safe.
 	frameRendered bool
 
+	// lastCompositeFullReason explains the last surface composite decision:
+	// "" = damage-scissored, "fresh_target" = target not known to hold a full
+	// previous composite, "msaa" = damage dropped for sampleCount>1,
+	// "no_damage" = no damage rects, "readback" = no surface view. It is a P0
+	// observation only; it never changes encoding.
+	lastCompositeFullReason string
+
 	// antiAlias determines SDF coverage computation mode.
 	// When true (default), smoothstep produces smooth edges.
 	// When false, binary step produces aliased edges.
@@ -1178,6 +1185,7 @@ func (s *GPURenderSession) BeginFrame() {
 
 	s.frameRendered = false
 	s.lastView = nil
+	s.lastCompositeFullReason = ""
 	s.colorContentViews = s.colorContentViews[:0]
 	s.renderedViews = s.renderedViews[:0]
 	// Offscreen views keep cross-frame content: re-register them as
@@ -1461,6 +1469,15 @@ func (s *GPURenderSession) SetFrameState(frameRendered bool, lastView hal.Textur
 // GPURenderContext reads this back to maintain per-context LoadOp tracking.
 func (s *GPURenderSession) FrameState() (frameRendered bool, lastView hal.TextureView) {
 	return s.frameRendered, s.lastView
+}
+
+// LastCompositeFullReason returns the last surface composite reason
+// ("" = damage-scissored). Nil-safe; observation only.
+func (s *GPURenderSession) LastCompositeFullReason() string {
+	if s == nil {
+		return ""
+	}
+	return s.lastCompositeFullReason
 }
 
 // resolveActiveView returns the per-pass texture view to use for surface
@@ -2169,10 +2186,13 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	}()
 
 	if activeView == nil {
+		s.lastCompositeFullReason = "readback"
 		return s.encodeSubmitReadbackGrouped(w, h, grpRes, target, baseLayerRes)
 	}
 
 	blitOnly := s.isBlitOnly(grpRes, baseLayerRes)
+	hasDamage := len(target.DamageRects) > 0
+	s.lastCompositeFullReason = compositeFullReason(int(s.sampleCount), hasDamage, s.viewRendered(activeView))
 
 	// ADR-021 + R6 flicker fix: damage scissoring is only correct when the
 	// render pass PRESERVES the pixels outside the scissor. Two safe cases:
@@ -2202,7 +2222,7 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	// may Load + damage-scissor. Dropping the rects also re-enables full
 	// group scissors via applyGroupScissorWithDamageRects' empty-damage
 	// branch.
-	if !blitOnly && len(target.DamageRects) > 0 && !(s.sampleCount == 1 && s.viewRendered(activeView)) {
+	if !blitOnly && hasDamage && !(s.sampleCount == 1 && s.viewRendered(activeView)) {
 		target.DamageRects = nil
 	}
 
@@ -7010,6 +7030,24 @@ func (s *GPURenderSession) encodeSubmitReadbackGrouped(
 // layer and/or overlay GPU textures) with zero vector shapes that need MSAA.
 // Allows overlay-only frames (no base layer) for damage-aware compositing:
 // LoadOpLoad preserves previous content, overlays blit only the changed region.
+// compositeFullReason is the pure P0 reason classifier for the surface
+// composite decision. It mirrors the encoding gates exactly: no damage →
+// no_damage; MSAA cannot preserve the pre-resolve surface → msaa; a target
+// that never held a full composite → fresh_target; otherwise the frame is
+// damage-scissored ("").
+func compositeFullReason(sampleCount int, hasDamage, viewRendered bool) string {
+	if !hasDamage {
+		return "no_damage"
+	}
+	if sampleCount > 1 {
+		return "msaa"
+	}
+	if !viewRendered {
+		return "fresh_target"
+	}
+	return ""
+}
+
 func (s *GPURenderSession) isBlitOnly(grpRes []groupResources, baseLayerRes *imageFrameResources) bool {
 	hasBase := baseLayerRes != nil && len(baseLayerRes.drawCalls) > 0
 	hasOverlay := false

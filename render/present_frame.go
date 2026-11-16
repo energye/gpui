@@ -198,6 +198,18 @@ func damageRectsAreaSum(rects []image.Rectangle) int64 {
 	return sum
 }
 
+// LastCompositeFullReason returns why the most recent composite was full
+// ("" = damage-scissored). P0 observation only; safely callable from the
+// raster thread after PresentWith/PresentWithAuto.
+func (t *PresentTarget) LastCompositeFullReason() string {
+	if t == nil {
+		return ""
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastCompositeFullReason
+}
+
 func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (PresentOutcome, error) {
 	out := PresentOutcome{}
 	if t == nil {
@@ -211,6 +223,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	if t.dc == nil || t.sc == nil || t.device == nil {
 		return out, errors.New("render: PresentTarget not initialized")
 	}
+	t.lastCompositeFullReason = ""
 
 	// Reconfigured swapchain buffers are undefined until each is fully
 	// written; owed full frames force the full path.
@@ -397,6 +410,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		}
 		out = PresentOutcome{Mode: PresentModeFull, Rects: 1}
 		t.lastOutcome = out
+		t.lastCompositeFullReason = "force"
 		return out, nil
 	}
 	// B4/P2.4e: dispatch the precomputed plan — mode and rects come from the
@@ -419,6 +433,16 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		// screen after resize storms / full-static retained frames). Release
 		// the acquire explicitly to keep BeginFrame/Present paired.
 		t.sc.DiscardFrame(frame)
+		t.lastCompositeFullReason = "no_damage"
+	} else if out.Mode == PresentModeFull {
+		// PresentFramePlan promoted a near-full damage set (85%) to a full
+		// present; the session's own load path is a full-surface composite.
+		t.lastCompositeFullReason = "coverage"
+	} else {
+		// The session records whether this damage frame still had to load a
+		// fresh target (fresh_target), dropped damage for MSAA, or was truly
+		// damage-scissored ("").
+		t.lastCompositeFullReason = t.dc.lastCompositeFullReason()
 	}
 	t.lastOutcome = out
 	return out, nil

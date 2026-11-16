@@ -210,6 +210,34 @@ type PixelReader interface {
 	ReadPixels() []byte
 }
 
+// PersistentBackBuffer is an optional Surface capability: the acquired
+// surface texture keeps its full previous-frame content across acquires until
+// the surface is reconfigured (or the context is lost). It is the content-
+// preservation half of partial repaint; callers must still treat Configure/
+// Unconfigure/resize/recovery as full frames.
+//
+// Backends that rotate swapchain images (wgpu-native) do not implement it and
+// report false through SurfacePersistentBackBuffer.
+//
+// Extension: not part of the WebGPU specification.
+type PersistentBackBuffer interface {
+	PersistentBackBuffer() bool
+}
+
+// SurfacePersistentBackBuffer reports whether s preserves its back-buffer
+// content across frames. Surfaces without the optional capability report
+// false (the safe/default answer: the target is treated as fresh).
+func SurfacePersistentBackBuffer(s Surface) bool {
+	if s == nil {
+		return false
+	}
+	p, ok := s.(PersistentBackBuffer)
+	if !ok {
+		return false
+	}
+	return p.PersistentBackBuffer()
+}
+
 // SurfaceTexture is a texture acquired from a surface.
 // Surface textures have special lifetime constraints - they must be presented
 // or discarded before the next frame.

@@ -437,6 +437,15 @@ func (rc *GPURenderContext) DigCmdBufStats() (prev int, usedSurface bool) {
 	return rc.session.DigCmdBufStats()
 }
 
+// LastCompositeFullReason returns the last surface composite reason
+// ("" = damage-scissored). Nil-safe; P0 observation only.
+func (rc *GPURenderContext) LastCompositeFullReason() string {
+	if rc == nil || rc.session == nil {
+		return ""
+	}
+	return rc.session.LastCompositeFullReason()
+}
+
 func (rc *GPURenderContext) BeginFrame() {
 	// Free previous frame command buffers (prevCmdBufs). Without this, windowed
 	// PresentFrame paths never call SetSurfaceTarget, so CBs accumulate every

@@ -1430,6 +1430,15 @@ type TexturedStats struct {
 	RasterLayerCount  int
 	SkippedLayerCount int
 	ReplayedOps       int
+	// LayersVisited counts every layer walked by the phase-2 composite walk
+	// (containers included). LayersCulled counts subtrees skipped by damage
+	// culling; P0 has no culling yet, so it stays 0 until P2.
+	LayersVisited int
+	LayersCulled  int
+	// BlitsIssued counts cached texture blits issued by phase 2 (picture
+	// textures + texture layers). Filter-result DrawImage calls are not
+	// texture blits and do not increment it.
+	BlitsIssued int
 	// RejectedUnsealed marks a refused composite: the packet never sealed
 	// (R2-1 — every BuildPacket seals, so this only fires on hand-rolled
 	// packets bypassing the builders). Fail closed with zero counts.
@@ -1639,6 +1648,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		if l == nil {
 			return
 		}
+		st.LayersVisited++
 		if bl, isBnd := l.(*BoundaryLayer); isBnd && bl.Shell {
 			underShell = true
 		}
@@ -1661,6 +1671,9 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 						blitOK = true
 					} else {
 						blitOK = tex.blit(pl.CacheKey)
+					}
+					if blitOK {
+						st.BlitsIssued++
 					}
 				}
 				if !blitOK {
@@ -1724,6 +1737,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			_, drawn := paintTextureLayer(tl, dc)
 			if drawn {
 				st.TexturesPainted++
+				st.BlitsIssued++
 			} else {
 				st.TexturesMissed++
 			}

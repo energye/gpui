@@ -392,6 +392,12 @@ func (s *Surface) PresentWithDamage(st *SurfaceTexture, _ []image.Rectangle) err
 }
 
 // ActualExtent returns the configured surface dimensions.
+// PersistentBackBuffer reports false: wgpu-native rotates swapchain images, so
+// an acquired texture does not keep a definable previous frame.
+func (s *Surface) PersistentBackBuffer() bool {
+	return false
+}
+
 func (s *Surface) ActualExtent() (width, height uint32) {
 	if s.released {
 		return 0, 0
