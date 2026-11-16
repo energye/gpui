@@ -22,7 +22,7 @@
 | # | 底座场景 | 触发模式 | 真窗现状 | 资源指标现状 | 对照场景（尺） | 缺口动作 |
 |---|---|---|---|---|---|---|
 | 1 | 空闲（无脏零帧） | 开窗静止 60s | **`ui_base_idle`** | ✅ 两连 gate + 60s manual：presents=1、warmup 后增量=0、CPU 0.6–0.8%、golden 0（873600px） | Flutter 静止页 | ✅ 已对照：Flutter text 页首帧后 idle 0.02%（§5.5） |
-| 2 | 常驻最小动画（心跳税地板） | 单 64px 旋转 60fps | **spin_min** | ✅ CPU 有账（现态 14.59% / 终态 3.4~3.5%） | Flutter 同尺寸旋转图标 | ✅ 已对照：Flutter 25.41% / spin_min 15.92%，1.60×（§5.5）；同语义 parity **14.16%**，**1.79×**（§5.5.3） |
+| 2 | 常驻最小动画（心跳税地板） | 单 64px 旋转 60fps | **spin_min** | ✅ CPU 有账（单核口径：现态 14.59%；2026-11-16 真 Xorg/NVIDIA 复核稳态 14.64% 单核 = **3.66% 四核合计**，partial 891/5；旧「终态 3.4~3.5%」出自备份线 G9/G11、口径未注明，不作差额依据，见 §5.11） | Flutter 同尺寸旋转图标 | ✅ 已对照：Flutter 25.41% / spin_min 15.92%，1.60×（§5.5）；同语义 parity **14.16%**，**1.79×**（§5.5.3） |
 | 3 | 滚动（retained 主场景） | 列表连续滚动 | C3/C9/R7/R7b | ✅ R7 60s close-run 两连：fps 59.9、p95 19.8ms、hitch 1.0–2.0/min、CPU 18.27%（ui 7.93 + raster 10.33）、RSS 斜率 3458/4435KB/min（valid）、damage 9.25%、bind 14/1200、scroll 重录 14、golden 0；C3 31.98% 已有 | Flutter ListView 同规模 | ✅ 已对照：Flutter 71.38%，对 C3 2.23× / 对 R7 3.91×（§5.5）；同语义 parity **22.99%**，**3.10×**（§5.5.3） |
 | 4 | 全幅重建上限 | full_paint 全窗每帧变 | R0 | ✅ | Flutter 全幅动画页 | ✅ 已对照（§5.8.5）：R0 26.92%/59.94fps 对 Flutter 73.91%/53.2fps → **2.75×**（双侧 full 重绘策略同款；内容不同源、R0 侧静态网格+HUD 便宜，读数加内容注） |
 | 5 | 异步资源→局部脏 | 解码完成逐格点亮 | R10/C3 | ✅ | Flutter 异步图片列表 | ✅ Flutter 臂 70.35%/58.4fps/184.8MB（§5.8.4，解码突发 20s 预热吸收，稳态 hitch 高 245–681/60s 为逐格热点）；gpui R10 **25.75%/59.95fps/305.5MB → CPU 0.37× / RSS 1.65×**（§5.8.6，golden 0×3；内容不同源带注） |
@@ -597,6 +597,27 @@ recovered=true survived=true（presents ~1080 ≫ 注入点），两连验证 go
 （单窗可桌面）。原跑 JSON：`/tmp/opencode/ruler_runs/P4E_vram/{ladder_seed,ladder_v1,
 ladder_v2,oom_seed,oom_v1,oom_v2}.stdout`。
 
+### 5.11 行 2 复核：真 Xorg/NVIDIA 增量提交生效 + 图标窗稳态对照（2026-11-16，HEAD `b41ff479`，桌面 Xorg :0，4 核机，GL 后端为主、含默认 wgpu 对照，标准关闭、轮间查 Xorg 无恙）
+
+**能力**：本机 EGL X11（vendor NVIDIA 940MX / 驱动 580）报 `EGL_KHR_swap_buffers_with_damage` / `EGL_KHR_partial_update` / `EGL_EXT_buffer_age` 全 YES，`eglSwapBuffersWithDamageKHR` / `eglSetDamageRegionKHR` 符号全有——`ENGINE_FRAME_PRESENT_STANDARD.md` §2.4 的三件严格门无需放宽即通过。Mesa X11/Wayland 有 `swap_with_damage` + `buffer_age`、缺 `partial_update`，且 `EGL_BUFFER_PRESERVED` 被拒（`0x3009 EGL_BAD_MATCH`），保持全量。
+
+**实测**（`GPUI_BACKEND=go`；CPU 为单核百分比，四核合计=÷4）：
+
+| 窗 | 跑法 | partial / full | CPU（单核） | 折四核 | raster p50 | flush p50 | damage |
+|---|---|---|---:|---:|---:|---:|---:|
+| `spin_min`（行 2） | 15s 定时 | **891 / 5** | 稳态 14.64%（逐线程 14s 窗；整跑 22.43% 含预热） | **3.66%** | 16.51ms（其中等 vblank 16.03ms） | 0.38ms | 7225px² |
+| `kit/icon` 稳态 | 20s 探针（关自动巡览） | **1121 / 71（94%）** | 22.60%（8–18s 窗） | **5.65%** | 2.25ms | 1.49ms | ratio 0.000551（≈529px²） |
+| `kit/icon` 默认 wgpu 稳态 | 20s 探针（关自动巡览） | 无计数（native 全量） | 24.20%（8–18s 窗） | 6.05% | 2.03ms | 1.05ms | — |
+| `kit/icon` 原样带巡览 | 16s 定时 | 108 / 782 | 37.67%（整跑） | 9.42% | 3.54ms | 1.86ms | 滚动大损伤 |
+
+**读数**：
+1. 目标机上 OS 级增量提交真实生效（spin 99.4%、icon 稳态 94% 的帧走 partial），无需改门禁或走「只 swap-with-damage」的非规范路径。
+2. partial 生效后 icon 稳态仍 22.6% 单核，默认 wgpu（全量、无损伤提交）同量级 24.2%——瓶颈是**每帧合成**（52 层边界、约 89 次纹理 blit），不是上屏交换。
+3. spin 的 raster p50 16.51ms 里 16.03ms 是 FIFO 等 vblank（睡，不烧 CPU）；整跑 CPU 含开窗预热，稳态看逐线程采样 14.64%。
+4. 旧「终态 3.4~3.5%」出自备份线 G9/G11（`8c386a12`/`3a4440a8`，`git merge-base --is-ancestor` 核实不在 HEAD），且未注明单核/四核口径；HEAD 现测 3.66% 四核与那组数字数值接近但口径未核实，不能把「14.59%→3.4~3.5%」当作剩余 4× 差额，严格 A/B 需同机同口径重测备份线。
+
+**复现**：`go build -o /tmp/gpui_spin_min ./examples/kit/spin_min`、`go build -o /tmp/gpui_icon ./examples/kit/icon`；`DISPLAY=:0 GPUI_BACKEND=go RUN_SECONDS=15 /tmp/gpui_spin_min`（spin）、`DISPLAY=:0 GPUI_BACKEND=go RUN_SECONDS=15 /tmp/gpui_icon`（巡览版）。稳态数用临时探针：复制 `examples/kit/icon` 后强制 `secs=20`、`secsSet=false`（关闭自动巡览与定时快照），探针未入库；仓库示例的定时跑法会开巡览。逐线程 CPU 采样为 `top -H` 风格 14s 窗（采样脚本在 /tmp，未入库）。
+
 ## 6. 实施阶段与 DoD
 
 | 阶段 | 内容 | DoD | 量级 |
@@ -748,6 +769,7 @@ GPUI_FAULT_OOM=180:1 RUN_SECONDS=15 go run ./examples/ui_base_vram_cap -oom-prob
 
 | 日期 | 内容 |
 |---|---|
+| 2026-11-16 | **行 2 真机复核（用户问「spin/icon 的 CPU 差在哪」）+ 口径写明**：桌面 Xorg :0 + NVIDIA 940MX（4 核机、HEAD `b41ff479`、GL 后端）——EGL 三件齐备，严格门直接生效，`spin_min` 15s `os_present_partial=891 / full=5`，稳态 **14.64% 单核 = 3.66% 四核合计**（整跑 22.43% 含预热）；`kit/icon` 稳态（临时探针关自动巡览）**22.60% 单核 = 5.65% 四核**、`partial=1121 / full=71`（94%）、damage_ratio 0.000551（约 529px²）、raster p50 2.25ms / flush p50 1.49ms；同窗默认 wgpu（全量）24.20% 单核——partial 生效与否 CPU 同量级 ⇒ 剩余成本在每帧合成，不在上屏。行 2 指标格同步写明「单核/四核」口径；旧「终态 3.4~3.5%」出自备份线 G9/G11（`8c386a12`/`3a4440a8`，核实不在 HEAD、口径未注明），不作差额依据。§5.11 立节，`ENGINE_FRAME_PRESENT_STANDARD.md` §2.4/§9、`RENDER_CPU_1PCT_REPLAY_PLAN.md` §7 同步。 |
 | 2026-10-28 | **P4 收口（2026-10-28 用户签收「关掉 P4，视频线先放这不做」）——本矩阵 P1–P4 四期全部标 ✅**：P4 DoD 落账=①17 行中 16 行资源账+对照比成立，对齐线（CPU 1.5×/RSS 2.0×，§5.9）**零行触红**（最紧两格：Godot 0.94×、行 4 RSS 1.73×，皆线内）；②wrgate 五对齐线字段落地+五窗接线实证（parity/r0/c2/r4/multiwin，§5.9）；③覆盖文档 §11 同步（`99b7b765`）；④遗留 1/6/7 清账（§5.8.6/§5.10/§5.9）。**行 14（视频/纹理流解码吞吐）书面移交视频线**——P4 关账不待此行，视频线产出后回写 §2 行 14（§2 行 14 缺口列已签注）。遗留 2/3/4/5（行 7 波级细采样、行 9 FG/BG 拆分、行 16 遮挡恢复、行 15 可切策略窗）不属 P4 DoD，留档随 P6 顺路。下一步：拆 P6 细卡（以 17 行账定优先级；§7 风险 5 已指方向——8 窗 CPU 未饱和、瓶颈在共享呈现串行吞吐，对 P6「多窗口 Device 策略」块）。 |
 | 2026-10-28 | **P4 遗留 6 清账：行 17 专项资源场景窗 `ui_base_vram_cap` 建成成账（§5.10）**：按 §2 行 17 登记的立账计划建窗，引擎层零改动。**模式 A 预算拒增阶梯**（隔离 GNOME Wayland 会话，增量开窗 2/4/8——SharedWindowCount 驱动公平份额 预算/窗数/4，每窗 160 张 256×256 静态 RepaintBoundary 卡 ~40MB 工作集）：300s×3（SEEDED+两连）全 rc=0，拒增曲线 0→+630→+860/档（4/8 窗档被公平份额顶破）、账本峰值 362.9–381.4MB ≤0.9×768 水线、8 窗档 fps 降至 ~14–15（被拒层逐帧重录代价，如实记账不设 fps 门）、**保持段斜率（固定 8 窗 ~250s）−291/+1591/+1771KB/min ≪30000 线**（整段斜率被阶梯结构性抬高故健康线只判保持段——先例：multiwin 预开 8 窗同理由）、golden 逐窗 0×3 + px 16/16。**模式 B OOM 注入回落**（单窗桌面可跑）：`GPUI_FAULT_OOM=180:1` 三跑 pre=8.55MB/post=8.55MB/**delta 0.00MB**、survived=true（不触发 3 帧持续 OOM 退出链）、两连 golden 0.0000%——「资源谁建谁放」在失败路径实测成立。建窗中修两处窗侧缺陷（不涉引擎）：①OnPaint 契约——PaintContext 携带绝对 origin、裸 `pc.DC` 绘制绕过它，卡片须先 `Translate(pc.Abs(0,0))`（multiwin 无恙仅因其盒在 Place(0,0)；像素探针逮住快照叠卡，三证据互证防假绿生效）；②探针退出等待双消费 done 通道。§2 行 17 对照列、§8 复现、遗留 6 同步。证据：`/tmp/opencode/ruler_runs/P4E_vram/`（6 份 stdout JSON）。 |
 | 2026-10-28 | **P4 遗留 7 清账：multiwin 接线实证 + 行 10 臂 wrgate JSON 复跑带 env（隔离 GNOME Wayland 会话/XWayland `:1`，§5.9）**：用户切会话（P4A 行 10 同款环境）后跑批 `ruler_batch_P4E_multiwin.sh`，四轮全程 Xwayland 存活、应用自退标准关闭。①wire-probe：假尺值 999 只证管道——rc=0、五键非 null、比值成算。②真值三连（ladder 混梯对混梯，2026-10-28 拍板口径：尺值=Flutter N=1/2/4/8 三跑中位等权均值 CPU 99.19%/RSS 611.8MB）：全 rc=0，整场中位 CPU 66.70%（66.70/68.18/65.52）/RSS 252.0MB（249.9/259.4/252.0）→ **标量比值 CPU 0.67×/RSS 0.41×**（远低于定稿线 1.5×/2.0×）；八窗 golden 逐窗 0×3、px 16/16、max60=4/steady60=2 复现 P4A 账、cpu_fallback=0、presents/s@8 357–384（P4A ~316–328，饱和点随会话环境漂移先例注）。逐档 CPU 中位 21.92/36.75/67.66/109.24%（P4A 账 22.42/43.83/81.33/111.0，同量级会话漂移）——**逐档比值仍以 §5.8.3 成表为准**；标量为跨日配对（gpui 今夜三跑 vs Flutter P4A 中位），如实带注；八窗总和口径 gpui 252MB vs Flutter N=8 1305MB → gpui 省 ~5.2×（同 §5.8.3 的 5.57× 量级）。backend=x11（XWayland）与 P4A 隔离口径一致。§2 行 10/§5.9/§6 遗留 7 同步。证据：`/tmp/opencode/ruler_runs/P4E_multi/`（4 份 stdout JSON）。 |

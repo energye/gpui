@@ -202,7 +202,7 @@
 ## 8. CPU / 内存轴现状
 
 - **CPU / 内存全量资源账已立（2026-10-25 立项 → 2026-10-28 收口测量轴）**：真源 [`RENDER_BASE_RESOURCE_MATRIX.md`](./RENDER_BASE_RESOURCE_MATRIX.md) 17 行场景矩阵——每行「真窗 + 资源指标 JSON + 同机工业级对照（Flutter/Godot/glxgears 三尺）+ 比值」四项齐全；对齐线系数已定稿（CPU 1.5×/RSS 2.0×，§5.9），wrgate 五对齐线字段已接线五窗。行 14 挂视频线、行 17 专项窗未立（立账计划已登记）。本节以下旧单点记录保留作历史。
-- **CPU（历史单点）**：spin_min 一条 A/B 线（本树实测：基线中位 15.90% → G1+G10 后 14.59%；原线终态约 3.4~3.5%，尺子 glxgears ≈2.3~3.0%）。
+- **CPU（历史单点）**：spin_min 一条 A/B 线（本树实测：基线中位 15.90% → G1+G10 后 14.59%；原线终态约 3.4~3.5%，尺子 glxgears ≈2.3~3.0%）。**2026-11-16 真 Xorg/NVIDIA 复核**：spin_min 稳态 **14.64% 单核 = 3.66% 四核合计**（15s 窗，partial 891/5）；kit/icon 稳态 **22.60% 单核 = 5.65% 四核**（partial 1121/71、damage_ratio 0.000551≈529px²、raster p50 2.25ms、flush p50 1.49ms），带自动巡览整跑 37.67% 单核。**口径**：本节历史数字均为单核百分比，用户报告的 3.5%/7% 是四核合计（÷4 换算）；「终态 3.4~3.5%」出自备份线 G9/G11（不在 HEAD）、口径未注明，不能与 14.59% 按同口径相减。详见 `RENDER_BASE_RESOURCE_MATRIX.md` §5.11。
 - **内存（RSS/显存，历史单点）**：2026-10-21 四扇 B 窗 + c0 基线复核：5s/15s 的 RSS 斜率由启动爬坡主导（c0 空白窗 5s 回放≈699k KB/min），60s `rss_slope` 1.9k–8.8k KB/min、180s Scene≈2.0k，均在 30k 预算内；`smaps` 增长只在 Go 堆，`WR_MEMDIG` live 1.5–2.2MiB / peak 9–34MiB。判漏只认 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`（≥30s，推荐 60s）；短跑 false = 不能下结论，不是没漏。资源生命周期纪律在 `ENGINE_GPU_RESOURCE_LIFECYCLE.md`。
 - 重放计划门禁（`RENDER_CPU_1PCT_REPLAY_PLAN.md` §4）含画面/守卫/性能，不含内存项。
 
