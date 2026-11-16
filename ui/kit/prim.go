@@ -16,7 +16,7 @@ import (
 	"github.com/energye/gpui/ui/theme"
 )
 
-// Public prim re-exports for examples/kit_f0_* windows. Product code in
+// Public prim re-exports for examples/kit/f0-* windows. Product code in
 // this package imports internal/prim directly; examples import kit only.
 
 type (

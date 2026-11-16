@@ -16,7 +16,7 @@
 ## 源码对照方法（新会话先跑这三条，不猜）
 
 ```text
-1. 地基落了没：git ls-files ui/kit/internal ui/theme examples/kit_f0_* | sort
+1. 地基落了没：git ls-files ui/kit/internal ui/theme examples/kit/f0-* | sort
 2. 某组件落了没：git ls-files ui/kit/<前缀>_* examples/kit/<名> | sort
 3. 单测真绿没：go test ./ui/kit/ -run 'Test<组件>' -count=1（逐文件跑，禁止一次全量）
 ```
@@ -27,11 +27,11 @@
 
 | 步骤 | 源码证据（必须存在） | 单测证据 | 真窗证据 | 状态 | 验证 commit | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F0-1 主题与范围 | `ui/theme/seed*.go` + `ui/kit/internal/scope/{ctx,states,resolve}.go` + `ui/kit/scope.go` 公开门面 | `seed_ant_test.go`、`scope` 各 `_test.go` 全绿（逐文件跑） | `examples/kit_f0_scope/`（三套主题一切换全局生效；-auto-only 全绿 + Golden 差异0 + 调大小回基线 + 人工签字） | 🟩已绿 | 本次提交 | 种子与 antd 6.5.1 逐项对；真窗第二跑 3/3 + Golden 0 + resize 回 1200x800 |
-| F0-2 布局+装饰 | `ui/kit/internal/prim/{layout,decor}.go` + `ui/kit/prim.go` 公开门面 | `layout_test.go` 约束矩阵、`layout_edge_test.go` 边界、`decor_test.go` 混合公式（逐文件跑全绿） | `examples/kit_f0_layout/`、`kit_f0_decor/`（-auto-only 全绿 + Golden 差异0 + 调大小回基线；F0-1 scope 回归绿） | 🟩已绿 | 本次提交 | layout 3/3探针+bind8/1000+fps57；decor 3/3探针+混合公式+fps采而不判（静态正确性，F0-5再判）；未动他线文件 |
-| F0-3 内容 | `ui/kit/internal/prim/content.go` + `ui/kit/prim.go` 内容门面 | `content_test.go`（估算+合并+三态+图标，逐文件跑全绿） | `examples/kit_f0_content/`（-auto-only 全绿 6/6 + Golden 差异0 + 调大小回基线；F0-1/F0-2回归绿） | 🟩已绿 | 本次提交 | 文字三区墨量≥60+图片到图报错各只标脏一格+fps58；未动他线文件 |
-| F0-4 交互+触发 | `ui/kit/internal/behavior/{interactive,field,overlay_trigger}.go` + `ui/kit/behavior.go` 公开门面 | 三个 `_test.go`（五态/受控/外点关，逐文件跑全绿） | `examples/kit_f0_interact/`（-auto-only 全绿 15/15 + Golden 差异0 + 调大小回基线；F0-1/F0-2/F0-3回归绿） | 🟩已绿 | 本次提交 | 点击计1/禁用0/防重0+受控只回调+拼写提交一次+四向精确翻转+外点关Esc+焦点锁+环只键盘亮+命中一致+浮层只脏一格+fps58；未动他线文件 |
-| F0-5 动效语义性能方向+门禁 | `ui/kit/internal/behavior/{motion,semantics,performance,direction}.go` + `ui/kit/internal/gate/{props,state,wiring,token}.go` + `ui/kit/{behavior,gate}.go` 门面 + `ui/scheduler/ticker.go` 收尾合并修 + `docs/antd/F0_GATE_CHECK.md` 门禁命令 | 五个 `_test.go` + `ticker_late_add_test.go`（逐文件跑全绿）+ 门禁自检（接线ok/自有硬编码ok/构建ok） | `examples/kit_f0_motion/`（-auto-only 全绿 17/17 + Golden 差异0 + 调大小回基线 + 省画retained/damage_union/damage0.09 + 光栅0.22ms；F0-1~F0-4回归绿） | 🟩已绿 | 本次提交 | 转圈真转+省动效全停+波纹点后散+有名有角色+RTL镜像+四门禁自检+fps59.7；底层修在调度器收尾合并处；未动他线文件 |
+| F0-1 主题与范围 | `ui/theme/seed*.go` + `ui/kit/internal/scope/{ctx,states,resolve}.go` + `ui/kit/scope.go` 公开门面 | `seed_ant_test.go`、`scope` 各 `_test.go` 全绿（逐文件跑） | `examples/kit/f0-scope/`（三套主题一切换全局生效；-auto-only 全绿 + Golden 差异0 + 调大小回基线 + 人工签字） | 🟩已绿 | 本次提交 | 种子与 antd 6.5.1 逐项对；真窗第二跑 3/3 + Golden 0 + resize 回 1200x800 |
+| F0-2 布局+装饰 | `ui/kit/internal/prim/{layout,decor}.go` + `ui/kit/prim.go` 公开门面 | `layout_test.go` 约束矩阵、`layout_edge_test.go` 边界、`decor_test.go` 混合公式（逐文件跑全绿） | `examples/kit/f0-layout/`、`examples/kit/f0-decor/`（-auto-only 全绿 + Golden 差异0 + 调大小回基线；F0-1 scope 回归绿） | 🟩已绿 | 本次提交 | layout 3/3探针+bind8/1000+fps57；decor 3/3探针+混合公式+fps采而不判（静态正确性，F0-5再判）；未动他线文件 |
+| F0-3 内容 | `ui/kit/internal/prim/content.go` + `ui/kit/prim.go` 内容门面 | `content_test.go`（估算+合并+三态+图标，逐文件跑全绿） | `examples/kit/f0-content/`（-auto-only 全绿 6/6 + Golden 差异0 + 调大小回基线；F0-1/F0-2回归绿） | 🟩已绿 | 本次提交 | 文字三区墨量≥60+图片到图报错各只标脏一格+fps58；未动他线文件 |
+| F0-4 交互+触发 | `ui/kit/internal/behavior/{interactive,field,overlay_trigger}.go` + `ui/kit/behavior.go` 公开门面 | 三个 `_test.go`（五态/受控/外点关，逐文件跑全绿） | `examples/kit/f0-interact/`（-auto-only 全绿 15/15 + Golden 差异0 + 调大小回基线；F0-1/F0-2/F0-3回归绿） | 🟩已绿 | 本次提交 | 点击计1/禁用0/防重0+受控只回调+拼写提交一次+四向精确翻转+外点关Esc+焦点锁+环只键盘亮+命中一致+浮层只脏一格+fps58；未动他线文件 |
+| F0-5 动效语义性能方向+门禁 | `ui/kit/internal/behavior/{motion,semantics,performance,direction}.go` + `ui/kit/internal/gate/{props,state,wiring,token}.go` + `ui/kit/{behavior,gate}.go` 门面 + `ui/scheduler/ticker.go` 收尾合并修 + `docs/antd/F0_GATE_CHECK.md` 门禁命令 | 五个 `_test.go` + `ticker_late_add_test.go`（逐文件跑全绿）+ 门禁自检（接线ok/自有硬编码ok/构建ok） | `examples/kit/f0-motion/`（-auto-only 全绿 17/17 + Golden 差异0 + 调大小回基线 + 省画retained/damage_union/damage0.09 + 光栅0.22ms；F0-1~F0-4回归绿） | 🟩已绿 | 本次提交 | 转圈真转+省动效全停+波纹点后散+有名有角色+RTL镜像+四门禁自检+fps59.7；底层修在调度器收尾合并处；未动他线文件 |
 | F0-6 六窗全绿签字 | 六窗 `main.go` + Golden 基线（各窗 `testdata/showcase_*_base.png` 已入库）+ `docs/antd/F0_SIGNOFF.md` | — | 六窗 `-auto-only` 全绿（scope3/3、layout3/3、decor3/3、content6/6、interact15/15、motion17/17，Golden全0差异，调大小回基线）+ 主题三套各10/10三张Golden + 人工签字（用户2026-09-21确认六窗通过、motion顺畅）+ Wayland嵌套首跑（backend=wayland验明正身，fps10.6门禁红非窗问题） | 🟩已绿 | 本次提交 | 缺口记账：Wayland门禁口径+尺寸对齐未定（SIGNOFF§3）；未动他线文件 |
 
 ## 2. F1–F6 组件（每行一组件，源码对不上即假绿）

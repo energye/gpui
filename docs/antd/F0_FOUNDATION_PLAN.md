@@ -65,7 +65,7 @@
 
 缺失数据 `t.Skipf` 写清原因，禁止静默假绿；禁止本机绝对路径，临时文件只许 `t.TempDir()`。
 
-### 1.5 真窗（独立窗 `examples/kit_f0_layout/`，只摆布局，不摆产品组件）
+### 1.5 真窗（独立窗 `examples/kit/f0-layout/`，只摆布局，不摆产品组件）
 
 - 几何：基线 **1200×800** 逻辑像素（窗可调大小；基线只用于 Golden/证据对齐，布局必须随调大小重排）；`RUN_SECONDS=5`（正确性窗，无持续动画不判 fps）；必做一次调大小（拉宽/拉窄回基线，布局不错位、不断言崩）。
 - 内容：左 Row（定宽+权重+间距）、右 Column、右下 Stack 叠放、底 Wrap 换行、长列表虚拟段（只画可见行）；每段带标题说明。
@@ -109,7 +109,7 @@
 
 `decor_test.go`：圆角裁剪后命中区一致（Hit ≡ 绘）、透明 0.65 整层合成（混合公式验算，容差 ≤12/通道并附公式）、阴影不扩大命中、渐变只断两端点 + 中点单调。数据入 `testdata/decor_cases.json`。
 
-### 2.5 真窗（`examples/kit_f0_decor/`，基线 1200×800 可调大小，5s）
+### 2.5 真窗（`examples/kit/f0-decor/`，基线 1200×800 可调大小，5s）
 
 底边圆角阴影矩阵 + 透明叠加 + 变换旋转 + 裁剪头像 + 自定义画（对勾/圆环）+ 跟随小条；像素断言按 `UI_PIXEL_ASSERTION_STANDARD.md` F0（静态）+ F5（半透明混合公式）+ Golden 入库；指标 A–J 全族。
 
@@ -145,7 +145,7 @@
 
 `content_test.go`：多 span 换行高度、省略（`maxLines/ellipsis`）、有字体真测 / 无字体启发式（`t.Skipf` 写清）、图片三态流转、图标尺寸跟主题。文字断言用区域级（包围盒内非背景像素数 ≥ 阈值 + Golden），禁止单点采样断字形。
 
-### 3.5 真窗（`examples/kit_f0_content/`，基线 1200×800 可调大小，5s；图片异步段加长 15s 只看三态流转，不代替 R10 关闭）
+### 3.5 真窗（`examples/kit/f0-content/`，基线 1200×800 可调大小，5s；图片异步段加长 15s 只看三态流转，不代替 R10 关闭）
 
 单行/多行/省略/富文本/图标行/图片三态；出图后主树重录仅一格（`paint_count` 可解释）；A–J 全族 + Golden。
 
@@ -183,7 +183,7 @@
 
 `interactive_test.go`（五态流转、禁用全吞、加载防重、键盘 Tab/回车空格/Esc）、`field_test.go`（受控只回调不改值、非受控内部存、校验错提示）、`overlay_trigger_test.go`（外点关、Esc 关、焦点锁不外泄）。状态机缺一态即 FAIL。
 
-### 4.5 真窗（`examples/kit_f0_interact/`，基线 1200×800 可调大小，15s 看焦点与浮层）
+### 4.5 真窗（`examples/kit/f0-interact/`，基线 1200×800 可调大小，15s 看焦点与浮层）
 
 可点块（悬停按压变色）+ 禁用块（点不动）+ 加载块（防重）+ 输入框（受控/非受控）+ 浮层触发（十二方向抽查 4 向 + 翻转 + 外点关 + Esc）+ 焦点走查（Tab 全程、焦点环只键盘亮）。
 指标 A–J 全族；Hit ≡ 绘（点哪高亮哪）；浮层开后主树 `paint_count` 不涨（对标 R8）。
@@ -224,7 +224,7 @@
 
 `scope_test.go`（换 Ctx 重跑 Resolve 值跟着变、组件代码不动）、`states_test.go`（各状态组合取值跟官网调色板对）、`seed_test.go`（种子值与 antd 发布包逐项对，差一处即 FAIL）。
 
-### 5.5 真窗（`examples/kit_f0_scope/`，基线 1200×800 可调大小，5s）
+### 5.5 真窗（`examples/kit/f0-scope/`，基线 1200×800 可调大小，5s）
 
 同一按钮 × 三套主题（默认/换肤/紧凑）+ 整树禁用开关 + 尺寸切换；一切换全局生效；A–J 全族 + Golden（三套主题各一张）。
 
@@ -273,7 +273,7 @@ ui/kit/internal/prim/{layout,decor,content}.go + 各 _test.go + testdata/*.json
 ui/kit/internal/behavior/{interactive,field,overlay_trigger,motion}.go + 各 _test.go
 ui/kit/internal/scope/{ctx,states,resolve}.go + 各 _test.go
 ui/theme/seed 对数补丁 + seed_ant_test.go
-examples/kit_f0_{layout,decor,content,interact,scope,motion}/（各 main.go + README可见效果 + testdata/showcase*.png）
+examples/kit/f0-{layout,decor,content,interact,scope,motion}/（各 main.go + README可见效果 + testdata/showcase*.png）
 docs/antd/F0_SIGNOFF.md（六窗 -auto-only 全绿 + 人工签字 + Golden 差异率）
 ```
 

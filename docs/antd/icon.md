@@ -663,7 +663,7 @@ iconHost (RepaintBoundary 可选；OnMount/OnUnmount 绑 Ticker)
 
 **本线问题 E6（滚动卡顿，2026-09-21 落位，待定方向）：**
 现象：`examples/kit/icon` 目录滚动（自动巡馆/滚轮）时肉眼随机卡顿；其它滚动列
-表同症，静态大窗（`kit_f0_scope`）也能复现 98ms 级卡顿，小窗（`ui_l1_scroll`
+表同症，静态大窗（`examples/kit/f0-scope`，原 kit_f0_scope）也能复现 98ms 级卡顿，小窗（`ui_l1_scroll`
 400x480）干净。
 位置：提交之后（光栅执行 + 阻塞式 Fifo vsync present，`render/present_target.go:434`
 阻塞式 vsync；`ui/embedder/hitch_diag.go` `HITCH_DIAG=1` 显示全部卡顿

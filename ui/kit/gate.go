@@ -14,7 +14,7 @@ import (
 	"github.com/energye/gpui/ui/kit/internal/gate"
 )
 
-// Public gate re-exports for examples/kit_f0_* windows. Product code
+// Public gate re-exports for examples/kit/f0-* windows. Product code
 // imports internal/gate directly; examples import kit.
 
 type (

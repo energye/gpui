@@ -21,7 +21,7 @@ import (
 	"github.com/energye/gpui/ui/theme"
 )
 
-// Public behavior re-exports for examples/kit_f0_* windows. Product code
+// Public behavior re-exports for examples/kit/f0-* windows. Product code
 // in this package imports internal/behavior directly; examples import kit.
 
 type (
