@@ -630,7 +630,26 @@ func (c *PictureTextureCache) BeginFrame() {
 	c.stamp++ // advance the LRU clock once per composite frame
 	c.oversized = nil
 	c.refused = nil
-	if len(c.liveKeys) > 0 {
+	if len(c.liveKeys) > 0 && c.dc != nil {
+		// P6 damage completeness: a cached layer that leaves the tree (or is
+		// replaced under a new cache key) leaves its last painted footprint on
+		// a persistent composite surface. The逐层事件 model emits no damage
+		// for a layer that is no longer drawn, so without this report the old
+		// pixels survive every later damage-scissored frame (ghost labels when
+		// a virtual list rebinds/repositions cards). Flutter's DiffContext
+		// covers layer removal via the prev-vs-current tree diff; mirror the
+		// same effect by reporting each gone entry's lastBlit once, then
+		// dropping hasBlit so the report is not repeated forever.
+		for id, e := range c.entries {
+			if e == nil || !e.hasBlit || e.lastBlit.Empty() {
+				continue
+			}
+			if _, ok := c.liveKeys[id]; ok {
+				continue
+			}
+			c.dc.TrackDamageRect(e.lastBlit)
+			e.hasBlit = false
+		}
 		// Sweep admission counts for layers that left the tree (no live
 		// info yet — e.g. unit tests compositing without SetLiveKeys —
 		// keeps everything: under-counting only delays admission).
@@ -1225,8 +1244,17 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 	// Offset-only move damage (Flutter layer-diff semantics): the texture
 	// is reused without re-record, so phase-2 re-record damage stays empty.
 	// Damage old ∪ new footprints or the old pixels survive under LoadOpLoad.
-	if !e.bounds.Empty() {
-		cur := transformBounds(c.dc, e.bounds)
+	// The damaged rect must be the ACTUAL drawn texture quad (s.w×s.h at the
+	// device-snapped origin), not e.bounds: the texture carries a 1px AA
+	// outset on each side and, once rotated, its four-corner AABB is larger
+	// than the tighter recording bounds. Reporting the smaller rect leaves
+	// stale glyph shards at the corners when the composite scissors to
+	// damage (P1 persistent surface) — P0's full repaint and the OS 4-frame
+	// buffer-age union both masked it.
+	if s.w > 0 && s.h > 0 {
+		q := image.Rect(int(math.Floor(ox)), int(math.Floor(oy)),
+			int(math.Floor(ox))+s.w, int(math.Floor(oy))+s.h)
+		cur := transformBounds4(c.dc, q)
 		// Rotating blits move continuously: integer-AABB equality misses
 		// sub-pixel motion (stuck-then-jump frames), so a rotated blit
 		// always damages old ∪ new. Static rotation still converges: with
@@ -2012,7 +2040,11 @@ func transformBounds(dc *render.Context, b image.Rectangle) image.Rectangle {
 	apply(float64(b.Max.X), float64(b.Min.Y))
 	apply(float64(b.Max.X), float64(b.Max.Y))
 	apply(float64(b.Min.X), float64(b.Max.Y))
-	return image.Rect(int(minX), int(minY), int(maxX), int(maxY))
+	// Damage rects must be conservative outward: int() truncates max toward
+	// zero, under-dirtying the far edge by up to 1px and leaving AA shards
+	// when the composite scissors to damage (rotating-icon corner trails).
+	return image.Rect(int(math.Floor(minX)), int(math.Floor(minY)),
+		int(math.Ceil(maxX)), int(math.Ceil(maxY)))
 }
 
 // transformBounds4 is transformBounds with an explicit four-corner transform
