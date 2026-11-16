@@ -1205,6 +1205,9 @@ func (t *ticker) Tick(dt float64) bool {
 				fps, s.large.LoadedCount(), s.large.ChunkCount(),
 				s.large.PendingCount(), s.largeLoads, len(s.large.Visible(s.largeView)), s.largeKeys))
 		}
+		// 文字更新后显式标脏 overlay 自身：retained 模式下 leaf PictureLayer
+		// 的 re-record 取决于节点 NeedsPaint()，仅标 board 不足以覆盖文字变化。
+		s.overlay.MarkNeedsPaint()
 	}
 	s.board.MarkNeedsPaint()
 	s.app.ScheduleFrame()
