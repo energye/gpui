@@ -651,8 +651,8 @@ func recordLeafContent(dc render.Canvas, n RenderObject) {
 		// The box's own closure runs straight into the layer's recording, so
 		// the packet path and the FullPaint path execute the same code and
 		// cannot produce two different display lists for one box.
-		if t.Record != nil {
-			t.Record(dc, 0, 0)
+		if t.RecordContent != nil {
+			t.RecordContent(dc, 0, 0)
 		}
 	case *RenderText:
 		recordRenderText(dc, t, 0, 0)

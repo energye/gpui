@@ -10,6 +10,8 @@
 
 package rendering
 
+import "github.com/energye/gpui/render"
+
 // RenderClipRRect clips its children to a rounded rect (uniform corner radius).
 // Paint path uses PaintContext.PushClipRRect; retained path emits scene.ClipRRectLayer
 // via BuildLayerTree (Flutter ClipRRectLayer / pushClipRRect layer role).
@@ -91,6 +93,30 @@ func (c *RenderClipRRect) Layout(cons Constraints) Size {
 	c.RememberConstraints(cons)
 	c.clearLayoutDirty()
 	return out
+}
+
+// Record implements Recordable: the same clip Paint applies (rounded, or a
+// hard rect fallback for radius <= 0) around the child walk. A non-positive
+// size skips the clip exactly like Paint.
+func (c *RenderClipRRect) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || c == nil {
+		return
+	}
+	sz := c.size
+	w, h := sz.Width, sz.Height
+	pushed := w > 0 && h > 0
+	if pushed {
+		rec.Push()
+		if c.Radius <= 0 {
+			rec.ClipRect(ox, oy, w, h)
+		} else {
+			rec.ClipRoundRect(ox, oy, w, h, c.Radius)
+		}
+	}
+	recordChildrenInto(rec, c, ox, oy, scale)
+	if pushed {
+		rec.Pop()
+	}
 }
 
 // Paint applies rounded clip then paints children.

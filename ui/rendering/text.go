@@ -248,7 +248,7 @@ func NewRenderText(textStr string) *RenderText {
 	t := &RenderText{
 		Text: textStr, FontSize: 14,
 		hasNewline: strings.IndexByte(textStr, '\n') >= 0,
-		R: 0.9, G: 0.9, B: 0.9, A: 1,
+		R:          0.9, G: 0.9, B: 0.9, A: 1,
 		ApproxCharW: 0.55,
 		LineSpacing: 1.2,
 		Align:       render.AlignLeft,
@@ -1260,6 +1260,16 @@ func (t *RenderText) Layout(c Constraints) Size {
 	t.RememberConstraints(c)
 	t.clearLayoutDirty()
 	return out
+}
+
+// Record implements Recordable: the same single-source text layout Paint
+// uses (DisplayLines / run spans / shaped glyph rows), at the absolute origin.
+func (t *RenderText) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || t == nil {
+		return
+	}
+	_ = scale
+	recordRenderText(rec, t, ox, oy)
 }
 
 // Paint implements RenderObject — single-source via TextLayout + DrawShapedGlyphs.

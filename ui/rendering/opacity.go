@@ -10,6 +10,8 @@
 
 package rendering
 
+import "github.com/energye/gpui/render"
+
 // RenderOpacity applies a group opacity to its children during paint
 // (Flutter Opacity / OpacityLayer subset): SaveLayer(bounds, opacity) around
 // the child walk so overlapping children blend as one group instead of each
@@ -96,6 +98,35 @@ func (t *RenderOpacity) Layout(c Constraints) Size {
 	t.RememberConstraints(c)
 	t.clearLayoutDirty()
 	return out
+}
+
+// Record implements Recordable: group opacity as an isolated layer, same
+// branches as Paint (op<=0 draws nothing; op>=1 paints through; a
+// non-positive box skips the layer).
+func (t *RenderOpacity) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || t == nil {
+		return
+	}
+	op := t.OpacityParams()
+	if op <= 0 {
+		return
+	}
+	groupW, groupH := t.size.Width, t.size.Height
+	if groupW <= 0 {
+		groupW = t.FixedWidth
+	}
+	if groupH <= 0 {
+		groupH = t.FixedHeight
+	}
+	pushed := false
+	if op < 1 && groupW > 0 && groupH > 0 {
+		rec.PushLayerIsolated(op)
+		pushed = true
+	}
+	recordChildrenInto(rec, t, ox, oy, scale)
+	if pushed {
+		rec.PopLayer()
+	}
 }
 
 // Paint isolates children in an offscreen layer composited back at Opacity

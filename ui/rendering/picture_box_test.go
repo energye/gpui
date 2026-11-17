@@ -125,10 +125,11 @@ func TestPictureBox_NilRecordNeverCaches(t *testing.T) {
 	}
 }
 
-// TestPictureBox_NonBoundaryDisablesParentCache: a non-boundary picture box
-// inside an AbsoluteBox boundary disables that parent's caching (live paint
-// still correct) instead of risking a stale bake.
-func TestPictureBox_NonBoundaryDisablesParentCache(t *testing.T) {
+// TestPictureBox_NonBoundaryBakedByParent: a non-boundary picture box inside
+// an AbsoluteBox boundary is baked into the parent recording (Recordable
+// coverage). A RecordContent change dirties the child, the mark bubbles to
+// the parent boundary, and the next paint re-records — never a stale bake.
+func TestPictureBox_NonBoundaryBakedByParent(t *testing.T) {
 	cache := rendering.NewBoundaryCache()
 	root := rendering.NewAbsoluteBox(80, 60)
 	root.SetRepaintBoundary(true)
@@ -137,12 +138,26 @@ func TestPictureBox_NonBoundaryDisablesParentCache(t *testing.T) {
 	root.Layout(rendering.Tight(80, 60))
 
 	img := paintPictureBoxWithCache(t, cache, root, 80, 60)
-	if cache.HasValid(root) {
-		t.Fatal("parent baking a non-boundary picture box must not cache")
+	if !cache.HasValid(root) {
+		t.Fatal("parent with a recordable non-boundary child must cache")
 	}
 	cr, cg, cb := sampleBoxRGB(img.At(40, 30))
 	if cr < 0xC000 || cg > 0x4000 || cb > 0x4000 {
-		t.Fatalf("center #%04x%04x%04x want live-painted red", cr, cg, cb)
+		t.Fatalf("center #%04x%04x%04x want baked red", cr, cg, cb)
+	}
+
+	child.SetRecord(func(dc render.Canvas, ox, oy float64) {
+		dc.SetRGBA(0, 1, 0, 1)
+		dc.DrawRectangle(ox, oy, 80, 60)
+		_ = dc.Fill()
+	})
+	img2 := paintPictureBoxWithCache(t, cache, root, 80, 60)
+	if rr := cache.Stats().FrameRerecord; rr != 1 {
+		t.Fatalf("parent after child SetRecord rerecord=%d want 1", rr)
+	}
+	gr, gg, gb := sampleBoxRGB(img2.At(40, 30))
+	if !(gg > 0xC000 && gr < 0x4000 && gb < 0x4000) {
+		t.Fatalf("center after child SetRecord #%04x%04x%04x want re-recorded green", gr, gg, gb)
 	}
 }
 

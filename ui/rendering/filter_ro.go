@@ -10,6 +10,8 @@
 
 package rendering
 
+import "github.com/energye/gpui/render"
+
 // Subtree filter ROs (Flutter ColorFiltered / ImageFiltered subset): paint
 // isolates children in a true offscreen layer (PushLayerIsolated via
 // SaveLayer) so the filter hits only the subtree; the retained path maps to
@@ -107,6 +109,31 @@ func (t *RenderColorFilter) Layout(c Constraints) Size {
 	t.RememberConstraints(c)
 	t.clearLayoutDirty()
 	return out
+}
+
+// Record implements Recordable: the same isolated layer + matrix Paint
+// applies; an identity matrix paints through with no layer.
+func (t *RenderColorFilter) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || t == nil {
+		return
+	}
+	groupW, groupH := t.size.Width, t.size.Height
+	if groupW <= 0 {
+		groupW = t.FixedWidth
+	}
+	if groupH <= 0 {
+		groupH = t.FixedHeight
+	}
+	pushed := false
+	if !t.isIdentity() && groupW > 0 && groupH > 0 {
+		rec.PushLayerIsolated(1)
+		pushed = true
+	}
+	recordChildrenInto(rec, t, ox, oy, scale)
+	if pushed {
+		rec.ApplyColorMatrix(t.Matrix)
+		rec.PopLayer()
+	}
 }
 
 // Paint isolates children offscreen and applies the matrix on composite.
@@ -233,6 +260,31 @@ func (t *RenderImageFilter) Layout(c Constraints) Size {
 	t.RememberConstraints(c)
 	t.clearLayoutDirty()
 	return out
+}
+
+// Record implements Recordable: the same isolated layer + blur Paint applies;
+// radius <= 0 paints through with no layer.
+func (t *RenderImageFilter) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || t == nil {
+		return
+	}
+	groupW, groupH := t.size.Width, t.size.Height
+	if groupW <= 0 {
+		groupW = t.FixedWidth
+	}
+	if groupH <= 0 {
+		groupH = t.FixedHeight
+	}
+	pushed := false
+	if t.BlurParams() > 0 && groupW > 0 && groupH > 0 {
+		rec.PushLayerIsolated(1)
+		pushed = true
+	}
+	recordChildrenInto(rec, t, ox, oy, scale)
+	if pushed {
+		rec.ApplyBlur(t.BlurRadius)
+		rec.PopLayer()
+	}
 }
 
 // Paint isolates children offscreen and blurs the group. Radius ≤ 0 paints

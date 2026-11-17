@@ -42,10 +42,10 @@ func TestRecordOwnContent_TextFaceFollowsFontSize(t *testing.T) {
 		return nil, false
 	}
 
-	// Path 1: boundary node itself is a RenderText (recordOwnContent RenderText case).
+	// Path 1: boundary node itself is a RenderText (Recordable dispatch).
 	labelSelf := mkLabel()
 	recSelf := recording.NewRecorder(120, 40)
-	recordOwnContent(recSelf, labelSelf, 0, 0)
+	recordOwnContent(recSelf, labelSelf, 0, 0, 1)
 	faceSelf, ok := recordedTextFace(recSelf.FinishRecording(), 1)
 	if !ok {
 		t.Fatal("self: want text command, got none")
@@ -54,12 +54,12 @@ func TestRecordOwnContent_TextFaceFollowsFontSize(t *testing.T) {
 		t.Fatalf("self: recorded face size=%v want 16 (FontSize), Face=%v", size, faceSelf)
 	}
 
-	// Path 2: non-RB child of an AbsoluteBox (recordAbsoluteOwnContent case).
+	// Path 2: non-RB child of an AbsoluteBox (container Record child walk).
 	box := NewAbsoluteBox(120, 40)
 	labelChild := mkLabel()
 	box.Place(labelChild, 4, 4)
 	recChild := recording.NewRecorder(120, 40)
-	recordAbsoluteOwnContent(recChild, box, 0, 0)
+	recordOwnContent(recChild, box, 0, 0, 1)
 	built := recChild.FinishRecording()
 	if built.PaintOpCount() == 0 {
 		t.Fatal("child: no text command recorded")

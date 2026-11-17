@@ -244,6 +244,12 @@ func (v *RenderVideo) TextureLeaves() []TextureLeaf {
 	return leaves
 }
 
+// Volatile implements Volatile: frames arrive from the decoder every tick
+// and are drawn through GPU texture handles (not display-list commands), so
+// the node must never be baked into a recording. The retained tree carries
+// video as a scene.TextureLayer instead.
+func (v *RenderVideo) Volatile() bool { return true }
+
 // Layout implements RenderObject.
 func (v *RenderVideo) Layout(c Constraints) Size {
 	if sz, ok := v.LayoutSkipIfClean(c); ok {

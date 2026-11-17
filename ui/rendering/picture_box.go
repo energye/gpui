@@ -18,7 +18,7 @@ import (
 )
 
 // RenderPictureBox is a leaf box whose own content is a retained display
-// list built by Record (Flutter RepaintBoundary with a full display list).
+// list built by RecordContent (Flutter RepaintBoundary with a full display list).
 //
 // Unlike RenderColorBox/RenderText/RenderImage (own content reconstructed
 // from fields), a picture box records arbitrary vector content: circles,
@@ -26,29 +26,43 @@ import (
 // Live paint and cache record run the SAME Record closure, so replay can
 // never diverge from live paint by construction.
 //
-// Cache contract (correctness-first): Record must be a pure function of the
-// box state. The cache holds no content fingerprint for this type
+// Cache contract (correctness-first): RecordContent must be a pure function of
+// the box state. The cache holds no content fingerprint for this type
 // (contentKeyOf returns 0) and relies on NeedsPaint for invalidation —
 // call MarkNeedsPaint whenever the produced commands would change, otherwise
 // clean frames replay a stale display list. Static content never changes, so
-// it skips forever after the first record. Use as a RepaintBoundary; a
-// non-boundary picture box inside an AbsoluteBox disables that parent's
-// caching (absoluteContentCacheable rejects it) instead of risking a stale
-// bake — same discipline as Viewport (boundaryCacheable).
+// it skips forever after the first record. Use as a RepaintBoundary for
+// isolation; a non-boundary picture box is baked into its parent boundary's
+// recording (Recordable coverage) and SetRecord's dirty mark bubbles to that
+// parent, forcing a re-record — never a stale bake.
 type RenderPictureBox struct {
 	Base
 	Width, Height float64
-	// Record builds the box's own display list at absolute origin (ox,oy) on
-	// any render.Canvas — the live context on a FullPaint frame, the parent's
-	// recorder on a retained frame. Nil Record paints nothing and is never
-	// cacheable.
-	Record func(dc render.Canvas, ox, oy float64)
+	// RecordContent builds the box's own display list at absolute origin
+	// (ox,oy) on any render.Canvas — the live context on a FullPaint frame, the
+	// parent's recorder on a retained frame. Nil paints nothing and is never
+	// cacheable. (Named RecordContent, not Record, so the node can implement
+	// the Recordable interface method of the same purpose.)
+	RecordContent func(dc render.Canvas, ox, oy float64)
+}
+
+// Record implements Recordable: the box's own display list is the caller's
+// RecordContent closure — live paint and cache record run the same closure, so
+// replay cannot diverge from live paint by construction.
+func (b *RenderPictureBox) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || b == nil {
+		return
+	}
+	_ = scale
+	if b.RecordContent != nil {
+		b.RecordContent(rec, ox, oy)
+	}
 }
 
 // NewRenderPictureBox creates a picture box; record may be nil (paints
 // nothing until SetRecord installs one).
 func NewRenderPictureBox(w, h float64, record func(dc render.Canvas, ox, oy float64)) *RenderPictureBox {
-	b := &RenderPictureBox{Width: w, Height: h, Record: record}
+	b := &RenderPictureBox{Width: w, Height: h, RecordContent: record}
 	b.Init(b)
 	return b
 }
@@ -56,7 +70,7 @@ func NewRenderPictureBox(w, h float64, record func(dc render.Canvas, ox, oy floa
 // SetRecord installs a new record closure and dirties paint (the cache holds
 // no fingerprint for this type, so any Record change must re-record).
 func (b *RenderPictureBox) SetRecord(record func(dc render.Canvas, ox, oy float64)) {
-	b.Record = record
+	b.RecordContent = record
 	b.MarkNeedsPaint()
 }
 
@@ -100,7 +114,7 @@ func (b *RenderPictureBox) Paint(pc *PaintContext) {
 		h = b.Height
 	}
 	var built *recording.Recording
-	if pc.DC != nil && b.Record != nil {
+	if pc.DC != nil && b.RecordContent != nil {
 		ox, oy := pc.OriginX, pc.OriginY
 		built = recordBoxList(b, w, h, ox, oy)
 		if built.PaintOpCount() > 0 {
@@ -119,7 +133,7 @@ func (b *RenderPictureBox) Paint(pc *PaintContext) {
 // the window.
 func recordBoxList(b *RenderPictureBox, w, h, ox, oy float64) *recording.Recording {
 	rec := recording.NewRecorder(int(math.Ceil(w)), int(math.Ceil(h)))
-	b.Record(rec, ox, oy)
+	b.RecordContent(rec, ox, oy)
 	return rec.FinishRecording()
 }
 

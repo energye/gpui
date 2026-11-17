@@ -60,6 +60,13 @@ func NewRenderViewport(content RenderObject) *RenderViewport {
 	v.SetRepaintBoundary(true)
 	if content != nil {
 		v.AddChild(content)
+		// The content subtree is the cache unit (Flutter ViewportLayer: the
+		// content picture is scroll-independent; the viewport applies the
+		// scroll as a transform). Marking it a boundary lets a clean content
+		// root replay at zero re-record while the viewport scrolls.
+		if b, ok := baseOf(content); ok {
+			b.SetRepaintBoundary(true)
+		}
 	}
 	return v
 }
@@ -82,6 +89,11 @@ func (v *RenderViewport) SetContent(c RenderObject) {
 	}
 	if c != nil {
 		v.AddChild(c)
+		// Same contract as the constructor: the content subtree is the cache
+		// unit and must stay scroll-independent.
+		if b, ok := baseOf(c); ok {
+			b.SetRepaintBoundary(true)
+		}
 	}
 }
 
@@ -287,7 +299,30 @@ func (v *RenderViewport) Layout(c Constraints) Size {
 	return out
 }
 
+// structuralNode marks the viewport as never-its-own-cache-unit (see
+// structuralNode in record.go): the content boundary is the cache unit.
+func (v *RenderViewport) structuralNode() {}
+
+// maxViewportContentCacheHeight caps the content-boundary cache: a picture
+// taller than this is not worth a full-content recording (memory + upload),
+// so the content subtree falls back to live paint. Virtual lists are not
+// recordable roots and are unaffected (their mounted content is viewport-sized).
+const maxViewportContentCacheHeight = 8192.0
+
 // Paint implements RenderObject.
+//
+// RenderViewport is deliberately NOT Recordable: it is a structural scroll
+// node, not a cache unit. Its content subtree is the cache unit (the viewport
+// layer is Boundary+ClipRect+scroll Transform in BuildLayerTree), so baking
+// the viewport itself would bake the scroll offset and go stale on every
+// scroll step.
+//
+// Scroll is applied as a CANVAS TRANSFORM around content-local (0,0), never by
+// shifting the content origin. That keeps a content boundary's stored anchor
+// scroll-independent: a clean recording replays at zero re-record while the
+// viewport scrolls, and a dirty content re-records in content-local coordinates
+// (record-time scroll never baked in — scroll anchoring would shift the picture
+// and corrupt pixels at other offsets, as the divider session measured).
 func (v *RenderViewport) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
@@ -301,17 +336,32 @@ func (v *RenderViewport) Paint(pc *PaintContext) {
 	// Always clip when drawing content; scroll dirties the viewport so paintSelf is true.
 	if ch := v.Content(); ch != nil && (paintSelf || ch.NeedsPaint() || SubtreeNeedsPaint(ch)) {
 		pushClipRect(pc, 0, 0, sz.Width, sz.Height)
-		// Content origin: -scroll so positive scrollY moves content up.
-		ox := pc.OriginX - v.scrollX
-		oy := pc.OriginY - v.scrollY
-		// When viewport is dirty from scroll, force content to repaint children:
-		// temporarily clear CompositeOnly for content if paintSelf.
-		childPC := pc.WithOrigin(ox, oy)
+		// Move the canvas to the content's local origin, then by -scroll so
+		// positive scrollY moves content up. Children paint in content-local
+		// coordinates (origin 0,0), so their recordings never contain scroll.
+		if pc.DC != nil {
+			pc.DC.Push()
+			pc.DC.Translate(pc.OriginX-v.scrollX, pc.OriginY-v.scrollY)
+		}
+		childPC := pc.WithOrigin(0, 0)
 		if paintSelf {
-			// Content must redraw at new offset even if its NeedsPaint was false.
+			// Content must redraw at the new scroll position even if its
+			// NeedsPaint was false (the transform moved it).
 			childPC.CompositeOnly = false
 		}
+		// Oversized content: drop the boundary entry and fall back to live
+		// paint for this subtree (honest cost, no giant picture).
+		if childPC.UseBoundaryCache && ch.IsRepaintBoundary() && recordableNode(ch) &&
+			ch.Size().Height > maxViewportContentCacheHeight {
+			if childPC.BoundaryCache != nil {
+				childPC.BoundaryCache.Invalidate(ch)
+			}
+			childPC.UseBoundaryCache = false
+		}
 		ch.Paint(childPC)
+		if pc.DC != nil {
+			pc.DC.Pop()
+		}
 		popClip(pc)
 	}
 	if paintSelf {

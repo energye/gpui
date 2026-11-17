@@ -370,9 +370,10 @@ func TestPipelineOwner_BoundaryCachePersists(t *testing.T) {
 }
 
 // TestBoundaryCache_NonCacheableNeverReplays: a boundary whose own content
-// contains RO types the MVP recorder cannot capture (here a Viewport) must not
-// be cached — tryReplay must always miss so live content is never dropped from
-// a stale-frame Replay.
+// cannot be recorded (here a Viewport, structural) must not be cached itself —
+// tryReplay must always miss so live content is never dropped from a
+// stale-frame Replay. The viewport's content boundary is a separate cache unit
+// (step 3 scroll reuse) and may legitimately replay on its own.
 func TestBoundaryCache_NonCacheableNeverReplays(t *testing.T) {
 	inner := rendering.NewRenderColorBox(10, 10, 1, 0, 0, 1)
 	vp := rendering.NewRenderViewport(inner)
@@ -390,13 +391,13 @@ func TestBoundaryCache_NonCacheableNeverReplays(t *testing.T) {
 	if cache.HasValid(outer) {
 		t.Fatal("viewport-containing boundary must never be cached (would replay stale)")
 	}
-	// Every subsequent frame must still live-paint (no cache Replay ever).
-	rr, sk := paintWithCache(t, root, cache, 100, 100)
-	if sk != 0 {
-		t.Fatalf("non-cacheable boundary skip=%d want 0 (always live)", sk)
-	}
-	if rr != 0 {
+	// The outer boundary must keep live-painting: no entry, no re-record. (The
+	// viewport content boundary may replay; that is the intended scroll path.)
+	if rr, _ := paintWithCache(t, root, cache, 100, 100); rr != 0 {
 		t.Fatalf("non-cacheable boundary rerecord=%d want 0 (nothing cached)", rr)
+	}
+	if cache.HasValid(outer) {
+		t.Fatal("viewport-containing boundary must never be cached (would replay stale)")
 	}
 }
 

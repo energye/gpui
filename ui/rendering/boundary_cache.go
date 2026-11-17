@@ -404,7 +404,7 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 	ox, oy := pc.OriginX, pc.OriginY
 	sz := n.Size()
 	rec := recording.NewRecorder(int(math.Ceil(sz.Width)), int(math.Ceil(sz.Height)))
-	recordOwnContent(rec, n, ox, oy)
+	recordOwnContent(rec, n, ox, oy, pc.Scale)
 	built := rec.FinishRecording()
 	// Nothing own to draw (all visual content lives in nested boundaries):
 	// an empty recording can never replay usefully (tryReplay rejects empty
@@ -481,58 +481,25 @@ func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *Absolute
 }
 
 // boundaryCacheable reports whether this boundary's own content can be
-// faithfully recorded + fingerprinted by the recorder. RenderPictureBox
-// carries its own Record closure (pure function of box state; NeedsPaint is
-// the invalidation signal). Anything else unrepresentable (Viewport,
-// VirtualList, custom RO) must never be cached — replaying an
-// incomplete recording would drop live content (stale-frame bug).
+// faithfully recorded. The decision is structural, not a type whitelist:
+// the node must implement Recordable (and not be Volatile), and every
+// descendant that would be baked into its recording (non-RepaintBoundary)
+// must do the same. Anything unrepresentable (Viewport, VirtualList, custom
+// RO, a Volatile child) makes the enclosing boundary fall back to live paint
+// — replaying an incomplete recording would drop live content (stale-frame
+// bug). Nested boundaries are skipped: they own their caches.
 func boundaryCacheable(n RenderObject) bool {
-	if n == nil {
-		return false
-	}
-	switch t := n.(type) {
-	case *RenderColorBox, *RenderText, *RenderImage:
-		return true
-	case *RenderPictureBox:
-		return t.Record != nil
-	case *AbsoluteBox:
-		return absoluteContentCacheable(t)
-	default:
-		return false
-	}
-}
-
-func absoluteContentCacheable(a *AbsoluteBox) bool {
-	if a == nil {
-		return false
-	}
-	for _, ch := range a.children {
-		if ch == nil || ch.IsRepaintBoundary() {
-			continue // nested boundaries keep their own caches
-		}
-		switch t := ch.(type) {
-		case *RenderColorBox, *RenderText, *RenderImage:
-			continue
-		case *RenderPictureBox:
-			// Non-boundary picture boxes carry a caller-owned Record
-			// closure with no content fingerprint — inlining them would
-			// risk a stale parent bake. Use picture boxes as boundaries.
-			return false
-		case *AbsoluteBox:
-			if !absoluteContentCacheable(t) {
-				return false
-			}
-		default:
-			return false
-		}
-	}
-	return true
+	return recordableTree(n)
 }
 
 // contentKeyOf fingerprints a boundary node's **current** own content (the same
-// scope recordOwnContent captures). Returns 0 when the node type has no MVP
+// scope recordOwnContent captures). Returns 0 when the node type has no usable
 // fingerprint (caller treats 0 as "no fingerprint available" and skips the
-// content-match gate — origin/size already gate it).
+// content-match gate — origin/size and NeedsPaint still gate it).
+//
+// The key is a safety net for setters that mutate visual state without
+// MarkNeedsPaint (e.g. RenderAlignBox.SetAlignment is offset-only by design);
+// a mismatch invalidates instead of replaying a stale picture.
 func contentKeyOf(n RenderObject, w, h float64) uint64 {
 	if n == nil {
 		return 0
@@ -545,15 +512,71 @@ func contentKeyOf(n RenderObject, w, h float64) uint64 {
 	case *RenderImage:
 		return imageContentKey(t, w, h)
 	case *RenderPictureBox:
-		// No fingerprint: Record is a caller-owned closure. NeedsPaint is
-		// the invalidation signal (SetRecord dirties). tryReplay skips the
+		// No fingerprint: RecordContent is a caller-owned closure. NeedsPaint
+		// is the invalidation signal (SetRecord dirties). tryReplay skips the
 		// content-match gate when both keys are 0; origin/size still gate.
 		return 0
 	case *AbsoluteBox:
 		return absoluteContentKey(t, w, h)
+	case *RenderBox:
+		// OnPaint is an opaque closure: no fingerprint possible. Without it
+		// the box is a pure container, so children fully describe the content.
+		if t.OnPaint != nil {
+			return 0
+		}
+		return childrenContentKey(t, sizeSeed(w, h))
+	case *RenderAlignBox:
+		return childrenContentKey(t, sizeSeed(w, h)^
+			uint64(spacingQuant(t.AlignX))<<4^uint64(spacingQuant(t.AlignY))<<24)
+	case *RenderClipRRect:
+		return childrenContentKey(t, sizeSeed(w, h)^uint64(spacingQuant(t.Radius))<<4)
+	case *RenderOpacity:
+		return childrenContentKey(t, sizeSeed(w, h)^uint64(spacingQuant(clampUnit(t.Opacity)))<<4)
+	case *RenderColorFilter:
+		var mk uint64
+		for _, v := range t.Matrix {
+			mk = mk*31 + uint64(math.Float32bits(v))
+		}
+		return childrenContentKey(t, sizeSeed(w, h)^mk<<1)
+	case *RenderImageFilter:
+		return childrenContentKey(t, sizeSeed(w, h)^uint64(spacingQuant(t.BlurParams()))<<4)
+	case *RenderTransform:
+		sx, sy := t.effectiveScale()
+		return childrenContentKey(t, sizeSeed(w, h)^
+			uint64(spacingQuant(t.Rotation))<<4^
+			uint64(spacingQuant(sx))<<24^uint64(spacingQuant(sy))<<44)
 	default:
 		return 0
 	}
+}
+
+// sizeSeed mixes a node's logical box size into a content key.
+func sizeSeed(w, h float64) uint64 {
+	return uint64(spacingQuant(w))<<20 ^ uint64(spacingQuant(h))<<40
+}
+
+// childrenContentKey mixes the current fingerprints of the non-RepaintBoundary
+// children a boundary recording would bake, at their offsets. 0 means at least
+// one child has no fingerprint, so the whole boundary runs without the
+// content-match gate (NeedsPaint remains the invalidation signal).
+func childrenContentKey(n RenderObject, seed uint64) uint64 {
+	if n == nil {
+		return 0
+	}
+	key := seed
+	for _, ch := range n.Children() {
+		if ch == nil || ch.IsRepaintBoundary() {
+			continue
+		}
+		sz := ch.Size()
+		ck := contentKeyOf(ch, sz.Width, sz.Height)
+		if ck == 0 {
+			return 0
+		}
+		off := ch.Offset()
+		key ^= ck ^ uint64(spacingQuant(off.X))<<3 ^ uint64(spacingQuant(off.Y))<<13
+	}
+	return key
 }
 
 // absoluteContentKey fingerprints an AbsoluteBox boundary's own content
@@ -571,26 +594,13 @@ func absoluteContentKey(a *AbsoluteBox, w, h float64) uint64 {
 		if ch == nil || ch.IsRepaintBoundary() {
 			continue
 		}
-		off := ch.Offset()
-		switch t := ch.(type) {
-		case *RenderColorBox:
-			cw, chh := t.Size().Width, t.Size().Height
-			if cw <= 0 {
-				cw = t.Width
-			}
-			if chh <= 0 {
-				chh = t.Height
-			}
-			key ^= colorKey(t.R, t.G, t.B, t.A, cw, chh) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
-		case *RenderText:
-			key ^= textContentKey(t, t.Size().Width, t.Size().Height) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
-		case *RenderImage:
-			key ^= imageContentKey(t, t.Size().Width, t.Size().Height) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
-		case *AbsoluteBox:
-			key ^= absoluteContentKey(t, t.Size().Width, t.Size().Height) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
-		default:
+		sz := ch.Size()
+		ck := contentKeyOf(ch, sz.Width, sz.Height)
+		if ck == 0 {
 			return 0
 		}
+		off := ch.Offset()
+		key ^= ck ^ uint64(spacingQuant(off.X))<<3 ^ uint64(spacingQuant(off.Y))<<13
 	}
 	return key
 }
@@ -672,95 +682,15 @@ func reflectValuePointer(p interface{}) uintptr {
 }
 
 // recordOwnContent draws n's own content (background + non-RepaintBoundary
-// descendants) into a canvas at absolute origin (ox, oy).
-// IsRepaintBoundary children are omitted (own cache).
-func recordOwnContent(dc render.Canvas, n RenderObject, ox, oy float64) {
+// descendants) into a canvas at absolute origin (ox, oy). The node type owns
+// the walk through Recordable — BoundaryCache only dispatches (no type
+// whitelist). IsRepaintBoundary children are omitted (own cache).
+func recordOwnContent(dc render.Canvas, n RenderObject, ox, oy, scale float64) {
 	if dc == nil || n == nil {
 		return
 	}
-	switch t := n.(type) {
-	case *RenderColorBox:
-		sz := t.Size()
-		cw, chh := sz.Width, sz.Height
-		if cw <= 0 {
-			cw = t.Width
-		}
-		if chh <= 0 {
-			chh = t.Height
-		}
-		fillRectOn(dc, ox, oy, cw, chh, t.R, t.G, t.B, t.A)
-	case *RenderText:
-		recordRenderText(dc, t, ox, oy)
-	case *RenderImage:
-		sz := t.Size()
-		dw, dh := sz.Width, sz.Height
-		if dw <= 0 {
-			dw = t.Width
-		}
-		if dh <= 0 {
-			dh = t.Height
-		}
-		if t.Img != nil && !t.Img.Disposed() {
-			drawImageOn(dc, t.Img, ox, oy, dw, dh)
-		} else {
-			fillRectOn(dc, ox, oy, dw, dh, t.PR, t.PG, t.PB, 1)
-		}
-	case *RenderPictureBox:
-		if t.Record != nil {
-			t.Record(dc, ox, oy)
-		}
-	case *AbsoluteBox:
-		recordAbsoluteOwnContent(dc, t, ox, oy)
-	}
-}
-
-// recordAbsoluteOwnContent draws AbsoluteBox bg + non-RepaintBoundary children
-// into a canvas. IsRepaintBoundary children are omitted (own cache).
-func recordAbsoluteOwnContent(dc render.Canvas, a *AbsoluteBox, ox, oy float64) {
-	if dc == nil || a == nil {
-		return
-	}
-	sz := a.Size()
-	if a.Background != nil {
-		bg := a.Background
-		fillRectOn(dc, ox, oy, sz.Width, sz.Height, bg.R, bg.G, bg.B, bg.A)
-	}
-	for _, ch := range a.children {
-		if ch == nil || ch.IsRepaintBoundary() {
-			continue
-		}
-		off := ch.Offset()
-		ax, ay := ox+off.X, oy+off.Y
-		switch t := ch.(type) {
-		case *RenderColorBox:
-			cw, chh := t.Size().Width, t.Size().Height
-			if cw <= 0 {
-				cw = t.Width
-			}
-			if chh <= 0 {
-				chh = t.Height
-			}
-			fillRectOn(dc, ax, ay, cw, chh, t.R, t.G, t.B, t.A)
-		case *RenderText:
-			recordRenderText(dc, t, ax, ay)
-		case *RenderImage:
-			dw, dh := t.Size().Width, t.Size().Height
-			if dw <= 0 {
-				dw = t.Width
-			}
-			if dh <= 0 {
-				dh = t.Height
-			}
-			if t.Img != nil && !t.Img.Disposed() {
-				drawImageOn(dc, t.Img, ax, ay, dw, dh)
-			} else {
-				fillRectOn(dc, ax, ay, dw, dh, t.PR, t.PG, t.PB, 1)
-			}
-		case *AbsoluteBox:
-			recordAbsoluteOwnContent(dc, t, ax, ay)
-		default:
-			// Unreachable after boundaryCacheable gate; keep safe no-op.
-		}
+	if r, ok := n.(Recordable); ok {
+		r.Record(dc, ox, oy, scale)
 	}
 }
 

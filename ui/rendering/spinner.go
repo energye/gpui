@@ -54,6 +54,11 @@ func (s *RenderSpinner) SetPhase(p float64) {
 	s.MarkNeedsPaint()
 }
 
+// Volatile implements Volatile: phase changes every frame, so a baked
+// recording would freeze the rotation. Spinner is a RepaintBoundary that
+// live-paints (honest direct draw, never a stale cache).
+func (s *RenderSpinner) Volatile() bool { return true }
+
 // Layout implements RenderObject — fixed size, never depends on phase.
 func (s *RenderSpinner) Layout(c Constraints) Size {
 	if sz, ok := s.LayoutSkipIfClean(c); ok {

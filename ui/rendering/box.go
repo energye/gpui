@@ -10,6 +10,8 @@
 
 package rendering
 
+import "github.com/energye/gpui/render"
+
 // RenderBox is a minimal box with optional fixed size and children stacked from top-left.
 // Y-down: first child at (pad, pad), subsequent children not auto-positioned (caller SetOffset).
 type RenderBox struct {
@@ -155,6 +157,23 @@ func (b *RenderBox) Paint(pc *PaintContext) {
 	b.paintDirtyDescendants(pc)
 }
 
+// Record implements Recordable: own content is OnPaint under an isolated
+// Push/Pop (Paint does the same so a Translate/Transform inside the callback
+// cannot leak into siblings), then non-boundary children at their offsets.
+// OnPaint is a caller closure, so the node has no content fingerprint —
+// invalidation is MarkNeedsPaint (the closure owner's contract).
+func (b *RenderBox) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || b == nil {
+		return
+	}
+	if b.OnPaint != nil {
+		rec.Push()
+		b.OnPaint(&PaintContext{DC: rec, OriginX: ox, OriginY: oy, Scale: scale}, b.size)
+		rec.Pop()
+	}
+	recordChildrenInto(rec, b, ox, oy, scale)
+}
+
 // paintChildren paints every child; clean RepaintBoundary children are
 // skipped when in CompositeOnly mode (their Picture replays elsewhere).
 func (b *RenderBox) paintChildren(pc *PaintContext) {
@@ -276,6 +295,24 @@ func (c *RenderColorBox) Paint(pc *PaintContext) {
 	if pc.BoundaryCache != nil && c.IsRepaintBoundary() {
 		pc.BoundaryCache.storeColorBox(pc, c)
 	}
+}
+
+// Record implements Recordable: the solid fill at the absolute origin,
+// identical to Paint's fillRect.
+func (c *RenderColorBox) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || c == nil {
+		return
+	}
+	_ = scale
+	sz := c.size
+	w, h := sz.Width, sz.Height
+	if w <= 0 {
+		w = c.Width
+	}
+	if h <= 0 {
+		h = c.Height
+	}
+	fillRectOn(rec, ox, oy, w, h, c.R, c.G, c.B, c.A)
 }
 
 // SubtreeNeedsPaint reports whether n or any descendant needs paint.

@@ -535,6 +535,12 @@ func (v *VirtualList) Layout(c Constraints) Size {
 	return out
 }
 
+// structuralNode marks the list as never-its-own-cache-unit (see
+// structuralNode in record.go): the bind window mounts/recycles rows, so the
+// list itself always paints live; rows that need isolation opt into their own
+// RepaintBoundary.
+func (v *VirtualList) structuralNode() {}
+
 // Paint implements RenderObject.
 func (v *VirtualList) Paint(pc *PaintContext) {
 	if pc == nil {

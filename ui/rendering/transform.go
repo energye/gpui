@@ -10,7 +10,11 @@
 
 package rendering
 
-import "math"
+import (
+	"math"
+
+	"github.com/energye/gpui/render"
+)
 
 // RenderTransform applies a 2D transform around its children during paint
 // (translate to center → rotate → scale → translate back).
@@ -94,6 +98,28 @@ func (t *RenderTransform) Layout(c Constraints) Size {
 	t.RememberConstraints(c)
 	t.clearLayoutDirty()
 	return out
+}
+
+// Record implements Recordable: the same center-based Push/Rotate/Scale CTM
+// Paint applies, then children in local (0,0) space.
+func (t *RenderTransform) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || t == nil {
+		return
+	}
+	sx, sy := t.effectiveScale()
+	cx := t.size.Width * 0.5
+	cy := t.size.Height * 0.5
+	rec.Push()
+	rec.Translate(ox+cx, oy+cy)
+	if t.Rotation != 0 {
+		rec.Rotate(t.Rotation)
+	}
+	if sx != 1 || sy != 1 {
+		rec.Scale(sx, sy)
+	}
+	rec.Translate(-cx, -cy)
+	recordChildrenInto(rec, t, 0, 0, scale)
+	rec.Pop()
 }
 
 // Paint applies DC transform then paints children.

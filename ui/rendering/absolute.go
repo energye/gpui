@@ -10,6 +10,8 @@
 
 package rendering
 
+import "github.com/energye/gpui/render"
+
 // AbsoluteBox is a fixed-size container that **preserves** each child's Offset
 // during Layout (unlike RenderBox, which resets children to Pad).
 //
@@ -127,6 +129,20 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 		off := ch.Offset()
 		ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
 	}
+}
+
+// Record implements Recordable: background then non-boundary children at
+// their absolute offsets (same own-content scope Paint stores).
+func (a *AbsoluteBox) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || a == nil {
+		return
+	}
+	sz := a.size
+	if a.Background != nil {
+		bg := a.Background
+		fillRectOn(rec, ox, oy, sz.Width, sz.Height, bg.R, bg.G, bg.B, bg.A)
+	}
+	recordChildrenInto(rec, a, ox, oy, scale)
 }
 
 // paintNestedRepaintBoundaries paints IsRepaintBoundary children (and RB

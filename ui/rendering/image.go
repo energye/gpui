@@ -203,6 +203,28 @@ func (im *RenderImage) Layout(c Constraints) Size {
 	return out
 }
 
+// Record implements Recordable: decoded image (or placeholder fill) at the
+// absolute origin, same branches as Paint.
+func (im *RenderImage) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || im == nil {
+		return
+	}
+	_ = scale
+	sz := im.size
+	dw, dh := sz.Width, sz.Height
+	if dw <= 0 {
+		dw = im.Width
+	}
+	if dh <= 0 {
+		dh = im.Height
+	}
+	if im.Img != nil && !im.Img.Disposed() {
+		drawImageOn(rec, im.Img, ox, oy, dw, dh)
+	} else {
+		fillRectOn(rec, ox, oy, dw, dh, im.PR, im.PG, im.PB, 1)
+	}
+}
+
 // Paint implements RenderObject — never decodes images here.
 func (im *RenderImage) Paint(pc *PaintContext) {
 	if pc == nil {

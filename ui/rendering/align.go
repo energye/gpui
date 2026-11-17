@@ -10,6 +10,8 @@
 
 package rendering
 
+import "github.com/energye/gpui/render"
+
 // RenderAlignBox is a Flutter-style Align: it fills the incoming constraints
 // and positions its child by fractional alignment of the leftover space
 // (Flutter FractionalOffset semantics). Positioning is layout-driven — on
@@ -92,6 +94,16 @@ func (a *RenderAlignBox) Layout(c Constraints) Size {
 	a.RememberConstraints(c)
 	a.clearLayoutDirty()
 	return out
+}
+
+// Record implements Recordable: no own content; the child (and its
+// non-boundary descendants) at its laid-out offset. Alignment is already
+// reflected by that offset.
+func (a *RenderAlignBox) Record(rec render.Canvas, ox, oy, scale float64) {
+	if rec == nil || a == nil {
+		return
+	}
+	recordChildrenInto(rec, a, ox, oy, scale)
 }
 
 // Paint implements RenderObject: only the child is drawn (no own content).
