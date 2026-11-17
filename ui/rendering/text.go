@@ -1268,7 +1268,6 @@ func (t *RenderText) Record(rec render.Canvas, ox, oy, scale float64) {
 	if rec == nil || t == nil {
 		return
 	}
-	_ = scale
 	recordRenderText(rec, t, ox, oy)
 }
 

@@ -470,16 +470,6 @@ func (c *BoundaryCache) Stats() BoundaryCacheStats {
 	}
 }
 
-// storeColorBox is the legacy-specific entry point used by RenderColorBox.Paint.
-func (c *BoundaryCache) storeColorBox(pc *PaintContext, box *RenderColorBox) {
-	c.Store(pc, box)
-}
-
-// storeAbsoluteColorChildren is the legacy entry point used by AbsoluteBox.Paint.
-func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *AbsoluteBox) {
-	c.Store(pc, a)
-}
-
 // boundaryCacheable reports whether this boundary's own content can be
 // faithfully recorded. The decision is structural, not a type whitelist:
 // the node must implement Recordable (and not be Volatile), and every
@@ -585,24 +575,12 @@ func absoluteContentKey(a *AbsoluteBox, w, h float64) uint64 {
 	if a == nil {
 		return 0
 	}
-	var key uint64
+	var seed uint64
 	if a.Background != nil {
 		bg := a.Background
-		key = colorKey(bg.R, bg.G, bg.B, bg.A, w, h)
+		seed = colorKey(bg.R, bg.G, bg.B, bg.A, w, h)
 	}
-	for _, ch := range a.children {
-		if ch == nil || ch.IsRepaintBoundary() {
-			continue
-		}
-		sz := ch.Size()
-		ck := contentKeyOf(ch, sz.Width, sz.Height)
-		if ck == 0 {
-			return 0
-		}
-		off := ch.Offset()
-		key ^= ck ^ uint64(spacingQuant(off.X))<<3 ^ uint64(spacingQuant(off.Y))<<13
-	}
-	return key
+	return childrenContentKey(a, seed)
 }
 
 // textContentKey fingerprints a RenderText's visible glyph identity:

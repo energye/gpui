@@ -209,7 +209,6 @@ func (im *RenderImage) Record(rec render.Canvas, ox, oy, scale float64) {
 	if rec == nil || im == nil {
 		return
 	}
-	_ = scale
 	sz := im.size
 	dw, dh := sz.Width, sz.Height
 	if dw <= 0 {

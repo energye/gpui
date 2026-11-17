@@ -53,7 +53,6 @@ func (b *RenderPictureBox) Record(rec render.Canvas, ox, oy, scale float64) {
 	if rec == nil || b == nil {
 		return
 	}
-	_ = scale
 	if b.RecordContent != nil {
 		b.RecordContent(rec, ox, oy)
 	}

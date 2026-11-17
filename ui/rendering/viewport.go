@@ -60,15 +60,22 @@ func NewRenderViewport(content RenderObject) *RenderViewport {
 	v.SetRepaintBoundary(true)
 	if content != nil {
 		v.AddChild(content)
-		// The content subtree is the cache unit (Flutter ViewportLayer: the
-		// content picture is scroll-independent; the viewport applies the
-		// scroll as a transform). Marking it a boundary lets a clean content
-		// root replay at zero re-record while the viewport scrolls.
-		if b, ok := baseOf(content); ok {
-			b.SetRepaintBoundary(true)
-		}
+		markContentCacheUnit(content)
 	}
 	return v
+}
+
+// markContentCacheUnit makes the content subtree the boundary cache unit
+// (Flutter ViewportLayer): its picture is scroll-independent (the viewport
+// applies scroll as a canvas transform), so a clean content root replays at
+// zero re-record while the viewport scrolls.
+func markContentCacheUnit(c RenderObject) {
+	if c == nil {
+		return
+	}
+	if b, ok := baseOf(c); ok {
+		b.SetRepaintBoundary(true)
+	}
 }
 
 // Content returns the first child or nil.
@@ -89,11 +96,7 @@ func (v *RenderViewport) SetContent(c RenderObject) {
 	}
 	if c != nil {
 		v.AddChild(c)
-		// Same contract as the constructor: the content subtree is the cache
-		// unit and must stay scroll-independent.
-		if b, ok := baseOf(c); ok {
-			b.SetRepaintBoundary(true)
-		}
+		markContentCacheUnit(c)
 	}
 }
 

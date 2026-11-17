@@ -82,12 +82,11 @@ func TestRecordCoverage_AllNodeTypesDeclareCacheContract(t *testing.T) {
 				case "Paint":
 					n.paint = true
 				case "Record":
-					// Record(rec, ox, oy, scale): four parameters, no results.
-					n.record = paramCount(d.Type.Params) == 4 && d.Type.Results == nil
+					n.record = recordSignatureOK(d.Type)
 				case "Volatile":
-					n.volatile = paramCount(d.Type.Params) == 0
+					n.volatile = volatileSignatureOK(d.Type)
 				case "structuralNode":
-					n.structural = paramCount(d.Type.Params) == 0
+					n.structural = structuralSignatureOK(d.Type)
 				}
 			}
 		}
@@ -143,18 +142,66 @@ func recvTypeName(expr ast.Expr) string {
 	return ""
 }
 
-// paramCount counts declared parameters (grouped names count individually).
-func paramCount(fl *ast.FieldList) int {
+// paramTypes expands a field list into one type per declared name (grouped
+// names repeat their type), so signature checks count the real arity.
+func paramTypes(fl *ast.FieldList) []ast.Expr {
 	if fl == nil {
-		return 0
+		return nil
 	}
-	n := 0
+	var out []ast.Expr
 	for _, f := range fl.List {
-		if len(f.Names) == 0 {
-			n++
-			continue
+		n := len(f.Names)
+		if n == 0 {
+			n = 1
 		}
-		n += len(f.Names)
+		for i := 0; i < n; i++ {
+			out = append(out, f.Type)
+		}
 	}
-	return n
+	return out
+}
+
+// recordSignatureOK checks Record(render.Canvas, float64, float64, float64).
+// Without the type check a same-name method with the wrong signature would
+// satisfy the gate while never fulfilling Recordable — the silent-slow-path
+// hole again, only one level deeper.
+func recordSignatureOK(ft *ast.FuncType) bool {
+	if ft == nil || len(paramTypes(ft.Results)) != 0 {
+		return false
+	}
+	ps := paramTypes(ft.Params)
+	return len(ps) == 4 && isRenderCanvas(ps[0]) &&
+		isFloat64(ps[1]) && isFloat64(ps[2]) && isFloat64(ps[3])
+}
+
+// volatileSignatureOK checks Volatile() bool.
+func volatileSignatureOK(ft *ast.FuncType) bool {
+	if ft == nil || len(paramTypes(ft.Params)) != 0 {
+		return false
+	}
+	rs := paramTypes(ft.Results)
+	if len(rs) != 1 {
+		return false
+	}
+	id, ok := rs[0].(*ast.Ident)
+	return ok && id.Name == "bool"
+}
+
+// structuralSignatureOK checks the marker method structuralNode().
+func structuralSignatureOK(ft *ast.FuncType) bool {
+	return ft != nil && len(paramTypes(ft.Params)) == 0 && len(paramTypes(ft.Results)) == 0
+}
+
+func isRenderCanvas(e ast.Expr) bool {
+	se, ok := e.(*ast.SelectorExpr)
+	if !ok || se.Sel == nil || se.Sel.Name != "Canvas" {
+		return false
+	}
+	id, ok := se.X.(*ast.Ident)
+	return ok && id.Name == "render"
+}
+
+func isFloat64(e ast.Expr) bool {
+	id, ok := e.(*ast.Ident)
+	return ok && id.Name == "float64"
 }

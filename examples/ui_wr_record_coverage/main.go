@@ -257,7 +257,6 @@ func main() {
 	}
 
 	var (
-		imgReady     atomic.Bool
 		imgPending   atomic.Pointer[render.ImageBuf]
 		imgInstalled bool
 	)
@@ -283,7 +282,6 @@ func main() {
 	// installs the buffer on the UI thread; no input event is involved.
 	time.AfterFunc(1500*time.Millisecond, func() {
 		imgPending.Store(asyncChip)
-		imgReady.Store(true)
 		app.ScheduleFrame()
 	})
 
@@ -340,9 +338,11 @@ func main() {
 		},
 		on: func(dt float64) {
 			elapsed += dt
-			if imgReady.Load() && !imgInstalled {
-				imgInstalled = true
-				asyncImg.SetImage(imgPending.Load())
+			if !imgInstalled {
+				if buf := imgPending.Load(); buf != nil {
+					imgInstalled = true
+					asyncImg.SetImage(buf)
+				}
 			}
 			if ph == phScroll {
 				scrollY += 180 * dt

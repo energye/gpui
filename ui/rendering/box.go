@@ -293,7 +293,7 @@ func (c *RenderColorBox) Paint(pc *PaintContext) {
 	pc.NoteDebugRepaint(w, h)
 	c.clearPaintDirty()
 	if pc.BoundaryCache != nil && c.IsRepaintBoundary() {
-		pc.BoundaryCache.storeColorBox(pc, c)
+		pc.BoundaryCache.Store(pc, c)
 	}
 }
 
@@ -303,7 +303,6 @@ func (c *RenderColorBox) Record(rec render.Canvas, ox, oy, scale float64) {
 	if rec == nil || c == nil {
 		return
 	}
-	_ = scale
 	sz := c.size
 	w, h := sz.Width, sz.Height
 	if w <= 0 {

@@ -237,15 +237,10 @@ func (o *PipelineOwner) SetNeedsFrameHook(fn func()) {
 	o.mu.Unlock()
 }
 
-// fireNeedsFrameHook runs the hook once per clean→dirty transition. Called
-// AFTER mu is released: the hook (embedder ScheduleFrame) is thread-safe and
-// cheap — atomic pending flag plus a host wake.
-func (o *PipelineOwner) fireNeedsFrameHook() {
-	if fn := o.needsFrameHook; fn != nil {
-		fn()
-	}
-}
-
+// noteLayoutDirty / notePaintDirty mark the flag and report a fresh
+// clean→dirty flip. The hook is read under mu and called after unlocking: it
+// (embedder ScheduleFrame) is thread-safe and cheap, and an unlocked field read
+// would race with SetNeedsFrameHook.
 func (o *PipelineOwner) noteLayoutDirty() {
 	if o == nil {
 		return
@@ -253,9 +248,10 @@ func (o *PipelineOwner) noteLayoutDirty() {
 	o.mu.Lock()
 	fresh := !o.layoutDirty
 	o.layoutDirty = true
+	hook := o.needsFrameHook
 	o.mu.Unlock()
-	if fresh {
-		o.fireNeedsFrameHook()
+	if fresh && hook != nil {
+		hook()
 	}
 }
 
@@ -266,9 +262,10 @@ func (o *PipelineOwner) notePaintDirty() {
 	o.mu.Lock()
 	fresh := !o.paintDirty
 	o.paintDirty = true
+	hook := o.needsFrameHook
 	o.mu.Unlock()
-	if fresh {
-		o.fireNeedsFrameHook()
+	if fresh && hook != nil {
+		hook()
 	}
 }
 

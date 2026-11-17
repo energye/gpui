@@ -232,6 +232,20 @@ func (pc *PaintContext) SaveLayer(boundsW, boundsH, opacity float64) bool {
 	return true
 }
 
+// groupExtent returns the logical size of an isolated group/layer: the
+// laid-out size first, then the fixed pre-layout preference (0 = unset).
+// Shared by Opacity/Filter Paint and Record so their layer bounds cannot drift.
+func groupExtent(sz Size, fixedW, fixedH float64) (w, h float64) {
+	w, h = sz.Width, sz.Height
+	if w <= 0 {
+		w = fixedW
+	}
+	if h <= 0 {
+		h = fixedH
+	}
+	return w, h
+}
+
 // RestoreLayer ends the most recent successful SaveLayer (PopLayer).
 // No-op if depth is 0. Prefer this name over Restore to avoid confusion with
 // canvas Save/Restore (CTM+clip stack).

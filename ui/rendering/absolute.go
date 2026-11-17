@@ -117,7 +117,7 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 		// Re-store own-content Picture only when this boundary itself was dirty
 		// or had no entry. Inner-only dirty must not bump outer boundary_rerecord.
 		if pc.BoundaryCache != nil && a.IsRepaintBoundary() && (selfDirty || !pc.BoundaryCache.HasValid(a)) {
-			pc.BoundaryCache.storeAbsoluteColorChildren(pc, a)
+			pc.BoundaryCache.Store(pc, a)
 		}
 		return
 	}

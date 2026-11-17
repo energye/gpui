@@ -117,13 +117,7 @@ func (t *RenderColorFilter) Record(rec render.Canvas, ox, oy, scale float64) {
 	if rec == nil || t == nil {
 		return
 	}
-	groupW, groupH := t.size.Width, t.size.Height
-	if groupW <= 0 {
-		groupW = t.FixedWidth
-	}
-	if groupH <= 0 {
-		groupH = t.FixedHeight
-	}
+	groupW, groupH := groupExtent(t.size, t.FixedWidth, t.FixedHeight)
 	pushed := false
 	if !t.isIdentity() && groupW > 0 && groupH > 0 {
 		rec.PushLayerIsolated(1)
@@ -150,13 +144,7 @@ func (t *RenderColorFilter) Paint(pc *PaintContext) {
 	childPC := pc.WithOrigin(pc.OriginX, pc.OriginY)
 	pushed := false
 	if !t.isIdentity() && pc.DC != nil {
-		groupW, groupH := t.size.Width, t.size.Height
-		if groupW <= 0 {
-			groupW = t.FixedWidth
-		}
-		if groupH <= 0 {
-			groupH = t.FixedHeight
-		}
+		groupW, groupH := groupExtent(t.size, t.FixedWidth, t.FixedHeight)
 		if groupW > 0 && groupH > 0 {
 			pushed = pc.SaveLayer(groupW, groupH, 1)
 		}
@@ -268,13 +256,7 @@ func (t *RenderImageFilter) Record(rec render.Canvas, ox, oy, scale float64) {
 	if rec == nil || t == nil {
 		return
 	}
-	groupW, groupH := t.size.Width, t.size.Height
-	if groupW <= 0 {
-		groupW = t.FixedWidth
-	}
-	if groupH <= 0 {
-		groupH = t.FixedHeight
-	}
+	groupW, groupH := groupExtent(t.size, t.FixedWidth, t.FixedHeight)
 	pushed := false
 	if t.BlurParams() > 0 && groupW > 0 && groupH > 0 {
 		rec.PushLayerIsolated(1)
@@ -300,13 +282,7 @@ func (t *RenderImageFilter) Paint(pc *PaintContext) {
 	childPC := pc.WithOrigin(pc.OriginX, pc.OriginY)
 	pushed := false
 	if t.BlurParams() > 0 && pc.DC != nil {
-		groupW, groupH := t.size.Width, t.size.Height
-		if groupW <= 0 {
-			groupW = t.FixedWidth
-		}
-		if groupH <= 0 {
-			groupH = t.FixedHeight
-		}
+		groupW, groupH := groupExtent(t.size, t.FixedWidth, t.FixedHeight)
 		if groupW > 0 && groupH > 0 {
 			pushed = pc.SaveLayer(groupW, groupH, 1)
 		}

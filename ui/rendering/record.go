@@ -22,7 +22,7 @@ import "github.com/energye/gpui/render"
 // Record must be semantically equivalent to Paint, which stays the single
 // source of truth:
 //   - own visual content (Background / OnPaint) at absolute origin (ox, oy);
-//   - non-RepaintBoundary descendants at their offsets (recordChildInto);
+//   - non-RepaintBoundary descendants at their offsets (recordChildrenInto);
 //   - clips / opacity / filters / transforms as canvas state commands;
 //   - RepaintBoundary descendants are NEVER baked here (they own their cache;
 //     the caller walks them after a parent replay).
@@ -109,20 +109,10 @@ func recordableTree(n RenderObject) bool {
 	return true
 }
 
-// recordChildInto records one non-boundary child at its absolute origin.
-// Boundary children are skipped by contract (they replay themselves).
-// A non-recordable child cannot reach here for a stored boundary
-// (recordableTree gates Store first); skipping keeps the walk total.
-func recordChildInto(rec render.Canvas, ch RenderObject, x, y, scale float64) {
-	if rec == nil || ch == nil || ch.IsRepaintBoundary() {
-		return
-	}
-	if r, ok := ch.(Recordable); ok {
-		r.Record(rec, x, y, scale)
-	}
-}
-
-// recordChildrenInto records all non-boundary children of n at their offsets.
+// recordChildrenInto records all non-boundary children of n at their absolute
+// offsets. Boundary children are skipped by contract (they replay themselves);
+// a non-recordable child cannot reach here for a stored boundary
+// (recordableTree gates Store first), so skipping keeps the walk total.
 func recordChildrenInto(rec render.Canvas, n RenderObject, ox, oy, scale float64) {
 	if rec == nil || n == nil {
 		return
@@ -131,7 +121,9 @@ func recordChildrenInto(rec render.Canvas, n RenderObject, ox, oy, scale float64
 		if ch == nil || ch.IsRepaintBoundary() {
 			continue
 		}
-		off := ch.Offset()
-		recordChildInto(rec, ch, ox+off.X, oy+off.Y, scale)
+		if r, ok := ch.(Recordable); ok {
+			off := ch.Offset()
+			r.Record(rec, ox+off.X, oy+off.Y, scale)
+		}
 	}
 }

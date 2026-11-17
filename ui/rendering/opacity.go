@@ -111,13 +111,7 @@ func (t *RenderOpacity) Record(rec render.Canvas, ox, oy, scale float64) {
 	if op <= 0 {
 		return
 	}
-	groupW, groupH := t.size.Width, t.size.Height
-	if groupW <= 0 {
-		groupW = t.FixedWidth
-	}
-	if groupH <= 0 {
-		groupH = t.FixedHeight
-	}
+	groupW, groupH := groupExtent(t.size, t.FixedWidth, t.FixedHeight)
 	pushed := false
 	if op < 1 && groupW > 0 && groupH > 0 {
 		rec.PushLayerIsolated(op)
@@ -145,14 +139,7 @@ func (t *RenderOpacity) Paint(pc *PaintContext) {
 		t.clearPaintDirty()
 		return
 	}
-	sz := t.size
-	groupW, groupH := sz.Width, sz.Height
-	if groupW <= 0 {
-		groupW = t.FixedWidth
-	}
-	if groupH <= 0 {
-		groupH = t.FixedHeight
-	}
+	groupW, groupH := groupExtent(t.size, t.FixedWidth, t.FixedHeight)
 	childPC := pc.WithOrigin(pc.OriginX, pc.OriginY)
 	pushed := false
 	if op < 1 && pc.DC != nil && groupW > 0 && groupH > 0 {
