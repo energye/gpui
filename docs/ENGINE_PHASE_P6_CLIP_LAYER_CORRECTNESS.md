@@ -82,9 +82,15 @@ grayscale 红块 → R/B swap 颜色矩阵 → opacity B；viewport 滚动）实
 grayscale=(95,95,95)、矩阵=(38,38,229)，与构造值一致，没有池化 RT 旧像素被铺出。`ApplyColorFilter`
 （通用 ColorFilter）仍标 full，但其源是过滤后的层 pixmap（不是 GPU 层 RT），不属本类风险，保留。
 
-**遗留（缩小后）**：仍走 `markLayerFullComposite` 且源是 GPU 层 RT 的效果——drop shadow、SVG 光照/湍流、
-erode/dilate/offset/bloom/lighting 等——有同一类风险，需逐项按「效果边界合成」审计；blur 家族已修，
-灰度/颜色矩阵已审计安全。
+**投影审计（2026-11-17，真实问题，已修）**：最小复现——阴影层（Opacity 0.5 包 OnPaint：画卡片 +
+`ApplyDropShadow(8,8,4)`）在前，后接三个 0.5 透明度层；B 由 (147,166,242) 变 **(93,121,235)**，
+正好是两个 0.5 蓝叠加（阴影层 fullComposite 把池化 RT 里上一帧 B 的 0.5 蓝又铺了一次）。
+修复：`ApplyDropShadow` 的合成边界改为 `max(|dx|,|dy|) + 3r + 2`（`markLayerEffect`），
+修后 B 回 (147,166,242)，阴影卡片 (242,147,147) 与 SE 阴影不变；验收窗无阴影，Golden 仍 **0.0000%**。
+
+**遗留（再次缩小）**：仍走 `markLayerFullComposite` 且源是 GPU 层 RT 的效果——SVG 光照/湍流、
+erode/dilate/offset/bloom/lighting 等——同一类风险待逐项按「效果边界合成」审计；blur 家族已修，
+灰度/颜色矩阵已审计安全，drop shadow 已复现并修复。
 
 **归位**：合成侧 / 层合成（`render/context_layer_stack.go` + `render/filter_ops_cpu.go`）。
 
@@ -112,4 +118,5 @@ erode/dilate/offset/bloom/lighting 等——有同一类风险，需逐项按「
 | 2026-11-17 | Golden 重播种完成：单窗播种轮 SEEDED + 复核轮 OK 0.0000%（960000px）、像素 8/8、逻辑 8/8、scrollRR=0/skip≈114、animRR=0；新基线与快照逐字节一致。 |
 | 2026-11-17 | 问题 2 根因与修复：模糊层 fullComposite 把池化层 RT 的旧像素整表铺出，隔层透明度被实色盖住；新增 markLayerEffect(pad) 按内容+滤镜扩散合成 blur/blurXY，单测 + 真窗 A/B/C 全半蓝；验收窗透明度恢复 (147,172,242)。 |
 | 2026-11-17 | 第二次 Golden 重播种完成（对应透明度修复 0.5333%）：播种轮 SEEDED、复核轮 OK 0.0000%（960000px）、像素 8/8、逻辑 8/8、scrollRR=0/skip≈113、animRR=0；基线与快照逐字节一致。 |
-| 2026-11-17 | 灰度/颜色矩阵审计：ApplyColorMatrix / ApplyGrayscale / ApplyInvert 未标 fullComposite，按 damage 有界；定向窗 A/B 半透明、灰度/矩阵像素正确，无池化 RT 泄漏，无需改动。剩余风险收窄到 drop shadow / SVG 光照/湍流 / erode/dilate/offset/bloom 等仍走 fullComposite 的效果。 |
+| 2026-11-17 | 灰度/颜色矩阵审计：ApplyColorMatrix / ApplyGrayscale / ApplyInvert 未标 fullComposite，按 damage 有界；定向窗 A/B 半透明、灰度/矩阵像素正确，无池化 RT 泄漏，无需改动。 |
+| 2026-11-17 | 投影审计：最小复现确认（阴影层 + A/B/C，B 由半透明变两个 0.5 叠加的 (93,121,235)）；ApplyDropShadow 改为 pad=max(|dx|,|dy|)+3r+2 的有界合成，修后 B 回半透明、阴影不变，验收窗 Golden 仍 0.0000%。剩余风险收窄到 SVG 光照/湍流、erode/dilate/offset/bloom/lighting 等。 |

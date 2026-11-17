@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.34** | 日期：2026-11-17  
+> **版本：1.35** | 日期：2026-11-17  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
@@ -411,8 +411,10 @@ go run ./examples/ui_l1_scroll              # 滚动
      看起来不透明。修复：`markLayerEffect(pad)` 把滤镜层合成限制在 content damage + 滤镜扩散半径内
      （blur/blurXY 用 3r+2，空 damage 回退全量），对齐 Skia 的 saveLayer filter 输出裁剪；真机 A/B/C 全半蓝。
      **审计结果**：灰度/颜色矩阵（`ApplyColorMatrix`/`ApplyGrayscale`/`ApplyInvert`）本来就没标 fullComposite，
-     按 damage 有界；定向窗实测 A/B 半透明、灰度/矩阵像素正确，无需改动。**遗留**：drop shadow、SVG 光照/湍流、
-     erode/dilate/offset/bloom 等仍走 fullComposite 且源为层 RT，同类风险待逐项审计。
+     按 damage 有界；定向窗实测 A/B 半透明、灰度/矩阵像素正确，无需改动。
+     **投影已复现并修复**：阴影层 fullComposite 把池化 RT 里上一帧的 0.5 蓝又铺一次（B 变 0.75 蓝），
+     `ApplyDropShadow` 改为 pad=max(|dx|,|dy|)+3r+2 的有界合成。**遗留**：SVG 光照/湍流、
+     erode/dilate/offset/bloom/lighting 等仍走 fullComposite 且源为层 RT，待逐项审计。
 | FRO-BUILD-OWNER | BuildOwner | 构建脏元件 | Widget→Element | 无 Widget 层 | — | — | D | — | 命令式 RO 模型 |
 
 ---
@@ -1007,6 +1009,7 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 | **1.35（2026-10-19）** | **Sweep tile Extend 修正 + A 组#4 真窗 `ui_render_base_sweepgradient`**：非 Pad `Extend` 在部分扫掠（end≠2π）下范围外区域被钳成 Pad——D 卡 Repeat/Reflect 圆在 112.5°/157.5° 实测与 Pad 相同（钳到末端蓝），CPU oracle（同参数 `ColorAt`）给出 frac/triangle 值；永久测试复现 `repeat@112.5°` 读 (5,0,254) vs 模型 (99,0,240)。根因：1D ramp 覆盖路径（`render/internal/gpu/brush_fill.go:fillSweepGradientFieldMasked`）的 `tMin/tMax` 角域收窄对所有 Extend 生效，shader `(t-tMin)*invSpan` 再钳 [0,1] → 范围外 raw t 恒落 ramp 边缘 = Pad 行为。修法（Skia tile-on-t 口径）：非 Pad 时 ramp 固定整周期 [0,1]，cover FS 对 raw t 折叠（repeat `t-floor(t)`、reflect 三角波）；Pad 原角域收窄保留、整圈折叠恒等 → Pad 与整圈输出逐位不变；linear/radial 调用点补 extend=0 不受影响。改动 `brush_fill.go` / `session_textured_cover.go` / `render_session.go`（`TexExtend`）+ 三份 WGSL（`shaders/cover_textured_linear.wgsl`、`textured_stencil_linear.go`、`linear_ramp_mask.go` 均加 `sweep_tile()`）。新增永久回归 `render/p1_capability_matrix_closers_test.go:TestP1_Capability_D03_SweepGradientTileExtendGPU`（GPU 判别采样 tol 12/255）。配套真窗三证据：逻辑 14/14、像素 22/22、golden 627200px 逐位零差（seed 后第 2/3/4 跑 `diff=0.0000%`）；门禁 `-auto-only`/RUN_SECONDS（≥5s）+ §2.2 A–J JSON（`present_policy=full_paint`、`vsync_source=true`、`cpu_fallback_ops=0`）+ 人工常驻窗实屏截图（`close-requested` 关窗汇总 presents=3651）；性能子项 1 项（AA 矩形 sweep/radial 每帧 CPU 重建 ColorAt 场，`brush_native.go:155→593→614`）记 `RENDER_FEATURE_COVERAGE.md` §6 与本窗 README |
 | **1.34（2026-10-19）** | **描边 miter 拐角符号修正 + A 组#3 真窗 `ui_render_base_strokepreset`**：`render/internal/stroke/expander.go:applyOuterMiterJoin` 的 miter 交点分母用无符号 `crossAbs`，丢掉转向符号 → 「下→右」一类拐角的尖点镜像到错误一侧（探针实测尖点应为两外偏移线交点 `(56,145)`、实吐 `(65,145)`），轮廓自交后直角被一条角度不对的斜边切掉（真窗像素同位置纯背景 + 邻格 81% 覆盖，与轮廓打印互证）；按 Skia 带符号 cross 求交点口径改 `t := Δ.Cross(cd)/ab.Cross(cd)`、`miterPt := fpLast + ab*t`，公开签名未变、另一转向输出逐点不变。新增正反转向值级回归 `TestStrokeExpander_MiterJoinTipBothDirections`（修前红→修后绿）；配套真窗三证据（逻辑 12/12、像素 28/28、golden 627200px 逐位零差）并登记 §23；`ui_render_base_pathshape` golden 因本修复重播（0.0002%/1px），`ui_render_base_pathlow` 不受影响 |
 | **1.33（三线 T 立项 2026-09-16，未开工）** | **三线重设计立项（唯一文档 `ENGINE_THREAD_T_PLAN.md`，此处只留指针）** |
+| **1.35** | **投影有界合成（2026-11-17）**：drop shadow 最小复现确认（阴影层后 B 由半透明变 0.75 蓝），`ApplyDropShadow` 改用 `markLayerEffect(max(|dx|,|dy|)+3r+2)`；修后 B 回半透明、阴影不变，验收窗 Golden 仍 0.0000%。灰度/颜色矩阵审计安全（未标 full）。剩余 SVG 光照/湍流、erode/dilate/offset/bloom 等待审计 |
 | **1.34** | **隔层组透明修复（2026-11-17）**：根因=模糊层 `markLayerFullComposite` 把池化层 RT 的旧像素整表铺出；新增 `markLayerEffect(pad)` 按内容+滤镜扩散有界合成（blur/blurXY，空 damage 回退全量），单测+真机 A/B/C 全半蓝。其它 fullComposite 效果（颜色矩阵/阴影/SVG 滤镜）同类风险待审计 |
 | **1.33** | **合成正确性定案（2026-11-17）**：视口内圆角裁剪丢失根因=平移被当斜切（`tm.C` 判定错误，4 处），已修为只查 B/D；单测+真窗锁死。隔层组透明缩到最小复现并随后修复（见 1.34）。详见 `ENGINE_PHASE_P6_CLIP_LAYER_CORRECTNESS.md`；GPU 整包测试在桌面导致注销的事故与门禁一并入档 |
 | **1.32（E2 已修 2026-09-15；E1 已撤销）** | **动画帧 CPU 结构问题 E2 闭环、E1 撤销**：E2 一帧多遍 walk 已修——一次建包顺手出四个数（边界数/深度、操作数、字命中），`ConsumeNeedsPaint` 原位不动，包结构不动。实测 120 节点只脏 1 叶老序列 `Children` 603 次 → 新序列 361 次；数诚实 + 包相等由 `TestE2Merged_CountsHonestAndPacketEqual` 锁死，老证据 `TestEVerify_E2_OldEvidence` 仍通过（只调老代码）。E1 证伪撤销：全量重建是对齐 Flutter 的认账现状（同 B1），稀疏包修法丢静按钮已退回作废。E4（任务槽多执行一次）经 20 万次 hammer + 存取时序推演证伪，不修 |

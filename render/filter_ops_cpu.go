@@ -11,6 +11,8 @@
 package render
 
 import (
+	"math"
+
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 )
@@ -139,17 +141,24 @@ func (c *Context) ApplyDropShadow(offsetX, offsetY, blurRadius float64, color RG
 	if dropShadowApply == nil {
 		return
 	}
+	// Shadow spread = offset + ~3σ blur; composite content+spread, not the
+	// full surface (a pooled layer RT can hold stale pixels outside it).
+	pad := math.Abs(offsetX)
+	if ay := math.Abs(offsetY); ay > pad {
+		pad = ay
+	}
+	pad += 3*blurRadius + 2
 	if c.tryApplyFilterGraphGPU(ImageFilterNode{
 		Kind: ImageFilterDropShadow, OffsetX: offsetX, OffsetY: offsetY,
 		ShadowBlur: blurRadius, ShadowColor: color,
 	}) {
-		c.markLayerFullComposite()
+		c.markLayerEffect(pad)
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		dropShadowApply(src, dst, offsetX, offsetY, blurRadius, color)
 	})
-	c.markLayerFullComposite()
+	c.markLayerEffect(pad)
 }
 
 // ApplyColorMatrix applies a 4x5 color transformation matrix (F.04 / L.04).
