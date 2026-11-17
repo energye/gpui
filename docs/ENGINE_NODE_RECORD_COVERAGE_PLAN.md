@@ -126,7 +126,9 @@ paint_count 62→22）后，**每帧光栅 26.7→27.4ms 不变**——paint 层
 ```go
 // ui/rendering：节点自己负责忠实录制；编译期接口，新增类型漏不掉。
 type Recordable interface {
-    Record(rec Canvas, ox, oy float64)  // 忠实录制自身+可录子树（裁剪/透明/变换按语义）
+    // 忠实录制自身+可录子树（裁剪/透明/变换按语义）；scale 是绘制走查的
+    // 设备缩放（PaintContext.Scale），OnPaint 里的吸附必须与活画同网格。
+    Record(rec Canvas, ox, oy, scale float64)
 }
 type Volatile interface {
     Volatile() bool  // 每帧必变（Spinner/Video）→ 声明不缓存，退化为直画
@@ -135,6 +137,10 @@ type Volatile interface {
 
 - `BoundaryCache.Store/tryReplay` 改走接口判定：实现了 Recordable 且非 Volatile → 可录制；
   否则该边界不含它（父边界诚实降级，不静默丢内容）。
+- 实现偏差（施工记录）：Record 增加 `scale`（原签名只有 ox/oy）——OnPaint 闭包会用
+  `pc.Scale` 做设备网格吸附，缺少它会在 DPR≠1 时录制出与活画不同的亚像素结果；
+  `RenderPictureBox` 的公开字段 `Record` 改名 `RecordContent`（Go 不允许同名字段与方法，
+  控制动词 `SetRecord` 不变，调用方同步切换）。
 - **实现原则**：各节点类型的现有 Paint 逻辑是唯一真值——录制必须与 Paint 逐语义等价
   （裁剪=Push/Clip/Pop、透明=层命令、变换=矩阵命令、OnPaint=隔离 Push/Pop 调闭包），
   录制与 Paint 的任何不一致都是陈帧 bug（验收窗像素断言卡）。
@@ -210,11 +216,43 @@ type Volatile interface {
 | 步 | 状态 | 证据 | 日期 |
 | --- | --- | --- | --- |
 | 立项 | ✅ 本文档 | divider 场景实测数据（§1）+ 证伪记录（paint 重录≠光放成本） | 2026-11-17 |
-| 步 0（流程前置重落地） | ⬜ 未开 | 实现已验证、随 divider 批回滚；历史 84c04b92 可找回 | 2026-11-17 |
-| 步 1–6 | ⬜ 未开 | — | — |
+| 步 0（流程前置重落地） | ✅ | 钩子按 84c04b92 原样恢复（pipeline.go:SetNeedsFrameHook/翻转守卫 + pipeline_app.go 接线）；节拍按 §2 语义重实现（scheduler.go:pacingDeadlineLocked，transient+pending 睡到帧边界；ScheduleFrame 用 pending.Swap 返回 idle→pending 翻转，调用方只在翻转时 WakeUp）。证据：TestPipelineOwner_NeedsFrameHook、TestWaitTimeout_TransientPacing、TestScheduleFrame_Flip 绿；scheduler/rendering/embedder 逐文件 127 PASS / 1 SKIP_TAGGED（m1_bench 带构建标签）/ 0 FAIL；-race 定向绿；真窗 icon 10s×3 fps_interval 60.03/60.06/60.15、p95 18.12/18.12/17.62ms、vsync=true、cpu_ui 1.86/1.94/1.98%，基线（HEAD 7d6c6865）60.14/60.03/60.11、17.67/17.76/17.83ms、1.99/1.98/1.88%——无回归。注：icon 巡览有在册 ticker（persistent），transient 拖拽热自旋由单测 `TestWaitTimeout_TransientPacing`/`TestScheduleFrame_Flip` 锁定；本轮无自动指针拖拽注入，真拖拽帧率留人工观察（见 §9.1）。icon 门禁因 testdata 缺 showcase_icon_base_go.png 报红属测试数据缺失，非本步回归 | 2026-11-17 |
+| 步 1（接口 + 4 类型迁移） | ✅ | `record.go`：Recordable/Volatile + recordableTree/recordChildInto；ColorBox/Text/Image/PictureBox 迁移到 Record，行为不变（PictureBox 字段 Record→RecordContent）。证据：rendering 包逐文件 100 PASS / 1 SKIP_TAGGED / 0 FAIL；kit/embedder/scheduler 逐文件 68 PASS / 0 FAIL；`CGO_ENABLED=0 go build ./ui/...` 绿 | 2026-11-17 |
+| 步 2（10 类型逐个实现） | ✅ | Box(OnPaint)/AlignBox/ClipRRect/Opacity/ColorFilter/ImageFilter/Transform 实现 Record；Spinner/Video 声明 Volatile；Viewport 结构性不入缓存。每类型像素断言单测 `record_pixel_test.go`：活画 vs 录制 vs 干净回放逐像素对比（显式 3/255 AA 容差，最差 3/255，实心区 0 差；非均值判法），Volatile/Viewport 断言拒绝缓存且画面仍正确。证据同上逐文件全绿 | 2026-11-17 |
+| 步 3（视口内容边界 + 滚动复用） | ✅ | `viewport.go`：内容子树自动 RepaintBoundary；滚动改为画布变换（内容本地 (0,0) 锚点，录制不含 scroll）；>8192 回退 `UseBoundaryCache=false` + 丢条目。证据：`TestViewport_ScrollReuse`（干净滚动零重录 + skip 命中；内容脏重录后换 0/40/120 偏移回放与活画逐像素一致，锚点不烤 scroll）、`TestViewport_OversizeContentFallsBackLive`；窗内 scrollRR=0 / scrollSkip≈108 | 2026-11-17 |
+| 步 4（机器门禁 + 纪律） | ✅ | `record_coverage_test.go` 源码枚举全部会 Paint 的类型，Record/Volatile/structuralNode 三选一；红绿双向：临时加 `RenderGateProbe` → 红（exit 1，点名该类型）、删探针 → 绿（exit 0）。AGENTS.md 增补「节点录制覆盖（硬）」小节。渲染包逐文件 100 PASS / 1 SKIP_TAGGED / 0 FAIL | 2026-11-17 |
+| 步 5（组合态验收窗） | ✅ | `examples/ui_wr_record_coverage`（1200×800，800×2400 长页 + 侧栏）。gate（full_paint，BoundaryCache 计数观测面）：static 1.5s 0 present；scroll 10s **rerecord=0 / skip≈108**；anim 3.5s **rerecord=0**、Spinner 相位推进；异步图片由 goroutine 落地并装进树（无输入事件）；冻结帧 11 个像素探针全过 + Golden **0.0000%（960000 px）**；`ui_wr_record_coverage: OK`。manual（retained）留人工看效果。后端矩阵见 §9.2 | 2026-11-17 |
+| 步 6（API 总账同步） | ✅ | `ui/rendering` 不在 `ENGINE_API_CATALOG.md` 的域内（该账=engine/，apidoc 只扫 render+engine），实际同步到所属域总账 `ENGINE_UI_RENDER_BASE.md` **v1.32**：§13 增 FRO-RECORD-COVERAGE 行 + **§13.1 节点录制契约**（Recordable/Volatile/structuralNode/门禁/视口内容层/已知缺口）；`go run ./scripts/apidoc` 绿 | 2026-11-17 |
+
+### 9.1 遗留与新发现（2026-11-17）
+
+- **新发现（非本卡，已归位）**：retained 纹理合成下，纹理化子内容对 `ClipRRectLayer` 的圆角半径与
+  `OpacityLayer` 的组透明不生效（矩形 scissor / 直通 blit）。证据：`ui_wr_record_coverage` 冻结帧
+  (58,262)=填充色（圆角角落未裁）、(116,340)=纯蓝（0.5 组透明未生效）；同场景 FullPaint/录制路径
+  （`record_pixel_test.go`）像素正确。已写入 `ENGINE_UI_RENDER_BASE.md` §13.1「已知缺口」，归合成侧跟进，
+  本卡不碰合成实现。
+- **步骤 0 真窗口径**：transient 拖拽节拍由单测锁死（`WaitTimeout_TransientPacing`：transient+pending
+  返回帧边界等待且不 0 轮询）；本轮无自动指针拖拽注入，真窗只跑 icon 巡览（persistent 有 ticker）验证
+  vsync 正常/无回归；如需真拖拽数，人工拖任意窗用 HUD 观察。
+- **验收窗策略**：gate 用 `full_paint`——BoundaryCache 的 skip/rerecord 计数只在 `walkPresentTree`
+  路径可观测（retained 走层树 picture cache，计的是另一套）；manual 用 `retained` 保证观感。
+  gate fps≈8.7 是 full_paint 的绘制成本，性能归 P6 合成侧，不是本卡的验收项；
+  manual（retained）本机实测 44.6fps / p95 19.7ms（12s 短跑，含 2400px 长页 + Spinner），
+  短于相位总长时只报告不判（scroll/anim 相位未跑完）。
+
+### 9.2 验收窗后端矩阵（2026-11-17）
+
+| 端 | 状态 | 证据 / 未跑原因 |
+| --- | --- | --- |
+| X11 + GL（`GPUI_BACKEND=go`） | ✅ | gate OK：static 0 present / scrollRR=0 & skip≈108 / animRR=0；冻结帧 11 探针 + Golden 0.0000%（960000 px） |
+| Wayland + GL | ⬜ 未跑 | 本轮无隔离 Wayland 嵌套会话；窗代码无后端分支，待隔离环境按 `ENGINE_WAYLAND_NESTED_TEST.md` 跑 |
+| X11 + wgpu | ⬜ 未跑 | 本轮未切原生 wgpu 后端；窗代码无后端分支，属同一验证面 |
 
 ## 10. 修订
 
 | 版本 | 日期 | 修订 |
 | --- | --- | --- |
 | 1.0 | 2026-11-17 | 立项。范围：录制覆盖 4/14→14/14 + 接口化 + 门禁 + 组合验收窗；与 P6 分工划清（拖拽光放成本归 P6）；divider 场景实测数据与证伪记录入档。 |
+| 1.1 | 2026-11-17 | 步 0 落地：钩子恢复 + transient 节拍重实现（pacingDeadlineLocked / 翻转返回 / 只在翻转时唤醒）；真窗与逐文件门禁证据入 §9。 |
+| 1.2 | 2026-11-17 | 步 1–2 落地：接口化录制 + 14 类型覆盖（Spinner/Video Volatile、Viewport 结构性）；Record 增加 scale、PictureBox 字段改名 RecordContent（理由入 §5.1）；每类型像素断言入 `record_pixel_test.go`。 |
+| 1.3 | 2026-11-17 | 步 3–6 落地：视口内容本地锚点 + 滚动零重录；覆盖门禁红绿双向 + AGENTS 纪律；组合窗 `examples/ui_wr_record_coverage` 三段证据（static 0 present / scroll 0 rerecord + skip / anim 0 rerecord）+ 冻结帧像素+Golden 0.0000%；UI 渲染母表 v1.32 同步。新发现（非本卡）：retained 纹理合成忽略圆角裁剪半径与组透明，已入母表 §13.1。 |

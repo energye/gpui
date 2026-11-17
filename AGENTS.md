@@ -101,6 +101,12 @@
 - **第三方库是正经来源**：库里有的能力就调库，只写薄对接层，禁止把库的算法再手写一遍。
 - **中间层身份**：`ui/rendering` 这类替模块干活的胶水包不算越层，它调 `render` 属于模块使用。
 
+## 节点录制覆盖（硬）
+
+- **新增 RenderObject 类型必须同步性能层覆盖**：在 `ui/rendering` 新增任何会 Paint 的节点类型，必须三选一在源码里声明——实现 `Recordable.Record`（与 Paint 逐语义等价）、声明 `Volatile() bool`（每帧必变、诚实直画）、或声明 `structuralNode()`（结构性不入缓存并写明理由）。
+- **门禁红即打回**：`ui/rendering/record_coverage_test.go` 源码级枚举全部会 Paint 的类型，漏声明即红；合入前必跑 `go test ./ui/rendering -run TestRecordCoverage`（与 API 总账同步同级，禁止只加节点不接录制）。
+- 录制是缓存复用的正确性前提：录制与 Paint 不一致 = 陈帧 bug；拿不到可靠录制就声明 Volatile/结构性，禁止静默降级。
+
 ## 生产与原子验证口径（硬）
 
 - **生产只认两类调用**：组件库真正调用了，或 2.5D 引擎与模块功能包真正调用了。

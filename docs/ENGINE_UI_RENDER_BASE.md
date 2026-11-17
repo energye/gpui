@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.31** | 日期：2026-09-13  
+> **版本：1.32** | 日期：2026-11-17  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
@@ -388,6 +388,23 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FRO-ATTACH | attach/detach | attach/detach | 元素挂载 | AddChild 等 | — | Base | C | node.go | 生命周期弱于 Element 树 |
 | FRO-SEMANTICS | 语义脏 | markNeedsSemanticsUpdate | 无障碍 | ui/semantics 骨架 | — | — | C | semantics | 非完整 |
 | FRO-PIPELINE | PipelineOwner | flushLayout/Paint/Compositing | 帧驱动 | PipelineOwner | — | embedder | A | pipeline.go | flushCompositing 弱 |
+| FRO-RECORD-COVERAGE | 节点录制覆盖 | RasterCache / PictureLayer | 缓存复用 | Recordable / Volatile / structuralNode | BoundaryCache | 14 种 Render* + AbsoluteBox + VirtualList | A | record.go · boundary_cache.go · record_coverage_test.go | 新节点漏声明即门禁红；视口内容=缓存单元；见 ENGINE_NODE_RECORD_COVERAGE_PLAN |
+
+### 13.1 节点录制契约（2026-11-17 · 节点录制覆盖卡）
+
+- **Recordable**：节点自己忠实录制自身 + 非 RepaintBoundary 子树（裁剪/透明/滤镜/变换按语义，OnPaint 经
+  `pc.Abs` 落进录制）；签名含 `scale`（PaintContext.Scale），OnPaint 的设备网格吸附与活画同源。
+- **Volatile**：每帧必变（Spinner/Video）显式声明，边界不烘焙、正确直画。
+- **structuralNode**：结构性不入缓存（Viewport：内容边界是缓存单元；VirtualList：bind 窗口），
+  是"明确不缓存"的源码声明，不是漏写。
+- **判定与门禁**：`BoundaryCache` 按接口 + 非边界子树结构判定，不再用中央白名单；
+  `record_coverage_test` 源码枚举全部会 Paint 的类型，未声明即红（红绿双向验证过）。
+- **视口内容层**：内容子树自动 RepaintBoundary；滚动 = 画布变换（内容本地 (0,0) 锚点，录制不含 scroll），
+  干净内容零重录；内容脏按内容本地坐标重录；>8192 逻辑高回退逐帧活画。
+- **已知缺口（2026-11-17 实测，归合成侧跟进）**：retained 合成下，纹理化子内容对
+  `ClipRRectLayer` 的圆角半径与 `OpacityLayer` 的组透明不生效（矩形 scissor / 直通 blit）——
+  `examples/ui_wr_record_coverage` 冻结帧实测圆角块角落仍为填充色、0.5 透明组输出纯色；
+  FullPaint/录制路径（单元 `record_pixel_test.go`）像素正确。
 | FRO-BUILD-OWNER | BuildOwner | 构建脏元件 | Widget→Element | 无 Widget 层 | — | — | D | — | 命令式 RO 模型 |
 
 ---
