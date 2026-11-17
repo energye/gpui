@@ -410,7 +410,9 @@ go run ./examples/ui_l1_scroll              # 滚动
      把整张池化层 RT 以 opacity=1 铺满父级——框外残留上一帧/上一层的像素，盖在 B 的位置；B 的 0.5 blit 叠上后
      看起来不透明。修复：`markLayerEffect(pad)` 把滤镜层合成限制在 content damage + 滤镜扩散半径内
      （blur/blurXY 用 3r+2，空 damage 回退全量），对齐 Skia 的 saveLayer filter 输出裁剪；真机 A/B/C 全半蓝。
-     **遗留**：颜色矩阵/灰度、drop shadow、SVG 光照/湍流等仍走 fullComposite，同一类池化 RT 风险待同法审计。
+     **审计结果**：灰度/颜色矩阵（`ApplyColorMatrix`/`ApplyGrayscale`/`ApplyInvert`）本来就没标 fullComposite，
+     按 damage 有界；定向窗实测 A/B 半透明、灰度/矩阵像素正确，无需改动。**遗留**：drop shadow、SVG 光照/湍流、
+     erode/dilate/offset/bloom 等仍走 fullComposite 且源为层 RT，同类风险待逐项审计。
 | FRO-BUILD-OWNER | BuildOwner | 构建脏元件 | Widget→Element | 无 Widget 层 | — | — | D | — | 命令式 RO 模型 |
 
 ---

@@ -76,9 +76,15 @@ damage 为空（bounds 不可知）才回退全量。`ApplyBlur` / `ApplyBlurXY`
   像素探针 8/8、逻辑 8/8；Golden 差 **0.5333%（5120px）**，正是透明度块恢复半透明的面积，待人工过目后重播种。
 - 无模糊 / full-paint / 4 层透明度变体：全部正确，无回归。
 
-**遗留**：其它仍用 `markLayerFullComposite()` 的效果（颜色矩阵/灰度、drop shadow、SVG 光照/湍流等）
-有同一类风险（池化层 RT 的旧像素被整表铺出）；本次只按真机复现修了 blur 家族，其余需用同样的
-「效果边界合成」审计，不声称全族关闭。
+**灰度/颜色矩阵审计（2026-11-17，结论：本来就安全，无需改动）**：`ApplyColorMatrix` / `ApplyGrayscale` /
+`ApplyInvert` 没有调用 `markLayerFullComposite`，层合成默认按 damage 有界。定向窗（per-page：opacity A →
+grayscale 红块 → R/B swap 颜色矩阵 → opacity B；viewport 滚动）实测：A/B 都是 (147,166,242) 半透明、
+grayscale=(95,95,95)、矩阵=(38,38,229)，与构造值一致，没有池化 RT 旧像素被铺出。`ApplyColorFilter`
+（通用 ColorFilter）仍标 full，但其源是过滤后的层 pixmap（不是 GPU 层 RT），不属本类风险，保留。
+
+**遗留（缩小后）**：仍走 `markLayerFullComposite` 且源是 GPU 层 RT 的效果——drop shadow、SVG 光照/湍流、
+erode/dilate/offset/bloom/lighting 等——有同一类风险，需逐项按「效果边界合成」审计；blur 家族已修，
+灰度/颜色矩阵已审计安全。
 
 **归位**：合成侧 / 层合成（`render/context_layer_stack.go` + `render/filter_ops_cpu.go`）。
 
@@ -106,3 +112,4 @@ damage 为空（bounds 不可知）才回退全量。`ApplyBlur` / `ApplyBlurXY`
 | 2026-11-17 | Golden 重播种完成：单窗播种轮 SEEDED + 复核轮 OK 0.0000%（960000px）、像素 8/8、逻辑 8/8、scrollRR=0/skip≈114、animRR=0；新基线与快照逐字节一致。 |
 | 2026-11-17 | 问题 2 根因与修复：模糊层 fullComposite 把池化层 RT 的旧像素整表铺出，隔层透明度被实色盖住；新增 markLayerEffect(pad) 按内容+滤镜扩散合成 blur/blurXY，单测 + 真窗 A/B/C 全半蓝；验收窗透明度恢复 (147,172,242)。 |
 | 2026-11-17 | 第二次 Golden 重播种完成（对应透明度修复 0.5333%）：播种轮 SEEDED、复核轮 OK 0.0000%（960000px）、像素 8/8、逻辑 8/8、scrollRR=0/skip≈113、animRR=0；基线与快照逐字节一致。 |
+| 2026-11-17 | 灰度/颜色矩阵审计：ApplyColorMatrix / ApplyGrayscale / ApplyInvert 未标 fullComposite，按 damage 有界；定向窗 A/B 半透明、灰度/矩阵像素正确，无池化 RT 泄漏，无需改动。剩余风险收窄到 drop shadow / SVG 光照/湍流 / erode/dilate/offset/bloom 等仍走 fullComposite 的效果。 |

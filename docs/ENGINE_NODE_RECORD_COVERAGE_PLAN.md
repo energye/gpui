@@ -232,7 +232,8 @@ type Volatile interface {
      「retained 纹理合成忽略圆角」有误——这是 paint 层问题，全路径都会踩。
   2. **隔层组透明失效（已修 · 模糊家族）**：模糊层 `markLayerFullComposite` 把池化层 RT 的旧像素整表铺出，
      B 的 0.5 合成叠在实色上看起来不透明；改为 `markLayerEffect(pad)` 按内容+滤镜扩散有界合成后，
-     真机 blur → A → B → C 全部半透明。其它 fullComposite 效果同类风险待审计。
+     真机 blur → A → B → C 全部半透明。灰度/颜色矩阵已审计：本就按 damage 有界，定向窗无泄漏；剩余
+     drop shadow、SVG 光照/湍流等 fullComposite 效果同类风险待审计。
 - **步骤 0 真窗口径**：transient 拖拽节拍由单测锁死（`WaitTimeout_TransientPacing`：transient+pending
   返回帧边界等待且不 0 轮询）；本轮无自动指针拖拽注入，真窗只跑 icon 巡览（persistent 有 ticker）验证
   vsync 正常/无回归；如需真拖拽数，人工拖任意窗用 HUD 观察。
