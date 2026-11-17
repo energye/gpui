@@ -464,7 +464,8 @@ func (r *Recorder) canUseRRectClipFastPath(rr render.RRect) bool {
 	}
 
 	tm := r.transform
-	if tm.B != 0 || tm.C != 0 {
+	// Skew terms only (B/D); translation (C/F) leaves the analytic RRect valid.
+	if tm.B != 0 || tm.D != 0 {
 		return false
 	}
 	ax, ey := math.Abs(tm.A), math.Abs(tm.E)

@@ -123,7 +123,11 @@ func (c *Context) ClipRoundRect(x, y, w, h, radius float64) {
 		return
 	}
 	tm := c.totalMatrix()
-	if tm.B != 0 || tm.C != 0 {
+	// Axis-aligned = no skew in the linear part (B = x-by-y, D = y-by-x).
+	// C/F are translation and must stay on the analytic RRect path: checking
+	// C here turned every translated rrect (viewport content-local clip) into
+	// a quad path and dropped the radius entirely.
+	if tm.B != 0 || tm.D != 0 {
 		// B1: rotated/sheared CTM — clip to the transformed rounded rect as
 		// an exact path (the AABB of two corners would leave corner regions
 		// visible).
@@ -324,7 +328,8 @@ func (c *Context) canUseRRectClipFastPath(rr RRect) bool {
 		return false // P3.7 批 1d：投影层非恒 ⇒ 均匀缩放快路拒绝（落精确路径）
 	}
 	tm := c.totalMatrix()
-	if tm.B != 0 || tm.C != 0 {
+	// Skew terms only (B/D); translation (C/F) leaves the SDF fast path valid.
+	if tm.B != 0 || tm.D != 0 {
 		return false
 	}
 	ax, ey := math.Abs(tm.A), math.Abs(tm.E)

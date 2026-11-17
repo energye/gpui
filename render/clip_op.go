@@ -48,7 +48,10 @@ func (c *Context) ClipRectOp(x, y, w, h float64, op ClipOp) {
 		return
 	}
 	tm := c.totalMatrix()
-	if tm.B != 0 || tm.C != 0 {
+	// Axis-aligned = linear part has no skew (B = x-by-y, D = y-by-x).
+	// Translation lives in C/F and must not trigger the quad fallback: a
+	// translated rect is still an axis-aligned rect (Skia isScaleTranslate).
+	if tm.B != 0 || tm.D != 0 {
 		// Non-axis-aligned: clip to the transformed quad as a path.
 		c.deviceQuadClipPath(
 			tm.TransformPoint(Pt(x, y)),

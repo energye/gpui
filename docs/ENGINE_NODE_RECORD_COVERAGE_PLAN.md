@@ -226,11 +226,12 @@ type Volatile interface {
 
 ### 9.1 遗留与新发现（2026-11-17）
 
-- **新发现（非本卡，已归位）**：retained 纹理合成下，纹理化子内容对 `ClipRRectLayer` 的圆角半径与
-  `OpacityLayer` 的组透明不生效（矩形 scissor / 直通 blit）。证据：`ui_wr_record_coverage` 冻结帧
-  (58,262)=填充色（圆角角落未裁）、(116,340)=纯蓝（0.5 组透明未生效）；同场景 FullPaint/录制路径
-  （`record_pixel_test.go`）像素正确。已写入 `ENGINE_UI_RENDER_BASE.md` §13.1「已知缺口」，归合成侧跟进，
-  本卡不碰合成实现。
+- **验收窗暴露的合成正确性问题（非本卡，已定案）**：详见 `ENGINE_PHASE_P6_CLIP_LAYER_CORRECTNESS.md`。
+  1. **视口内圆角裁剪丢失（已修）**：根因是 `render` 的轴对齐判定把 `Matrix.C`（x 平移）当斜切，
+     圆角被降级为直角 quad path；4 处统一修为只查 B/D，单测 + 真窗角点采样锁死。此前归因
+     「retained 纹理合成忽略圆角」有误——这是 paint 层问题，全路径都会踩。
+  2. **隔层组透明失效（未修，归合成/GPU 线）**：一个图像模糊层之后，每隔一个 `OpacityLayer` 的 0.5
+     合成变实心（最小复现 blur → A → B → C：A/C 半透明、B 实心；换颜色矩阵层不触发）。
 - **步骤 0 真窗口径**：transient 拖拽节拍由单测锁死（`WaitTimeout_TransientPacing`：transient+pending
   返回帧边界等待且不 0 轮询）；本轮无自动指针拖拽注入，真窗只跑 icon 巡览（persistent 有 ticker）验证
   vsync 正常/无回归；如需真拖拽数，人工拖任意窗用 HUD 观察。
@@ -255,4 +256,4 @@ type Volatile interface {
 | 1.0 | 2026-11-17 | 立项。范围：录制覆盖 4/14→14/14 + 接口化 + 门禁 + 组合验收窗；与 P6 分工划清（拖拽光放成本归 P6）；divider 场景实测数据与证伪记录入档。 |
 | 1.1 | 2026-11-17 | 步 0 落地：钩子恢复 + transient 节拍重实现（pacingDeadlineLocked / 翻转返回 / 只在翻转时唤醒）；真窗与逐文件门禁证据入 §9。 |
 | 1.2 | 2026-11-17 | 步 1–2 落地：接口化录制 + 14 类型覆盖（Spinner/Video Volatile、Viewport 结构性）；Record 增加 scale、PictureBox 字段改名 RecordContent（理由入 §5.1）；每类型像素断言入 `record_pixel_test.go`。 |
-| 1.3 | 2026-11-17 | 步 3–6 落地：视口内容本地锚点 + 滚动零重录；覆盖门禁红绿双向 + AGENTS 纪律；组合窗 `examples/ui_wr_record_coverage` 三段证据（static 0 present / scroll 0 rerecord + skip / anim 0 rerecord）+ 冻结帧像素+Golden 0.0000%；UI 渲染母表 v1.32 同步。新发现（非本卡）：retained 纹理合成忽略圆角裁剪半径与组透明，已入母表 §13.1。 |
+| 1.3 | 2026-11-17 | 步 3–6 落地：视口内容本地锚点 + 滚动零重录；覆盖门禁红绿双向 + AGENTS 纪律；组合窗 `examples/ui_wr_record_coverage` 三段证据（static 0 present / scroll 0 rerecord + skip / anim 0 rerecord）+ 冻结帧像素+Golden 0.0000%；UI 渲染母表 v1.32 同步。新发现（非本卡）：视口内圆角裁剪丢失（平移被当斜切，已修）+ 模糊层后隔层组透明失效（未修），详见 `ENGINE_PHASE_P6_CLIP_LAYER_CORRECTNESS.md`。 |
