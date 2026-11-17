@@ -109,26 +109,26 @@ type flatRow struct {
 
 // cardUI tracks one built catalog card cell for hover/select refresh.
 type cardUI struct {
-	cell         *rendering.AbsoluteBox
-	key          string
-	name         string
-	theme        string
-	kebab        string
+	cell        *rendering.AbsoluteBox
+	key         string
+	name        string
+	theme       string
+	kebab       string
 	rowIdx, col int
-	cellX        float64
-	blend        float64 // 0 idle .. 2 selected (1 == hover)
-	nameX        float64
-	nameXSet     bool
+	cellX       float64
+	blend       float64 // 0 idle .. 2 selected (1 == hover)
+	nameX       float64
+	nameXSet    bool
 }
 
 // Card feedback palette (official greens; hex parsed once, no magic floats).
 var (
-	greenHover    = theme.Hex("#95de64") // green-4: hover glyph + border
-	greenDeep     = theme.Hex("#237804") // green-8: selected glyph + border
-	tintHover     = theme.Hex("#f6ffed") // green-1: hover fill
-	tintSelected  = theme.Hex("#d9f7be") // green-2: selected fill
-	twotoneIdle   = theme.Hex("#333333")  // official IconBase primary
-	borderIdleV   = 0.2                   // border fades in from neutral gray
+	greenHover   = theme.Hex("#95de64") // green-4: hover glyph + border
+	greenDeep    = theme.Hex("#237804") // green-8: selected glyph + border
+	tintHover    = theme.Hex("#f6ffed") // green-1: hover fill
+	tintSelected = theme.Hex("#d9f7be") // green-2: selected fill
+	twotoneIdle  = theme.Hex("#333333") // official IconBase primary
+	borderIdleV  = 0.2                  // border fades in from neutral gray
 )
 
 func lerp(a, b, f float64) float64 { return a + (b-a)*f }
@@ -805,10 +805,10 @@ func main() {
 	geoValid := false
 	resizeEvents := 0
 	// Probes use official demo solid areas (no extra fake row).
-	ptPanda := probePoint{want: [3]float64{1.0, 0.92, 0.82}, tol: 120.0 / 255}   // panda face #FFEBD2
-	ptGreen := probePoint{want: [3]float64{0.32, 0.77, 0.10}, tol: 120.0 / 255}  // #52c41a check
-	ptHot := probePoint{want: [3]float64{1.0, 0.41, 0.71}, tol: 120.0 / 255}     // hotpink custom heart
-	ptInner := probePoint{want: [3]float64{0.9, 0.9, 0.9}, tol: 16.0 / 255}   // official default secondary #E6E6E6
+	ptPanda := probePoint{want: [3]float64{1.0, 0.92, 0.82}, tol: 120.0 / 255}  // panda face #FFEBD2
+	ptGreen := probePoint{want: [3]float64{0.32, 0.77, 0.10}, tol: 120.0 / 255} // #52c41a check
+	ptHot := probePoint{want: [3]float64{1.0, 0.41, 0.71}, tol: 120.0 / 255}    // hotpink custom heart
+	ptInner := probePoint{want: [3]float64{0.9, 0.9, 0.9}, tol: 16.0 / 255}     // official default secondary #E6E6E6
 	var goldenRects []rect
 	resolveGeometry := func() {
 		if geoValid {
@@ -893,7 +893,7 @@ func main() {
 	resizeDone, resizeBack := false, false
 	// Diagnostic hover sweep (live-surface repro): park the proof row, then
 	// move hover across its cards one by one with the fixed-step clock.
-		hoverSweep := os.Getenv("GPUI_ICON_HOVER_SWEEP") == "1"
+	hoverSweep := os.Getenv("GPUI_ICON_HOVER_SWEEP") == "1"
 	// Scroll-only proof: park the same row without any hover, isolating the
 	// viewport mount/scroll damage from the hover re-record.
 	scrollProof := os.Getenv("GPUI_ICON_SCROLL_PROOF") == "1"
@@ -979,7 +979,10 @@ func main() {
 		// not a scroll transient.
 		// tourSteps counts passed 120px bands (== one card row incl gap).
 		blackout := secsSet && secs > 0 && elapsed >= float64(secs)-2.0
-		if secsSet && !static && !blackout {
+		// GPUI_ICON_NO_TOUR=1: steady-state probe mode — no auto scroll, so
+		// the frozen tail frames exercise the small-damage composite path
+		// (culled/blits account) instead of scroll's big-damage full frames.
+		if secsSet && !static && !blackout && os.Getenv("GPUI_ICON_NO_TOUR") != "1" {
 			before := vb.Viewport.ScrollOffset().Y
 			vb.Viewport.ScrollBy(0, 3)
 			after := vb.Viewport.ScrollOffset().Y

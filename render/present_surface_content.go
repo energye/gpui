@@ -84,3 +84,14 @@ func (c *Context) surfacePersistentEnabled() bool {
 func (c *Context) surfaceContentValidFlag() bool {
 	return c != nil && c.surfaceContentValid
 }
+
+// CompositeClipSafe reports whether a scene composite may clip this frame to
+// its damage and skip non-intersecting subtrees (P6 P2): only when the back
+// buffer provably holds the previous complete frame (P6 P1 persistent surface
+// + validity gate). First frame, forced/resize/recovery frames, P1 disabled
+// via GPUI_SURFACE_PERSISTENT=0, and non-persistent surfaces (wgpu reports
+// the capability false) all return false — the caller must composite full,
+// because pixels outside the damage have no defined previous content to keep.
+func (c *Context) CompositeClipSafe() bool {
+	return c != nil && c.surfacePersistent && c.surfaceContentValid
+}

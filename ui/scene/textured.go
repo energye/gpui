@@ -1327,6 +1327,10 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 		if e.hasBlit && (rotating || cur != e.lastBlit) {
 			u := cur.Union(e.lastBlit)
 			if !u.Empty() {
+				if os.Getenv("WR_P2CHK") == "1" && int64(u.Dx())*int64(u.Dy()) >= 4*int64(c.width)*int64(c.height)/5 {
+					fmt.Fprintf(os.Stderr, "P2CHK blitmove id=%d rotating=%v cur=%v last=%v w=%d h=%d off=%v\n",
+						id, rotating, cur, e.lastBlit, s.w, s.h, e.off)
+				}
 				c.dc.TrackDamageRect(u)
 			}
 		}
@@ -1584,6 +1588,14 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// skip/rerecord separately from the totals.
 	var frameShellSkip, frameShellRerecord atomic.Int64
 
+	// P6 P2: predict this frame's damage while phase 1 makes its record
+	// decisions (composite_damage.go). Rules mirror phase 2's emission sites
+	// one-to-one so the union stays a SUPERSET; it seeds from the
+	// pre-composite FrameDamage — MarkFullRedraw full rects (force frames),
+	// the gone/evict lastBlit sweeps, direct draws the embedder made first.
+	acc := &damageAccumulator{}
+	acc.addSeed(dc.FrameDamage(), dc.DeviceScale())
+
 	// Phase 1: re-record every dirty / NeedsRaster PictureLayer into its
 	// texture, walking the same CTM/clip chain as the composite below so
 	// layer-local picture ops land at the correct surface position. Layers
@@ -1611,12 +1623,17 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// (the CTM stays a pure translate), so recordLocal's translation
 	// cancel is exact and the composite-time clip crops the bounds texture
 	// back — this keeps viewport-clipped list cells on cheap textures (C4).
-	var rasterWalk func(l Layer, rotDepth int, noCache bool, underShell bool)
-	rasterWalk = func(l Layer, rotDepth int, noCache bool, underShell bool) {
+	var rasterWalk func(l Layer, rotDepth int, noCache bool, underShell bool, compM render.Matrix)
+	rasterWalk = func(l Layer, rotDepth int, noCache bool, underShell bool, compM render.Matrix) {
 		if l == nil {
 			return
 		}
 		pl, isPic := l.(*PictureLayer)
+		// P6 P2: mirror the COMPOSITE transform (pushCompositeCTM) as a pure
+		// matrix for damage prediction — this walk pushes the record CTM on
+		// the dc (rotation/scale stripped), so phase-2 quads under rotating
+		// ancestors are predicted through compM instead of dc.TransformPoint.
+		childCompM := compositeLayerMatrix(compM, l)
 		if bl, isBnd := l.(*BoundaryLayer); isBnd && bl.Shell {
 			underShell = true
 		}
@@ -1634,9 +1651,40 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		childRot := rotDepth + nonTranslating(l)
 		pushCtx := pushRecordCTM(dc, l)
+		// P6 P2 phase-1 damage prediction (superset of phase-2 emission; the
+		// rules sit next to the mirror sites in composite_damage.go).
+		if !isPic {
+			switch t := l.(type) {
+			case *TextureLayer:
+				if t.W > 0 && t.H > 0 {
+					r := image.Rect(int(math.Floor(t.X)), int(math.Floor(t.Y)),
+						int(math.Ceil(t.X+t.W)), int(math.Ceil(t.Y+t.H)))
+					acc.add(transformRectByMatrix(compM, r))
+				}
+			case *ColorFilterLayer, *ImageFilterLayer:
+				predictFilterDamage(l, acc, tex, dirty, compM)
+			case *BackdropFilterLayer:
+				// Backdrop samples the whole parent canvas — output depends
+				// on pixels outside any provable bound (P6 doc P2-4:
+				// backdrop 全量).
+				acc.markUnbounded()
+			default:
+				switch l.(type) {
+				case *ContainerLayer, *OffsetLayer, *BoundaryLayer,
+					*ClipRectLayer, *ClipRRectLayer, *TransformLayer, *OpacityLayer:
+					// phase 2 recurses normally — children predict themselves
+				default:
+					// Unknown kinds and DirtyLayer take phase 2's isolated
+					// compositeLayer path (sprites repaint dynamically):
+					// bounds unprovable → full composite this frame.
+					acc.markUnbounded()
+				}
+			}
+		}
 		if isPic && !noCache && pl.CacheKey != 0 {
 			_, dirtyID := dirty[pl.LayerID()]
 			record := dirtyID || pl.NeedsRaster || !tex.Has(pl.CacheKey)
+			refusedNow := false
 			b, haveBounds := pictureRecordBounds(pl)
 			mismatch := false
 			if !record && haveBounds && tex.BoundsMismatch(pl.CacheKey, b) {
@@ -1679,6 +1727,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				// frame would blit it over correct screen content.
 				// Phase 2 replays vector with current-bounds damage.
 				tex.refuseChanged(pl.CacheKey, b)
+				refusedNow = true
 				pl.NeedsRaster = false
 			} else if record && admit {
 				var ok bool
@@ -1716,15 +1765,73 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				}
 				pl.NeedsRaster = false
 			}
+			// P6 P2: additive superset of the phase-2 damage this layer will
+			// emit (mirror sites: 1832 re-record prev∪current, 1799 refused
+			// bounds, 1809 replay four-corner, blit()'s move quad ∪ lastBlit).
+			if tex.RecordedThisFrame(pl.CacheKey) {
+				if q, ok := tex.BlitQuad(pl.CacheKey); ok {
+					acc.add(transformRectByMatrix(compM, q))
+				}
+				if lb, ok := tex.BlitFootprint(pl.CacheKey); ok {
+					acc.add(lb)
+				}
+				if pb := tex.PrevBounds(pl.CacheKey); !pb.Empty() {
+					acc.add(transformRectByMatrix(compM, pb))
+				}
+			} else {
+				// Vector replay (refused / record failed / noCache / no cache
+				// key): the replayed Fill/Stroke/Text ops self-track damage
+				// via the dc (context_draw.go Fill → trackDamage), so the
+				// whole recording footprint must be predicted regardless of
+				// the 1809 emission gate.
+				willReplay := refusedNow || record
+				if willReplay && haveBounds && !b.Empty() {
+					acc.add(transformRectByMatrix(compM, b))
+				}
+				if !willReplay && haveBounds && !b.Empty() {
+					// Blitting unchanged content: move damage superset —
+					// exactly blit()'s rule: rotating blits move continuously
+					// (always damage cur ∪ lastBlit); translate-only blits
+					// compare the device-snapped quad so a frozen frame
+					// reports no motion. The rotating quad is layer-local and
+					// must go through the composite matrix before unioning
+					// with the surface-coords footprint.
+					if rotDepth > 0 {
+						if q, ok := tex.BlitQuad(pl.CacheKey); ok {
+							qSurf := transformRectByMatrix(compM, q)
+							if lb, has := tex.BlitFootprint(pl.CacheKey); has {
+								acc.add(qSurf.Union(lb))
+							} else {
+								acc.add(qSurf)
+							}
+						}
+					} else if q, ok := tex.SnappedBlitQuad(dc, pl.CacheKey); ok {
+						if lb, has := tex.BlitFootprint(pl.CacheKey); has {
+							if q != lb {
+								acc.add(q.Union(lb))
+							}
+						} else {
+							acc.add(q)
+						}
+					}
+				}
+			}
+		} else if isPic {
+			// noCache / no cache key: phase 2 vector-replays every frame and
+			// the replayed ops self-track damage via the dc, so the whole
+			// recording footprint is predicted unconditionally.
+			if !pl.Recording.Bounds().Empty() {
+				acc.add(transformRectByMatrix(compM, pl.Recording.Bounds()))
+			}
 		}
 		for _, ch := range l.Children() {
-			rasterWalk(ch, childRot, childNoCache, underShell)
+			rasterWalk(ch, childRot, childNoCache, underShell, childCompM)
 		}
 		popCompositeCTM(dc, pushCtx)
 	}
 	allNoCache := os.Getenv("WR_NOCACHE") == "1"
-	rasterWalk(pkt.Root, 0, allNoCache, false)
-	rasterWalk(pkt.Overlay, 0, allNoCache, false)
+	rasterWalk(pkt.Root, 0, allNoCache, false, render.Identity())
+	rasterWalk(pkt.Overlay, 0, allNoCache, false, render.Identity())
 
 	// Phase 2: composite paint order — texture blits for cached pictures,
 	// vector replay fallback otherwise, attribute layers via canvas state.
@@ -1735,12 +1842,45 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// corners so a rotated blit dirties its rotated footprint. Only clips
 	// under rotation fall back to vector replay (record/composite clip
 	// shapes would mismatch).
+	//
+	// P6 P2: when the clip gate holds (persistent surface + validity, damage
+	// < 85% coverage, no unbounded effect), the composite is clipped to the
+	// predicted damage union and subtrees whose footprints miss it are
+	// skipped entirely — Flutter Preroll(clip_rect) + canvas.ClipRect parity.
+	// Intersecting layers are ALL painted (never dirty-only).
+	gate := planCompositeClip(dc, acc)
+	if os.Getenv("WR_P2DBG") == "1" {
+		fmt.Fprintf(os.Stderr, "P2DBG unbounded=%v rects=%d union=%v clipSafe=%v projId=%v win=%dx%d gate=%v\n",
+			acc.unbounded, len(acc.rects), acc.union, dc.CompositeClipSafe(),
+			dc.Projection().IsIdentity(), dc.Width(), dc.Height(), gate.active)
+	}
+	wrP2CHK := os.Getenv("WR_P2CHK") == "1"
+	var p2chkPre []image.Rectangle
+	clipPushed := false
+	if gate.active {
+		if wrP2CHK {
+			p2chkPre = append(p2chkPre, dc.FrameDamage()...)
+		}
+		if !gate.union.Empty() {
+			dc.Push()
+			dc.ClipRect(float64(gate.union.Min.X), float64(gate.union.Min.Y),
+				float64(gate.union.Dx()), float64(gate.union.Dy()))
+			clipPushed = true
+		}
+	}
 	var compositeWalk func(l Layer, rotDepth int, noCache bool, underShell bool)
 	compositeWalk = func(l Layer, rotDepth int, noCache bool, underShell bool) {
 		if l == nil {
 			return
 		}
 		st.LayersVisited++
+		// P6 P2: skip layers whose painted footprint provably misses the
+		// damage union — the persistent surface already holds their pixels.
+		// A culled container skips its whole subtree.
+		if gate.active && compositeCullable(l, dc, gate.union, tex, dirty) {
+			st.LayersCulled++
+			return
+		}
 		if bl, isBnd := l.(*BoundaryLayer); isBnd && bl.Shell {
 			underShell = true
 		}
@@ -1975,6 +2115,10 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	}
 	compositeWalk(pkt.Root, 0, allNoCache, false)
 	compositeWalk(pkt.Overlay, 0, allNoCache, false)
+	if clipPushed {
+		dc.Pop()
+	}
+	checkP2CHK(dc, gate, p2chkPre, &st, acc)
 	st.ShellSkip = frameShellSkip.Load()
 	st.ShellRerecord = frameShellRerecord.Load()
 	return st
