@@ -30,6 +30,15 @@ type PipelineOwner struct {
 	layoutDirty bool
 	paintDirty  bool
 
+	// needsFrameHook (optional) fires when the tree transitions clean →
+	// dirty from OUTSIDE the frame loop (e.g. user SetState on a goroutine
+	// after async data lands). Without it the event loop sleeps in
+	// WaitEvents and a cross-thread dirty mark would never render
+	// (ENGINE_FRAME_PRESENT_STANDARD 块1 on-demand correctness). The
+	// embedder wires this to ScheduleFrame (pending + WakeUp).
+	// Flip-guarded: fires once per clean→dirty transition, not per mark.
+	needsFrameHook func()
+
 	// boundaryCache is the process-lifetime Picture cache for RepaintBoundary
 	// nodes on this tree. Shared across presents so skip is observable.
 	boundaryCache *BoundaryCache
@@ -216,13 +225,38 @@ func (o *PipelineOwner) Root() RenderObject {
 	return o.root
 }
 
+// SetNeedsFrameHook installs the dirty→frame-demand wake hook (embedder
+// wiring; pass the app's ScheduleFrame). Must be set before the tree goes
+// live; the hook may run on any goroutine and must be thread-safe.
+func (o *PipelineOwner) SetNeedsFrameHook(fn func()) {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	o.needsFrameHook = fn
+	o.mu.Unlock()
+}
+
+// fireNeedsFrameHook runs the hook once per clean→dirty transition. Called
+// AFTER mu is released: the hook (embedder ScheduleFrame) is thread-safe and
+// cheap — atomic pending flag plus a host wake.
+func (o *PipelineOwner) fireNeedsFrameHook() {
+	if fn := o.needsFrameHook; fn != nil {
+		fn()
+	}
+}
+
 func (o *PipelineOwner) noteLayoutDirty() {
 	if o == nil {
 		return
 	}
 	o.mu.Lock()
+	fresh := !o.layoutDirty
 	o.layoutDirty = true
 	o.mu.Unlock()
+	if fresh {
+		o.fireNeedsFrameHook()
+	}
 }
 
 func (o *PipelineOwner) notePaintDirty() {
@@ -230,8 +264,12 @@ func (o *PipelineOwner) notePaintDirty() {
 		return
 	}
 	o.mu.Lock()
+	fresh := !o.paintDirty
 	o.paintDirty = true
 	o.mu.Unlock()
+	if fresh {
+		o.fireNeedsFrameHook()
+	}
 }
 
 // ResetCounts zeroes layout/paint counters.

@@ -539,12 +539,17 @@ func (s *FrameScheduler) SeedDisplayRefreshHz(hz float64) {
 	s.metrics.setTargetHz(hz)
 }
 
-// ScheduleFrame requests a frame (wakes IDLE).
-func (s *FrameScheduler) ScheduleFrame() {
+// ScheduleFrame requests a frame and reports whether this call flipped
+// demand from idle→pending. Callers use the flip to decide whether a wake is
+// needed: a repeat schedule while demand is already pending is a no-op — the
+// loop is either rendering at the pacing boundary or about to wake for it —
+// and waking it again would turn the pacing sleep into a busy spin
+// (ENGINE_FRAME_PRESENT_STANDARD 块1: demand is a latch, not an event).
+func (s *FrameScheduler) ScheduleFrame() bool {
 	if s == nil {
-		return
+		return false
 	}
-	s.pending.Store(true)
+	return !s.pending.Swap(true)
 }
 
 // ClearPending clears the frame-needed flag after a successful frame path.
@@ -596,11 +601,41 @@ func (s *FrameScheduler) RecomputeMode() {
 	s.SetMode(ModeIdle)
 }
 
+// pacingDeadlineLocked returns the wait remaining to the next frame
+// boundary: the pacing sleep both steady ticker cadence and pending demand
+// use, so the event loop wakes exactly at the grid point FrameDue opens
+// (never quantized to event-arrival boundaries, never a 0 poll). ok=false
+// means no frame has rendered yet (no pacing clock — see callers for the
+// first-frame wait). Caller must hold s.mu (and vsyncMu for stable stamp
+// reads, matching the existing persistent path).
+func (s *FrameScheduler) pacingDeadlineLocked(now time.Time) (d time.Duration, ok bool) {
+	if s.lastFrameAt.IsZero() {
+		return 0, false
+	}
+	// Ceiling: animTick, lowered to the learned/reported display period.
+	// A never-learned period (<4ms) keeps the animTick ceiling.
+	d = s.animTick
+	if p := s.boundaryPeriodLocked(); p >= 4*time.Millisecond && p < d {
+		d = p
+	}
+	boundary, _ := s.nextFrameBoundaryLocked(now)
+	switch left := boundary.Sub(now); {
+	case left > 0 && left < d:
+		return left, true
+	case left <= 0:
+		// Boundary already passed (a slow iteration overran it): do not
+		// sleep the full interval again — poll and let FrameDue open on
+		// the overdue deadline.
+		return 0, true
+	}
+	return d, true
+}
+
 // WaitTimeout returns how long the host should WaitEvents.
 // IDLE → -1 (infinite); persistent → time until the next frame boundary
-// (≤animTick), so the event loop wakes exactly at the pacing deadline
-// instead of quantizing it to event-arrival boundaries; transient with
-// pending → 0 poll after wake.
+// (≤animTick); transient with pending → the SAME boundary wait (the frame is
+// gated by FrameDue, so polling at 0 here only burns CPU between boundaries —
+// measured as the largest single item during drag/scroll).
 func (s *FrameScheduler) WaitTimeout() time.Duration {
 	if s == nil {
 		return -1
@@ -625,27 +660,23 @@ func (s *FrameScheduler) WaitTimeout() time.Duration {
 		defer s.vsyncMu.Unlock()
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		d := s.animTick
-		if p := s.boundaryPeriodLocked(); s.lastFrameAt.IsZero() || p < 4*time.Millisecond {
-			// no learned period yet — keep the animTick ceiling
-		} else if p < d {
-			d = p
+		if d, ok := s.pacingDeadlineLocked(time.Now()); ok {
+			return d
 		}
-		if !s.lastFrameAt.IsZero() {
-			boundary, _ := s.nextFrameBoundaryLocked(time.Now())
-			switch left := time.Until(boundary); {
-			case left > 0 && left < d:
-				d = left
-			case left <= 0:
-				// Boundary already passed (a slow iteration overran it): do
-				// not sleep the full interval again — poll and let FrameDue
-				// open on the overdue deadline.
-				d = 0
-			}
-		}
-		return d
+		// No pacing clock yet — keep the animTick ceiling.
+		return s.animTick
 	case ModeTransient:
 		if s.Pending() {
+			s.vsyncMu.Lock()
+			s.mu.Lock()
+			d, ok := s.pacingDeadlineLocked(time.Now())
+			s.mu.Unlock()
+			s.vsyncMu.Unlock()
+			if ok {
+				return d
+			}
+			// First demanded frame: FrameDue opens unconditionally, so the
+			// loop must not sleep through the pacing interval.
 			return 0
 		}
 		return -1

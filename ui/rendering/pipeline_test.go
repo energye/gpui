@@ -292,3 +292,54 @@ func TestOwner_NextTickerWake(t *testing.T) {
 		t.Fatal("emptied set must report no deadline")
 	}
 }
+
+// TestPipelineOwner_NeedsFrameHook 验证跨线程标脏唤醒链（块1 按需渲染的
+// 正确性前提）：goroutine 里的 SetState/MarkNeeds* 必须触发需求钩子
+// （embedder 把它接到 ScheduleFrame=atomic pending+host.WakeUp），否则
+// 事件循环睡死、界面停留旧状态。翻转守卫：一次 clean→dirty 只触发一次。
+func TestPipelineOwner_NeedsFrameHook(t *testing.T) {
+	root := rendering.NewAbsoluteBox(100, 100)
+	owner := rendering.NewPipelineOwner(root)
+
+	fires := 0
+	owner.SetNeedsFrameHook(func() { fires++ })
+
+	// 新节点初始即待画：先 flush 到 clean，再测 clean→dirty 翻转。
+	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
+	owner.FlushPaint(&rendering.PaintContext{}, true)
+
+	// clean→dirty：触发一次。
+	root.MarkNeedsPaint()
+	if fires != 1 {
+		t.Fatalf("first mark fired %d times, want 1", fires)
+	}
+	// 已脏重复标：不重复触发（防风暴）。
+	root.MarkNeedsPaint()
+	root.MarkNeedsPaint()
+	if fires != 1 {
+		t.Fatalf("repeat paint marks fired %d times, want still 1", fires)
+	}
+	// layout 标志是独立翻转：paint 已脏后 layout clean→dirty 再触发一次，
+	// 两次都汇到 ScheduleFrame（幂等），这正是框架语义。
+	root.MarkNeedsLayout()
+	if fires != 2 {
+		t.Fatalf("layout flip fired %d times total, want 2", fires)
+	}
+	root.MarkNeedsLayout()
+	if fires != 2 {
+		t.Fatalf("repeat layout marks fired %d times, want still 2", fires)
+	}
+	// flush 清标志后再次标脏：再触发一次（下一个帧周期）。
+	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
+	owner.FlushPaint(&rendering.PaintContext{}, true)
+	root.MarkNeedsPaint()
+	if fires != 3 {
+		t.Fatalf("post-flush mark fired %d times, want 3 (fresh clean→dirty flip)", fires)
+	}
+
+	// 线程归属契约：标脏（MarkNeeds*/SetState）只在事件循环线程；跨线程
+	// 数据到达必须 marshal（host.WakeUp→EventWake→循环线程内标脏）。
+	// Base 脏标志无锁是有意为之（热路径），-race 下的 goroutine 并发标脏
+	// 属于违约用法，不进测试（KIT_RENDER_CONTRACT §线程归属）。
+	_ = root
+}

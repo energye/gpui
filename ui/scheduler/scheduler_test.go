@@ -70,8 +70,10 @@ func TestSchedule_PendingAndMode(t *testing.T) {
 	if s.Mode() != scheduler.ModeTransient {
 		t.Fatalf("mode=%v", s.Mode())
 	}
+	// 首次需求帧没有节拍时钟（FrameDue 首帧无条件开），等待必须为 0；
+	// 节拍时钟建立后的 transient 等待由 TestWaitTimeout_TransientPacing 锁。
 	if s.WaitTimeout() != 0 {
-		t.Fatal("transient pending should poll")
+		t.Fatal("first demanded frame must not sleep (no pacing clock yet)")
 	}
 	s.ClearPending()
 	s.RecomputeMode()

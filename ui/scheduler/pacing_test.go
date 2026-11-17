@@ -139,6 +139,57 @@ func TestWaitTimeout_TargetsNextFrameBoundary(t *testing.T) {
 	}
 }
 
+// TestWaitTimeout_TransientPacing: transient demand (drag/scroll frame
+// requested) must sleep to the SAME frame boundary as steady cadence, not
+// poll at 0. A 0 timeout here re-enters WaitEvents immediately and burns CPU
+// between vsync boundaries (measured as the largest single drag CPU item).
+func TestWaitTimeout_TransientPacing(t *testing.T) {
+	s := scheduler.New()
+	s.SetAnimTick(40 * time.Millisecond)
+
+	if !s.FrameDue() {
+		t.Fatal("first gate must open")
+	}
+	time.Sleep(10 * time.Millisecond)
+	s.ScheduleFrame()
+	s.RecomputeMode()
+	if s.Mode() != scheduler.ModeTransient {
+		t.Fatalf("mode=%v want transient", s.Mode())
+	}
+	got := s.WaitTimeout()
+	if got <= 0 || got > 40*time.Millisecond {
+		t.Fatalf("WaitTimeout=%v want (0, 40ms] (remaining to boundary, no 0 poll)", got)
+	}
+	if got < 20*time.Millisecond || got > 35*time.Millisecond {
+		t.Fatalf("WaitTimeout=%v want ≈30ms remaining after 10ms of a 40ms floor", got)
+	}
+	// The boundary itself is still gated by FrameDue: a wake at the deadline
+	// opens the frame, an earlier wake does not.
+	if s.FrameDue() {
+		t.Fatal("gate must stay closed before the boundary")
+	}
+	time.Sleep(got + 2*time.Millisecond)
+	if !s.FrameDue() {
+		t.Fatal("gate must open at the pacing boundary")
+	}
+}
+
+// TestScheduleFrame_Flip: ScheduleFrame reports the idle→pending flip so
+// callers wake the loop once per demand, not once per mark.
+func TestScheduleFrame_Flip(t *testing.T) {
+	s := scheduler.New()
+	if !s.ScheduleFrame() {
+		t.Fatal("first schedule must report idle→pending")
+	}
+	if s.ScheduleFrame() {
+		t.Fatal("repeat schedule while pending must report no flip")
+	}
+	s.ClearPending()
+	if !s.ScheduleFrame() {
+		t.Fatal("schedule after clear must report a fresh flip")
+	}
+}
+
 // TestWaitTimeout_OverdueReturnsZero: when a slow iteration overruns the
 // floor boundary, the loop must not sleep the full interval again — poll
 // immediately and let FrameDue open on the overdue deadline.

@@ -121,11 +121,10 @@ func (a *App) Target() *render.PresentTarget {
 // ScheduleFrame requests a clear/present frame.
 func (a *App) ScheduleFrame() {
 	if a != nil && a.sched != nil {
-		a.sched.ScheduleFrame()
-		// ModePersistent runs WaitEvents on a ≤animTick (16ms) timeout, so
-		// the loop wakes by itself; a wake byte here would only be consumed
-		// by the same thread's next WaitEvents and spin the pacing sleep.
-		if a.host != nil && a.sched.Mode() != scheduler.ModePersistent {
+		// Wake only on a fresh idle→pending flip: repeat schedules land
+		// while the loop already renders at the pacing boundary, and a wake
+		// byte there would spin that sleep (demand is a latch).
+		if a.sched.ScheduleFrame() && a.host != nil && a.sched.Mode() != scheduler.ModePersistent {
 			a.host.WakeUp()
 		}
 	}

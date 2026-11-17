@@ -742,6 +742,12 @@ func newPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 		opts:  opts,
 	}
 	app.useRetained.Store(true)
+	// Dirty→frame-demand wake wiring (ENGINE_FRAME_PRESENT_STANDARD 块1
+	// correctness): a SetState/MarkNeeds* from outside the frame loop (async
+	// data landing on a goroutine) must wake the sleeping event loop, or the
+	// UI stays stale until the next input event. ScheduleFrame is
+	// thread-safe (atomic pending + host WakeUp for IDLE/TRANSIENT).
+	app.pipe.SetNeedsFrameHook(app.ScheduleFrame)
 	app.saveStats = &rendering.SaveLayerStats{}
 	if opts.SaveLayerMaxOps > 0 || opts.SaveLayerMaxArea > 0 {
 		app.saveBudget = &rendering.SaveLayerBudget{
@@ -1011,15 +1017,13 @@ func (a *PipelineApp) ScheduleFrame() {
 	if a == nil {
 		return
 	}
-	a.sched.ScheduleFrame()
-	// ModePersistent already runs WaitEvents on a ≤animTick (16ms) timeout,
-	// so the loop wakes by itself. Writing a wake byte here would only be
-	// consumed by the same thread's next WaitEvents call, which returns
-	// immediately on a wake and turns the pacing sleep into a busy spin:
-	// ticker callbacks (and their per-frame work) then run at spin rate
-	// while presents stay gated at 60fps. WakeUp stays for IDLE/TRANSIENT
-	// waits, which block indefinitely and need a cross-thread interrupt.
-	if a.host != nil && a.sched.Mode() != scheduler.ModePersistent {
+	flipped := a.sched.ScheduleFrame()
+	// Only a fresh idle→pending flip needs a cross-thread wake. Demand is a
+	// latch: while it is already pending the loop either renders at the next
+	// pacing boundary or is about to wake for it, so writing the wake pipe
+	// again would just turn that pacing sleep into a busy spin (drag/scroll
+	// CPU root cause). Persistent mode already wakes at ≤period by itself.
+	if flipped && a.host != nil && a.sched.Mode() != scheduler.ModePersistent {
 		a.host.WakeUp()
 	}
 }
