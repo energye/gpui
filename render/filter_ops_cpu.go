@@ -95,14 +95,17 @@ func (c *Context) ApplyBlur(radius float64) {
 	if radius <= 0 || blurApply == nil {
 		return
 	}
+	// A blur spreads by ~3σ; composite only content+halo, never the full
+	// surface (a pooled layer RT can hold stale pixels outside the content).
+	pad := 3*radius + 2
 	if c.tryApplyFilterGraphGPU(ImageFilterNode{Kind: ImageFilterBlur, Radius: radius}) {
-		c.markLayerFullComposite()
+		c.markLayerEffect(pad)
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		blurApply(src, dst, radius)
 	})
-	c.markLayerFullComposite()
+	c.markLayerEffect(pad)
 }
 
 // ApplyBlurXY applies an anisotropic Gaussian blur (L.04).
@@ -113,14 +116,19 @@ func (c *Context) ApplyBlurXY(radiusX, radiusY float64) {
 	if (radiusX <= 0 && radiusY <= 0) || blurXYApply == nil {
 		return
 	}
+	// Same bounded composite as ApplyBlur; use the larger axis for the halo.
+	pad := 3*radiusX + 2
+	if radiusY > radiusX {
+		pad = 3*radiusY + 2
+	}
 	if c.tryApplyFilterGraphGPU(ImageFilterNode{Kind: ImageFilterBlurXY, RadiusX: radiusX, RadiusY: radiusY}) {
-		c.markLayerFullComposite()
+		c.markLayerEffect(pad)
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		blurXYApply(src, dst, radiusX, radiusY)
 	})
-	c.markLayerFullComposite()
+	c.markLayerEffect(pad)
 }
 
 // ApplyDropShadow composites a drop shadow under current surface contents (F.02 / L.04).

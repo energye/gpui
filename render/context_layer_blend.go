@@ -276,6 +276,30 @@ func (c *Context) markLayerFullComposite() {
 	c.layerStack.layers[len(c.layerStack.layers)-1].fullComposite = true
 }
 
+// markLayerEffect bounds a filter-layer composite to its content damage
+// expanded by pad (the filter's spatial spread) instead of the whole surface.
+// A pooled layer RT can still hold pixels from a previous layer outside its
+// content; a full-surface composite paints them at this layer's opacity
+// (Skia crops a saveLayer filter output to the layer bounds). Empty damage
+// keeps the full composite (bounds unknown).
+func (c *Context) markLayerEffect(pad float64) {
+	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		return
+	}
+	top := c.layerStack.layers[len(c.layerStack.layers)-1]
+	if top == nil {
+		return
+	}
+	if top.damage.Empty() {
+		top.fullComposite = true
+		return
+	}
+	top.fullComposite = false
+	if pad > 0 {
+		top.damage = top.damage.Inset(-int(pad + 0.5))
+	}
+}
+
 // noteParentCompositeDamage unions a popped child's composite rect into the
 // enclosing isolation layer's damage. Without it a damage-limited parent
 // composite drops nested layer/texture content (nested backdrop inside a layer

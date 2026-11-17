@@ -230,8 +230,9 @@ type Volatile interface {
   1. **视口内圆角裁剪丢失（已修）**：根因是 `render` 的轴对齐判定把 `Matrix.C`（x 平移）当斜切，
      圆角被降级为直角 quad path；4 处统一修为只查 B/D，单测 + 真窗角点采样锁死。此前归因
      「retained 纹理合成忽略圆角」有误——这是 paint 层问题，全路径都会踩。
-  2. **隔层组透明失效（未修，归合成/GPU 线）**：一个图像模糊层之后，每隔一个 `OpacityLayer` 的 0.5
-     合成变实心（最小复现 blur → A → B → C：A/C 半透明、B 实心；换颜色矩阵层不触发）。
+  2. **隔层组透明失效（已修 · 模糊家族）**：模糊层 `markLayerFullComposite` 把池化层 RT 的旧像素整表铺出，
+     B 的 0.5 合成叠在实色上看起来不透明；改为 `markLayerEffect(pad)` 按内容+滤镜扩散有界合成后，
+     真机 blur → A → B → C 全部半透明。其它 fullComposite 效果同类风险待审计。
 - **步骤 0 真窗口径**：transient 拖拽节拍由单测锁死（`WaitTimeout_TransientPacing`：transient+pending
   返回帧边界等待且不 0 轮询）；本轮无自动指针拖拽注入，真窗只跑 icon 巡览（persistent 有 ticker）验证
   vsync 正常/无回归；如需真拖拽数，人工拖任意窗用 HUD 观察。
