@@ -470,6 +470,12 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 	if desc != nil && len(desc.ColorAttachments) > 0 {
 		e.setupColorAttachment(desc, rpe)
 	}
+	// WebGPU scissor semantics: at pass begin the scissor is the full render
+	// area. GL's scissor is global state that survives FBO/pass changes, so a
+	// damage scissor from the previous pass would clip this pass's draws
+	// (offscreen layer RTs recorded after a damage-scissored surface pass
+	// came out blank). Reset to the disabled/full state explicitly.
+	e.commands = append(e.commands, &ResetScissorCommand{})
 
 	// GL_FRAMEBUFFER_SRGB is framebuffer-wide: enable it for an sRGB color
 	// attachment so shader outputs and fixed-function blending are linear,

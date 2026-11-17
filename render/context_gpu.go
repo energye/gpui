@@ -260,6 +260,13 @@ func (c *Context) flushGPUWithViewCoreImpl(view gpucontext.TextureView, width, h
 	}
 	var err error
 	if rc := c.gpuCtxOps(); rc != nil {
+		// P6 P1: surface-content registration does NOT happen here. This core
+		// is shared by the real surface present AND layer/effect flushes
+		// (recordLocal → FlushGPUWithView); only the present path
+		// (PresentTarget.present → markSurfaceContentForPresent) may mark.
+		// Marking every non-offscreen flush registered pooled layer RTs as
+		// surface carry, so steady-state record passes LOADED stale pixels
+		// under the new recording (solid icons after hover).
 		if offscreen {
 			// 离屏无 pending 时走带种子的 base flush（种子语义与上面标记配套，
 			// effect-publish 主链同款）。

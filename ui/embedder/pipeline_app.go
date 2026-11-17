@@ -13,6 +13,8 @@ package embedder
 import (
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -1268,6 +1270,40 @@ func (a *PipelineApp) runOnGL(fn func()) {
 	}
 }
 
+// SaveSurfacePNG captures the presented back buffer (GL FBO) for diagnostic
+// live-surface gates. Unlike SnapshotPath this is the actual presented surface,
+// not a full-tree repaint. Must be called while the app is running; the
+// readback runs on the GL/raster thread.
+func (a *PipelineApp) SaveSurfacePNG(path string) error {
+	if a == nil || a.target == nil {
+		return errors.New("embedder: no present target")
+	}
+	var err error
+	a.runOnGL(func() {
+		data, w, h, ok := a.target.ReadSurfacePixels()
+		if !ok {
+			err = errors.New("embedder: surface readback unavailable")
+			return
+		}
+		// The render projection maps the app's Y-down origin to GL window
+		// coordinates so the FBO read (row 0 = app top) is already top-down;
+		// the present path later applies the Y-flip for the window. Do not
+		// flip here.
+		img := image.NewRGBA(image.Rect(0, 0, w, h))
+		for y := 0; y < h; y++ {
+			copy(img.Pix[y*img.Stride:(y+1)*img.Stride], data[y*w*4:(y+1)*w*4])
+		}
+		f, e := os.Create(path)
+		if e != nil {
+			err = e
+			return
+		}
+		defer f.Close()
+		err = png.Encode(f, img)
+	})
+	return err
+}
+
 // Run pumps events, ticks animations, builds packets, presents asynchronously.
 func (a *PipelineApp) Run() error {
 	if a == nil {
@@ -2193,6 +2229,11 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 			d.MarkFullRedraw()
 		}
 		st = scene.CompositeFramePacketTextured(pkt, d, tex)
+		if os.Getenv("WR_DAMAGE_DBG") == "1" {
+			for _, r := range st.DamageRects {
+				fmt.Fprintf(os.Stderr, "DMG %v\n", r)
+			}
+		}
 		lastFiltersApplied.Store(int64(st.FiltersApplied))
 		lastTexturePaint.Store(texturePaintSnap{
 			Painted: int64(st.TexturesPainted),

@@ -18,10 +18,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/recording"
 )
+
+var globalBlitPxLog int
 
 // PictureTextureCache keeps offscreen GPU textures for PictureLayers across
 // frames.
@@ -642,10 +645,20 @@ func (c *PictureTextureCache) BeginFrame() {
 		// dropping hasBlit so the report is not repeated forever.
 		for id, e := range c.entries {
 			if e == nil || !e.hasBlit || e.lastBlit.Empty() {
+				if e != nil && os.Getenv("WR_GONE") == "1" {
+					if _, live := c.liveKeys[id]; !live && !e.bounds.Empty() {
+						fmt.Fprintf(os.Stderr, "GONE_SKIP key=%d hasBlit=%v lastBlit=%v bounds=%v recFrame=%d\n",
+							id, e.hasBlit, e.lastBlit, e.bounds, e.recordedIn)
+					}
+				}
 				continue
 			}
 			if _, ok := c.liveKeys[id]; ok {
 				continue
+			}
+			if os.Getenv("WR_GONE") == "1" {
+				fmt.Fprintf(os.Stderr, "GONE key=%d lastBlit=%v bounds=%v recFrame=%d\n",
+					id, e.lastBlit, e.bounds, e.recordedIn)
 			}
 			c.dc.TrackDamageRect(e.lastBlit)
 			e.hasBlit = false
@@ -1077,6 +1090,15 @@ func (c *PictureTextureCache) recordLocal(id uint64, rec *recording.Recording, b
 	c.dc.Translate(tx, ty)
 	c.dc.SetDamageTracking(false)
 	_ = rec.Playback(recording.NewCanvasBackend(c.dc))
+	if os.Getenv("WR_RECDBG") == "1" && w <= 80 && h <= 80 {
+		clip, has := c.dc.ClipDeviceBoundsForDebug()
+		viewPtr := uintptr(0)
+		if e.contentSlot >= 0 && e.contentSlot < len(e.slots) {
+			viewPtr = uintptr(unsafe.Pointer(e.slots[e.contentSlot].view.Pointer()))
+		}
+		fmt.Fprintf(os.Stderr, "RECL id=%d b=%v w=%d h=%d ox=%.1f oy=%.1f tx=%.1f ty=%.1f scale=%.2f clip=%v has=%v ops=%d pending=%d rec=%p view=%#x\n",
+			id, b, w, h, ox, oy, tx, ty, scale, clip, has, rec.PaintOpCount(), c.dc.PendingGPUCount(), rec, viewPtr)
+	}
 	if scratchOK {
 		if _, err := c.dc.CommitPassScratchToView(e.slots[e.contentSlot].view); err != nil {
 			fmt.Fprintf(os.Stderr, "TXSCRATCHERR id=%d w=%d h=%d err=%v\n", id, w, h, err)
@@ -1151,6 +1173,20 @@ func (c *PictureTextureCache) evictForNew() bool {
 	}
 	if victim != 0 {
 		if e := c.entries[victim]; e != nil {
+			// The victim may be a layer that just left the tree (hover fades
+			// churn one new key per tick). Its last painted footprint is the
+			// only record of the pixels it left on the persistent surface;
+			// BeginFrame's gone sweep cannot report it once the entry is
+			// gone. Report it now, in this frame's damage, or the old glyph
+			// survives under LoadOpLoad forever.
+			if e.hasBlit && !e.lastBlit.Empty() && c.dc != nil {
+				if os.Getenv("WR_GONE") == "1" {
+					fmt.Fprintf(os.Stderr, "EVICT_DMG key=%d lastBlit=%v bounds=%v recFrame=%d\n",
+						victim, e.lastBlit, e.bounds, e.recordedIn)
+				}
+				c.dc.TrackDamageRect(e.lastBlit)
+				e.hasBlit = false
+			}
 			c.releaseEntryLocked(e)
 		}
 		delete(c.entries, victim)
@@ -1223,6 +1259,9 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 	if s.view.IsNil() {
 		return false
 	}
+	if os.Getenv("WR_VIEWDBG") == "1" && s.w <= 64 && s.h <= 64 {
+		fmt.Fprintf(os.Stderr, "VIEW id=%d ptr=%p slot=%d w=%d h=%d off=%v\n", id, s.view.Pointer(), e.contentSlot, s.w, s.h, e.off)
+	}
 	// Device-pixel snap: a fractional blit origin
 	// resamples the whole texture through the linear filter, smearing every
 	// glyph of a scrolled text band. Rounding the destination keeps the baked
@@ -1240,7 +1279,31 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 		ox += (math.Round(dx) - dx) / kx
 		oy += (math.Round(dy) - dy) / ky
 	}
+	if os.Getenv("WR_BLIT_PROBE") == "1" && s.w <= 64 && s.h <= 64 {
+		if px, py := c.dc.TransformPoint(ox, oy); px >= 280 && px <= 340 && py >= 495 && py <= 565 {
+			// Card 0 icon: x-only and y-only probe copies, plus the
+			// diagonal one that is known to render.
+			c.dc.DrawGPUTexture(s.view, ox+70, oy, s.w, s.h)
+			c.dc.DrawGPUTexture(s.view, ox, oy+40, s.w, s.h)
+			c.dc.DrawGPUTexture(s.view, ox+70, oy+40, s.w, s.h)
+			c.dc.SetRGBA(0, 1, 1, 1)
+			c.dc.DrawRectangle(ox+69, oy+39, float64(s.w)+2, 1)
+			_ = c.dc.Fill()
+		}
+	}
 	c.dc.DrawGPUTexture(s.view, ox, oy, s.w, s.h)
+	if os.Getenv("WR_BLIT_PX") == "1" && s.w <= 64 && s.h <= 64 && globalBlitPxLog < 12 {
+		globalBlitPxLog++
+		px, py := c.dc.TransformPoint(ox, oy)
+		fmt.Fprintf(os.Stderr, "BLITPX id=%d px=%.1f py=%.1f w=%d h=%d\n", id, px, py, s.w, s.h)
+	}
+	if os.Getenv("WR_BLIT_MARK") == "1" && s.w <= 64 && s.h <= 64 {
+		// Diagnostic: prove the quad reached the surface even when the
+		// texture content is blank.
+		c.dc.SetRGBA(1, 0, 1, 1)
+		c.dc.DrawRectangle(ox+2, oy+2, 3, 3)
+		_ = c.dc.Fill()
+	}
 	// Offset-only move damage (Flutter layer-diff semantics): the texture
 	// is reused without re-record, so phase-2 re-record damage stays empty.
 	// Damage old ∪ new footprints or the old pixels survive under LoadOpLoad.
@@ -1659,8 +1722,9 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		popCompositeCTM(dc, pushCtx)
 	}
-	rasterWalk(pkt.Root, 0, false, false)
-	rasterWalk(pkt.Overlay, 0, false, false)
+	allNoCache := os.Getenv("WR_NOCACHE") == "1"
+	rasterWalk(pkt.Root, 0, allNoCache, false)
+	rasterWalk(pkt.Overlay, 0, allNoCache, false)
 
 	// Phase 2: composite paint order — texture blits for cached pictures,
 	// vector replay fallback otherwise, attribute layers via canvas state.
@@ -1691,8 +1755,8 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		childRot := rotDepth + nonTranslating(l)
 		if pl, ok := l.(*PictureLayer); ok {
+			blitOK := false
 			if pl.Recording.PaintOpCount() > 0 {
-				blitOK := false
 				if !noCache && pl.CacheKey != 0 {
 					if underShell && tex.blit(pl.CacheKey) {
 						frameShellSkip.Add(1)
@@ -1702,6 +1766,14 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 					}
 					if blitOK {
 						st.BlitsIssued++
+					}
+				}
+				if os.Getenv("WR_CARD_NOCACHE") == "1" {
+					// Diagnostic: force vector replay for the catalog band and
+					// damage the replay footprint.
+					if r := transformBounds(dc, pl.Recording.Bounds()); r.Min.Y < 640 && r.Max.Y > 460 {
+						blitOK = false
+						st.DamageRects = append(st.DamageRects, transformBounds4(dc, pl.Recording.Bounds()))
 					}
 				}
 				if !blitOK {
@@ -1736,6 +1808,19 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				if !blitOK && (rotDepth > 0 || noCache) && !pl.Recording.Bounds().Empty() {
 					st.DamageRects = append(st.DamageRects,
 						transformBounds4(dc, pl.Recording.Bounds()))
+				}
+			}
+			if os.Getenv("WR_FORCE_RERECORD") == "1" {
+				if rr := transformBounds(dc, pl.Recording.Bounds()); rr.Min.Y >= 480 && rr.Max.Y <= 620 {
+					pl.NeedsRaster = true
+				}
+			}
+			if os.Getenv("WR_CARD_DBG") == "1" {
+				r := transformBounds(dc, pl.Recording.Bounds())
+				if r.Min.Y < 640 && r.Max.Y > 460 {
+					fmt.Fprintf(os.Stderr, "CARDL f=%d id=%d ops=%d rec=%v blit=%v bounds=%v dmgN=%d recPtr=%p\n",
+						tex.recordFrame, pl.CacheKey, pl.Recording.PaintOpCount(),
+						tex.RecordedThisFrame(pl.CacheKey), blitOK, r, len(st.DamageRects), pl.Recording)
 				}
 			}
 			// Re-recorded layers damage previous ∪ current bounds. This
@@ -1888,8 +1973,8 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		popCompositeCTM(dc, pushCtx)
 	}
-	compositeWalk(pkt.Root, 0, false, false)
-	compositeWalk(pkt.Overlay, 0, false, false)
+	compositeWalk(pkt.Root, 0, allNoCache, false)
+	compositeWalk(pkt.Overlay, 0, allNoCache, false)
 	st.ShellSkip = frameShellSkip.Load()
 	st.ShellRerecord = frameShellRerecord.Load()
 	return st

@@ -15,11 +15,42 @@ package gles
 import (
 	"fmt"
 	"image"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/egl"
+	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 	"github.com/energye/gpui/gpu/hal"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
+
+// FBOExtent returns the persistent swapchain FBO size (diagnostic live-surface
+// capture; the render layer checks this without importing gles).
+func (s *Surface) FBOExtent() (int, int) {
+	if s == nil {
+		return 0, 0
+	}
+	return int(s.fboWidth), int(s.fboHeight)
+}
+
+// ReadPixels reads the persistent swapchain FBO (diagnostic live-surface
+// capture). Must run on the GL thread; the returned bottom-up RGBA bytes are
+// the content that was presented (not the CPU pixmap/snapshot).
+func (s *Surface) ReadPixels() []byte {
+	if s == nil || s.ctx == nil || s.swapchainFBO == 0 || s.fboWidth == 0 || s.fboHeight == 0 {
+		return nil
+	}
+	w, h := int(s.fboWidth), int(s.fboHeight)
+	glCtx := s.ctx.Lock()
+	if glCtx == nil {
+		return nil
+	}
+	defer s.ctx.Unlock()
+	buf := make([]byte, w*h*4)
+	glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, s.swapchainFBO)
+	glCtx.PixelStorei(gl.PACK_ALIGNMENT, 1)
+	glCtx.ReadPixels(0, 0, int32(w), int32(h), gl.RGBA, gl.UNSIGNED_BYTE, unsafe.Pointer(&buf[0]))
+	return buf
+}
 
 // Surface implements hal.Surface for OpenGL on Linux.
 // When Instance has a pre-created AdapterContext (X11/headless), ownsContext=false —

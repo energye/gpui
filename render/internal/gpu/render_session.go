@@ -721,6 +721,13 @@ type GPURenderSession struct {
 	// vanished under the nested backdrop).
 	renderedViews []hal.TextureView
 
+	// surfaceCarryViews tracks views registered by MarkSurfaceContent: their
+	// COLOR holds the previous frame's complete composite, but their STENCIL is
+	// transient per pass. The first pass of the frame must load color and clear
+	// stencil — loading a cross-frame stencil feeds stale winding bits into
+	// stencil-then-cover and fills vector shapes to their bounding box.
+	surfaceCarryViews []hal.TextureView
+
 	// persistentContentViews tracks OFFSCREEN views whose content survives
 	// frame boundaries (offscreen textures are not swapchain-rotated; their
 	// pixels stay valid until explicitly destroyed). BeginFrame keeps these
@@ -728,6 +735,9 @@ type GPURenderSession struct {
 	// the real previous content instead of undefined fresh-view garbage
 	// (O13 发现第一件：offscreen 损伤呈现被 fresh-view 保护误判为全量).
 	persistentContentViews []hal.TextureView
+
+	// dbgFrame is a diagnostic frame counter used by WR_PASSDBG traces.
+	dbgFrame uint64
 
 	// scissorRect holds the current scissor rect in device pixels.
 	// When non-nil, all draw commands are clipped to this rectangle.
@@ -1186,8 +1196,10 @@ func (s *GPURenderSession) BeginFrame() {
 	s.frameRendered = false
 	s.lastView = nil
 	s.lastCompositeFullReason = ""
+	s.dbgFrame++
 	s.colorContentViews = s.colorContentViews[:0]
 	s.renderedViews = s.renderedViews[:0]
+	s.surfaceCarryViews = s.surfaceCarryViews[:0]
 	// Offscreen views keep cross-frame content: re-register them as
 	// rendered+color-content so the fresh-view protection does not force a
 	// full composite over a live damage scissor (O13 发现第一/三件).
@@ -1375,6 +1387,43 @@ func (s *GPURenderSession) hasColorContent(view hal.TextureView) bool {
 	}
 	for i := range s.colorContentViews {
 		if s.colorContentViews[i] == view {
+			return true
+		}
+	}
+	return false
+}
+
+// MarkSurfaceContent registers this frame's surface view as already holding
+// the previous complete composite (persistent back buffer). The view handle is
+// new each frame, so this is per-frame only: it must NOT enter
+// persistentContentViews (that list is for offscreen textures whose view
+// identity survives frames; surface views rotate/recreate).
+func (s *GPURenderSession) MarkSurfaceContent(view hal.TextureView) {
+	if s == nil || view == nil {
+		return
+	}
+	if !s.viewRendered(view) {
+		s.renderedViews = append(s.renderedViews, view)
+	}
+	if !s.hasColorContent(view) {
+		s.colorContentViews = append(s.colorContentViews, view)
+	}
+	for i := range s.surfaceCarryViews {
+		if s.surfaceCarryViews[i] == view {
+			return
+		}
+	}
+	s.surfaceCarryViews = append(s.surfaceCarryViews, view)
+}
+
+// isSurfaceCarry reports whether view's content was carried across frames by
+// MarkSurfaceContent (complete color, stale stencil).
+func (s *GPURenderSession) isSurfaceCarry(view hal.TextureView) bool {
+	if s == nil {
+		return false
+	}
+	for i := range s.surfaceCarryViews {
+		if s.surfaceCarryViews[i] == view {
 			return true
 		}
 	}
@@ -2224,6 +2273,11 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	// branch.
 	if !blitOnly && hasDamage && !(s.sampleCount == 1 && s.viewRendered(activeView)) {
 		target.DamageRects = nil
+	}
+	if os.Getenv("WR_PASSDBG") == "1" {
+		fmt.Fprintf(os.Stderr, "PASS f=%d view=%p %dx%d vr=%v carry=%v color=%v hasDmg=%v afterDmg=%d blit=%v sc=%d\n",
+			s.dbgFrame, activeView, w, h, s.viewRendered(activeView), s.isSurfaceCarry(activeView),
+			s.hasColorContent(activeView), hasDamage, len(target.DamageRects), blitOnly, s.sampleCount)
 	}
 
 	// ADR-017: shared encoder → record render pass without submit.
@@ -5429,9 +5483,11 @@ func (c *gpuTexBGSlotCache) getOrCreate(
 	if c == nil || device == nil || layout == nil || uniform == nil || texView == nil || sampler == nil {
 		return nil, fmt.Errorf("gpu tex bg: nil arg")
 	}
-	for i := range c.entries {
-		if c.entries[i].view == texView && c.entries[i].bg != nil {
-			return c.entries[i].bg, nil
+	if os.Getenv("WR_NO_BGCACHE") != "1" {
+		for i := range c.entries {
+			if c.entries[i].view == texView && c.entries[i].bg != nil {
+				return c.entries[i].bg, nil
+			}
 		}
 	}
 	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
@@ -6614,13 +6670,19 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	// Without this, each flush would wipe previously rendered shapes.
 	colorLoadOp := types.LoadOpClear
 	stencilLoadOp := types.LoadOpClear
-	if s.viewRendered(view) {
+	if s.viewRendered(view) && !s.isSurfaceCarry(view) {
 		// Returning to a view rendered earlier this frame (nested backdrop /
-		// layer RT round-trip) must preserve its content.
+		// layer RT round-trip) must preserve its content — color AND stencil
+		// (both were written by this frame's earlier pass; the stencil winding
+		// is still live). A surface-carry view must NOT load stencil: its
+		// winding bits belong to a finished frame (see isSurfaceCarry).
 		colorLoadOp = types.LoadOpLoad
 		stencilLoadOp = types.LoadOpLoad
 	} else if s.hasColorContent(view) {
-		// Backdrop seed / filter reseed uploaded into this view: keep it.
+		// Backdrop seed / filter reseed, or a persistent surface carrying the
+		// previous frame's composite: keep the COLOR, but never load stencil.
+		// Stencil is transient per frame; loading a cross-frame stencil makes
+		// stencil-then-cover fill paths to their bounding box (solid icons).
 		colorLoadOp = types.LoadOpLoad
 	}
 	// Depth is ALWAYS cleared — never loaded. DepthStoreOp=Discard means
@@ -6630,6 +6692,10 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	// always the correct initial state.
 	depthLoadOp := types.LoadOpClear
 
+	if os.Getenv("WR_PASSDBG") == "1" {
+		fmt.Fprintf(os.Stderr, "SURFPASS f=%d view=%p %dx%d colorOp=%v stencilOp=%v vr=%v carry=%v\n",
+			s.dbgFrame, view, w, h, colorLoadOp, stencilLoadOp, s.viewRendered(view), s.isSurfaceCarry(view))
+	}
 	rpDesc := s.surfaceRenderPassDesc("session_surface_pass", view, colorLoadOp, stencilLoadOp, depthLoadOp)
 
 	rp, rpErr := encoder.BeginRenderPass(rpDesc)
@@ -6707,6 +6773,25 @@ func (s *GPURenderSession) encodeSubmitSurface(
 // ledger (shared across its groups within the pass), offscreen record passes
 // pass nil and always take the full bind path.
 func (s *GPURenderSession) recordGroupDraws(rp hal.RenderPassEncoder, gr *groupResources, ledger *PassBindLedger) {
+	if os.Getenv("WR_GSC") == "1" {
+		nGpu, nImg, nText, nSDF, nConv, nSt := 0, 0, 0, 0, 0, 0
+		if gr.gpuTexRes != nil {
+			nGpu = len(gr.gpuTexRes.drawCalls)
+		}
+		if gr.imageRes != nil {
+			nImg = len(gr.imageRes.drawCalls)
+		}
+		if gr.textRes != nil {
+			nText = len(gr.textRes.drawCalls)
+		}
+		nSDF = len(gr.sdfShapes)
+		if gr.convexRes != nil {
+			nConv = 1
+		}
+		nSt = len(gr.stencilRes)
+		fmt.Fprintf(os.Stderr, "GRP f=%d gpu=%d img=%d text=%d sdf=%d conv=%d stencil=%d\n",
+			s.dbgFrame, nGpu, nImg, nText, nSDF, nConv, nSt)
+	}
 	// AFTER SetPipeline and BEFORE Draw. Vulkan requires a valid pipeline
 	// layout when calling vkCmdBindDescriptorSets.
 	clipBG := gr.clipBindGroup
@@ -6838,7 +6923,13 @@ func (s *GPURenderSession) applyGroupScissorWithDamageRects(rp hal.RenderPassEnc
 		return s.applyGroupScissor(rp, rect, w, h)
 	}
 	relevant := damageRectsRelevantToGroup(rect, w, h, damageRects)
+	if os.Getenv("WR_GSC") == "1" {
+		fmt.Fprintf(os.Stderr, "GSC f=%d clip=%v relevant=%v dmg=%v\n", s.dbgFrame, rect, relevant, damageRects)
+	}
 	if relevant.Empty() {
+		if os.Getenv("WR_GROUPSKIP") == "1" {
+			fmt.Fprintf(os.Stderr, "GROUPSKIP rect=%v w=%d h=%d dmg=%v\n", rect, w, h, damageRects)
+		}
 		return false
 	}
 	return s.applyGroupScissorWithDamage(rp, rect, w, h, relevant)
@@ -7182,8 +7273,20 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 			s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
 			continue
 		}
-		if s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
-			s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
+		if len(damageRects) == 0 {
+			if s.applyGroupScissor(rp, gr.scissorRect, w, h) {
+				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
+			}
+			continue
+		}
+		// Per-rect scissor: the AABB of distant damage rects would repaint
+		// the non-damaged gap with this group's content (erasing static
+		// pixels between two damage rects).
+		for _, dr := range damageRectsForGroup(gr.scissorRect, w, h, damageRects) {
+			rr := [4]uint32{uint32(dr.Min.X), uint32(dr.Min.Y), uint32(dr.Dx()), uint32(dr.Dy())}
+			if s.applyGroupScissor(rp, &rr, w, h) {
+				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
+			}
 		}
 	}
 
@@ -7260,13 +7363,19 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	// CPU fallback operations (e.g., DrawImage between GPU draw calls).
 	colorLoadOp := types.LoadOpClear
 	stencilLoadOp := types.LoadOpClear
-	if s.viewRendered(view) {
+	if s.viewRendered(view) && !s.isSurfaceCarry(view) {
 		// Returning to a view rendered earlier this frame (nested backdrop /
-		// layer RT round-trip) must preserve its content.
+		// layer RT round-trip) must preserve its content — color AND stencil
+		// (both were written by this frame's earlier pass; the stencil winding
+		// is still live). A surface-carry view must NOT load stencil: its
+		// winding bits belong to a finished frame (see isSurfaceCarry).
 		colorLoadOp = types.LoadOpLoad
 		stencilLoadOp = types.LoadOpLoad
 	} else if s.hasColorContent(view) {
-		// Backdrop seed / filter reseed uploaded into this view: keep it.
+		// Backdrop seed / filter reseed, or a persistent surface carrying the
+		// previous frame's composite: keep the COLOR, but never load stencil.
+		// Stencil is transient per frame; loading a cross-frame stencil makes
+		// stencil-then-cover fill paths to their bounding box (solid icons).
 		colorLoadOp = types.LoadOpLoad
 	}
 	// Depth is ALWAYS cleared — never loaded. DepthStoreOp=Discard means
@@ -7283,6 +7392,10 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	// validation-panic on submit. We still use one
 	// pass for throughput, but each Record* rebinds group 0 after SetPipeline.
 	// If a group's draw list is empty after damage scissor, it is skipped.
+	if os.Getenv("WR_PASSDBG") == "1" {
+		fmt.Fprintf(os.Stderr, "SURFPASS f=%d view=%p %dx%d colorOp=%v stencilOp=%v vr=%v carry=%v\n",
+			s.dbgFrame, view, w, h, colorLoadOp, stencilLoadOp, s.viewRendered(view), s.isSurfaceCarry(view))
+	}
 	rpDesc := s.surfaceRenderPassDesc("session_surface_pass", view, colorLoadOp, stencilLoadOp, depthLoadOp)
 
 	rp, rpErr := encoder.BeginRenderPass(rpDesc)
@@ -7299,17 +7412,39 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	s.passLedger.BeginPassLedger()
 
 	// Base layer: pixmap textured quad drawn FIRST, before all tiers (ADR-015).
+	// Damage frames draw it once per damage rect: the base is opaque, so the
+	// AABB of distant rects would repaint (and erase) the gap between them.
 	if baseLayerRes != nil && len(baseLayerRes.drawCalls) > 0 {
-		rp.SetScissorRect(0, 0, w, h)
-		s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
-		s.passLedger.Invalidate()
+		if len(damageRects) > 0 {
+			for _, dr := range damageRects {
+				if dx, dy, dw, dh, ok := computeDamageScissor(nil, w, h, dr); ok {
+					rp.SetScissorRect(dx, dy, dw, dh)
+					s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
+					s.passLedger.Invalidate()
+				}
+			}
+		} else {
+			rp.SetScissorRect(0, 0, w, h)
+			s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
+			s.passLedger.Invalidate()
+		}
 	}
 
-	// Render each group with its scissor rect applied.
+	// Render each group with its scissor rect applied. Per-rect when damaged:
+	// a group scissored to the AABB of distant damage rects repaints the
+	// non-damaged gap and erases static pixels there.
 	for i := range grpRes {
-		okG := s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects)
-		if okG {
-			s.recordGroupDraws(rp, &grpRes[i], &s.passLedger)
+		if len(damageRects) == 0 {
+			if s.applyGroupScissor(rp, grpRes[i].scissorRect, w, h) {
+				s.recordGroupDraws(rp, &grpRes[i], &s.passLedger)
+			}
+			continue
+		}
+		for _, dr := range damageRectsForGroup(grpRes[i].scissorRect, w, h, damageRects) {
+			rr := [4]uint32{uint32(dr.Min.X), uint32(dr.Min.Y), uint32(dr.Dx()), uint32(dr.Dy())}
+			if s.applyGroupScissor(rp, &rr, w, h) {
+				s.recordGroupDraws(rp, &grpRes[i], &s.passLedger)
+			}
 		}
 	}
 
@@ -7359,13 +7494,19 @@ func (s *GPURenderSession) encodeToEncoder(
 
 	colorLoadOp := types.LoadOpClear
 	stencilLoadOp := types.LoadOpClear
-	if s.viewRendered(view) {
+	if s.viewRendered(view) && !s.isSurfaceCarry(view) {
 		// Returning to a view rendered earlier this frame (nested backdrop /
-		// layer RT round-trip) must preserve its content.
+		// layer RT round-trip) must preserve its content — color AND stencil
+		// (both were written by this frame's earlier pass; the stencil winding
+		// is still live). A surface-carry view must NOT load stencil: its
+		// winding bits belong to a finished frame (see isSurfaceCarry).
 		colorLoadOp = types.LoadOpLoad
 		stencilLoadOp = types.LoadOpLoad
 	} else if s.hasColorContent(view) {
-		// Backdrop seed / filter reseed uploaded into this view: keep it.
+		// Backdrop seed / filter reseed, or a persistent surface carrying the
+		// previous frame's composite: keep the COLOR, but never load stencil.
+		// Stencil is transient per frame; loading a cross-frame stencil makes
+		// stencil-then-cover fill paths to their bounding box (solid icons).
 		colorLoadOp = types.LoadOpLoad
 	}
 	// Depth always cleared (see encodeSubmitSurfaceGrouped comment).
@@ -7390,14 +7531,33 @@ func (s *GPURenderSession) encodeToEncoder(
 	rp.SetViewport(0, 0, float32(w), float32(h), 0, 1)
 
 	if baseLayerRes != nil && len(baseLayerRes.drawCalls) > 0 {
-		rp.SetScissorRect(0, 0, w, h)
-		s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
+		if len(damageRects) > 0 {
+			for _, dr := range damageRects {
+				if dx, dy, dw, dh, ok := computeDamageScissor(nil, w, h, dr); ok {
+					rp.SetScissorRect(dx, dy, dw, dh)
+					s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
+				}
+			}
+		} else {
+			rp.SetScissorRect(0, 0, w, h)
+			s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
+		}
 	}
 
-	// per-group relevant damage scissor (not global multi-rect AABB).
+	// Per-rect damage scissor inside each group (gaps between distant rects
+	// must stay untouched).
 	for i := range grpRes {
-		if s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects) {
-			s.recordGroupDraws(rp, &grpRes[i], nil)
+		if len(damageRects) == 0 {
+			if s.applyGroupScissor(rp, grpRes[i].scissorRect, w, h) {
+				s.recordGroupDraws(rp, &grpRes[i], nil)
+			}
+			continue
+		}
+		for _, dr := range damageRectsForGroup(grpRes[i].scissorRect, w, h, damageRects) {
+			rr := [4]uint32{uint32(dr.Min.X), uint32(dr.Min.Y), uint32(dr.Dx()), uint32(dr.Dy())}
+			if s.applyGroupScissor(rp, &rr, w, h) {
+				s.recordGroupDraws(rp, &grpRes[i], nil)
+			}
 		}
 	}
 
@@ -7468,11 +7628,22 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 		s.imagePipeline.RecordBlitDraws(rp, baseLayerRes, s.noClipBindGroup)
 	}
 
-	// overlay scissor uses group-relevant damage (same as encodeBlitOnlyPass).
+	// overlay scissor uses per-rect group damage (same as encodeBlitOnlyPass):
+	// the AABB of distant damage rects would repaint the non-damaged gap.
 	for i := range grpRes {
 		gr := &grpRes[i]
-		if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {
-			if s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
+		if gr.gpuTexRes == nil || len(gr.gpuTexRes.drawCalls) == 0 {
+			continue
+		}
+		if len(damageRects) == 0 {
+			if s.applyGroupScissor(rp, gr.scissorRect, w, h) {
+				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
+			}
+			continue
+		}
+		for _, dr := range damageRectsForGroup(gr.scissorRect, w, h, damageRects) {
+			rr := [4]uint32{uint32(dr.Min.X), uint32(dr.Min.Y), uint32(dr.Dx()), uint32(dr.Dy())}
+			if s.applyGroupScissor(rp, &rr, w, h) {
 				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
 			}
 		}

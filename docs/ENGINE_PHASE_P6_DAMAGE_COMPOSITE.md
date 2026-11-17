@@ -1,7 +1,7 @@
 # P6 细 damage 第一卡：脏区合成 + 持久合成面
 
 日期：2026-11-16 ｜ 仓库：`/home/yanghy/app/projects/gogpu/gpui` ｜ 分支：`feat/UI-组件`
-状态：**立项（计划文档，产品代码零改动）**。本卡先定问题、标准、边界与验收，P0 仪 table 通过后再动引擎。
+状态：**P0（观测）已落地；P1（GL 持久面 + damage 剪刀）2026-11-18 修完悬停路径根因，默认开启（`GPUI_SURFACE_PERSISTENT=0` 退出）；P2–P4 未开**。上屏合同不变。
 真源：`ENGINE_FRAME_PRESENT_STANDARD.md`（上屏合同）、`RENDER_BASE_RESOURCE_MATRIX.md`（资源账）、
 成熟实现：`/home/yanghy/app/projects/gogpu/flutter`（`flow/compositor_context.cc` / `flow/diff_context.cc` / `flow/surface_frame.h`）。
 
@@ -109,7 +109,7 @@ Flutter 的 partial repaint 不是“只把 damage 交给合成器”，而是**
 | P0 计数 `layers_visited/culled/blits_issued/full_reason` | `ui/scene.TexturedStats`（`textured.go:1429-1452`）已有 raster/skip/filter/texture/damage 计数；`ui/scheduler.MetricsStore` 有 `raster_layer_count`/`boundary_rerecord`/`boundary_skip`（`metrics.go:112/202-203`）；`wrgate.Report` 有 boundary 两字段（`report.go:108-109`） | 部分已有；**P0 已补** cull/blits/full-reason | 已落地：扩 `TexturedStats`/`MetricsStore`/`wrgate`，不新建 telemetry；cull 裁剪本身仍属 P2 |
 | P0 hal 持久面能力 | `hal.Surface` 可选能力模式已有 `PixelPresenter`/`PixelWriter`/`PixelReader`（`hal/resource.go:181-211`）；`SurfaceCapabilities` 只有 Formats/PresentModes/AlphaModes（`descriptor.go:133-145`） | 缺口；**P0 已补** | 已落地：`PersistentBackBuffer` + `SurfacePersistentBackBuffer`；GLES=true / wgpu=false，核心接口不动 |
 | P1-1 GL surface 持久登记 | FBO/同纹理已有（`gles/surface.go:51-100`、`resource_linux.go:370-390`）；离屏持久登记已有（`render_session.go:717-723/1398`），但 surface 被排除（`1381-1388`）且 `renderedViews` 每帧清（`1181-1189`） | 机制已有，surface 未接 | 扩 `MarkPersistentContent`/新增 surface 标志；不新建 FBO |
-| P1-2 damage 剪刀合成 | `encodeBlitOnlyPass:7114-7125` 已有 damage 剪刀；grouped/blit encoder 各路径均接 `applyGroupScissorWithDamageRects`（7147/7272/7361/7437）；`GPURenderTarget.DamageRects` 已有（`accelerator.go:71-84`） | 已有 | P1 只让 `viewRendered(surface)` 在稳态为真 |
+| P1-2 damage 剪刀合成 | `encodeBlitOnlyPass:7114-7125` 已有 damage 剪刀；grouped/blit encoder 各路径均接 `applyGroupScissorWithDamageRects`（7147/7272/7361/7437）；`GPURenderTarget.DamageRects` 已有（`accelerator.go:71-84`） | 已有 | P1 把 surface 的**颜色**登记为跨帧已有（`viewRendered` 稳态为真），**stencil 仍每帧 Clear**（`surfaceCarryViews`/isSurfaceCarry） |
 | P1-3 失效处理 | GL `reconfigureSwapchainFBOWith`/`borrowOldFrameOrErr`（`gles/surface.go:283-320`）；present 失败 `resetPresentDamageHistory`（`queue_linux.go:244-247`）；离屏 `ForgetPersistentContent`（`render_session.go:1420`）；`forceFull`/`postResizeFull=3` | 部分已有 | 把新 surface 标志接到这些失效点，不新造失效机制 |
 | P2-1 phase 1 汇总 damage | phase 1 已走树并重录（`textured.go:1514-1625`）；picture bounds 已有（`pictureRecordBounds:938`、`PictureTextureCache.Bounds/PrevBounds/RefusedBounds:1254/1270/1369`）；texture damage 已有（`composite.go:296`）；无全局 union | 部分已有，缺 union | 在 phase 1 加累加器；damage 规则抽成共享 helper，phase 1/phase 2 共用，避免两处规则漂移 |
 | P2-2 phase 2 裁剪 | phase 2 全量走（`textured.go:1637-1711`）；`ClipRect` 只处理 ClipRectLayer（`1898/1907`）；`DrawGPUTexture`/`QueueGPUTextureDrawQuad` 不做 clip 外不入队（`context_image_gpu.go:200-247`、`gpu_render_context.go:1885-1901`） | 缺口 | 加 damage clip + 子树 skip；相交层全画 |
@@ -173,11 +173,51 @@ Flutter 的 partial repaint 不是“只把 damage 交给合成器”，而是**
 - **A/B（2026-11-16，用户授权当前桌面单窗；一窗一轮、示例自退、逐轮查 Xorg，无超时/无 SIGTERM）**：icon 3 轮中位基线 **24.98%** 单核 vs P0 **24.06%** 单核（P0 −0.9pt，噪声内）；spin 3 轮中位 17.64% vs 15.25%，但 `present_wait` 在 FIFO/非阻塞间混跑（base 2/3 FIFO，P0 1/3 FIFO），同模式看无一致回归（FIFO base ≈17.7 vs P0 15.9；非阻塞 base 13.36 vs P0 ≈14.85）。计数稳定：spin `8/0/2`、icon `293/0/118`、`fresh_target`；OS partial ≈1193/5、1185/6。结论：P0 计数未造成可见回归；绝对数受 pacing 影响，性能结论以 A/B 相对值为准。
 - **遗留**：全量 render/embedder GPU 回归未在当前桌面重跑（全包曾卡死；S69 为存量过期基线红）；如需全量，走隔离环境。
 
-**P1 GL 持久面登记（只改“敢不敢用 damage 剪刀”）**
+**P1 GL 持久面登记（2026-11-18 悬停路径根因修复，默认开启；只改“敢不敢用 damage 剪刀”）**
 
 - 只补能力上报/view 登记，不新建 FBO（FBO 已在 `gles/surface.go:51`）；`fullSurface` 在稳态为 false；仍保留全树合成（暂不裁剪层）。
-- 验收：稳态 `composite_full_reason=""`；partial/full 计数不倒退；golden/pixel 零差；CPU A/B（预期小幅收益，主要验证持久面合同）。
-- 回退：任何画面异常 → 摘掉持久面登记，回到当前行为，不拖 P2。
+- **实现**：`PresentTarget` 构建时 `hal.SurfacePersistentBackBuffer(surf)` → `Context.setSurfacePersistent`（GL=true / wgpu=false）；
+  `present` 维护 `surfaceContentValid`（forceFull / postResizeFull / storm / 设备恢复 / present 失败清零，成功 Full/Damage 后置位，Idle 不动）；
+  `flushGPUWithViewCoreImpl` 在非离屏且 persistent+valid 时调 `GPURenderContext.MarkSurfaceContent(view)`；
+  session 把**每帧新 view handle**登记进 `renderedViews`/`colorContentViews`（**不进** `persistentContentViews`，避免每帧泄漏一个句柄），
+  首 pass 颜色 LoadOpLoad、**stencil 必须 Clear**、合成按 damage 剪刀。窗口路径用 per-pass `target.View`（`SetSurfaceTarget` 未被窗口调用），登记点就在实际 flush 前。
+- **stencil 跨帧加载修复（2026-11-17，根因）**：`MarkSurfaceContent` 只登记颜色；另记 `surfaceCarryViews`，
+  三个 surface pass 的 LoadOp 判定改成 `viewRendered(view) && !isSurfaceCarry(view)` 才 Load stencil。
+  **stencil 是每帧瞬态**（`StencilStoreOp=Store` 只在帧内有效）：把上一帧的 stencil 载入后，stencil-then-cover 的 cover 阶段
+  读到脏 winding，整条 path 按包围盒填实——活面上所有矢量图标变成“描边留白、其余填满”的实心块，文字（MSDF）不受影响。
+  去掉登记会连脏区剪刀一起关掉（`fullSurface=true`），所以不是修法；正确修法是颜色跨帧、stencil 每帧清。
+- **单测**：`TestSurfaceContentFlags`、`TestMarkSurfaceContentIsPerFrame`（含 `isSurfaceCarry` 与幂等）、
+  `TestCompositeFullReasonSurfaceContent`（MSAA 仍返回 msaa）。
+- **落地观测（单窗、正常自关、逐轮查 Xorg）**：spin_min 10s `composite_full_reason=""`（P0 为 fresh_target）、
+  8/0/2、OS 595/5、60.16fps；kit/icon 10s `""`、297/0/120、60.02fps、golden 0.0000%（1024px）。
+- **活面证据口径（重要）**：`SnapshotPath` 每轮覆写同一文件，跨轮对比无效；必须在同一轮内比 presented surface 与
+  `SnapshotPath`（或 `RetainedSnapshot`）。`-auto-only` 的 golden 是整树重绘快照，不能单独证明活面。
+- **隔离证明（2026-11-17，ANIM=20 固定步进、逐帧存 GL FBO 活面）**：
+  1. P1-off：帧 0 与同轮快照一致；帧 1–3 仅目录卡名文字瞬时差 1682px；帧 5 起回基线（224px）。
+  2. P1-on（修复前）：帧 0 一致；帧 4（首个非 force 帧）起所有图标行变实心块，之后到 180 帧完全不变（16886px，目录区 10688px）。
+  3. 只保留颜色登记（去掉 `renderedViews`）：图标恢复，但 `fullSurface=true`，脏区剪刀被一起关掉——不是修法。
+  4. 精确修复（颜色跨帧 + stencil 每帧清）：帧 4 起活面 vs 同轮快照 **202px**，bbox `(8,50)-(458,467)`，
+     与 P1-off 基线 **199px** 同域同量；`composite_full_reason=""`，剪刀真实生效。
+  - **旧判断更正**：此前把 17119px 归因为“`ui/scene` damage 范围不足（目录行/旋转层漏报）”是**错误归因**；
+    那 17119px 就是本节的 stencil 脏读。候选 A（cacheless 矢量回放全部报当前 bounds）已试并回退，无变化。
+- **悬停路径回归（2026-11-17，用户报告）**：鼠标划过目录卡片后图标变样/消失（左→右消失、右→左部分不对，点击也不对）；rwgpu 正常。
+  自动扫掠复现（ANIM 固定步进 + 合成 hover 序列）：P1-on 6604px、P1-off 452px 基线；缺失区域正是被悬停后**回落到 idle** 的卡片图标与名字。
+- **取证链（逐项排除）**：
+  1. 只滚动、不悬停：215px（基线），悬停才是触发点。
+  2. 全矢量回放（`WR_NOCACHE`）：目录区 807px（恢复正常）→ 问题在层纹理路径。
+  3. 层纹理探针：新图标层 `ops>0 / rec=true / blit=true`，回放 `pending==ops`，纹理不是空录制。
+  4. 把同一纹理再画一次到卡片 damage 内的另一位置：**字形完整出现**；同位置重复画一次：**第一笔不生效、第二笔正常**。
+  5. 结论：纹理内容正确，**多组 damage 分组帧里该组的第一笔纹理 draw 丢失/被覆盖**（同位置二次 blit 可复现），属于 GPU 分组/顶点批次路径，不是 scene damage 范围。
+- **处置**：P1 默认关闭（`GPUI_SURFACE_PERSISTENT=1` 才开）；保留 stencil 跨帧加载修复（真实正确性修复，P1 关闭时无行为影响）。
+- **重开条件**：先修“分组帧组内第一笔纹理 draw 丢失”，用同位置二次 blit 探针与悬停扫掠（P1-on diff ≤ 基线）双证据验收，再开默认。
+- **未跑**：wgpu 原生（P3 负责）；桌面未跑整包 GPU 测试（按 AGENTS 走隔离环境）。
+- **✅ 2026-11-18 根因修复并默认开启（上一条“组内第一笔纹理 draw 丢失”归因作废）**：
+  1. **真根因**：P1 把 `MarkSurfaceContent` 放在 `flushGPUWithViewCoreImpl`（泛化 flush 核心），`offscreen := view == t.View` 对 recordLocal 的层 view flush 恒为 false（层无隔离栈时 `t.View` 为 nil）→ **每个层纹理 view 被登记成 surface carry**（进 `renderedViews`/`colorContentViews`/`surfaceCarryViews`）。稳态下（`surfaceContentValid=true`）每一条层录制 pass 的 colorLoadOp 变成 **Load**：把池化层 RT 里上一个主人的像素垫在新录制下面。图标洞区（Outlined 环的内部）与池化换主（别的卡的 Filled 图标）处显形——WR_PASSDBG 证据：hover 重录 pass `colorOp=Load vr=true carry=true`（39x39 层 view 带 carry 标记）。之前“组内第一笔 draw 丢失”“路径分类/convex 覆盖”均为错误归因：record pass 分类与表面回放完全一致（fill 规则/凸性判定 target 无关），且 worktree 实验“stencil 一律不 Load”后仍复现，证明与 stencil loadOp 无关。
+  2. **修法**：登记点挪到唯一持有持久面合同的地方——`PresentTarget.present` 在 acquire 后、flush 前调 `dc.markSurfaceContentForPresent(view)`（`render/present_frame.go`，门控 persistent+valid 在 `render/present_surface_content.go`）；`flushGPUWithViewCoreImpl` 不再标记。层录制 pass 回到 Clear/Clear，surface pass 保持“颜色跨帧 Load、stencil 每帧 Clear”。
+  3. **同批落地（worktree 甄别结论）**：逐矩形 damage 剪刀（`damageRectsForGroup`，四条 grouped/blit 路径 + base 层，AABB 会涂掉远距矩形间未损坏区域）；evictForNew 逐出前把 lastBlit 计入 damage（旧字形在 LoadOpLoad 下永久残留）；GL pass 开始 ResetScissor（GL scissor 是全局态，damage 剪刀泄漏进后续离屏录制 pass 会把层 RT 画空——WebGPU 语义对齐）；离屏 clip 栈隔离（`BeginOffscreenPass` 暂存调用方 clip 栈，录制回放自建裁剪）。DIAG“stencil 一律不 Load”**回退**（同帧重渲染的 stencil 是本帧有效内容，Load 正确；跨帧 carry 由 isSurfaceCarry 排除）。
+  4. **验收（单窗、自退、逐轮查 Xorg；同轮 surface vs SnapshotPath 逐像素）**：悬停扫掠（ANIM=64 固定步进 + hover 序列）**P1-on surface vs P1-off surface = 0px**（1200×800 逐位一致）；两模式 surface vs 同轮快照同 1798px（快照矢量回放 vs 纹理 blit 的 AA 固有差异，与模式无关）。icon `-auto-only` golden **0.0000%**、scripted **4/4**；spin_min 10s `reason=""`、OS 590/5、raster p50 16.52ms（基线 16.51）；icon 默认开启后 `reason=""`、OS 343/5（98.6% 增量）。单测：`TestDamageRectsForGroup`、`TestMarkSurfaceContentForPresentGate`、`TestSurfaceContentFlags`、`TestMarkSurfaceContentIsPerFrame`、`TestCompositeFullReasonSurfaceContent`、record coverage、gles damage、scene admission/shrink 全绿。
+  5. **A/B 公平性教训**：scripted hover（elapsed 时间触发）与 hover sweep（tick 步进）竞速导致两轮最终悬停卡不确定，曾把“最终状态不同”误读成 P1 差异；sweep 模式现已禁用 scripted hover（`examples/kit/icon/main.go`）。
+  6. **未跑**：wgpu 原生（P3 负责，capability=false 不受影响）；桌面未跑整包 GPU 测试（按 AGENTS 走隔离环境）。
 
 **P2 场景层树脏区裁剪（本卡主收益）**
 
@@ -242,3 +282,7 @@ DISPLAY=:0 GPUI_BACKEND=go RUN_SECONDS=15 /tmp/gpui_icon        # 巡览版 37.6
 | 2026-11-16 | 立项：把“脏区合成 + 持久合成面”立为 P6 细 damage 第一卡。依据=2026-11-16 真 Xorg/NVIDIA 复核（partial present 已生效但 icon 稳态仍 22.60% 单核、raster p50 2.25ms、≈89 blit/帧）+ Flutter `compositor_context.cc` 的 `Preroll(clip_rect)`/`canvas.ClipRect` 标准。结论：GL 已有持久 FBO 但 render 层不认；wgpu 无持久面；场景层无 damage 裁剪。本卡只改合成侧，不改上屏合同。产品代码零改动。 |
 | 2026-11-16 | **P0 落地（观测，渲染行为零改动）**：`scene.TexturedStats` + `PipelineApp.LastCompositeStats`；`FrameMetrics`/示例 JSON/wrgate `Report` 四字段（`composite_layers_visited`/`culled`/`blits_issued`/`full_reason`，进 RequiredSchemaKeys）；`hal.PersistentBackBuffer` 可选接口 + `SurfacePersistentBackBuffer` 助手（GLES 持久 FBO=true、wgpu-native=false）；`PresentTarget.LastCompositeFullReason` 归类 `force`/`coverage`/`fresh_target`/`msaa`/`no_damage`/`""`。真窗：spin `8/0/2/fresh_target`、icon `297/0/120/fresh_target`（golden 0.0000%、pixel 4/4）；targeted tests + apidoc 绿；全包 S69 红为存量过期基线。P1 待开。 |
 | 2026-11-16 | **已有实现审计（用户要求“先确定是否已有实现不要重复”）**：确认上屏 damage（`PlanFramePresent`/`TrackDamageRect`/group scissor/gles partial present）、GL 持久 FBO（`gles/surface.go:51`）、层纹理缓存（`PictureTextureCache`/`BoundaryCache`）、filter bounds（`filterSubtreeBounds`）均已有；真缺口=合成目标持久性未告知 render、phase 2 未消费 damage、wgpu 无持久面、无 cull 计数。据此把 P2 从“新增 bounds 预走”改为“扩已有 phase 1 汇总 damage”，把 P1 从“新建持久面”改为“GL 能力上报/view 登记”；不新增 damage 类型、不新增第三次树走、不新建 GL FBO。详见 §3.4/§3.5。 |
+| 2026-11-17 | **P1 落地后回退（GL 持久面登记）**：能力上报 + `surfaceContentValid` 失效门 + 每帧 surface view 登记 + flush 前 MarkSurfaceContent；首 pass LoadOpLoad、合成 damage 剪刀。观测：spin reason="" / 8-0-2 / OS 595-5 / 60.16fps；icon reason="" / 297-0-120 / 60.02fps / golden 0.0000%。**但活面回归**：icon 活窗静态图标黑块/残块（xwd P1-on vs P1-off 直抓对比），golden 快照看不到；GL 是单持久 FBO，问题收窄到 damage 范围不足（不是 FBO 轮转）。已整体回退（patch 存 `tmp/p1_surface_persistent.patch`），待 P2 逐像素证明 damage 后再从 patch 重放。 |
+| 2026-11-17 | **P1 重新落地 + 根因更正（stencil 跨帧加载）**：逐帧活面隔离（ANIM=20，帧 0 正确、帧 4 首个非 force 帧起图标全变实心块、P1-off 帧 5 自愈、P1-on 不恢复）证明旧归因“damage 范围不足”错误；真因是 `MarkSurfaceContent` 把 surface view 登记进 `renderedViews`，surface pass 走 `stencilLoadOp=LoadOpLoad`，把上一帧已结束的 stencil 载入，stencil-then-cover 的 cover 按包围盒整块填充。修法：新增 `surfaceCarryViews`/`isSurfaceCarry`，颜色跨帧 Load、**stencil 每帧 Clear**；三处 surface pass 判定统一。活面 vs 同轮快照：帧 4 起 **202px**（P1-off 基线 199px，同 bbox），`composite_full_reason=""`；icon -`auto-only` golden 0.0000%、scripted 4/4、resize/tour 绿。修复后活面回到基线，但随后发现悬停路径回归（见下条），P1 保持默认关闭。 |
+| 2026-11-17 | **P1 悬停路径回归（默认关闭）**：鼠标划过/离开目录卡片后图标消失或变样（rwgpu 正常）。自动 hover 扫掠：P1-on 6604px vs P1-off 452px。逐项隔离——只滚动 215px（悬停才触发）；全矢量回放恢复；层纹理 ops/rec/blit/pending 均正常；**同一纹理重复画一次时第一笔不生效、第二笔正常**；纹理拷贝到卡片 damage 内另一位置则字形完整。结论：多组 damage 帧里组内第一笔纹理 draw 丢失，属 GPU 分组/顶点批次路径，不是 scene damage 范围。处置：P1 默认关闭（`GPUI_SURFACE_PERSISTENT=1` 诊断开），保留 stencil 跨帧加载修复；重开需先修该 draw 丢失并过悬停扫掠。 |
+| 2026-11-18 | **P1 悬停路径根因修复 + 默认开启（上一条“组内第一笔 draw 丢失”归因更正）**：真根因是 `MarkSurfaceContent` 放在 `flushGPUWithViewCoreImpl`，把 recordLocal 的层 view 误标成 surface carry（`view == t.View` 对层 flush 恒 false），稳态每条层录制 pass colorLoadOp=Load，池化层 RT 上一个主人的像素垫进新录制（图标洞区/换主处显形；WR_PASSDBG：39x39 层 view `colorOp=Load vr=true carry=true`）。修复：登记点挪到 `PresentTarget.present`（`markSurfaceContentForPresent`，唯一持有持久面合同处），层录制回到 Clear/Clear。同批：逐矩形 damage 剪刀（四条路径+base）、evict lastBlit 计 damage、GL pass 开始 ResetScissor、离屏 clip 栈隔离；DIAG stencil-never-Load 回退（与根因无关）。验收：悬停扫掠 P1-on vs P1-off surface **0px**（逐位一致），icon golden 0.0000%/scripted 4/4，spin/icon `reason=""`、OS partial 98%+；单测全绿（新增 `TestDamageRectsForGroup`/`TestMarkSurfaceContentForPresentGate`）。P1 默认开启，`GPUI_SURFACE_PERSISTENT=0` 退出。 |

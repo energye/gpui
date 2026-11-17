@@ -437,6 +437,22 @@ func (rc *GPURenderContext) DigCmdBufStats() (prev int, usedSurface bool) {
 	return rc.session.DigCmdBufStats()
 }
 
+// MarkSurfaceContent tells the session that this frame's surface view already
+// holds the previous complete composite (persistent back buffer, e.g. the GL
+// offscreen FBO). The view handle is per-frame, so it is registered only for
+// this frame (never in persistentContentViews): the first pass then loads the
+// existing pixels and the composite can scissor to damage.
+func (rc *GPURenderContext) MarkSurfaceContent(view gpucontext.TextureView) {
+	if rc == nil || rc.session == nil || view.IsNil() {
+		return
+	}
+	v := extractTextureView(view)
+	if v == nil {
+		return
+	}
+	rc.session.MarkSurfaceContent(v)
+}
+
 // LastCompositeFullReason returns the last surface composite reason
 // ("" = damage-scissored). Nil-safe; P0 observation only.
 func (rc *GPURenderContext) LastCompositeFullReason() string {
@@ -4279,6 +4295,10 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 // (zero = BGRA8). Unsupported formats fail closed with
 // ErrOffscreenFormatUnsupported before any allocation; other failures return
 // the underlying error. The caller owns the returned release.
+// Diagnostic double-checkout ledger (WR_POOLDBG). Keys are pooled RT pointers.
+var dbgPoolOutMu sync.Mutex
+var dbgPoolOut = map[*offscreenRT]int{}
+
 func (rc *GPURenderContext) CreateOffscreenTextureFormat(w, h int, format types.TextureFormat) (gpucontext.TextureView, func(), error) {
 	format = normalizeOffscreenFormat(format)
 	if !offscreenEngineFormats(format) {
@@ -4336,10 +4356,28 @@ func (rc *GPURenderContext) CreateOffscreenTextureFormat(w, h int, format types.
 		cache.ReleaseRetire(ref)
 		return gpucontext.TextureView{}, nil, fmt.Errorf("offscreen: unexpected pooled native for %dx%d %v", w, h, format)
 	}
+	if os.Getenv("WR_POOLDBG") == "1" {
+		dbgPoolOutMu.Lock()
+		dbgPoolOut[rt]++
+		n := dbgPoolOut[rt]
+		dbgPoolOutMu.Unlock()
+		if n > 1 {
+			fmt.Fprintf(os.Stderr, "POOL_ALIAS_ACQ rt=%p n=%d %dx%d\n", rt, n, w, h)
+		}
+	}
 	retire := !poolOn
 	var once sync.Once
 	release := func() {
 		once.Do(func() {
+			if os.Getenv("WR_POOLDBG") == "1" {
+				dbgPoolOutMu.Lock()
+				dbgPoolOut[rt]--
+				n := dbgPoolOut[rt]
+				dbgPoolOutMu.Unlock()
+				if n < 0 {
+					fmt.Fprintf(os.Stderr, "POOL_ALIAS_REL rt=%p n=%d\n", rt, n)
+				}
+			}
 			// Pooled views may be handed to a different consumer on the next
 			// Acquire: drop this session's cross-frame tracking so the next
 			// owner does not inherit our rendered/persistent marks (O13 深挖批).

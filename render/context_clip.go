@@ -445,6 +445,12 @@ func (c *Context) applyClipToPaint() {
 // applyMaskToPaint sets the MaskCoverage function on the paint when an alpha
 // mask is active. This allows the renderer to apply per-pixel mask modulation
 // during compositing. Mask and clip compose multiplicatively.
+// ClipDeviceBoundsForDebug exposes the active clip's device bounds for
+// diagnostic layers (WR_RECDBG). Not part of the public rendering contract.
+func (c *Context) ClipDeviceBoundsForDebug() (image.Rectangle, bool) {
+	return c.clipDeviceBounds()
+}
+
 // isClipActive reports whether a clip region is currently active.
 func (c *Context) isClipActive() bool {
 	return c.clipStack != nil && c.clipStack.Depth() > 0

@@ -172,10 +172,20 @@ type Context struct {
 	// never mutates the base context's sample count or destroys its session.
 	// This is the first step of the per-target sample policy: layers default to
 	// 1x, the base keeps the configured MSAA.
-	gpuCtx            gpuContextOps
-	baseGpuCtx        gpuContextOps
-	layerGpuCtx       gpuContextOps
-	gpuFallbackWarned bool // true after first global fallback warning (avoid log spam)
+	gpuCtx      gpuContextOps
+	baseGpuCtx  gpuContextOps
+	layerGpuCtx gpuContextOps
+
+	// surfacePersistent is true when the present surface preserves its back
+	// buffer across frames (hal.SurfacePersistentBackBuffer: GL FBO yes,
+	// wgpu swapchain no). surfaceContentValid is true when the last present
+	// left a complete frame in that back buffer; forced/resized/recovered
+	// frames clear it so the next frame composites full before damage
+	// scissoring (P6 P1: only the registration changes, not the present
+	// contract).
+	surfacePersistent   bool
+	surfaceContentValid bool
+	gpuFallbackWarned   bool // true after first global fallback warning (avoid log spam)
 
 	pathStats RenderPathStats
 

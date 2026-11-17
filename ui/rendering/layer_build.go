@@ -11,7 +11,10 @@
 package rendering
 
 import (
+	"fmt"
 	"math"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/energye/gpui/render"
@@ -451,6 +454,12 @@ func addOwnPicture(b *scene.LayerBuilder, n RenderObject, needsRaster bool, sz S
 		pl.SetCacheKey(base.EnsureCacheID())
 	}
 	pl.SetRecording(buildLayerRecording(wire, n, sz, draw))
+	if os.Getenv("WR_LAYERID") == "1" {
+		if base, ok := baseOf(n); ok && base != nil && strings.Contains(base.DebugName(), "f1-icon-glyph") {
+			fmt.Fprintf(os.Stderr, "LAYERID own name=%s key=%d size=%.0fx%.0f ops=%d rec=%p\n",
+				base.DebugName(), pl.CacheKey, sz.Width, sz.Height, pl.Recording.PaintOpCount(), pl.Recording)
+		}
+	}
 	return pl
 }
 
@@ -559,6 +568,13 @@ func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *buildWire) {
 			onPaint(pc, sz)
 		}
 	}))
+	if os.Getenv("WR_LAYERID") == "1" {
+		if base, ok := baseOf(n); ok && base != nil && strings.Contains(base.DebugName(), "f1-icon-glyph") {
+			sz := n.Size()
+			fmt.Fprintf(os.Stderr, "LAYERID leaf name=%s key=%d size=%.0fx%.0f ops=%d rec=%p\n",
+				base.DebugName(), pl.CacheKey, sz.Width, sz.Height, pl.Recording.PaintOpCount(), pl.Recording)
+		}
+	}
 }
 
 // TextureLeaf is one live-texture quad a node hands the retained layer tree, in

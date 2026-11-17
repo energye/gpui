@@ -42,6 +42,28 @@ func (t *PresentTarget) PresentClear(r, g, b, a float64) error {
 // the storm window). Callers that would skip work for retained steady frames
 // (e.g. compositeOnly) must disable that path while this is true so every new
 // buffer gets fully written.
+// ReadSurfacePixels reads the presented back buffer for diagnostic
+// live-surface gates (GL FBO). Returns false when the backend has no readback.
+// Must run on the GL/raster thread.
+func (t *PresentTarget) ReadSurfacePixels() ([]byte, int, int, bool) {
+	if t == nil || t.surf == nil {
+		return nil, 0, 0, false
+	}
+	r, ok := t.surf.(interface {
+		ReadPixels() []byte
+		FBOExtent() (int, int)
+	})
+	if !ok {
+		return nil, 0, 0, false
+	}
+	w, h := r.FBOExtent()
+	data := r.ReadPixels()
+	if w <= 0 || h <= 0 || len(data) < w*h*4 {
+		return nil, 0, 0, false
+	}
+	return data, w, h, true
+}
+
 func (t *PresentTarget) InFullRecovery() bool {
 	if t == nil {
 		return false
@@ -238,6 +260,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		pApply = time.Now()
 	}
 	if err := t.applyPendingSwapchainLocked(); err != nil {
+		t.dc.setSurfaceContentValid(false)
 		return out, err
 	}
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
@@ -248,6 +271,12 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	}
 	if t.postResizeFull > 0 || t.inResizeStormLocked() {
 		forceFull = true
+	}
+	if forceFull {
+		// This frame writes the whole surface; a previous back buffer is not
+		// safe to damage-scissor onto (resize/reconfigure/recovery/full
+		// repaint). Clear the validity gate before the flush.
+		t.dc.setSurfaceContentValid(false)
 	}
 
 	if t.device != nil {
@@ -276,6 +305,9 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// compositor damage below. The parallel clipPresentDamage copy is gone —
 	// the presented mode and the presented rects can no longer disagree.
 	plan := t.dc.PlanPresent(int(pw), int(ph))
+	if os.Getenv("WR_DAMAGE_DBG") == "1" {
+		fmt.Fprintf(os.Stderr, "PLAN mode=%v union=%v rects=%v\n", plan.Mode, plan.Union, plan.Rects)
+	}
 	t.lastDamageRectSum = damageRectsAreaSum(plan.Rects)
 	// Idle frames skip the swapchain entirely: acquiring a buffer and then
 	// discarding it without present leaves the image unrecycled in the
@@ -312,16 +344,24 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 			rerr := RecoverSharedDevice()
 			t.mu.Lock()
 			if rerr != nil {
+				t.dc.setSurfaceContentValid(false)
 				return out, fmt.Errorf("render: shared recovery: %v (present: %w)", rerr, err)
 			}
 			if t.closed || t.sc == nil || t.device == nil {
+				t.dc.setSurfaceContentValid(false)
 				return out, errors.New("render: PresentTarget closed during recovery")
 			}
+			// Device loss/recovery invalidates both the back-buffer pixels
+			// and our bookkeeping; the recovered frame must be full.
+			t.dc.setSurfaceContentValid(false)
+			forceFull = true
 			frame, err = t.sc.BeginFrame()
 			if err != nil {
+				t.dc.setSurfaceContentValid(false)
 				return out, fmt.Errorf("render: BeginFrame after recovery: %w", err)
 			}
 		} else {
+			t.dc.setSurfaceContentValid(false)
 			return out, fmt.Errorf("render: BeginFrame: %w", err)
 		}
 	}
@@ -362,15 +402,18 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		}
 		if rerr := t.sc.Resize(pw, ph); rerr != nil {
 			t.swapchainPending = true
+			t.dc.setSurfaceContentValid(false)
 			return out, fmt.Errorf("render: stale extent reconfigure: %w", rerr)
 		}
 		t.postResizeFull = 3
 		t.lastResizeAt = time.Now()
+		t.dc.setSurfaceContentValid(false)
 		frame, err = t.sc.BeginFrame()
 		if err != nil {
 			if os.Getenv("WR_RESIZE_DBG") == "1" {
 				fmt.Fprintf(os.Stderr, "DBG present BeginFrame err=%v (logic %dx%d)\n", err, t.logicW, t.logicH)
 			}
+			t.dc.setSurfaceContentValid(false)
 			return out, fmt.Errorf("render: BeginFrame: %w", err)
 		}
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
@@ -403,11 +446,21 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// hal frame carries the view as a word; rebuild the typed handle here
 	// (render boundary owns the gpucontext type, hal does not).
 	view := gpucontext.NewTextureView(frame.ViewHandle)
+	// P6 P1: this is the only site that may register a view as surface carry —
+	// PresentTarget owns the persistent-back-buffer contract (validity gate,
+	// force/resize/recovery clears). The mark must land BEFORE the flush so
+	// the composite loads color and damage-scissors. Layer/effect flushes
+	// (recordLocal → FlushGPUWithView) reach the shared flush core too, but
+	// their views are pooled RTs: marking them loaded a previous tenant's
+	// pixels under the new recording (hover re-record filled icon holes).
+	t.dc.markSurfaceContentForPresent(view)
 	if forceFull {
 		if err := t.dc.PresentFrameFull(view, frame.Width, frame.Height, func() error { return presentFn(nil) }); err != nil {
 			t.sc.DiscardFrame(frame)
+			t.dc.setSurfaceContentValid(false)
 			return out, fmt.Errorf("render: PresentFrameFull: %w", err)
 		}
+		t.dc.setSurfaceContentValid(true)
 		out = PresentOutcome{Mode: PresentModeFull, Rects: 1}
 		t.lastOutcome = out
 		t.lastCompositeFullReason = "force"
@@ -424,7 +477,13 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	})
 	if err != nil {
 		t.sc.DiscardFrame(frame)
+		t.dc.setSurfaceContentValid(false)
 		return out, fmt.Errorf("render: PresentFrameAuto: %w", err)
+	}
+	if !out.Idle {
+		// A successful damage or full present leaves a complete frame in the
+		// back buffer; the next steady frame may damage-scissor onto it.
+		t.dc.setSurfaceContentValid(true)
 	}
 	if out.Idle {
 		// Idle drew nothing and PresentFrameAuto does not call the present

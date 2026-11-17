@@ -825,6 +825,17 @@ func (c *SetViewportCommand) Execute(ctx *gl.Context, st *glExecState) {
 	}
 }
 
+// ResetScissorCommand restores the pass-default scissor (test disabled =
+// full attachment). GL_SCISSOR_TEST is global state; without this, a scissor
+// set by a damage-scissored surface pass leaks into the next render pass.
+type ResetScissorCommand struct{}
+
+func (c *ResetScissorCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.setScissorTest(false) {
+		ctx.Disable(gl.SCISSOR_TEST)
+	}
+}
+
 // SetScissorCommand sets the scissor rectangle.
 // With ADJUST_COORDINATE_SPACE enabled, the scene is rendered upside-down in GL.
 // The scissor coordinates are passed through directly (no Y-flip needed) because

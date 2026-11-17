@@ -104,3 +104,52 @@ func damageRectsRelevantToGroup(groupClip *[4]uint32, surfaceW, surfaceH uint32,
 	}
 	return u
 }
+
+// damageRectsForGroup returns the individual damage rects that intersect the
+// group clip, clamped to the surface, with overlapping rects merged. Unlike
+// damageRectsRelevantToGroup (a single AABB), multi-rect damage keeps its
+// gaps: scissoring a group to the AABB repaints non-damaged content sitting
+// between distant rects with the opaque background, erasing static pixels
+// (P6 hover transition erased a settled card between two damage rects).
+func damageRectsForGroup(groupClip *[4]uint32, surfaceW, surfaceH uint32, rects []image.Rectangle) []image.Rectangle {
+	if len(rects) == 0 {
+		return nil
+	}
+	out := make([]image.Rectangle, 0, len(rects))
+	for _, r := range rects {
+		if r.Empty() {
+			continue
+		}
+		x, y, w, h, ok := computeDamageScissor(groupClip, surfaceW, surfaceH, r)
+		if !ok {
+			continue
+		}
+		dr := image.Rect(int(x), int(y), int(x)+int(w), int(y)+int(h))
+		merged := false
+		for i := range out {
+			if out[i].Overlaps(dr) {
+				out[i] = out[i].Union(dr)
+				merged = true
+				break
+			}
+		}
+		if !merged {
+			out = append(out, dr)
+		}
+	}
+	// A union may now overlap an earlier merged rect; converge.
+	for changed := true; changed; {
+		changed = false
+		for i := 0; i < len(out) && !changed; i++ {
+			for j := i + 1; j < len(out); j++ {
+				if out[i].Overlaps(out[j]) {
+					out[i] = out[i].Union(out[j])
+					out = append(out[:j], out[j+1:]...)
+					changed = true
+					break
+				}
+			}
+		}
+	}
+	return out
+}

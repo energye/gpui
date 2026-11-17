@@ -271,3 +271,54 @@ func TestApplyGroupScissorWithDamageRects_Semantics(t *testing.T) {
 		t.Fatalf("expected fat scissor area > tight: fat=%dx%d tight=%dx%d", fw, fh, w, h)
 	}
 }
+
+func TestDamageRectsForGroup(t *testing.T) {
+	const sw, sh uint32 = 200, 200
+	// Two distant rects inside one group's clip: per-rect keeps the gap — the
+	// AABB would repaint (and erase) static pixels sitting between them.
+	group := &[4]uint32{0, 0, 200, 200}
+	rects := []image.Rectangle{image.Rect(10, 10, 30, 30), image.Rect(100, 100, 130, 130)}
+	got := damageRectsForGroup(group, sw, sh, rects)
+	if len(got) != 2 {
+		t.Fatalf("want 2 independent rects, got %d: %v", len(got), got)
+	}
+	if got[0] != image.Rect(10, 10, 30, 30) || got[1] != image.Rect(100, 100, 130, 130) {
+		t.Fatalf("rects changed: %v", got)
+	}
+
+	// Overlapping rects merge into one scissor (no redundant draw passes).
+	merged := damageRectsForGroup(group, sw, sh, []image.Rectangle{
+		image.Rect(10, 10, 30, 30), image.Rect(20, 20, 40, 40),
+	})
+	if len(merged) != 1 || merged[0] != image.Rect(10, 10, 40, 40) {
+		t.Fatalf("overlap merge: got %v", merged)
+	}
+
+	// Rects outside the group clip are dropped entirely (group not drawn).
+	// The near rect (10,10)-(30,30) sits inside the 50x50 clip; the far one
+	// (100,100)-(130,130) does not.
+	far := damageRectsForGroup(&[4]uint32{0, 0, 50, 50}, sw, sh, rects)
+	if len(far) != 1 || far[0] != image.Rect(10, 10, 30, 30) {
+		t.Fatalf("group clip must keep only the near rect, got %v", far)
+	}
+	none := damageRectsForGroup(&[4]uint32{150, 150, 190, 190}, sw, sh, rects)
+	if len(none) != 0 {
+		t.Fatalf("group clip excludes both rects, got %v", none)
+	}
+
+	// Clamped to the surface and to the group clip. The group scissor rect is
+	// [x, y, w, h]: (10,10,50,50) spans (10,10)-(60,60), so the over-wide
+	// damage (0,0)-(100,100) clamps to exactly that.
+	part := damageRectsForGroup(&[4]uint32{10, 10, 50, 50}, sw, sh, []image.Rectangle{image.Rect(0, 0, 100, 100)})
+	if len(part) != 1 || part[0] != image.Rect(10, 10, 60, 60) {
+		t.Fatalf("clamp to group clip: got %v", part)
+	}
+
+	// Empty damage → no scissors.
+	if got := damageRectsForGroup(group, sw, sh, nil); got != nil {
+		t.Fatalf("nil damage must yield nil, got %v", got)
+	}
+	if got := damageRectsForGroup(group, sw, sh, []image.Rectangle{image.Rectangle{}}); len(got) != 0 {
+		t.Fatalf("empty rect must be filtered, got %v", got)
+	}
+}

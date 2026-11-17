@@ -180,6 +180,10 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		vsyncOn:           !preferNonBlocking,
 		fixedNoVsync:      preferNonBlocking,
 	}
+	// P6 P1 (gated): same capability registration as the owning-device path.
+	if surfacePersistentRegistrationEnabled() {
+		dc.setSurfacePersistent(hal.SurfacePersistentBackBuffer(surf))
+	}
 	// R0-6: track every live target so a shared recovery can reconfigure
 	// all swapchains exactly once (the pin above is this borrower's ref).
 	shareMu.Lock()

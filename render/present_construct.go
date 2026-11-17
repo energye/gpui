@@ -574,6 +574,13 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		vsyncOn:      !fixedNoVsync,
 		fixedNoVsync: fixedNoVsync,
 	}
+	// P6 P1 (gated): GL's offscreen FBO keeps its pixels across acquires;
+	// wgpu rotates swapchain images and reports false. Default ON (kill switch
+	// GPUI_SURFACE_PERSISTENT=0); see surfacePersistentRegistrationEnabled for
+	// the hover-path fix history.
+	if surfacePersistentRegistrationEnabled() {
+		dc.setSurfacePersistent(hal.SurfacePersistentBackBuffer(surf))
+	}
 	// R0-6: track every live target so a shared recovery can reconfigure
 	// all swapchains exactly once.
 	shareMu.Lock()

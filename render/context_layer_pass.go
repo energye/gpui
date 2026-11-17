@@ -264,9 +264,20 @@ func (c *Context) BeginOffscreenPass() func() {
 	// clipStack itself is untouched (the caller's clip must survive);
 	// offscreenPassDepth gates setGPUClipRect / applyClipToPaint instead.
 	restoreClip := c.resetGPUClipForPass()
+	// The offscreen device is a fresh canvas: the caller's clip STACK must not
+	// leak into the sub-pass either. A clip inherited from the main surface
+	// (viewport in surface coords) would be applied to sub-pass-local
+	// coordinates while enqueueing the recording, dropping every fill outside
+	// the surface clip. Park the stack and let the playback build its own.
+	parkedClipStack := c.clipStack
+	parkedDepth := c.clipStackDepth
+	c.clipStack = nil
+	c.clipStackDepth = nil
 	restore := bo.BeginOffscreenPass(c.gpuRenderTarget())
 	return func() {
 		restore()
+		c.clipStack = parkedClipStack
+		c.clipStackDepth = parkedDepth
 		if restoreClip != nil {
 			restoreClip()
 		}

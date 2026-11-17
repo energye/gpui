@@ -170,6 +170,14 @@ func hexOf(r, g, b float64) string {
 func main() {
 	autoOnly := flag.Bool("auto-only", false, "gate mode: scripted run, JSON on stdout, exit 1 on fail")
 	flag.Parse()
+	animMax := 0
+	if v := os.Getenv("GPUI_ICON_ANIM"); v != "" {
+		_, _ = fmt.Sscanf(v, "%d", &animMax)
+	}
+	// static also covers the deterministic animation mode: tour/scripted
+	// interactions and the resize excursion are skipped so the only moving
+	// element is the fixed-step spinner.
+	static := os.Getenv("GPUI_ICON_STATIC") == "1" || animMax > 0
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if secsSet {
 		wrkit.RequireMinRun(secs, "F1-icon")
@@ -200,6 +208,9 @@ func main() {
 
 	root := rendering.NewAbsoluteBox(winW, winH)
 	root.Background = &rendering.Color{R: 1, G: 1, B: 1, A: 1}
+	if os.Getenv("GPUI_ROOT_RED") == "1" {
+		root.Background = &rendering.Color{R: 1, G: 0, B: 0, A: 1}
+	}
 	root.SetDebugName("f1-icon-root")
 
 	const gap = 8.0
@@ -523,6 +534,9 @@ func main() {
 	// 14px gap to the name at y=70 never collapses on hover/select.
 	// Green tints come from the official green palette.
 	fillCard := func(cui *cardUI, level float64) {
+		if os.Getenv("WR_FILL_DBG") == "1" {
+			fmt.Fprintf(os.Stderr, "FILL cell=%q key=%s tema=%s lvl=%.3f\n", cui.cell.DebugName(), cui.key, cui.theme, level)
+		}
 		if level < 0 {
 			level = 0
 		}
@@ -581,7 +595,7 @@ func main() {
 				p.Color, p.ColorSet = hexOf(rr, gg, bb), true
 			}
 		}
-		b, _ := iconBox(ctx, p, edge, "f1-icon-glyph")
+		b, _ := iconBox(ctx, p, edge, "f1-icon-glyph-"+cui.cell.DebugName())
 		cui.cell.Place(b, ix, iy)
 		nt := textLabel(cui.name, 10, 0.33, 0.33, 0.35, cardW-16)
 		if !cui.nameXSet {
@@ -686,6 +700,13 @@ func main() {
 			return rendering.NewAbsoluteBox(0, cardRowH)
 		}
 		r := rows[idx]
+		if os.Getenv("WR_ROWDBG") == "1" {
+			keys := make([]string, 0, len(r.cards))
+			for _, cd := range r.cards {
+				keys = append(keys, cd.key)
+			}
+			fmt.Fprintf(os.Stderr, "BUILDROW idx=%d title=%q keys=%v\n", idx, r.title, keys)
+		}
 		if r.title != "" {
 			box := rendering.NewAbsoluteBox(0, titleRowH)
 			box.Place(textLabel(r.title, 12, 0.1, 0.1, 0.12, 1184), 0, 6)
@@ -866,16 +887,90 @@ func main() {
 
 	var elapsed float64
 	var sampleN int
+	staticScrolled := false
+	animTicks := 0
+	surfaceSaved := false
 	resizeDone, resizeBack := false, false
+	// Diagnostic hover sweep (live-surface repro): park the proof row, then
+	// move hover across its cards one by one with the fixed-step clock.
+		hoverSweep := os.Getenv("GPUI_ICON_HOVER_SWEEP") == "1"
+	// Scroll-only proof: park the same row without any hover, isolating the
+	// viewport mount/scroll damage from the hover re-record.
+	scrollProof := os.Getenv("GPUI_ICON_SCROLL_PROOF") == "1"
+	var sweepKeys []string
+	sweepIdx, sweepAt := -1, 0
 	tourSteps := 0
 	scrolledTotal := 0.0
 	spinAngle0 := spinInst.EffectiveAngle()
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
-		// Blend animation is paint-only (fixed slots, no layout).
-		stepCards(dt)
-		if spinInst.Tick(dt) {
-			spinHost.SyncIconTransform()
+		// Static live-surface capture: freeze the spinner/blend so P1-on/off
+		// frames are pixel-identical except for the composite under test. The
+		// scripted resize below still runs (it is the damage/full event).
+		if animMax > 0 {
+			// Deterministic damage sequence: fixed 60Hz step for N ticks, then
+			// freeze. Tour/scroll/resize stay off, so P1-on/off frames differ
+			// only by the composite under test.
+			if animTicks < animMax {
+				if os.Getenv("GPUI_ICON_SERIES") == "1" && animTicks >= 24 && animTicks <= 44 {
+					prefix := os.Getenv("GPUI_SERIES_PREFIX")
+					if prefix == "" {
+						prefix = "/tmp/tick_"
+					}
+					if err := app.SaveSurfacePNG(fmt.Sprintf("%s%02d.png", prefix, animTicks)); err != nil {
+						fmt.Fprintf(os.Stderr, "series shot: %v\n", err)
+					}
+				}
+				animTicks++
+				if scrollProof && animTicks == 1 && demoRowIdx >= 0 {
+					vb.Viewport.ScrollToIndex(demoRowIdx)
+				}
+				if hoverSweep {
+					if len(sweepKeys) == 0 && demoRowIdx >= 0 {
+						for _, cd := range rows[demoRowIdx].cards {
+							sweepKeys = append(sweepKeys, cd.key)
+						}
+						vb.Viewport.ScrollToIndex(demoRowIdx)
+					}
+					if len(sweepKeys) > 0 && animTicks >= sweepAt && sweepIdx+1 < len(sweepKeys) {
+						if _, bound := cardUIs[sweepKeys[sweepIdx+1]]; bound {
+							old := hoverKey
+							sweepIdx++
+							hoverKey = sweepKeys[sweepIdx]
+							hoverSeen = true
+							refreshCards(old, hoverKey)
+							sweepAt = animTicks + 15
+						}
+					}
+				}
+				const step = 1.0 / 60.0
+				stepCards(step)
+				if spinInst.Tick(step) {
+					spinHost.SyncIconTransform()
+				}
+			} else if !surfaceSaved {
+				surfaceSaved = true
+				shot := os.Getenv("GPUI_SURFACE_SHOT")
+				if shot == "" {
+					shot = "/tmp/gpui_surface.png"
+				}
+				if err := app.SaveSurfacePNG(shot); err != nil {
+					fmt.Fprintf(os.Stderr, "surface shot: %v\n", err)
+				} else {
+					fmt.Fprintf(os.Stderr, "SURFACE_SHOT %s\n", shot)
+				}
+			}
+		} else if !static {
+			// Blend animation is paint-only (fixed slots, no layout).
+			stepCards(dt)
+			if spinInst.Tick(dt) {
+				spinHost.SyncIconTransform()
+			}
+		} else if !staticScrolled && elapsed >= 1.0 {
+			// One deterministic scroll step: exercises virtual-list mount and
+			// the retained damage path without a moving tour.
+			staticScrolled = true
+			vb.Viewport.ScrollBy(0, 300)
 		}
 		// Continuous auto tour (timed runs only; manual mode is user-driven
 		// so hover is never fought by auto scroll): human-speed 3px/frame
@@ -884,7 +979,7 @@ func main() {
 		// not a scroll transient.
 		// tourSteps counts passed 120px bands (== one card row incl gap).
 		blackout := secsSet && secs > 0 && elapsed >= float64(secs)-2.0
-		if secsSet && !blackout {
+		if secsSet && !static && !blackout {
 			before := vb.Viewport.ScrollOffset().Y
 			vb.Viewport.ScrollBy(0, 3)
 			after := vb.Viewport.ScrollOffset().Y
@@ -897,18 +992,22 @@ func main() {
 				tourSteps = steps
 			}
 		}
-		if ctl != nil && !resizeDone && elapsed >= 2.0 {
+		if ctl != nil && !static && !resizeDone && elapsed >= 2.0 {
 			resizeDone = true
 			ctl.SetSize(winW-160, winH-100)
 		}
-		if ctl != nil && resizeDone && !resizeBack && elapsed >= 4.5 {
+		if ctl != nil && !static && resizeDone && !resizeBack && elapsed >= 4.5 {
 			resizeBack = true
 			ctl.SetSize(winW, winH)
 		}
 		// Scripted mouse proof (timed runs only): hover lands on a twotone
 		// card, select lands on a plain-theme card in the same row, so the
 		// snapshot proves both feedback paths at once.
-		if secsSet && !scriptedHover && elapsed >= 1.0 {
+		// Hover sweep mode owns hoverKey (tick-stepped, deterministic final
+		// state); the elapsed-time scripted hover below races the sweep's last
+		// step, so two runs could end on different hovered cards and poison
+		// the surface-vs-snapshot A/B.
+		if secsSet && !static && !scriptedHover && !hoverSweep && elapsed >= 1.0 {
 			scriptedHover = true
 			if demoHoverKey != "" {
 				old := hoverKey
@@ -917,7 +1016,7 @@ func main() {
 				refreshCards(old, hoverKey)
 			}
 		}
-		if secsSet && scriptedHover && !scriptedClick && elapsed >= 2.0 {
+		if secsSet && !static && scriptedHover && !scriptedClick && elapsed >= 2.0 {
 			scriptedClick = true
 			if demoSelectKey != "" {
 				selectCard(demoSelectKey)
@@ -927,7 +1026,7 @@ func main() {
 		// Park the proof row at the top once scrolling stops, so the gated
 		// snapshot actually shows hover + selected cards (previously the
 		// tour left them scrolled out of view).
-		if secsSet && blackout && demoRowIdx >= 0 {
+		if secsSet && !static && blackout && demoRowIdx >= 0 {
 			vb.Viewport.ScrollToIndex(demoRowIdx)
 		}
 		app.ScheduleFrame()
