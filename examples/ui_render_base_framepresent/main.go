@@ -316,7 +316,7 @@ func main() {
 	// ---- golden over header + legend + 4 cards (status band excluded) ----
 	goldenRects := wrkit.DirectGoldenRects()
 	goldenDiff, goldenPx, goldenSeeded, goldenErr := wrkit.GoldenGate(
-		snapPath, filepath.Join(snapDir, "golden_framepresent.png"), goldenRects)
+		snapPath, wrkit.GoldenBaselinePath(filepath.Join(snapDir, "golden_framepresent.png")), goldenRects)
 
 	// ---- grab evidence: idle unchanged, damage changed/preserved ----
 	idleDiff := -1.0

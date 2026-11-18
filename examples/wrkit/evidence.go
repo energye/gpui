@@ -6,7 +6,24 @@ package wrkit
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/energye/gpui/render"
 )
+
+// GoldenBaselinePath returns basePath unchanged for the native (wgpu) backend
+// and inserts a "_go" suffix before the extension for the pure-Go GL backend.
+// The two backends produce different AA coverage (GLES vs wgpu SDF), so one
+// bitwise baseline can never hold for both; each keeps its own committed
+// golden instead of comparing GL against a native-seeded image.
+func GoldenBaselinePath(basePath string) string {
+	if b, err := render.ResolveBackend(); err == nil && b == render.BackendGo {
+		ext := filepath.Ext(basePath)
+		return strings.TrimSuffix(basePath, ext) + "_go" + ext
+	}
+	return basePath
+}
 
 // PixelProbe is one semantic color check in logical 1200-wide client space.
 // Tol is the per-channel tolerance in 8-bit steps; 0 means 3.

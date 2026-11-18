@@ -163,7 +163,7 @@ func main() {
 
 	// ---- golden ----
 	goldenDiff, goldenPx, goldenSeeded, goldenErr := wrkit.GoldenGate(
-		snapPath, filepath.Join(snapDir, "golden_blendmodes.png"), wrkit.DirectGoldenRects())
+		snapPath, wrkit.GoldenBaselinePath(filepath.Join(snapDir, "golden_blendmodes.png")), wrkit.DirectGoldenRects())
 
 	screenDiff := -1.0
 	if grabFinal != "" {

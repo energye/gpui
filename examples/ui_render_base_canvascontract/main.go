@@ -163,7 +163,7 @@ func main() {
 	ax, ay := wrkit.DirectCardAt(0)
 	bx, by := wrkit.DirectCardAt(1)
 	probes := []wrkit.PixelProbe{
-			px("A.live", ax+16+40*s, ay+40+40*s, colSquare, 8),
+		px("A.live", ax+16+40*s, ay+40+40*s, colSquare, 8),
 		// B 三角形内部点：直角在 (110,20)，斜边 (20,20)-(110,80)；leg(95,30)
 		// 在斜边上方=内部。
 		px("B.replay", bx+16+95*s, by+40+30*s, colSquare, 8),
@@ -172,7 +172,7 @@ func main() {
 
 	// ---- golden ----
 	goldenDiff, goldenPx, goldenSeeded, goldenErr := wrkit.GoldenGate(
-		snapPath, filepath.Join(snapDir, "golden_canvascontract.png"), wrkit.DirectGoldenRects())
+		snapPath, wrkit.GoldenBaselinePath(filepath.Join(snapDir, "golden_canvascontract.png")), wrkit.DirectGoldenRects())
 
 	screenDiff := -1.0
 	if grabFinal != "" {

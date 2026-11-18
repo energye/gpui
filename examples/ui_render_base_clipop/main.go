@@ -382,7 +382,7 @@ func loadImage(path string) image.Image {
 
 func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int64, firstRun bool) {
 	cur := filepath.Join(snapDir, "showcase_clipop.png")
-	base := filepath.Join(snapDir, "showcase_clipop_base.png")
+	base := wrkit.GoldenBaselinePath(filepath.Join(snapDir, "showcase_clipop_base.png"))
 	if _, err := os.Stat(base); err != nil {
 		if os.Getenv("GPUI_ACCEPT_GOLDEN") != "1" {
 			fmt.Fprintf(os.Stderr, "golden baseline missing: %s (re-run with GPUI_ACCEPT_GOLDEN=1 to seed, then review + commit)\n", base)
