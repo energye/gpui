@@ -63,3 +63,41 @@ func TestMarkSurfaceContentForPresentGate(t *testing.T) {
 	// (no accelerator in unit tests), so the mark is still a safe no-op here.
 	c.markSurfaceContentForPresent(nonNil)
 }
+
+// P6 P3: the composite-surface gate extends CompositeClipSafe to the
+// render-owned composite surface (non-persistent surfaces, wgpu). Pure-CPU
+// coverage: kill switch, validity lifecycle, and the unchanged GL branch.
+func TestCompositeSurfaceGate(t *testing.T) {
+	c := &Context{}
+	t.Setenv("GPUI_COMPOSITE_SURFACE", "0")
+	// Kill switch off → composite mode disabled regardless of validity.
+	c.setCompositeSurfaceValid(true)
+	if c.CompositeClipSafe() {
+		t.Fatal("kill switch GPUI_COMPOSITE_SURFACE=0 must keep the gate off")
+	}
+	t.Setenv("GPUI_COMPOSITE_SURFACE", "1")
+	// Validity lifecycle: an invalid composite surface keeps the gate off
+	// (wgpu window paths clear validity on create/resize/recovery).
+	c.setCompositeSurfaceValid(false)
+	if c.CompositeClipSafe() {
+		t.Fatal("invalid composite surface must keep the gate off")
+	}
+	// Composite mode + valid opens the gate — only when a capable GPU ops is
+	// present (the render test binary registers one via the render/gpu init;
+	// pure-CPU environments correctly keep it off).
+	if c.compositeSurfaceEnabled() {
+		c.setCompositeSurfaceValid(true)
+		if !c.CompositeClipSafe() {
+			t.Fatal("composite surface + valid must open the gate (P3)")
+		}
+	}
+	// The GL branch is unchanged: persistent + valid → safe, valid only → no.
+	gl := &Context{surfacePersistent: true}
+	if gl.CompositeClipSafe() {
+		t.Fatal("persistent without validity must stay off (P1 contract)")
+	}
+	gl.setSurfaceContentValid(true)
+	if !gl.CompositeClipSafe() {
+		t.Fatal("persistent + valid must stay safe (P1 contract unchanged)")
+	}
+}

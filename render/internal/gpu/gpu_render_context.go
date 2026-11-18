@@ -176,6 +176,18 @@ type GPURenderContext struct {
 	frameScratchView hal.TextureView
 	frameScratchW    int
 	frameScratchH    int
+
+	// compSurface (P6 P3) is the persistent composite surface for backends
+	// whose swapchain does not preserve its back buffer (wgpu-native rotates
+	// images): the frame composites into it with P1 carry semantics (color
+	// loads across frames, stencil cleared per pass, P2 damage scissors) and
+	// the present blits it full-screen onto the acquired swapchain view.
+	// Separate from frameScratch — the F1 advanced-pop scratch is forced
+	// clear per use and its LoadOpClear contract is pixel-locked by tests.
+	compSurfaceTex   hal.Texture
+	compSurfaceView  hal.TextureView
+	compSurfaceW     int
+	compSurfaceH     int
 	layerReleaseHold []func()
 	// dual-tex resolve scratch (avoid per-resolve make on L3 blend path).
 	dualTexViewOpsScratch []dualTexViewBlendOp
@@ -3419,11 +3431,14 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	// F1: when advanced layer pops are pending, render the frame into frameScratch
 	// (CopySrc|TextureBinding|RenderAttachment) so dual-tex can sample dest.
 	// Swapchain views lack COPY_SRC and cannot be dual-tex destinations.
+	// P6 P3: when the target already IS the composite surface (non-persistent
+	// present path), it has the dual-tex usage set — skip the redirect.
 	surfaceView := target.View
 	// Offscreen layer/effect self-flushes render into their own RT. They must
 	// not switch to frameScratch for a parent-surface advanced pop, otherwise
 	// the child flush blits scratch back to itself recursively.
-	useScratch := !rc.offscreenFlush && len(rc.pendingAdvancedLayers) > 0 && !surfaceView.IsNil()
+	useScratch := !rc.offscreenFlush && len(rc.pendingAdvancedLayers) > 0 && !surfaceView.IsNil() &&
+		!rc.compositeSurfaceTargets(surfaceView)
 	if useScratch {
 		sw, sh := target.Width, target.Height
 		if target.ViewWidth > 0 && target.ViewHeight > 0 {
@@ -3769,6 +3784,225 @@ func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
 	rc.frameScratchView = view
 	rc.frameScratchW, rc.frameScratchH = w, h
 	return nil
+}
+
+// EnsureCompositeSurface allocates/resizes the P6 P3 persistent composite
+// surface for backends whose swapchain does not preserve its back buffer
+// (wgpu-native rotates images). recreated=true means the texture was
+// (re)allocated — content is undefined and the caller must clear the
+// composite-validity gate so the next composite runs full and re-seeds it.
+func (rc *GPURenderContext) EnsureCompositeSurface(w, h int) (gpucontext.TextureView, bool, error) {
+	if rc == nil || w <= 0 || h <= 0 {
+		return gpucontext.TextureView{}, false, render.ErrFallbackToCPU
+	}
+	if rc.compSurfaceTex != nil && rc.compSurfaceW == w && rc.compSurfaceH == h && rc.compSurfaceView != nil {
+		return packView(rc.compSurfaceView), false, nil
+	}
+	if rc.compSurfaceView != nil || rc.compSurfaceTex != nil {
+		// Size change / recreate: defer the release — the old surface may
+		// still be referenced by commands queued this frame (same contract
+		// as ensureFrameScratch's retire).
+		if rc.session != nil {
+			rc.session.RetireTexture(rc.compSurfaceTex, rc.compSurfaceView)
+		} else {
+			if rc.compSurfaceView != nil {
+				rc.compSurfaceView.Destroy()
+			}
+			if rc.compSurfaceTex != nil {
+				rc.compSurfaceTex.Destroy()
+			}
+		}
+		rc.compSurfaceView = nil
+		rc.compSurfaceTex = nil
+	}
+	rc.shared.mu.Lock()
+	device := rc.shared.device
+	rc.shared.mu.Unlock()
+	if device == nil {
+		return gpucontext.TextureView{}, false, render.ErrFallbackToCPU
+	}
+	// Same usage set as frameScratch: the composite surface doubles as a
+	// dual-tex-capable target (F1 advanced pops need CopySrc|TextureBinding
+	// dest; swapchain views lack them) and is copied to the swapchain.
+	usage := types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
+		Label:         "composite_surface",
+		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     types.TextureDimension2D,
+		Format:        types.TextureFormatBGRA8Unorm,
+		Usage:         usage,
+	})
+	if err != nil {
+		return gpucontext.TextureView{}, false, err
+	}
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
+		Label:         "composite_surface_view",
+		Format:        types.TextureFormatBGRA8Unorm,
+		Dimension:     types.TextureViewDimension2D,
+		Aspect:        types.TextureAspectAll,
+		MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Destroy()
+		return gpucontext.TextureView{}, false, err
+	}
+	rc.compSurfaceTex = tex
+	rc.compSurfaceView = view
+	rc.compSurfaceW, rc.compSurfaceH = w, h
+	return packView(view), true, nil
+}
+
+// compositeSurfaceTargets reports whether the packed view IS the composite
+// surface (identity via unpack — packing allocates a fresh box per call, so
+// packed-value equality would never hold).
+func (rc *GPURenderContext) compositeSurfaceTargets(view gpucontext.TextureView) bool {
+	if rc == nil || rc.compSurfaceView == nil {
+		return false
+	}
+	hv := unpackView(view)
+	return hv != nil && hv == rc.compSurfaceView
+}
+
+// BlitCompositeSurface copies the composite surface onto dst (the acquired
+// swapchain view) as a full-screen textured quad with no damage scissor —
+// the swapchain image starts undefined and must be written everywhere
+// (wgpu-native has no incremental present). Mirrors the F1 scratch→surface
+// blit (Flush's useScratch block) as a standalone flush.
+func (rc *GPURenderContext) BlitCompositeSurfaceTo(dst gpucontext.TextureView, w, h uint32) error {
+	if rc == nil || rc.compSurfaceView == nil || dst.IsNil() || w == 0 || h == 0 {
+		return fmt.Errorf("composite surface blit: nil surface/dst or zero extent")
+	}
+	target := render.GPURenderTarget{
+		View:       dst,
+		ViewWidth:  w,
+		ViewHeight: h,
+		Width:      int(w),
+		Height:     int(h),
+	}
+	rc.frameRendered = false
+	rc.lastView = nil
+	if rc.session != nil {
+		rc.session.SetFrameState(false, nil)
+	}
+	clear(rc.pendingShapes)
+	clear(rc.pendingConvexCommands)
+	clear(rc.pendingStencilPaths)
+	clear(rc.pendingImageCommands)
+	clear(rc.pendingGPUTextureCommands)
+	clear(rc.pendingTextBatches)
+	clear(rc.pendingGlyphMaskBatches)
+	rc.pendingShapes = rc.pendingShapes[:0]
+	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
+	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
+	rc.pendingImageCommands = rc.pendingImageCommands[:0]
+	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
+	rc.pendingTextBatches = rc.pendingTextBatches[:0]
+	rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+	rc.glyphMaskQuadStore = rc.glyphMaskQuadStore[:0]
+	rc.scissorSegments = rc.scissorSegments[:0]
+	rc.hasPendingTarget = false
+
+	rc.QueueGPUTextureDraw(target,
+		packView(rc.compSurfaceView),
+		0, 0, float32(w), float32(h), 1.0, w, h)
+	err := rc.Flush(target)
+	// The swapchain view handle is per-frame; the pass-end markViewRendered
+	// registered it as persistent content (any stable handle on a present
+	// frame auto-persists). Drop it — per-frame handles must not accumulate
+	// in persistentContentViews (the P1 doc's per-frame leak warning).
+	if rc.session != nil {
+		rc.session.ForgetPersistentContent(extractTextureView(dst))
+	}
+	return err
+}
+
+// ReadCompositeSurfacePixels (P6 P3 diagnostic) reads the composite surface
+// back as top-down RGBA — the same pixels the present blit pushes to the
+// swapchain. wgpu-native has no FBO readback (GL's Surface.ReadPixels), so
+// the live-surface capture path (SaveSurfacePNG / GPUI_SURFACE_SHOT) reads
+// here instead. Must run on the GL/raster thread; blocks on MapBuffer like
+// the session's own readback (copySubmitAndReadback).
+func (rc *GPURenderContext) ReadCompositeSurfacePixels() ([]byte, int, int, bool) {
+	if rc == nil || rc.compSurfaceTex == nil || rc.compSurfaceView == nil || rc.compSurfaceW <= 0 || rc.compSurfaceH <= 0 {
+		return nil, 0, 0, false
+	}
+	rc.shared.mu.Lock()
+	device := rc.shared.device
+	rc.shared.mu.Unlock()
+	if device == nil || rc.session == nil || rc.session.queue == nil {
+		return nil, 0, 0, false
+	}
+	w, h := uint32(rc.compSurfaceW), uint32(rc.compSurfaceH) //nolint:gosec
+	bytesPerRow := w * 4
+	const copyPitchAlignment = 256
+	alignedBytesPerRow := (bytesPerRow + copyPitchAlignment - 1) &^ (copyPitchAlignment - 1)
+	stagingBufSize := uint64(alignedBytesPerRow) * uint64(h)
+	stagingBuf, err := device.CreateBuffer(&hal.BufferDescriptor{
+		Label: "composite_surface_readback",
+		Size:  stagingBufSize,
+		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		return nil, 0, 0, false
+	}
+	defer stagingBuf.Destroy()
+	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "composite_surface_readback"})
+	if err != nil {
+		return nil, 0, 0, false
+	}
+	encoderConsumed := false
+	defer func() {
+		if !encoderConsumed {
+			encoder.DiscardEncoding()
+		}
+	}()
+	// RenderAttachment → CopySrc → back (same layout dance as the session's
+	// own readback; no-op on GLES/software, required on native).
+	encoder.TransitionTextures([]hal.TextureBarrier{{
+		Texture: rc.compSurfaceTex,
+		Usage:   hal.TextureUsageTransition{OldUsage: types.TextureUsageRenderAttachment, NewUsage: types.TextureUsageCopySrc},
+	}})
+	encoder.CopyTextureToBuffer(rc.compSurfaceTex, stagingBuf, []hal.BufferTextureCopy{{
+		BufferLayout: hal.ImageDataLayout{Offset: 0, BytesPerRow: alignedBytesPerRow, RowsPerImage: h},
+		TextureBase:  hal.ImageCopyTexture{Texture: rc.compSurfaceTex, MipLevel: 0},
+		Size:         hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	}})
+	encoder.TransitionTextures([]hal.TextureBarrier{{
+		Texture: rc.compSurfaceTex,
+		Usage:   hal.TextureUsageTransition{OldUsage: types.TextureUsageCopySrc, NewUsage: types.TextureUsageRenderAttachment},
+	}})
+	cmdBuf, err := encoder.Finish()
+	if err != nil {
+		return nil, 0, 0, false
+	}
+	encoderConsumed = true
+	defer cmdBuf.Destroy()
+	if _, serr := rc.session.queue.Submit(cmdBuf); serr != nil {
+		return nil, 0, 0, false
+	}
+	mapping, err := device.MapBuffer(stagingBuf, 0, stagingBufSize)
+	if err != nil {
+		return nil, 0, 0, false
+	}
+	raw := make([]byte, stagingBufSize)
+	copy(raw, unsafe.Slice((*byte)(mapping.Ptr), stagingBufSize)) //nolint:gosec // hal.BufferMapping opaque pointer
+	if err := device.UnmapBuffer(stagingBuf); err != nil {
+		slogger().Warn("composite surface readback unmap failed", "err", err)
+	}
+	// Strip row padding and swizzle BGRA → RGBA.
+	rowLen := int(bytesPerRow)
+	out := make([]byte, rowLen*int(h))
+	for y := 0; y < int(h); y++ {
+		srcRow := raw[y*int(alignedBytesPerRow) : y*int(alignedBytesPerRow)+rowLen]
+		dstRow := out[y*rowLen : (y+1)*rowLen]
+		for x := 0; x < int(w); x++ {
+			o := x * 4
+			dstRow[o], dstRow[o+1], dstRow[o+2], dstRow[o+3] = srcRow[o+2], srcRow[o+1], srcRow[o], srcRow[o+3]
+		}
+	}
+	return out, rc.compSurfaceW, rc.compSurfaceH, true
 }
 
 // resolvePendingAdvancedLayers composites deferred advanced-blend layers at
@@ -4602,6 +4836,15 @@ func (rc *GPURenderContext) Close() {
 		rc.frameScratchTex = nil
 	}
 	rc.frameScratchW, rc.frameScratchH = 0, 0
+	if rc.compSurfaceView != nil {
+		rc.compSurfaceView.Destroy()
+		rc.compSurfaceView = nil
+	}
+	if rc.compSurfaceTex != nil {
+		rc.compSurfaceTex.Destroy()
+		rc.compSurfaceTex = nil
+	}
+	rc.compSurfaceW, rc.compSurfaceH = 0, 0
 	rc.pendingShapes = nil
 	rc.pendingConvexCommands = nil
 	rc.pendingStencilPaths = nil

@@ -185,7 +185,15 @@ type Context struct {
 	// contract).
 	surfacePersistent   bool
 	surfaceContentValid bool
-	gpuFallbackWarned   bool // true after first global fallback warning (avoid log spam)
+
+	// P6 P3 composite surface (non-persistent surfaces, e.g. wgpu): the
+	// render layer composites into a screen-sized offscreen it owns, with the
+	// same P1 carry semantics, then blits it onto the acquired swapchain
+	// view. compositeSurfaceValid tracks that the composite surface holds a
+	// complete frame; create/resize/recovery clear it so the next composite
+	// re-seeds full. raster-thread confined like surfaceContentValid.
+	compositeSurfaceValid bool
+	gpuFallbackWarned     bool // true after first global fallback warning (avoid log spam)
 
 	pathStats RenderPathStats
 

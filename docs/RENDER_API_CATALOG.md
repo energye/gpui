@@ -103,7 +103,7 @@
 | Width/Height/PixelWidth/PixelHeight/DeviceScale/SetDeviceScale/Resize/ResizeTarget | 画布逻辑/物理尺寸、HiDPI 缩放比、resize（含底层 pixmap） | 尺寸与缩放 | ✅ |
 | Clear/ClearWithColor/SetPixel/WritePixels/Image/EncodePNG/EncodeJPEG/SavePNG | 清空画布、写像素、导出 image/PNG/JPEG/存盘 | 画布输出 | ✅ |
 | SetDamageTracking/FrameDamage/FrameDamageUnion/TrackDamageRect/ResetFrameDamage | 逐操作损伤矩形跟踪（present 决策/增量重绘用） | 损伤跟踪 | ✅ |
-| `CompositeClipSafe()`（present_surface_content.go，2026-11-18 P6 P2） | 场景合成可否裁剪到 damage 并跳过不相交子树：持久后缓冲 + validity 双真才真（P1 合同）；首帧/force/resize/recovery/P1 关/wgpu 自动回全量 | 合成裁剪门 | ✅ ui/scene 合成消费（P2 主门） |
+| `CompositeClipSafe()`（present_surface_content.go，2026-11-18 P6 P2；P6 P3 扩展 wgpu 合成面载体） | 场景合成可否裁剪到 damage 并跳过不相交子树：像素在 damage 外有定义的上一帧内容才真。两载体：P1 持久后缓冲（GL，validity 门）与 P3 render 自有合成面（wgpu，validity 门）；首帧/force/resize/recovery/kill switch 关自动回全量 | 合成裁剪门 | ✅ ui/scene 合成消费（P2 主门） |
 | RasterizerMode/SetRasterizerMode/PipelineMode/SetPipelineMode/SetTextMode/TextMode/SetLCDLayout | 选择 CPU 栅格化器、GPU 管线模式（render pass/compute）、文本策略、LCD 子像素布局 | 渲染模式 | ✅（`SetTextMode`/`TextMode`/`SetLCDLayout` 另有直调真窗 `ui_render_base_textlow`，2026-10-20 **原子验证**：逻辑 16 + 像素 28 + golden 627200px 零差 + 抓屏同区对照；同批修 `SetLCDLayout` 清空图集致灰度+LCD 同帧花屏） |
 | SetEffectSurface/SetSharedEncoder/CreateSharedEncoder/SubmitSharedEncoder | 特效离屏强制 1x 采样、共享命令编码器（单命令缓冲帧，ADR-017） | 离屏/编码器 | ✅ |
 | BeginGPUFrame/FlushGPU/FlushGPUWithView/FlushGPUWithViewDamage/FlushGPUWithViewDamageRects/GPURenderContext/DropGPURenderContext | 每帧 GPU 状态重置、把累积 GPU 命令提交并解析到 pixmap/视图（带单/多损伤区）、per-context GPU 会话 | GPU 提交 | ✅ |

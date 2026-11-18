@@ -11,6 +11,7 @@
 package render
 
 import (
+	"fmt"
 	"os"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -52,6 +53,26 @@ func (c *Context) setSurfaceContentValid(valid bool) {
 	c.surfaceContentValid = valid
 }
 
+// compositeSurfaceEnabled reports whether the P6 P3 composite-surface flow is
+// active for this context: a NON-persistent surface (wgpu-native) with the
+// per-context GPU ops able to own a composite surface and the kill switch
+// unset (GPUI_COMPOSITE_SURFACE=0 restores the full-composite path).
+func (c *Context) compositeSurfaceEnabled() bool {
+	if c == nil || c.surfacePersistent || os.Getenv("GPUI_COMPOSITE_SURFACE") == "0" {
+		return false
+	}
+	if rc := c.gpuCtxOps(); rc != nil {
+		_, ok := rc.(interface {
+			EnsureCompositeSurface(w, h int) (gpucontext.TextureView, bool, error)
+			BlitCompositeSurfaceTo(dst gpucontext.TextureView, w, h uint32) error
+		})
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
 // markSurfaceContentForPresent registers the just-acquired surface view as
 // holding the previous complete composite (GL persistent back buffer), so the
 // composite loads color and damage-scissors instead of treating the fresh
@@ -61,8 +82,22 @@ func (c *Context) setSurfaceContentValid(valid bool) {
 // pooled offscreen views whose stale pixels would be loaded under the new
 // recording (hover re-record filled icon holes with the previous tenant's
 // pixels — the P1 default-off regression).
+//
+// P6 P3: on the composite-surface flow the marked view is the render-owned
+// composite surface, and the mark fires EVERY frame regardless of validity —
+// the carry mark is what keeps the session's stencil per-pass Clear (a
+// stable view without it would load cross-frame stencil winding and fill
+// vector paths to their bounding box).
 func (c *Context) markSurfaceContentForPresent(view gpucontext.TextureView) {
-	if c == nil || view.IsNil() || !c.surfacePersistent || !c.surfaceContentValid {
+	if c == nil || view.IsNil() {
+		return
+	}
+	if !c.surfacePersistent && !c.compositeSurfaceEnabled() {
+		return
+	}
+	if c.surfacePersistent && !c.surfaceContentValid {
+		// GL: invalid back buffer (force/resize/recovery) → no carry mark,
+		// the frame composites full.
 		return
 	}
 	if rc := c.gpuCtxOps(); rc != nil {
@@ -85,13 +120,72 @@ func (c *Context) surfaceContentValidFlag() bool {
 	return c != nil && c.surfaceContentValid
 }
 
+// setCompositeSurfaceValid records whether the render-owned composite surface
+// (P6 P3) currently holds a complete frame. Cleared when the surface is
+// (re)created/resized and on device recovery; set after each successful
+// composite flush into it.
+func (c *Context) setCompositeSurfaceValid(valid bool) {
+	if c == nil {
+		return
+	}
+	c.compositeSurfaceValid = valid
+}
+
+// ensureCompositeSurface forwards to the per-context GPU layer: allocate or
+// resize the composite surface. recreated=true → content undefined, the
+// caller clears the validity gate.
+func (c *Context) ensureCompositeSurface(w, h int) (gpucontext.TextureView, bool, error) {
+	if rc := c.gpuCtxOps(); rc != nil {
+		if p, ok := rc.(interface {
+			EnsureCompositeSurface(w, h int) (gpucontext.TextureView, bool, error)
+		}); ok {
+			return p.EnsureCompositeSurface(w, h)
+		}
+	}
+	return gpucontext.TextureView{}, false, fmt.Errorf("render: composite surface unavailable")
+}
+
+// blitCompositeSurfaceTo forwards to the per-context GPU layer: copy the
+// composite surface onto the acquired swapchain view (full-screen quad).
+func (c *Context) blitCompositeSurfaceTo(dst gpucontext.TextureView, w, h uint32) error {
+	if rc := c.gpuCtxOps(); rc != nil {
+		if p, ok := rc.(interface {
+			BlitCompositeSurfaceTo(dst gpucontext.TextureView, w, h uint32) error
+		}); ok {
+			return p.BlitCompositeSurfaceTo(dst, w, h)
+		}
+	}
+	return fmt.Errorf("render: composite surface blit unavailable")
+}
+
 // CompositeClipSafe reports whether a scene composite may clip this frame to
-// its damage and skip non-intersecting subtrees (P6 P2): only when the back
-// buffer provably holds the previous complete frame (P6 P1 persistent surface
-// + validity gate). First frame, forced/resize/recovery frames, P1 disabled
-// via GPUI_SURFACE_PERSISTENT=0, and non-persistent surfaces (wgpu reports
-// the capability false) all return false — the caller must composite full,
-// because pixels outside the damage have no defined previous content to keep.
+// its damage and skip non-intersecting subtrees (P6 P2): only when pixels
+// outside the damage provably hold the previous complete frame. Two carriers:
+// the P1 persistent back buffer (GL, validity-gated) and the P3 render-owned
+// composite surface (wgpu, validity-gated). First frame, forced/resize/
+// recovery frames, kill switches off, and CPU contexts return false — the
+// caller must composite full, because pixels outside the damage have no
+// defined previous content to keep.
 func (c *Context) CompositeClipSafe() bool {
-	return c != nil && c.surfacePersistent && c.surfaceContentValid
+	if c == nil {
+		return false
+	}
+	if c.surfacePersistent {
+		return c.surfaceContentValid
+	}
+	return c.compositeSurfaceEnabled() && c.compositeSurfaceValid
+}
+
+// readCompositeSurfacePixels forwards to the per-context GPU layer: read the
+// P6 P3 composite surface back as top-down RGBA (wgpu live-surface capture;
+// GL uses the FBO path and never reaches here).
+func (c *Context) readCompositeSurfacePixels() ([]byte, int, int, bool) {
+	if rc := c.gpuCtxOps(); rc != nil {
+		if p, ok := rc.(interface {
+			ReadCompositeSurfacePixels() ([]byte, int, int, bool)
+		}); ok {
+			return p.ReadCompositeSurfacePixels()
+		}
+	}
+	return nil, 0, 0, false
 }

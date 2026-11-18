@@ -1,7 +1,7 @@
 # P6 细 damage 第一卡：脏区合成 + 持久合成面
 
 日期：2026-11-16 ｜ 仓库：`/home/yanghy/app/projects/gogpu/gpui` ｜ 分支：`feat/UI-组件`
-状态：**P0（观测）、P1（GL 持久面 + damage 剪刀，默认开启）、P2（场景层树脏区裁剪，默认开启）已落地；P3–P4 未开**。上屏合同不变。
+状态：**P0（观测）、P1（GL 持久面 + damage 剪刀，默认开启）、P2（场景层树脏区裁剪，默认开启）、P3（wgpu 持久合成面，默认开启）已落地；P4 未开**。上屏合同不变。
 真源：`ENGINE_FRAME_PRESENT_STANDARD.md`（上屏合同）、`RENDER_BASE_RESOURCE_MATRIX.md`（资源账）、
 成熟实现：`/home/yanghy/app/projects/gogpu/flutter`（`flow/compositor_context.cc` / `flow/diff_context.cc` / `flow/surface_frame.h`）。
 
@@ -227,10 +227,11 @@ Flutter 的 partial repaint 不是“只把 damage 交给合成器”，而是**
 - `-race` 多窗与 60s+ soak 按 P1 先例记 P4 硬化期（隔离显示环境）；本批无新增共享状态（每窗独立 session/cache）。
 - 顺带发现两个存量问题（非本卡引入，归属对应线，如实记录）：① `transformBounds`（textured.go）对 `TransformPoint` 结果再除 deviceScale，但 `c.matrix` 只含用户变换不含 device scale（`SetDeviceScale` 明确不触碰用户矩阵）——scale≠1 的窗口 damage 矩形会缩小 1/scale，现网真窗均 scale=1 故潜伏；② 7 个 ui_render_base 场景窗（clipop/cliprrect/backdrop/filterops/framepresent/blendmodes/canvascontract）`-auto-only` 存量红（2.9%~7.0%），在 P1 提交与其父提交 eebfde98 上逐窗对照数字完全一致，与 P1/P2 均无关，golden 基线过期归属基线线。
 
-**P3 wgpu 持久合成面**
+**P3 wgpu 持久合成面（✅ 2026-11-18 落地，GPUI_COMPOSITE_SURFACE=0 退出）**
 
-- 先评估复用 `frameScratch`（见 §3.5）；不适合复用再新建；全量拷贝复用现有 `frameScratch → surface` blit 路径；复用 P2 的裁剪；资源账本/resize/关窗/池复用。
-- 验收：wgpu 稳态 CPU/raster 双降；无 partial 计数时如实报“全量 present”；VRAM 进出可查；关窗/重开无泄漏。
+- 实现与验收记录见修订表 2026-11-18 P3 行：render 层自有合成面（非 frameScratch——F1 强制清语义耦合，判据见修订表）+ present() 唯一注入点重定向 + 整屏 blit 到 swapchain + `CompositeClipSafe` 扩展（P2 门/场景层零改动）。
+- 验收实测：wgpu（native）门激活（culled=33/blits=2）、悬停扫掠 P3-on vs P3-off **客户区逐位 0px**（xwd 前缓冲捕获，仅 1px WM 边框装饰噪声）、icon `-auto-only` golden 0.0000%/scripted 4/4（resize=true 失效路径过）、WR_P2CHK 零违例、GL 回归零变化（vs P1/P2 冻结帧逐位 0px）；性能 A/B 三跑中位 CPU −4.2%、raster p50 −27.6%（整屏拷贝成本被合成节省覆盖，退出判据 §7.7 通过，保持默认开）；VRAM MEMDIG live=29MB/peak=49MB（合成面 ~3.84MB 在账）。
+- wgpu 活面证据口径补充：wgpu-native 无 FBO readback，`GPUI_SURFACE_SHOT` 的活面抓图读 render 自有合成面（`ReadCompositeSurfacePixels`，CopyDst+copy+map，镜像 session readback 模式）；P3-off 路径无抓图能力，A/B 用 xwd 前缓冲捕获（X11 复合后内容）。
 
 **P4 硬化与收口**
 
@@ -289,3 +290,4 @@ DISPLAY=:0 GPUI_BACKEND=go RUN_SECONDS=15 /tmp/gpui_icon        # 巡览版 37.6
 | 2026-11-17 | **P1 悬停路径回归（默认关闭）**：鼠标划过/离开目录卡片后图标消失或变样（rwgpu 正常）。自动 hover 扫掠：P1-on 6604px vs P1-off 452px。逐项隔离——只滚动 215px（悬停才触发）；全矢量回放恢复；层纹理 ops/rec/blit/pending 均正常；**同一纹理重复画一次时第一笔不生效、第二笔正常**；纹理拷贝到卡片 damage 内另一位置则字形完整。结论：多组 damage 帧里组内第一笔纹理 draw 丢失，属 GPU 分组/顶点批次路径，不是 scene damage 范围。处置：P1 默认关闭（`GPUI_SURFACE_PERSISTENT=1` 诊断开），保留 stencil 跨帧加载修复；重开需先修该 draw 丢失并过悬停扫掠。 |
 | 2026-11-18 | **P1 悬停路径根因修复 + 默认开启（上一条“组内第一笔 draw 丢失”归因更正）**：真根因是 `MarkSurfaceContent` 放在 `flushGPUWithViewCoreImpl`，把 recordLocal 的层 view 误标成 surface carry（`view == t.View` 对层 flush 恒 false），稳态每条层录制 pass colorLoadOp=Load，池化层 RT 上一个主人的像素垫进新录制（图标洞区/换主处显形；WR_PASSDBG：39x39 层 view `colorOp=Load vr=true carry=true`）。修复：登记点挪到 `PresentTarget.present`（`markSurfaceContentForPresent`，唯一持有持久面合同处），层录制回到 Clear/Clear。同批：逐矩形 damage 剪刀（四条路径+base）、evict lastBlit 计 damage、GL pass 开始 ResetScissor、离屏 clip 栈隔离；DIAG stencil-never-Load 回退（与根因无关）。验收：悬停扫掠 P1-on vs P1-off surface **0px**（逐位一致），icon golden 0.0000%/scripted 4/4，spin/icon `reason=""`、OS partial 98%+；单测全绿（新增 `TestDamageRectsForGroup`/`TestMarkSurfaceContentForPresentGate`）。P1 默认开启，`GPUI_SURFACE_PERSISTENT=0` 退出。 |
 | 2026-11-18 | **P2 场景层树脏区裁剪落地（本卡主收益）**：phase 1 走树时预测本帧 damage union（`ui/scene/composite_damage.go` 共享 helper；镜像 pushCompositeCTM 的纯矩阵跟踪 compM——phase 1 dc 走 record CTM，旋转/缩放子树的 phase-2 quad 经 compM 四角精确预测）；裁剪门 = `render.Context.CompositeClipSafe()`（P1 持久面+validity，新增导出口）× union 覆盖 <0.85（与 PlanFramePresent 同口径）× 无 unbounded 效果（backdrop/投影/未知界滤镜 miss/未知层种类）；phase 2 整体 `ClipRect(union)` + 逐层跳过（Picture quad/Texture rect/ClipRect 矩形/滤镜有界输出；重录壳永不跳——欠 prev∪current 发射）；最终 damage 发射点一条未动，`WR_P2CHK` 自证超集。过程中修掉三个预测缺陷：①rotDepth==0 的 move 相等必须用与 blit() 同款设备吸附 quad（未吸附 quad 逐位不等 → 冻结帧每层误报移动，95 矩形全窗）；②旋转 move 的 q 是层局部坐标必须过 compM 再并 lb（坐标域混用丢前缘 1px）；③矢量回放的 Fill/Text 经 dc **自记 damage**（context_draw.go Fill → trackDamage），回放层（refused/record 失败/CacheKey==0/noCache）须整层 footprint 预测而非只镜像 1809 门。验收：icon 稳态冻结帧 blits **95→2**/culled=33（巡览滚动帧大 damage 自动回全量）；悬停扫掠+滚动证明 P2-on vs P2-off（`GPUI_COMPOSITE_CULL=0`）surface **逐位 0px**；golden 0.0000%/scripted 4/4；WR_P2CHK 零违例；spin_min 不回归；A/B 三跑中位 CPU −11.8%、raster p50 −37.6%。顺带发现两个存量问题（归属对应线）：`transformBounds` 在 scale≠1 时 damage 缩小 1/scale（现网均 scale=1 潜伏）；7 个 ui_render_base 场景窗 golden 存量红（P1 前后对照同值）。单测 `ui/scene/composite_damage_test.go` 纯 CPU 全绿。 |
+| 2026-11-18 | **P3 wgpu 持久合成面落地（默认后端吃到 P1/P2 收益）**：默认后端即 wgpu-native（GPUI_BACKEND 未设 → BackendNative），此前 P1/P2 裁剪门对它恒关（PersistentBackBuffer=false、Present 丢弃 damage、swapchain FIFO 轮转每帧新 view）→ 每帧全量合成。方案：render 层自有**合成面**（屏幕尺寸 BGRA8 离屏，usage=RenderAttachment\|CopySrc\|CopyDst\|TextureBinding）——合成进合成面（P1 carry 语义：稳定句柄 markViewRendered 自动入 persistentContentViews 供颜色跨帧 Load，叠加 per-frame MarkSurfaceContent 保证 stencil 每帧 Clear——稳定 view 只入 persistent 不加 carry 会加载跨帧 stencil 回到实心块老坑），present 回调里整屏四边形 blit 到当帧 swapchain view（无 damage 剪刀——swapchain 图起始内容未定义），随后 ForgetPersistentContent 丢当帧句柄（防 persistentContentViews 每帧泄漏）。frameScratch 复用评估（doc P3-1）：与 F1 advanced-pop 强制清语义耦合（F1 测试锁像素）判不适用 → 专用合成面（同 usage，F1 检测目标已是合成面则跳过重定向）；GL 路径零变化（触发条件 !persistent，GL 冻结帧逐位 0px 回归验证）。注入点只在 PresentTarget.present（不进共享 flush 核心——P1 误标层 view 同类坑）。wgpu 活面抓图：新增 `ReadCompositeSurfacePixels`（CopyDst+copy+map，镜像 session readback；GL 走原 FBO 路径）。验收：native 门激活（culled=33/blits=2）、悬停扫掠 P3-on vs P3-off 客户区逐位 0px（xwd 前缓冲）、golden 0.0000%/scripted 4/4（resize=true）、WR_P2CHK 零违例、性能三跑中位 CPU −4.2%/raster p50 −27.6%（§7.7 退出判据通过，默认开，`GPUI_COMPOSITE_SURFACE=0` 退出）、MEMDIG live=29MB 无泄漏；GL golden 0.0000%+悬停扫掠 0px 回归。 |

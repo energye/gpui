@@ -46,7 +46,18 @@ func (t *PresentTarget) PresentClear(r, g, b, a float64) error {
 // live-surface gates (GL FBO). Returns false when the backend has no readback.
 // Must run on the GL/raster thread.
 func (t *PresentTarget) ReadSurfacePixels() ([]byte, int, int, bool) {
-	if t == nil || t.surf == nil {
+	if t == nil {
+		return nil, 0, 0, false
+	}
+	// P6 P3: wgpu-native has no FBO readback — the live-surface capture reads
+	// the render-owned composite surface instead (same pixels the present
+	// blit pushes to the swapchain). GL keeps the FBO path.
+	if t.dc != nil && t.dc.compositeSurfaceEnabled() {
+		if data, w, h, ok := t.dc.readCompositeSurfacePixels(); ok {
+			return data, w, h, true
+		}
+	}
+	if t.surf == nil {
 		return nil, 0, 0, false
 	}
 	r, ok := t.surf.(interface {
@@ -352,8 +363,11 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 				return out, errors.New("render: PresentTarget closed during recovery")
 			}
 			// Device loss/recovery invalidates both the back-buffer pixels
-			// and our bookkeeping; the recovered frame must be full.
+			// and our bookkeeping; the recovered frame must be full. The P3
+			// composite surface dies with the device (recreated + validity
+			// cleared by the next ensure).
 			t.dc.setSurfaceContentValid(false)
+			t.dc.setCompositeSurfaceValid(false)
 			forceFull = true
 			frame, err = t.sc.BeginFrame()
 			if err != nil {
@@ -446,21 +460,57 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// hal frame carries the view as a word; rebuild the typed handle here
 	// (render boundary owns the gpucontext type, hal does not).
 	view := gpucontext.NewTextureView(frame.ViewHandle)
-	// P6 P1: this is the only site that may register a view as surface carry —
-	// PresentTarget owns the persistent-back-buffer contract (validity gate,
-	// force/resize/recovery clears). The mark must land BEFORE the flush so
-	// the composite loads color and damage-scissors. Layer/effect flushes
-	// (recordLocal → FlushGPUWithView) reach the shared flush core too, but
-	// their views are pooled RTs: marking them loaded a previous tenant's
-	// pixels under the new recording (hover re-record filled icon holes).
-	t.dc.markSurfaceContentForPresent(view)
+	// P6 P3: on non-persistent surfaces (wgpu-native) the composite targets a
+	// render-owned composite surface (P1 carry semantics, P2 damage clip) and
+	// the present blits it full-screen onto the acquired swapchain view — the
+	// swapchain image starts undefined, so the copy must cover every pixel.
+	// The redirect lives ONLY in this present path (never the shared flush
+	// core): layer/effect flushes must never touch the composite surface.
+	presentView := view
+	blitComposite := false
+	if t.dc.compositeSurfaceEnabled() {
+		if cv, recreated, cerr := t.dc.ensureCompositeSurface(int(frame.Width), int(frame.Height)); cerr == nil {
+			presentView = cv
+			blitComposite = true
+			if recreated {
+				// (Re)allocated: content undefined → next composite re-seeds full.
+				t.dc.setCompositeSurfaceValid(false)
+			}
+		}
+		// Recovery/device-loss paths clear surfaceContentValid; the composite
+		// surface dies with the device, so its validity clears too.
+	}
+	// P6 P1/P3: this is the only site that may register a view as surface
+	// carry — PresentTarget owns the persistent-back-buffer contract
+	// (validity gate, force/resize/recovery clears). The mark must land
+	// BEFORE the flush so the composite loads color and damage-scissors.
+	// Layer/effect flushes (recordLocal → FlushGPUWithView) reach the shared
+	// flush core too, but their views are pooled RTs: marking them loaded a
+	// previous tenant's pixels under the new recording (hover re-record
+	// filled icon holes).
+	t.dc.markSurfaceContentForPresent(presentView)
+	// blitCompositeThrough runs between the composite flush and the swapchain
+	// EndFrame: copy the composite surface onto the acquired swapchain view.
+	blitCompositeThrough := func(present func() error) func() error {
+		if !blitComposite {
+			return present
+		}
+		return func() error {
+			if err := t.dc.blitCompositeSurfaceTo(view, frame.Width, frame.Height); err != nil {
+				return fmt.Errorf("render: composite surface blit: %w", err)
+			}
+			return present()
+		}
+	}
 	if forceFull {
-		if err := t.dc.PresentFrameFull(view, frame.Width, frame.Height, func() error { return presentFn(nil) }); err != nil {
+		if err := t.dc.PresentFrameFull(presentView, frame.Width, frame.Height, blitCompositeThrough(func() error { return presentFn(nil) })); err != nil {
 			t.sc.DiscardFrame(frame)
 			t.dc.setSurfaceContentValid(false)
+			t.dc.setCompositeSurfaceValid(false)
 			return out, fmt.Errorf("render: PresentFrameFull: %w", err)
 		}
 		t.dc.setSurfaceContentValid(true)
+		t.dc.setCompositeSurfaceValid(blitComposite)
 		out = PresentOutcome{Mode: PresentModeFull, Rects: 1}
 		t.lastOutcome = out
 		t.lastCompositeFullReason = "force"
@@ -469,21 +519,23 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// B4/P2.4e: dispatch the precomputed plan — mode and rects come from the
 	// same decision. Full coverage presents without a damage rect list
 	// (EndFrame), matching the pre-convergence full path.
-	out, err = t.dc.PresentFramePlan(view, frame.Width, frame.Height, plan, func() error {
+	out, err = t.dc.PresentFramePlan(presentView, frame.Width, frame.Height, plan, blitCompositeThrough(func() error {
 		if plan.Mode == PresentModeFull {
 			return presentFn(nil)
 		}
 		return presentFn(plan.Rects)
-	})
+	}))
 	if err != nil {
 		t.sc.DiscardFrame(frame)
 		t.dc.setSurfaceContentValid(false)
+		t.dc.setCompositeSurfaceValid(false)
 		return out, fmt.Errorf("render: PresentFrameAuto: %w", err)
 	}
 	if !out.Idle {
 		// A successful damage or full present leaves a complete frame in the
 		// back buffer; the next steady frame may damage-scissor onto it.
 		t.dc.setSurfaceContentValid(true)
+		t.dc.setCompositeSurfaceValid(blitComposite)
 	}
 	if out.Idle {
 		// Idle drew nothing and PresentFrameAuto does not call the present
