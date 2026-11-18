@@ -23,12 +23,9 @@ import (
 )
 
 // transformedCorners 返回矩形 b 四角在 dc 当前 CTM 下的 surface-logical
-// 坐标（与 transformBounds 同口径：TransformPoint / deviceScale）。
+// 坐标（与 transformBounds 同口径：TransformPoint 已是逻辑坐标，c.matrix
+// 只含用户矩阵，设备缩放由 trackDamage 在写 damage 时乘上）。
 func transformedCorners(dc *render.Context, b image.Rectangle) []struct{ x, y float64 } {
-	scale := dc.DeviceScale()
-	if scale <= 0 {
-		scale = 1
-	}
 	pts := []struct{ x, y float64 }{
 		{float64(b.Min.X), float64(b.Min.Y)},
 		{float64(b.Max.X), float64(b.Min.Y)},
@@ -38,7 +35,7 @@ func transformedCorners(dc *render.Context, b image.Rectangle) []struct{ x, y fl
 	out := make([]struct{ x, y float64 }, 0, 4)
 	for _, p := range pts {
 		tx, ty := dc.TransformPoint(p.x, p.y)
-		out = append(out, struct{ x, y float64 }{tx / scale, ty / scale})
+		out = append(out, struct{ x, y float64 }{tx, ty})
 	}
 	return out
 }
@@ -104,4 +101,64 @@ func TestDamageBoundsCeilOnFarEdge(t *testing.T) {
 		t.Fatalf("test setup invalid: no fractional corner, cannot exercise ceil")
 	}
 	assertCoversAllCorners(t, got, corners)
+}
+
+// TestTransformBoundsDeviceScaleLogical：transformBounds 的输出必须是
+// surface-logical 坐标（TrackDamageRect / damage union 的域），设备缩放
+// 只在 trackDamage 落盘时乘。c.matrix 只装用户矩阵（SetDeviceScale 明确
+// 不碰它），所以 DeviceScale≠1 时再除一次 scale 会把 damage 缩成 1/scale
+// ——高 DPI 下欠报，持久合成面会留残影。
+func TestTransformBoundsDeviceScaleLogical(t *testing.T) {
+	for _, scale := range []float64{1.5, 2.0, 3.0} {
+		dc := render.NewContext(400, 300, render.WithDeviceScale(scale))
+		b := image.Rect(10, 20, 100, 80)
+
+		if got, want := transformBounds(dc, b), b; got != want {
+			t.Errorf("scale=%.1f identity CTM: transformBounds=%v, want logical %v", scale, got, want)
+		}
+
+		dc.Push()
+		dc.Translate(30, 40)
+		got := transformBounds(dc, b)
+		want := image.Rect(40, 60, 130, 120)
+		dc.Pop()
+		if got != want {
+			t.Errorf("scale=%.1f translate(30,40): transformBounds=%v, want logical %v", scale, got, want)
+		}
+		dc.Close()
+	}
+}
+
+// TestTransformBoundsToFrameDamagePhysical：端到端坐标链
+// transformBounds（逻辑）→ TrackDamageRect（×scale 落盘）→ FrameDamage
+// 必须是物理像素，正好是逻辑矩形的 scale 倍。高 DPI 下 final=逻辑尺寸
+// 就是欠报（持久面按它剪裁 = 少刷 1/scale 的区域）。
+func TestTransformBoundsToFrameDamagePhysical(t *testing.T) {
+	dc := render.NewContext(400, 300, render.WithDeviceScale(2.0))
+	defer dc.Close()
+	dc.BeginFrame()
+	b := image.Rect(10, 20, 100, 80)
+	dc.TrackDamageRect(transformBounds(dc, b))
+	rects := dc.FrameDamage()
+	if len(rects) != 1 {
+		t.Fatalf("FrameDamage=%v, want exactly one rect", rects)
+	}
+	if want := image.Rect(20, 40, 200, 160); rects[0] != want {
+		t.Fatalf("physical damage=%v, want %v (logical %v × scale 2)", rects[0], want, b)
+	}
+}
+
+// TestCompositeCullKeepsLogicalOverlapAtDeviceScale：cull 比较的两边
+// （图层 footprint 与 damage union）都是逻辑坐标。高 DPI 下 footprint 被
+// 误缩 1/scale 会与真实脏区错位，把该重画的子树整棵跳过 → 残影。
+func TestCompositeCullKeepsLogicalOverlapAtDeviceScale(t *testing.T) {
+	dc := render.NewContext(400, 300, render.WithDeviceScale(2.0))
+	defer dc.Close()
+	// 逻辑坐标：clip 覆盖 (0,0)-(80,40)，脏区 (60,20)-(100,60) 与之相交。
+	l := &ClipRectLayer{X: 0, Y: 0, W: 80, H: 40}
+	union := image.Rect(60, 20, 100, 60)
+	if compositeCullable(l, dc, union, nil, nil) {
+		t.Fatalf("layer footprint %v overlaps union %v but was culled at deviceScale=2",
+			image.Rect(0, 0, 80, 40), union)
+	}
 }

@@ -291,8 +291,9 @@ func paintTextureLayer(t *TextureLayer, dc *render.Context) (direct, drawn bool)
 }
 
 // textureLayerDamage maps a texture layer's quad into logical surface coords
-// under the current transform (TrackDamageRect takes logical, the CTM is
-// device). Ceil on the far edge so a fractional quad never damages short.
+// under the current transform (TrackDamageRect takes logical; the CTM holds
+// only user transforms, device scale is applied when damage is stored). Ceil
+// on the far edge so a fractional quad never damages short.
 func textureLayerDamage(dc *render.Context, t *TextureLayer) image.Rectangle {
 	if t == nil || t.W <= 0 || t.H <= 0 {
 		return image.Rectangle{}

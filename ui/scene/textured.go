@@ -2232,21 +2232,18 @@ func popCompositeCTM(dc *render.Context, restore func()) {
 }
 
 // transformBounds maps a layer-local rect through the current CTM into logical
-// surface coordinates (TrackDamageRect expects logical, the CTM is device).
+// surface coordinates (TrackDamageRect expects logical). c.matrix carries only
+// user transforms — SetDeviceScale keeps device scale out of it and applies it
+// at draw time — so TransformPoint already returns logical; dividing by
+// DeviceScale here would shrink damage to 1/scale at high DPI (under-damage).
 func transformBounds(dc *render.Context, b image.Rectangle) image.Rectangle {
 	if dc == nil || b.Empty() {
 		return b
-	}
-	scale := dc.DeviceScale()
-	if scale <= 0 {
-		scale = 1
 	}
 	var minX, minY, maxX, maxY float64
 	first := true
 	apply := func(x, y float64) {
 		x, y = dc.TransformPoint(x, y)
-		x /= scale
-		y /= scale
 		if first {
 			minX, maxX, minY, maxY = x, x, y, y
 			first = false
