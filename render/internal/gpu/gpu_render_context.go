@@ -3013,12 +3013,6 @@ func (rc *GPURenderContext) FlushOffscreen(target render.GPURenderTarget) error 
 	}
 	if rc.session != nil {
 		rc.session.SetOffscreenBlitTarget(true)
-		// Offscreen views hold cross-frame content: register them as
-		// persistent so BeginFrame keeps their rendered/color-content marks
-		// (O13 发现第一件：offscreen 损伤呈现被 fresh-view 保护误判).
-		if !target.View.IsNil() {
-			rc.session.MarkPersistentContent(extractTextureView(target.View))
-		}
 		defer rc.session.SetOffscreenBlitTarget(false)
 	}
 	prevOffscreen := rc.offscreenFlush
@@ -3483,7 +3477,15 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	if opt21DeferLayerSubmit && rc.session != nil && rc.sharedEncoder == nil {
 		rc.session.SetDeferSurfaceSubmit(true)
 	}
+	// Pin the presentation target for this flush: in an offscreen session only
+	// this view may persist across frames. Layer/effect RT self-flushes
+	// (rc.offscreenFlush) and nested passes must not (O13 第一件 regression:
+	// persisting them made layer passes LoadOpLoad and double-blend).
+	if !rc.offscreenFlush && rc.session.IsOffscreenSession() && !target.View.IsNil() {
+		rc.session.SetPresentTargetView(extractTextureView(target.View))
+	}
 	err := rc.session.RenderFrameGrouped(target, groups, baseLayer, rc.sharedEncoder)
+	rc.session.SetPresentTargetView(nil)
 	if opt21DeferLayerSubmit && rc.session != nil {
 		rc.session.SetDeferSurfaceSubmit(false)
 	}

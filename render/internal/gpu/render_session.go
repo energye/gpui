@@ -728,13 +728,26 @@ type GPURenderSession struct {
 	// stencil-then-cover and fills vector shapes to their bounding box.
 	surfaceCarryViews []hal.TextureView
 
-	// persistentContentViews tracks OFFSCREEN views whose content survives
-	// frame boundaries (offscreen textures are not swapchain-rotated; their
-	// pixels stay valid until explicitly destroyed). BeginFrame keeps these
-	// in renderedViews/colorContentViews so damage-scissor LoadOpLoad loads
-	// the real previous content instead of undefined fresh-view garbage
+	// persistentContentViews tracks OFFSCREEN **present targets** whose content
+	// survives frame boundaries (offscreen textures are not swapchain-rotated;
+	// their pixels stay valid until explicitly destroyed). BeginFrame keeps
+	// these in renderedViews/colorContentViews so damage-scissor LoadOpLoad
+	// loads the real previous content instead of undefined fresh-view garbage
 	// (O13 发现第一件：offscreen 损伤呈现被 fresh-view 保护误判为全量).
+	//
+	// ONLY the present target belongs here. Layer/effect RTs also live in
+	// offscreen views, but their passes are re-recorded every frame and MUST
+	// start from LoadOpClear — pre-marking them makes the pass LOAD the previous
+	// frame's layer pixels and blend the new draw on top (backdrop band
+	// darkening, the same class as P1's "surface carry leaked into layer
+	// views"). presentTargetView below pins the one view a frame may persist.
 	persistentContentViews []hal.TextureView
+
+	// presentTargetView is this flush's presentation target (set around the
+	// main RenderFrameGrouped call). markViewRendered persists a view only when
+	// it IS that target, so nested layer-RT passes inside the same flush can
+	// never leak into persistentContentViews.
+	presentTargetView hal.TextureView
 
 	// dbgFrame is a diagnostic frame counter used by WR_PASSDBG traces.
 	dbgFrame uint64
@@ -1435,14 +1448,32 @@ func (s *GPURenderSession) markViewRendered(view hal.TextureView) {
 		return
 	}
 	s.renderedViews = append(s.renderedViews, view)
-	// Offscreen sessions (no surface target) hold views whose content
-	// survives frame boundaries — register them as persistent so BeginFrame
-	// keeps their rendered/color marks (O13 发现第一件). Surface sessions
-	// must NOT: swapchain FIFO rotation makes "previous content" undefined
-	// (O13 发现第三件 stays structural).
-	if s.surfaceView == nil {
+	// Only the offscreen PRESENT target persists across frames (O13 发现第一
+	// 件). Layer/effect RTs are re-recorded every frame and must stay
+	// LoadOpClear; persisting them double-blends last frame's layer pixels
+	// (backdrop band darkening). Surface sessions must never persist:
+	// swapchain FIFO rotation makes "previous content" undefined (O13 发现
+	// 第三件 stays structural).
+	if s.surfaceView == nil && s.presentTargetView != nil && view == s.presentTargetView {
 		s.MarkPersistentContent(view)
 	}
+}
+
+// IsOffscreenSession reports whether this session presents to an offscreen
+// texture instead of a swapchain surface.
+func (s *GPURenderSession) IsOffscreenSession() bool {
+	return s != nil && s.surfaceView == nil
+}
+
+// SetPresentTargetView pins this flush's presentation target. Only that view
+// may enter persistentContentViews when markViewRendered runs — intermediate
+// layer/effect RT views use the same offscreen session and would otherwise be
+// marked too (O13 第一件's fix was too broad; see persistentContentViews).
+func (s *GPURenderSession) SetPresentTargetView(view hal.TextureView) {
+	if s == nil {
+		return
+	}
+	s.presentTargetView = view
 }
 
 // markPersistentContent registers an OFFSCREEN view whose content survives

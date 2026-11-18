@@ -90,3 +90,46 @@ func TestCompositeFullReasonSurfaceContent(t *testing.T) {
 		}
 	}
 }
+
+// TestPersistentContentOnlyPresentTarget pins the narrowed O13 第一件 contract:
+// an offscreen session persists ONLY the flush's present target. Layer/effect
+// RTs run in the same session (FlushOffscreen) but are re-recorded every frame;
+// persisting them makes their pass LoadOpLoad the previous frame's pixels and
+// blend the new draw on top (backdrop band darkening, a0ca7c83 regression).
+func TestPersistentContentOnlyPresentTarget(t *testing.T) {
+	s := &GPURenderSession{}
+	present := &surfaceContentView{}
+	layer := &surfaceContentView{}
+
+	s.SetPresentTargetView(present)
+	s.markViewRendered(present)
+	s.markViewRendered(layer)
+
+	if len(s.persistentContentViews) != 1 || s.persistentContentViews[0] != present {
+		t.Fatalf("persistentContentViews=%d, want only the present target", len(s.persistentContentViews))
+	}
+	if !s.viewRendered(layer) {
+		t.Fatal("layer view must still be rendered within this frame")
+	}
+	if s.hasColorContent(layer) {
+		t.Fatal("layer view must not inherit color-content from persistence")
+	}
+
+	// Nested passes after the pin is cleared (e.g. layer RT self-flushes on the
+	// same session) must never persist either.
+	s.SetPresentTargetView(nil)
+	other := &surfaceContentView{}
+	s.markViewRendered(other)
+	if len(s.persistentContentViews) != 1 {
+		t.Fatalf("unpinned view leaked into persistence: %d", len(s.persistentContentViews))
+	}
+
+	// Surface sessions never persist: swapchain FIFO rotation makes previous
+	// content undefined (O13 发现第三件 stays structural).
+	surf := &GPURenderSession{surfaceView: present}
+	surf.SetPresentTargetView(present)
+	surf.markViewRendered(present)
+	if len(surf.persistentContentViews) != 0 {
+		t.Fatal("surface session must never persist a view")
+	}
+}
