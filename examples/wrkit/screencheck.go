@@ -119,8 +119,14 @@ func GrabClientArea(title, outPath string) (int, int, error) {
 			dump := exec.Command("xwd", "-silent", "-id", winID, "-out", tmp)
 			dump.Env = append(os.Environ(), "LC_ALL=C")
 			if dump.Run() == nil {
+				// Force opaque RGB: xwd from a 32-bit (Vulkan/wgpu) window carries
+				// alpha=0 in every pixel, and ffmpeg copies it into the PNG. The
+				// gate compares via color.Color.RGBA(), which premultiplies by
+				// alpha — alpha=0 turns every pixel black and the screen check
+				// reports 100% diff on a visually identical grab (GL writes a
+				// 24-bit visual, so only the wgpu backend tripped this).
 				conv := exec.Command("ffmpeg", "-y", "-loglevel", "error",
-					"-i", tmp, "-frames:v", "1", outPath)
+					"-i", tmp, "-vf", "format=rgb24", "-frames:v", "1", outPath)
 				if out, convErr := conv.CombinedOutput(); convErr == nil {
 					return w, h, nil
 				} else {
@@ -135,6 +141,7 @@ func GrabClientArea(title, outPath string) (int, int, error) {
 		"-f", "x11grab", "-draw_mouse", "0",
 		"-video_size", fmt.Sprintf("%dx%d", w, h),
 		"-i", fmt.Sprintf("%s+%d,%d", disp, x, y),
+		"-vf", "format=rgb24",
 		"-frames:v", "1", outPath)
 	if out, grabErr := grab.CombinedOutput(); grabErr != nil {
 		return 0, 0, fmt.Errorf("ffmpeg x11grab: %w: %s", grabErr, strings.TrimSpace(string(out)))

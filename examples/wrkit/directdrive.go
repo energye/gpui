@@ -220,6 +220,16 @@ func (a *DirectApp) OSPresentStats() (partial, full uint64) {
 // Returns (w, h, err); wrkit.ScreenUnsupported(err) marks environments without
 // an X11 window to grab (native Wayland) — the evidence honestly skips.
 func (a *DirectApp) GrabLiveWindow(outPath string) (int, int, error) {
+	// Present* returns once the GPU submit is queued, but the X window shows the
+	// new swapchain image only after the display consumes it (wgpu-native is
+	// async; the GL hub is synchronous). Grabbing immediately read the PREVIOUS
+	// image — canvascontract lost the final present's card text (screen diff
+	// 11.07%, while a debug print's extra time made the same grab 0.31%). Drain
+	// the queue, then let one 60Hz frame land before reading the live window.
+	if a != nil && a.Target != nil {
+		_ = a.Target.WaitIdle()
+	}
+	time.Sleep(34 * time.Millisecond)
 	return GrabClientArea(a.Title, outPath)
 }
 
@@ -335,11 +345,11 @@ func DirectGoldenRects() []GoldenRect {
 }
 
 var (
-	DColBG     = [3]float64{0.08, 0.09, 0.11}
-	DColTop    = [3]float64{0.13, 0.15, 0.19}
-	DColLegend = [3]float64{0.11, 0.12, 0.15}
-	DColCardBG = [3]float64{0.10, 0.11, 0.13}
-	DColBorder = [3]float64{0.32, 0.36, 0.44}
+	DColBG      = [3]float64{0.08, 0.09, 0.11}
+	DColTop     = [3]float64{0.13, 0.15, 0.19}
+	DColLegend  = [3]float64{0.11, 0.12, 0.15}
+	DColCardBG  = [3]float64{0.10, 0.11, 0.13}
+	DColBorder  = [3]float64{0.32, 0.36, 0.44}
 	DColTextDim = [3]float64{0.62, 0.66, 0.74}
 	DColTextHi  = [3]float64{0.88, 0.90, 0.94}
 )
